@@ -2,11 +2,12 @@ services:
   # Frontend Next.js
   frontend:
     build:
-      context: ./gastos-frontend
+      context: ./GastosApp.Web
       dockerfile: Dockerfile
       args:
         - API_URL=${API_URL}
-    container_name: gastos-frontend
+        - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
+    container_name: gastosapp-web
     ports:
       - "3000:3000"
     environment:
