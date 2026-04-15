@@ -1,0 +1,73 @@
+services:
+  # Frontend Next.js
+  frontend:
+    build:
+      context: ./gastos-frontend
+      dockerfile: Dockerfile
+      args:
+        - API_URL=${API_URL}
+    container_name: gastos-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - NEXTAUTH_URL=${NEXTAUTH_URL}
+      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
+      - API_URL=${API_URL}
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
+    depends_on:
+      - api
+    networks:
+      - gastos-network
+    restart: "no"
+
+  # API .NET
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    container_name: gastos-api
+    ports:
+      - "5000:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ASPNETCORE_URLS=http://+:8080
+      - ConnectionStrings__DefaultConnection=Host=postgres;Port=5432;Database=gastos_db;Username=admin;Password=${DB_PASSWORD}
+      - Jwt__Key=${JWT_KEY}
+      - Jwt__Issuer=GastosApp
+      - Jwt__Audience=GastosAppUsers
+      - Auth__Username=${AUTH_USERNAME}
+      - Auth__Password=${AUTH_PASSWORD}
+      - Encryption__Key=${ENCRYPTION_KEY}
+      - Encryption__IV=${ENCRYPTION_IV}
+      - Cors__AllowedOrigins=${CORS_ALLOWED_ORIGINS}
+    depends_on:
+      - postgres
+    networks:
+      - gastos-network
+    restart: "no"
+
+  # Database PostgreSQL
+  postgres:
+    image: postgres:16-alpine
+    container_name: gastos-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: gastos_db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./SQL/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
+    networks:
+      - gastos-network
+    restart: "no"
+
+volumes:
+  postgres_data:
+    driver: local
+
+networks:
+  gastos-network:
+    driver: bridge

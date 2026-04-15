@@ -1,0 +1,71 @@
+{
+  "_comment": "===========================================",
+  "_comment2": "EJEMPLOS DE REQUESTS PARA TRANSACTIONS API",
+  "_comment3": "===========================================",
+  
+  "create_income": {
+    "_description": "POST /api/transactions/income - Crear un ingreso",
+    "request": {
+      "accountId": 1,
+      "categoryId": 1,
+      "amount": 1500.00,
+      "description": "Salario mensual",
+      "transactionDate": "2025-02-14T10:00:00Z"
+    }
+  },
+
+  "create_expense": {
+    "_description": "POST /api/transactions/expense - Crear un gasto",
+    "request": {
+      "accountId": 1,
+      "categoryId": 2,
+      "amount": 50.00,
+      "description": "Compra supermercado",
+      "transactionDate": "2025-02-14T15:30:00Z"
+    }
+  },
+
+  "create_transfer": {
+    "_description": "POST /api/transactions/transfer - Crear transferencia entre cuentas",
+    "request": {
+      "sourceAccountId": 1,
+      "destinationAccountId": 2,
+      "amount": 500.00,
+      "description": "Transferencia ahorro",
+      "transactionDate": "2025-02-14T16:00:00Z",
+      "categoryId": null
+    }
+  },
+
+  "update_transaction": {
+    "_description": "PUT /api/transactions/{id} - Actualizar transacción",
+    "request": {
+      "categoryId": 3,
+      "amount": 75.00,
+      "description": "Descripción actualizada",
+      "transactionDate": "2025-02-14T12:00:00Z"
+    }
+  },
+
+  "endpoints": {
+    "_description": "Lista de endpoints disponibles",
+    "GET /api/transactions/account/{accountId}": "Obtener todas las transacciones de una cuenta",
+    "GET /api/transactions/account/{accountId}/date-range?startDate=2025-01-01&endDate=2025-02-14": "Obtener transacciones por rango de fechas",
+    "GET /api/transactions/category/{categoryId}": "Obtener transacciones por categoría",
+    "GET /api/transactions/{id}": "Obtener transacción por ID",
+    "POST /api/transactions/income": "Crear ingreso",
+    "POST /api/transactions/expense": "Crear gasto",
+    "POST /api/transactions/transfer": "Crear transferencia entre cuentas",
+    "PUT /api/transactions/{id}": "Actualizar transacción",
+    "DELETE /api/transactions/{id}": "Eliminar transacción",
+    "DELETE /api/transactions/transfer/{transferGroupId}": "Eliminar transferencia (por GUID)",
+    "POST /api/transactions/account/{accountId}/recalculate-balance": "Recalcular saldo de cuenta"
+  },
+
+  "notas": {
+    "1": "Todas las fechas deben estar en formato ISO 8601 con Z al final (UTC)",
+    "2": "Para transferencias, el sistema crea automáticamente 2 transacciones vinculadas por transferGroupId",
+    "3": "Al eliminar una transacción, el saldo de la cuenta se actualiza automáticamente",
+    "4": "Para eliminar una transferencia completa, usar el endpoint DELETE con el transferGroupId"
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "name": "gastosapp-dev-tools",
+  "private": true,
+  "scripts": {
+    "dev:web": "npm --prefix GastosApp.Web run dev",
+    "dev:api": "dotnet run --project GastosApp.API/GastosApp.API.csproj",
+    "dev": "concurrently -k -n WEB,API -c cyan,green \"npm run dev:web\" \"npm run dev:api\"",
+    "dev:all": "npm run dev"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}
