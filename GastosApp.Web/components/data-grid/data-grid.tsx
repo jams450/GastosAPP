@@ -30,6 +30,7 @@ type DataGridProps<TData> = {
   pagination?: PaginationState;
   onPaginationChange?: (pagination: PaginationState) => void;
   rowCount?: number;
+  initialSorting?: SortingState;
 };
 
 export function DataGrid<TData>({
@@ -45,12 +46,13 @@ export function DataGrid<TData>({
   manualPagination,
   pagination,
   onPaginationChange,
-  rowCount
+  rowCount,
+  initialSorting
 }: DataGridProps<TData>) {
   const resolvedManualSorting = manualSorting ?? mode === "server";
   const resolvedManualPagination = manualPagination ?? mode === "server";
 
-  const [internalSorting, setInternalSorting] = useState<SortingState>([]);
+  const [internalSorting, setInternalSorting] = useState<SortingState>(initialSorting ?? []);
   const [internalPagination, setInternalPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 10 });
 
   const effectiveSorting = sorting ?? internalSorting;
