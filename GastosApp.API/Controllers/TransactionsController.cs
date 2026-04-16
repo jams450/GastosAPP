@@ -392,6 +392,9 @@ namespace GastosApp.API.Controllers
                 Type = transaction.Type,
                 TransferGroupId = transaction.TransferGroupId,
                 Amount = transaction.Amount,
+                BalanceImpact = transaction.BalanceImpact,
+                Direction = transaction.Direction,
+                CounterpartyAccountId = transaction.CounterpartyAccountId,
                 Description = transaction.Description,
                 TransactionDate = transaction.TransactionDate,
                 Tags = tags

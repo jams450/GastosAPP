@@ -24,7 +24,8 @@ public class AccountCreateRequest
 
     public bool EarnsInterest { get; set; } = false;
 
-    public decimal? CurrentBalance { get; set; }
+    [Required]
+    public decimal InitialBalance { get; set; }
 
     public decimal? CreditLimit { get; set; }
 

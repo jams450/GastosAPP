@@ -10,6 +10,9 @@ public class TransactionResponse
     public string Type { get; set; } = string.Empty;
     public Guid? TransferGroupId { get; set; }
     public decimal Amount { get; set; }
+    public decimal BalanceImpact { get; set; }
+    public string? Direction { get; set; }
+    public int? CounterpartyAccountId { get; set; }
     public string? Description { get; set; }
     public DateTime TransactionDate { get; set; }
     public IEnumerable<string> Tags { get; set; } = Array.Empty<string>();

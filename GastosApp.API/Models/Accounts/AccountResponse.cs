@@ -11,6 +11,7 @@ public class AccountResponse
     public bool IsCredit { get; set; }
     public int? DueDay { get; set; }
     public int? PaymentDueDay { get; set; }
+    public decimal InitialBalance { get; set; }
     public decimal CurrentBalance { get; set; }
     public bool EarnsInterest { get; set; }
     public decimal AnnualInterestRate { get; set; }

@@ -187,7 +187,7 @@ namespace GastosApp.BusinessLogic.Services
         {
             var maxDay = DateTime.DaysInMonth(year, month);
             var safeDay = Math.Clamp(day, 1, maxDay);
-            return new DateTime(year, month, safeDay);
+            return new DateTime(year, month, safeDay, 0, 0, 0, DateTimeKind.Utc);
         }
     }
 }

@@ -80,7 +80,7 @@ export function AccountsOverview() {
     };
   }, [month]);
 
-  const accounts = data?.accounts ?? [];
+  const accounts = useMemo(() => data?.accounts ?? [], [data]);
   const timezone = data?.timezone ?? TIMEZONE;
   const summary = useMemo(
     () =>
@@ -91,6 +91,13 @@ export function AccountsOverview() {
         monthExpenses: 0
       },
     [data]
+  );
+  const totalDebt = useMemo(
+    () =>
+      accounts
+        .filter((account) => account.isCredit)
+        .reduce((acc, account) => acc + ((account.creditLimit ?? 0) - account.currentBalance), 0),
+    [accounts]
   );
 
   if (loading) {
@@ -117,13 +124,9 @@ export function AccountsOverview() {
   return (
     <div className="grid gap-6">
       <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        <MetricCard title="Gastos del mes" amount={summary.monthExpenses} />
         <MetricCard title="Total efectivo" amount={summary.cashTotal} />
-        <MetricCard title="Crédito usado" amount={summary.creditUsed} />
-      </section>
-
-      <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        <MetricCard title="Pendiente (informativo)" amount={summary.pendingInformative} />
+        <MetricCard title="Total crédito" amount={summary.creditUsed} />
+        <MetricCard title="Gastos totales" amount={totalDebt * -1} />
       </section>
 
       <Card className="p-5">

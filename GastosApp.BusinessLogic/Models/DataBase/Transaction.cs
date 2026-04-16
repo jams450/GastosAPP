@@ -36,6 +36,17 @@ namespace GastosApp.BusinessLogic.Models.DataBase
         [Required]
         public decimal Amount { get; set; }
 
+        [Column("balance_impact", TypeName = "decimal(15,2)")]
+        [Required]
+        public decimal BalanceImpact { get; set; }
+
+        [Column("direction")]
+        [StringLength(10)]
+        public string? Direction { get; set; }
+
+        [Column("counterparty_account_id")]
+        public int? CounterpartyAccountId { get; set; }
+
         [Column("description")]
         public string? Description { get; set; }
 

@@ -116,7 +116,8 @@ namespace GastosApp.API.Controllers
                     PaymentDueDay = request.PaymentDueDay,
                     EarnsInterest = request.EarnsInterest,
                     AnnualInterestRate = request.AnnualInterestRate,
-                    CurrentBalance = request.CurrentBalance ?? 0,
+                    InitialBalance = request.InitialBalance,
+                    CurrentBalance = request.InitialBalance,
                     CreditLimit = request.CreditLimit
                 };
 
@@ -163,6 +164,7 @@ namespace GastosApp.API.Controllers
                 if (request.DueDay.HasValue) existingAccount.DueDay = request.DueDay.Value;
                 if (request.PaymentDueDay.HasValue) existingAccount.PaymentDueDay = request.PaymentDueDay.Value;
                 if (request.EarnsInterest.HasValue) existingAccount.EarnsInterest = request.EarnsInterest.Value;
+                if (request.InitialBalance.HasValue) existingAccount.InitialBalance = request.InitialBalance.Value;
                 if (request.AnnualInterestRate.HasValue) existingAccount.AnnualInterestRate = request.AnnualInterestRate.Value;
                 if (request.CurrentBalance.HasValue) existingAccount.CurrentBalance = request.CurrentBalance.Value;
                 if (request.CreditLimit.HasValue) existingAccount.CreditLimit = request.CreditLimit.Value;

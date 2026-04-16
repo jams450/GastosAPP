@@ -19,8 +19,8 @@ namespace GastosApp.BusinessLogic.Services
         public async Task<DashboardCreditOverview> GetCreditOverviewAsync(int userId, string? month, string timezoneId = "America/Mexico_City")
         {
             var (year, monthNumber) = ResolveMonth(month, timezoneId);
-            var monthStart = new DateTime(year, monthNumber, 1);
-            var monthEnd = monthStart.AddMonths(1).AddDays(-1);
+            var monthStart = new DateTime(year, monthNumber, 1, 0, 0, 0, DateTimeKind.Utc);
+            var monthEnd = new DateTime(year, monthNumber, DateTime.DaysInMonth(year, monthNumber), 23, 59, 59, DateTimeKind.Utc);
 
             var accounts = await _repository.Get<Account>(a => a.UserId == userId)
                 .OrderBy(a => a.Name)
@@ -116,7 +116,7 @@ namespace GastosApp.BusinessLogic.Services
         {
             var maxDay = DateTime.DaysInMonth(year, month);
             var safeDay = Math.Clamp(day, 1, maxDay);
-            return new DateTime(year, month, safeDay);
+            return new DateTime(year, month, safeDay, 0, 0, 0, DateTimeKind.Utc);
         }
 
         private static TimeZoneInfo ResolveTimeZone(string timezoneId)

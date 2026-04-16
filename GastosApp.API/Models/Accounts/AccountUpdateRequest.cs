@@ -24,6 +24,7 @@ public class AccountUpdateRequest
 
     public bool? EarnsInterest { get; set; }
 
+    public decimal? InitialBalance { get; set; }
     public decimal? CurrentBalance { get; set; }
     public decimal? CreditLimit { get; set; }
 

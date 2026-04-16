@@ -59,6 +59,9 @@ namespace GastosApp.BusinessLogic.Services
         public async Task<Transaction> CreateIncomeAsync(Transaction transaction)
         {
             transaction.Type = "income";
+            transaction.BalanceImpact = transaction.Amount;
+            transaction.Direction = "credit";
+            transaction.CounterpartyAccountId = null;
             transaction.Created = DateTime.UtcNow;
             
             var result = await _repository.Save<Transaction>(transaction);
@@ -72,6 +75,9 @@ namespace GastosApp.BusinessLogic.Services
         public async Task<Transaction> CreateExpenseAsync(Transaction transaction)
         {
             transaction.Type = "expense";
+            transaction.BalanceImpact = transaction.Amount * -1;
+            transaction.Direction = "debit";
+            transaction.CounterpartyAccountId = null;
             transaction.Created = DateTime.UtcNow;
             
             var result = await _repository.Save<Transaction>(transaction);
@@ -123,6 +129,9 @@ namespace GastosApp.BusinessLogic.Services
                 Type = "transfer",
                 TransferGroupId = transferGroupId,
                 Amount = amount,
+                BalanceImpact = amount * -1,
+                Direction = "debit",
+                CounterpartyAccountId = destinationAccountId,
                 Description = description ?? $"Transferencia a {destinationAccount.Name}",
                 TransactionDate = DateTime.SpecifyKind(date, DateTimeKind.Utc),
                 Created = DateTime.UtcNow
@@ -138,6 +147,9 @@ namespace GastosApp.BusinessLogic.Services
                 Type = "transfer",
                 TransferGroupId = transferGroupId,
                 Amount = amount,
+                BalanceImpact = amount,
+                Direction = "credit",
+                CounterpartyAccountId = sourceAccountId,
                 Description = description ?? $"Transferencia desde {sourceAccount.Name}",
                 TransactionDate = DateTime.SpecifyKind(date, DateTimeKind.Utc),
                 Created = DateTime.UtcNow
@@ -246,18 +258,27 @@ namespace GastosApp.BusinessLogic.Services
             var existing = await _repository.GetByIdAsync<Transaction>(id);
             if (existing == null) return null;
 
-            // Calcular diferencia para ajustar saldo
-            var amountDifference = transaction.Amount - existing.Amount;
+            var previousImpact = existing.BalanceImpact;
+            if (previousImpact == 0)
+            {
+                previousImpact = await InferLegacyBalanceImpactAsync(existing);
+            }
+
+            transaction.BalanceImpact = ResolveUpdatedBalanceImpact(transaction, previousImpact);
+            transaction.Direction = ResolveDirection(transaction.BalanceImpact);
+            if (transaction.Type != "transfer")
+            {
+                transaction.CounterpartyAccountId = null;
+            }
             
             transaction.TransactionId = id;
             transaction.Updated = DateTime.UtcNow;
             
             var result = await _repository.SaveUpdate<Transaction>(id, transaction);
             
-            // Si cambió el monto, ajustar saldo
-            if (amountDifference != 0)
+            var adjustment = transaction.BalanceImpact - previousImpact;
+            if (adjustment != 0)
             {
-                var adjustment = existing.Type == "expense" ? -amountDifference : amountDifference;
                 await _accountService.UpdateBalanceAsync(existing.AccountId, adjustment);
             }
             
@@ -270,7 +291,13 @@ namespace GastosApp.BusinessLogic.Services
             if (transaction == null) return false;
 
             // Revertir el efecto en el saldo antes de eliminar
-            var balanceAdjustment = transaction.Type == "income" ? -transaction.Amount : transaction.Amount;
+            var balanceImpact = transaction.BalanceImpact;
+            if (balanceImpact == 0)
+            {
+                balanceImpact = await InferLegacyBalanceImpactAsync(transaction);
+            }
+
+            var balanceAdjustment = balanceImpact * -1;
             await _accountService.UpdateBalanceAsync(transaction.AccountId, balanceAdjustment);
 
             var result = await _repository.DeleteModel<Transaction>(id);
@@ -287,9 +314,13 @@ namespace GastosApp.BusinessLogic.Services
             // Revertir saldos
             foreach (var transaction in transactions)
             {
-                var balanceAdjustment = transaction.AccountId == transactions[0].AccountId 
-                    ? transaction.Amount  // Devolver a cuenta origen
-                    : -transaction.Amount; // Quitar de cuenta destino
+                var balanceImpact = transaction.BalanceImpact;
+                if (balanceImpact == 0)
+                {
+                    balanceImpact = await InferLegacyBalanceImpactAsync(transaction);
+                }
+
+                var balanceAdjustment = balanceImpact * -1;
                 
                 await _accountService.UpdateBalanceAsync(transaction.AccountId, balanceAdjustment);
             }
@@ -382,41 +413,55 @@ namespace GastosApp.BusinessLogic.Services
         public async Task<decimal> CalculateAccountBalanceAsync(int accountId)
         {
             var transactions = await _repository.Get<Transaction>(t => t.AccountId == accountId).ToListAsync();
-            
-            decimal balance = 0;
-            foreach (var transaction in transactions)
-            {
-                switch (transaction.Type.ToLower())
-                {
-                    case "income":
-                        balance += transaction.Amount;
-                        break;
-                    case "expense":
-                        balance -= transaction.Amount;
-                        break;
-                    case "transfer":
-                        // Para transferencias, verificar si es salida o entrada comparando con otra transacción del grupo
-                        if (transaction.TransferGroupId.HasValue)
-                        {
-                            var pair = await _repository.Get<Transaction>(t => 
-                                t.TransferGroupId == transaction.TransferGroupId && 
-                                t.TransactionId != transaction.TransactionId).FirstOrDefaultAsync();
-                            
-                            // Si existe par y el par tiene AccountId diferente, es entrada
-                            if (pair != null && pair.AccountId != transaction.AccountId)
-                            {
-                                balance += transaction.Amount;
-                            }
-                            else
-                            {
-                                balance -= transaction.Amount;
-                            }
-                        }
-                        break;
-                }
-            }
+            return transactions.Sum(t => t.BalanceImpact);
+        }
 
-            return balance;
+        private static decimal ResolveUpdatedBalanceImpact(Transaction transaction, decimal previousImpact)
+        {
+            return transaction.Type.ToLower() switch
+            {
+                "income" => transaction.Amount,
+                "expense" => transaction.Amount * -1,
+                "transfer" => previousImpact < 0 ? transaction.Amount * -1 : transaction.Amount,
+                _ => previousImpact
+            };
+        }
+
+        private static string ResolveDirection(decimal balanceImpact)
+        {
+            return balanceImpact < 0 ? "debit" : "credit";
+        }
+
+        private async Task<decimal> InferLegacyBalanceImpactAsync(Transaction transaction)
+        {
+            switch (transaction.Type.ToLower())
+            {
+                case "income":
+                    return transaction.Amount;
+                case "expense":
+                    return transaction.Amount * -1;
+                case "transfer":
+                    if (!transaction.TransferGroupId.HasValue)
+                    {
+                        return transaction.Amount;
+                    }
+
+                    var ordered = await _repository.Get<Transaction>(t => t.TransferGroupId == transaction.TransferGroupId)
+                        .OrderBy(t => t.TransactionId)
+                        .Select(t => t.TransactionId)
+                        .ToListAsync();
+
+                    if (ordered.Count < 2)
+                    {
+                        return transaction.Amount;
+                    }
+
+                    return transaction.TransactionId == ordered[0]
+                        ? transaction.Amount * -1
+                        : transaction.Amount;
+                default:
+                    return transaction.Amount;
+            }
         }
     }
 }
