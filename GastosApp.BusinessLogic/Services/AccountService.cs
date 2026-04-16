@@ -109,6 +109,16 @@ namespace GastosApp.BusinessLogic.Services
 
         public Task<(bool IsValid, string? ErrorMessage)> ValidateAccountAsync(Account account)
         {
+            if (account.DueDay.HasValue && (account.DueDay.Value < 1 || account.DueDay.Value > 31))
+            {
+                return Task.FromResult<(bool, string?)>((false, "DueDay must be between 1 and 31"));
+            }
+
+            if (account.PaymentDueDay.HasValue && (account.PaymentDueDay.Value < 1 || account.PaymentDueDay.Value > 31))
+            {
+                return Task.FromResult<(bool, string?)>((false, "PaymentDueDay must be between 1 and 31"));
+            }
+
             if (account.IsCredit && !account.DueDay.HasValue)
             {
                 return Task.FromResult<(bool, string?)>((false, "DueDay is required when IsCredit is true"));
@@ -147,16 +157,18 @@ namespace GastosApp.BusinessLogic.Services
             if (referenceDate.Day >= dueDay)
             {
                 // El corte es este mes
-                periodEnd = new DateTime(referenceDate.Year, referenceDate.Month, dueDay);
+                periodEnd = CreateSafeDate(referenceDate.Year, referenceDate.Month, dueDay);
                 // El inicio es el día después del corte del mes pasado
-                periodStart = periodEnd.AddMonths(-1).AddDays(1);
+                var previousCutoff = CreateSafeDate(periodEnd.AddMonths(-1).Year, periodEnd.AddMonths(-1).Month, dueDay);
+                periodStart = previousCutoff.AddDays(1);
             }
             else
             {
                 // El corte fue el mes pasado
-                periodEnd = new DateTime(referenceDate.Year, referenceDate.Month, dueDay).AddMonths(-1);
+                periodEnd = CreateSafeDate(referenceDate.Year, referenceDate.Month, dueDay).AddMonths(-1);
                 // El inicio es el día después del corte de hace 2 meses
-                periodStart = periodEnd.AddMonths(-1).AddDays(1);
+                var previousCutoff = CreateSafeDate(periodEnd.AddMonths(-1).Year, periodEnd.AddMonths(-1).Month, dueDay);
+                periodStart = previousCutoff.AddDays(1);
             }
 
             // Obtener todas las transacciones de gasto del período
@@ -169,6 +181,13 @@ namespace GastosApp.BusinessLogic.Services
             decimal totalExpenses = transactions.Sum(t => t.Amount);
 
             return (totalExpenses, periodStart, periodEnd);
+        }
+
+        private static DateTime CreateSafeDate(int year, int month, int day)
+        {
+            var maxDay = DateTime.DaysInMonth(year, month);
+            var safeDay = Math.Clamp(day, 1, maxDay);
+            return new DateTime(year, month, safeDay);
         }
     }
 }

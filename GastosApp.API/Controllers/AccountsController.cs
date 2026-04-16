@@ -113,6 +113,7 @@ namespace GastosApp.API.Controllers
                     StartDate = DateTime.SpecifyKind(request.StartDate, DateTimeKind.Utc),
                     IsCredit = request.IsCredit,
                     DueDay = request.DueDay,
+                    PaymentDueDay = request.PaymentDueDay,
                     EarnsInterest = request.EarnsInterest,
                     AnnualInterestRate = request.AnnualInterestRate,
                     CurrentBalance = request.CurrentBalance ?? 0,
@@ -160,6 +161,7 @@ namespace GastosApp.API.Controllers
                 if (request.StartDate.HasValue) existingAccount.StartDate = DateTime.SpecifyKind(request.StartDate.Value, DateTimeKind.Utc);
                 if (request.IsCredit.HasValue) existingAccount.IsCredit = request.IsCredit.Value;
                 if (request.DueDay.HasValue) existingAccount.DueDay = request.DueDay.Value;
+                if (request.PaymentDueDay.HasValue) existingAccount.PaymentDueDay = request.PaymentDueDay.Value;
                 if (request.EarnsInterest.HasValue) existingAccount.EarnsInterest = request.EarnsInterest.Value;
                 if (request.AnnualInterestRate.HasValue) existingAccount.AnnualInterestRate = request.AnnualInterestRate.Value;
                 if (request.CurrentBalance.HasValue) existingAccount.CurrentBalance = request.CurrentBalance.Value;

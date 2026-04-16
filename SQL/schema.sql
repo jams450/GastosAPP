@@ -22,6 +22,7 @@ CREATE TABLE accounts (
     start_date DATE NOT NULL,
     is_credit BOOLEAN DEFAULT FALSE,
     due_day INT,
+    payment_due_day INT,
     current_balance DECIMAL(10, 2) DEFAULT 0.00,
     earns_interest BOOLEAN DEFAULT FALSE,
     annual_interest_rate DECIMAL(5, 2) DEFAULT 0.00,

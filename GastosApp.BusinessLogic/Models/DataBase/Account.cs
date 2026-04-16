@@ -37,6 +37,9 @@ namespace GastosApp.BusinessLogic.Models.DataBase
         [Column("due_day")]
         public int? DueDay { get; set; }
 
+        [Column("payment_due_day")]
+        public int? PaymentDueDay { get; set; }
+
         [Column("current_balance", TypeName = "decimal(10,2)")]
         public decimal CurrentBalance { get; set; } = 0.00m;
 

@@ -16,7 +16,11 @@ public class AccountCreateRequest
 
     public bool IsCredit { get; set; } = false;
 
+    [Range(1, 31)]
     public int? DueDay { get; set; }
+
+    [Range(1, 31)]
+    public int? PaymentDueDay { get; set; }
 
     public bool EarnsInterest { get; set; } = false;
 
@@ -29,6 +33,20 @@ public class AccountCreateRequest
 
     public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
     {
+        if (DueDay.HasValue && (DueDay.Value < 1 || DueDay.Value > 31))
+        {
+            yield return new ValidationResult(
+                "DueDay must be between 1 and 31",
+                new[] { nameof(DueDay) });
+        }
+
+        if (PaymentDueDay.HasValue && (PaymentDueDay.Value < 1 || PaymentDueDay.Value > 31))
+        {
+            yield return new ValidationResult(
+                "PaymentDueDay must be between 1 and 31",
+                new[] { nameof(PaymentDueDay) });
+        }
+
         if (IsCredit && !DueDay.HasValue)
         {
             yield return new ValidationResult(

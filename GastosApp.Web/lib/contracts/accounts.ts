@@ -2,6 +2,8 @@ export type Account = {
   accountId: number;
   name: string;
   isCredit: boolean;
+  dueDay: number | null;
+  paymentDueDay: number | null;
   currentBalance: number;
   active: boolean;
   creditLimit: number | null;
@@ -40,6 +42,8 @@ export function normalizeAccount(input: unknown): Account | null {
     accountId,
     name: typeof input.name === "string" && input.name.trim().length > 0 ? input.name.trim() : "Sin nombre",
     isCredit: Boolean(input.isCredit),
+    dueDay: toOptionalFiniteNumber(input.dueDay),
+    paymentDueDay: toOptionalFiniteNumber(input.paymentDueDay),
     currentBalance: toFiniteNumber(input.currentBalance) ?? 0,
     active: Boolean(input.active),
     creditLimit: toOptionalFiniteNumber(input.creditLimit)
