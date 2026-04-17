@@ -28,18 +28,54 @@ namespace GastosApp.BusinessLogic.Services
 
             var accountIds = accounts.Select(a => a.AccountId).ToList();
 
-            var monthExpenses = accountIds.Count == 0
-                ? 0m
+            var transactions = accountIds.Count == 0
+                ? new List<Transaction>()
                 : await _repository.Get<Transaction>(t =>
-                    accountIds.Contains(t.AccountId) &&
-                    t.Type == "expense" &&
-                    t.TransactionDate >= monthStart &&
-                    t.TransactionDate <= monthEnd)
-                .SumAsync(t => (decimal?)t.Amount) ?? 0m;
+                        accountIds.Contains(t.AccountId) &&
+                        t.TransactionDate <= monthEnd)
+                    .OrderBy(t => t.TransactionDate)
+                    .ThenBy(t => t.TransactionId)
+                    .ToListAsync();
+
+            var transactionIdsByTransferGroup = transactions
+                .Where(t => t.Type == "transfer" && t.TransferGroupId.HasValue)
+                .GroupBy(t => t.TransferGroupId!.Value)
+                .ToDictionary(
+                    g => g.Key,
+                    g => g.Select(x => x.TransactionId).OrderBy(id => id).ToArray());
+
+            var accountTransactions = transactions
+                .GroupBy(t => t.AccountId)
+                .ToDictionary(g => g.Key, g => g.ToList());
 
             var accountOverviews = new List<DashboardAccountOverview>(accounts.Count);
             foreach (var account in accounts)
             {
+                var tx = accountTransactions.TryGetValue(account.AccountId, out var accountTx)
+                    ? accountTx
+                    : new List<Transaction>();
+
+                var openingBalance = account.InitialBalance + tx
+                    .Where(t => t.TransactionDate < monthStart)
+                    .Sum(t => ResolveImpact(t, transactionIdsByTransferGroup));
+
+                var monthTransactions = tx
+                    .Where(t => t.TransactionDate >= monthStart && t.TransactionDate <= monthEnd)
+                    .ToList();
+
+                var monthIncome = monthTransactions
+                    .Select(t => ResolveImpact(t, transactionIdsByTransferGroup))
+                    .Where(impact => impact > 0)
+                    .Sum();
+
+                var monthExpense = monthTransactions
+                    .Select(t => ResolveImpact(t, transactionIdsByTransferGroup))
+                    .Where(impact => impact < 0)
+                    .Sum(impact => impact * -1);
+
+                var monthNet = monthTransactions.Sum(t => ResolveImpact(t, transactionIdsByTransferGroup));
+                var closingBalance = openingBalance + monthNet;
+
                 if (!account.IsCredit)
                 {
                     accountOverviews.Add(new DashboardAccountOverview
@@ -48,7 +84,12 @@ namespace GastosApp.BusinessLogic.Services
                         Name = account.Name,
                         Active = account.Active,
                         IsCredit = false,
-                        CurrentBalance = account.CurrentBalance,
+                        InitialBalance = account.InitialBalance,
+                        OpeningBalance = openingBalance,
+                        MonthIncome = monthIncome,
+                        MonthExpense = monthExpense,
+                        MonthNet = monthNet,
+                        ClosingBalance = closingBalance,
                         CreditLimit = account.CreditLimit
                     });
 
@@ -75,7 +116,12 @@ namespace GastosApp.BusinessLogic.Services
                     IsCredit = true,
                     CutoffDay = account.DueDay,
                     PaymentDueDay = account.PaymentDueDay,
-                    CurrentBalance = account.CurrentBalance,
+                    InitialBalance = account.InitialBalance,
+                    OpeningBalance = openingBalance,
+                    MonthIncome = monthIncome,
+                    MonthExpense = monthExpense,
+                    MonthNet = monthNet,
+                    ClosingBalance = closingBalance,
                     CreditLimit = account.CreditLimit,
                     PeriodStart = periodStart,
                     PeriodEnd = periodEnd,
@@ -90,13 +136,45 @@ namespace GastosApp.BusinessLogic.Services
                 Timezone = timezoneId,
                 Summary = new DashboardSummary
                 {
-                    CashTotal = accounts.Where(a => !a.IsCredit).Sum(a => a.CurrentBalance),
-                    CreditUsed = accounts.Where(a => a.IsCredit).Sum(a => a.CurrentBalance),
-                    PendingInformative = accountOverviews.Where(a => a.IsCredit).Sum(a => a.PendingInformative),
-                    MonthExpenses = monthExpenses
+                    CashTotal = accountOverviews.Where(a => !a.IsCredit).Sum(a => a.ClosingBalance),
+                    CreditUsed = accountOverviews.Where(a => a.IsCredit).Sum(a => a.ClosingBalance),
+                    TotalDebt = accountOverviews.Where(a => a.IsCredit).Sum(a => (a.CreditLimit ?? 0m) - a.ClosingBalance),
+                    MonthIncome = accountOverviews.Sum(a => a.MonthIncome),
+                    MonthExpense = accountOverviews.Sum(a => a.MonthExpense)
                 },
                 Accounts = accountOverviews
             };
+        }
+
+        private static decimal ResolveImpact(Transaction transaction, IReadOnlyDictionary<Guid, int[]> transactionIdsByTransferGroup)
+        {
+            if (transaction.BalanceImpact != 0)
+            {
+                return transaction.BalanceImpact;
+            }
+
+            return transaction.Type.ToLowerInvariant() switch
+            {
+                "income" => transaction.Amount,
+                "expense" => transaction.Amount * -1,
+                "transfer" when transaction.TransferGroupId.HasValue
+                    => InferTransferImpact(transaction, transactionIdsByTransferGroup),
+                _ => 0m
+            };
+        }
+
+        private static decimal InferTransferImpact(Transaction transaction, IReadOnlyDictionary<Guid, int[]> transactionIdsByTransferGroup)
+        {
+            if (!transaction.TransferGroupId.HasValue ||
+                !transactionIdsByTransferGroup.TryGetValue(transaction.TransferGroupId.Value, out var orderedIds) ||
+                orderedIds.Length < 2)
+            {
+                return transaction.Amount;
+            }
+
+            return transaction.TransactionId == orderedIds[0]
+                ? transaction.Amount * -1
+                : transaction.Amount;
         }
 
         private static (int Year, int Month) ResolveMonth(string? month, string timezoneId)

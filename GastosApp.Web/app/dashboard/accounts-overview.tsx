@@ -2,9 +2,11 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Alert } from "@/components/ui/alert";
-import { Card } from "@/components/ui/card";
-import { type DashboardAccountOverview, type DashboardCreditOverview } from "@/lib/contracts/dashboard";
-import { getBalanceToneClass } from "@/lib/accounts/metrics";
+import { AccountsSection } from "@/app/dashboard/_components/accounts-section";
+import { DashboardToolbar } from "@/app/dashboard/_components/dashboard-toolbar";
+import { SummaryCards } from "@/app/dashboard/_components/summary-cards";
+import type { DashboardViewMode } from "@/app/dashboard/_components/dashboard-view-mode";
+import { type DashboardCreditOverview } from "@/lib/contracts/dashboard";
 
 const TIMEZONE = "America/Mexico_City";
 
@@ -27,15 +29,9 @@ function getMexicoCurrentMonth(): string {
   return `${year}-${month}`;
 }
 
-function formatAmount(value: number): string {
-  return new Intl.NumberFormat("es-MX", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2
-  }).format(value);
-}
-
 export function AccountsOverview() {
   const [month, setMonth] = useState<string>(() => getMexicoCurrentMonth());
+  const [viewMode, setViewMode] = useState<DashboardViewMode>("detail");
   const [data, setData] = useState<DashboardCreditOverview | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -81,28 +77,25 @@ export function AccountsOverview() {
   }, [month]);
 
   const accounts = useMemo(() => data?.accounts ?? [], [data]);
+  const creditAccounts = useMemo(() => accounts.filter((account) => account.isCredit), [accounts]);
+  const cashAccounts = useMemo(() => accounts.filter((account) => !account.isCredit), [accounts]);
   const timezone = data?.timezone ?? TIMEZONE;
   const summary = useMemo(
     () =>
       data?.summary ?? {
         cashTotal: 0,
         creditUsed: 0,
-        pendingInformative: 0,
-        monthExpenses: 0
+        totalDebt: 0,
+        monthIncome: 0,
+        monthExpense: 0
       },
     [data]
-  );
-  const totalDebt = useMemo(
-    () =>
-      accounts
-        .filter((account) => account.isCredit)
-        .reduce((acc, account) => acc + ((account.creditLimit ?? 0) - account.currentBalance), 0),
-    [accounts]
   );
 
   if (loading) {
     return (
       <section className="grid gap-4">
+        <div className="h-20 animate-pulse rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950" aria-hidden="true" />
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {Array.from({ length: 3 }).map((_, index) => (
             <div
@@ -112,6 +105,7 @@ export function AccountsOverview() {
             />
           ))}
         </div>
+        <div className="h-48 animate-pulse rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950" aria-hidden="true" />
         <div className="h-48 animate-pulse rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950" aria-hidden="true" />
       </section>
     );
@@ -123,92 +117,31 @@ export function AccountsOverview() {
 
   return (
     <div className="grid gap-6">
-      <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        <MetricCard title="Total efectivo" amount={summary.cashTotal} />
-        <MetricCard title="Total crédito" amount={summary.creditUsed} />
-        <MetricCard title="Gastos totales" amount={totalDebt * -1} />
-      </section>
+      <DashboardToolbar
+        month={month}
+        timezone={timezone}
+        viewMode={viewMode}
+        onMonthChange={setMonth}
+        onViewModeChange={setViewMode}
+      />
 
-      <Card className="p-5">
-        <div className="mb-4 flex items-center justify-between gap-3">
-          <div className="space-y-1">
-            <h2 className="m-0 text-xl font-semibold text-slate-900 dark:text-slate-100">Cuentas</h2>
-            <p className="m-0 text-xs text-slate-500 dark:text-slate-400">Corte por zona horaria: {timezone}</p>
-          </div>
+      <SummaryCards summary={summary} />
 
-          <div className="flex items-center gap-3">
-            <label className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400" htmlFor="dashboard-month">
-              Mes
-            </label>
-            <input
-              id="dashboard-month"
-              type="month"
-              value={month}
-              onChange={(event) => setMonth(event.target.value)}
-              className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-900 focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-200 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:focus:border-sky-500 dark:focus:ring-sky-900"
-            />
-            <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
-              {accounts.length} registradas
-            </span>
-          </div>
-        </div>
+      <AccountsSection
+        title="Crédito"
+        description="Tarjetas de crédito y líneas con control de deuda mensual."
+        accounts={creditAccounts}
+        viewMode={viewMode}
+        emptyMessage="No hay cuentas de crédito registradas."
+      />
 
-        {accounts.length === 0 ? (
-          <p className="m-0 rounded-xl border border-slate-200 bg-slate-50 px-4 py-6 text-center text-sm text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
-            No hay cuentas registradas.
-          </p>
-        ) : (
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {accounts.map((account) => <AccountCard key={account.accountId} account={account} />)}
-          </div>
-        )}
-      </Card>
+      <AccountsSection
+        title="Efectivo"
+        description="Cuentas de débito, efectivo o ahorro con seguimiento de flujo mensual."
+        accounts={cashAccounts}
+        viewMode={viewMode}
+        emptyMessage="No hay cuentas de efectivo registradas."
+      />
     </div>
-  );
-}
-
-function MetricCard({ title, amount }: { title: string; amount: number }) {
-  return (
-    <Card className="rounded-2xl p-4">
-      <p className="m-0 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">{title}</p>
-      <p className={`mt-2 text-2xl font-semibold ${getBalanceToneClass(amount)}`}>
-        {formatAmount(amount)}
-      </p>
-    </Card>
-  );
-}
-
-function AccountCard({ account }: { account: DashboardAccountOverview }) {
-  return (
-    <article className="rounded-2xl border border-slate-200 bg-white p-4 transition hover:border-sky-300 hover:shadow-sm dark:border-slate-800 dark:bg-slate-950 dark:hover:border-sky-600">
-      <p className="m-0 font-semibold text-slate-900 dark:text-slate-100">{account.name}</p>
-      <p className="my-1.5 text-xs text-slate-500 dark:text-slate-400">
-        {account.isCredit ? "Crédito" : "Efectivo"} · {account.active ? "Activa" : "Inactiva"}
-      </p>
-      <p className={`m-0 text-lg font-semibold ${getBalanceToneClass(account.currentBalance)}`}>{formatAmount(account.currentBalance)}</p>
-
-      {account.isCredit ? <CreditDetails account={account} /> : null}
-    </article>
-  );
-}
-
-function CreditDetails({ account }: { account: DashboardAccountOverview }) {
-  return (
-    <div className="mt-2 space-y-1">
-      {account.creditLimit !== null ? <CreditLimit amount={account.creditLimit} /> : null}
-      <p className="m-0 text-xs text-slate-500 dark:text-slate-400">Día de corte: {account.cutoffDay ?? "No definido"}</p>
-      <p className="m-0 text-xs text-slate-500 dark:text-slate-400">Fecha límite de pago: {account.paymentDueDay ?? "No definida"}</p>
-      <p className="m-0 text-xs text-slate-500 dark:text-slate-400">
-        Pendiente (informativo): <span className={`font-semibold ${getBalanceToneClass(account.pendingInformative)}`}>{formatAmount(account.pendingInformative)}</span>
-      </p>
-    </div>
-  );
-}
-
-function CreditLimit({ amount }: { amount: number }) {
-  return (
-    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-      Límite: <span className={`font-semibold ${getBalanceToneClass(amount)}`}>{formatAmount(amount)}</span>
-    </p>
   );
 }

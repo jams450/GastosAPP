@@ -1,8 +1,9 @@
 export type DashboardSummary = {
   cashTotal: number;
   creditUsed: number;
-  pendingInformative: number;
-  monthExpenses: number;
+  totalDebt: number;
+  monthIncome: number;
+  monthExpense: number;
 };
 
 export type DashboardAccountOverview = {
@@ -12,7 +13,12 @@ export type DashboardAccountOverview = {
   isCredit: boolean;
   cutoffDay: number | null;
   paymentDueDay: number | null;
-  currentBalance: number;
+  initialBalance: number;
+  openingBalance: number;
+  monthIncome: number;
+  monthExpense: number;
+  monthNet: number;
+  closingBalance: number;
   creditLimit: number | null;
   periodStart: string | null;
   periodEnd: string | null;
@@ -85,7 +91,12 @@ function normalizeAccount(input: unknown): DashboardAccountOverview | null {
     isCredit: Boolean(input.isCredit),
     cutoffDay: toOptionalInt(input.cutoffDay),
     paymentDueDay: toOptionalInt(input.paymentDueDay),
-    currentBalance: toFiniteNumber(input.currentBalance),
+    initialBalance: toFiniteNumber(input.initialBalance),
+    openingBalance: toFiniteNumber(input.openingBalance),
+    monthIncome: toFiniteNumber(input.monthIncome),
+    monthExpense: toFiniteNumber(input.monthExpense),
+    monthNet: toFiniteNumber(input.monthNet),
+    closingBalance: toFiniteNumber(input.closingBalance),
     creditLimit: toOptionalFiniteNumber(input.creditLimit),
     periodStart: toOptionalDateString(input.periodStart),
     periodEnd: toOptionalDateString(input.periodEnd),
@@ -102,8 +113,9 @@ export function normalizeDashboardCreditOverview(input: unknown): DashboardCredi
       summary: {
         cashTotal: 0,
         creditUsed: 0,
-        pendingInformative: 0,
-        monthExpenses: 0
+        totalDebt: 0,
+        monthIncome: 0,
+        monthExpense: 0
       },
       accounts: []
     };
@@ -120,8 +132,9 @@ export function normalizeDashboardCreditOverview(input: unknown): DashboardCredi
     summary: {
       cashTotal: toFiniteNumber(summaryInput.cashTotal),
       creditUsed: toFiniteNumber(summaryInput.creditUsed),
-      pendingInformative: toFiniteNumber(summaryInput.pendingInformative),
-      monthExpenses: toFiniteNumber(summaryInput.monthExpenses)
+      totalDebt: toFiniteNumber(summaryInput.totalDebt),
+      monthIncome: toFiniteNumber(summaryInput.monthIncome),
+      monthExpense: toFiniteNumber(summaryInput.monthExpense)
     },
     accounts
   };

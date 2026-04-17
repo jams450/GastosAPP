@@ -12,8 +12,9 @@ namespace GastosApp.BusinessLogic.Models.Dashboard
     {
         public decimal CashTotal { get; set; }
         public decimal CreditUsed { get; set; }
-        public decimal PendingInformative { get; set; }
-        public decimal MonthExpenses { get; set; }
+        public decimal TotalDebt { get; set; }
+        public decimal MonthIncome { get; set; }
+        public decimal MonthExpense { get; set; }
     }
 
     public class DashboardAccountOverview
@@ -24,7 +25,12 @@ namespace GastosApp.BusinessLogic.Models.Dashboard
         public bool IsCredit { get; set; }
         public int? CutoffDay { get; set; }
         public int? PaymentDueDay { get; set; }
-        public decimal CurrentBalance { get; set; }
+        public decimal InitialBalance { get; set; }
+        public decimal OpeningBalance { get; set; }
+        public decimal MonthIncome { get; set; }
+        public decimal MonthExpense { get; set; }
+        public decimal MonthNet { get; set; }
+        public decimal ClosingBalance { get; set; }
         public decimal? CreditLimit { get; set; }
         public DateTime? PeriodStart { get; set; }
         public DateTime? PeriodEnd { get; set; }
