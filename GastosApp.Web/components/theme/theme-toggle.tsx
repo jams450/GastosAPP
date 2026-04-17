@@ -2,14 +2,18 @@
 
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/ui/cn";
 
 type Theme = "light" | "dark";
+type ThemeToggleProps = {
+  className?: string;
+};
 
 function getThemeFromDocument(): Theme {
   return document.documentElement.classList.contains("dark") ? "dark" : "light";
 }
 
-export function ThemeToggle() {
+export function ThemeToggle({ className }: ThemeToggleProps) {
   const [theme, setTheme] = useState<Theme>("light");
   const [mounted, setMounted] = useState(false);
 
@@ -26,11 +30,11 @@ export function ThemeToggle() {
   }
 
   if (!mounted) {
-    return <div className="h-10 w-28 rounded-xl border border-slate-200 bg-white/70 dark:border-slate-800 dark:bg-slate-900/70" />;
+    return <div className={cn("h-10 w-28 rounded-xl border border-slate-200 bg-white/70 dark:border-slate-800 dark:bg-slate-900/70", className)} />;
   }
 
   return (
-    <Button type="button" variant="secondary" className="h-10 px-3 text-xs" onClick={toggleTheme}>
+    <Button type="button" variant="secondary" className={cn("h-10 px-3 text-xs", className)} onClick={toggleTheme}>
       {theme === "dark" ? "☀️ Modo claro" : "🌙 Modo oscuro"}
     </Button>
   );
