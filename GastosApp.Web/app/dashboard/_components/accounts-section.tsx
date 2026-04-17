@@ -24,7 +24,7 @@ export function AccountsSection({
 }: AccountsSectionProps) {
   const [collapsed, setCollapsed] = useState(defaultCollapsed);
   const sectionId = useId();
-  const gridClass = viewMode === "detail"
+  const gridClass = viewMode === "detail" || viewMode === "headers"
     ? "grid-cols-1"
     : viewMode === "grid2"
       ? "sm:grid-cols-2"

@@ -10,7 +10,7 @@ type DashboardToolbarProps = {
   onViewModeChange: (mode: DashboardViewMode) => void;
 };
 
-const viewModes: DashboardViewMode[] = ["detail", "grid2", "grid3"];
+const viewModes: DashboardViewMode[] = ["detail", "headers", "grid2", "grid3"];
 
 export function DashboardToolbar({
   month,
