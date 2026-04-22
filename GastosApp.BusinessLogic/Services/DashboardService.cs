@@ -20,7 +20,7 @@ namespace GastosApp.BusinessLogic.Services
         {
             var (year, monthNumber) = ResolveMonth(month, timezoneId);
             var monthStart = new DateTime(year, monthNumber, 1, 0, 0, 0, DateTimeKind.Utc);
-            var monthEnd = new DateTime(year, monthNumber, DateTime.DaysInMonth(year, monthNumber), 23, 59, 59, DateTimeKind.Utc);
+            var nextMonthStart = monthStart.AddMonths(1);
             var previousMonthDate = monthStart.AddMonths(-1);
             var daysInMonth = DateTime.DaysInMonth(year, monthNumber);
             var previousDaysInMonth = DateTime.DaysInMonth(previousMonthDate.Year, previousMonthDate.Month);
@@ -50,7 +50,7 @@ tx_scope AS (
         t.transaction_date
     FROM transactions t
     INNER JOIN accounts_scope a ON a.account_id = t.account_id
-    WHERE t.transaction_date <= @monthEnd
+    WHERE t.transaction_date < @nextMonthStart
 ),
 transfer_rank AS (
     SELECT
@@ -84,9 +84,9 @@ month_agg AS (
     SELECT
         a.account_id,
         coalesce(sum(CASE WHEN t.transaction_date < @monthStart THEN t.impact ELSE 0 END), 0) AS prior_impact,
-        coalesce(sum(CASE WHEN t.transaction_date >= @monthStart AND t.transaction_date <= @monthEnd AND t.impact > 0 THEN t.impact ELSE 0 END), 0) AS month_income,
-        coalesce(sum(CASE WHEN t.transaction_date >= @monthStart AND t.transaction_date <= @monthEnd AND t.impact < 0 THEN (t.impact * -1) ELSE 0 END), 0) AS month_expense,
-        coalesce(sum(CASE WHEN t.transaction_date >= @monthStart AND t.transaction_date <= @monthEnd THEN t.impact ELSE 0 END), 0) AS month_net
+        coalesce(sum(CASE WHEN t.transaction_date >= @monthStart AND t.transaction_date < @nextMonthStart AND t.impact > 0 THEN t.impact ELSE 0 END), 0) AS month_income,
+        coalesce(sum(CASE WHEN t.transaction_date >= @monthStart AND t.transaction_date < @nextMonthStart AND t.impact < 0 THEN (t.impact * -1) ELSE 0 END), 0) AS month_expense,
+        coalesce(sum(CASE WHEN t.transaction_date >= @monthStart AND t.transaction_date < @nextMonthStart THEN t.impact ELSE 0 END), 0) AS month_net
     FROM accounts_scope a
     LEFT JOIN tx_with_impact t ON t.account_id = a.account_id
     GROUP BY a.account_id
@@ -109,7 +109,7 @@ credit_spent AS (
         AND cb.period_start IS NOT NULL
         AND cb.period_end IS NOT NULL
         AND t.transaction_date >= cb.period_start
-        AND t.transaction_date <= cb.period_end
+        AND t.transaction_date < (cb.period_end + INTERVAL '1 day')
     GROUP BY cb.account_id
 )
 SELECT
@@ -140,8 +140,8 @@ ORDER BY a.name;";
                 .SqlQueryRaw<DashboardAccountSqlRow>(
                     sql,
                     new NpgsqlParameter("userId", userId),
-                    new NpgsqlParameter("monthStart", monthStart.Date),
-                    new NpgsqlParameter("monthEnd", monthEnd.Date),
+                    new NpgsqlParameter("monthStart", monthStart),
+                    new NpgsqlParameter("nextMonthStart", nextMonthStart),
                     new NpgsqlParameter("yearValue", year),
                     new NpgsqlParameter("monthValue", monthNumber),
                     new NpgsqlParameter("daysInMonth", daysInMonth),

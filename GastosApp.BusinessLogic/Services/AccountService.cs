@@ -177,12 +177,14 @@ namespace GastosApp.BusinessLogic.Services
                 periodStart = previousCutoff.AddDays(1);
             }
 
+            var periodEndExclusive = periodEnd.AddDays(1);
+
             // Obtener todas las transacciones de gasto del período
             var transactions = await _repository.Get<Transaction>(t => 
                 t.AccountId == accountId &&
                 t.Type.ToLower() == "expense" &&
                 t.TransactionDate >= periodStart &&
-                t.TransactionDate <= periodEnd).ToListAsync();
+                t.TransactionDate < periodEndExclusive).ToListAsync();
 
             decimal totalExpenses = transactions.Sum(t => t.Amount);
 

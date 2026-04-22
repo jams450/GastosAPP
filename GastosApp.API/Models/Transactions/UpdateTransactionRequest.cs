@@ -14,5 +14,5 @@ public class UpdateTransactionRequest
 
     public string? Description { get; set; }
 
-    public DateTime? TransactionDate { get; set; }
+    public DateTimeOffset? TransactionDate { get; set; }
 }

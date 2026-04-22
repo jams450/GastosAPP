@@ -164,7 +164,8 @@ export function IncomeForm({
 
         <Input
           label="Fecha"
-          type="date"
+          type="datetime-local"
+          step="60"
           value={transactionDate}
           onChange={(event) => onTransactionDateChange(event.target.value)}
           required

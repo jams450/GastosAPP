@@ -76,18 +76,23 @@ function toNormalizedTags(value: unknown): string[] | undefined {
   return tags.length > 0 ? [...new Set(tags)] : undefined;
 }
 
-function toIsoDate(value: unknown): string | null {
+function toUtcIsoDateTime(value: unknown): string | null {
   if (typeof value !== "string") {
     return null;
   }
 
   const normalized = value.trim();
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(normalized)) {
+  if (!normalized) {
     return null;
   }
 
-  const asDate = new Date(`${normalized}T00:00:00Z`);
-  return Number.isNaN(asDate.getTime()) ? null : normalized;
+  const dateCandidate = /^\d{4}-\d{2}-\d{2}$/.test(normalized) ? `${normalized}T00:00` : normalized;
+  const asDate = new Date(dateCandidate);
+  if (Number.isNaN(asDate.getTime())) {
+    return null;
+  }
+
+  return asDate.toISOString();
 }
 
 export function validateIncomeExpensePayload(input: unknown): ValidationResult<IncomeExpenseTransactionRequest> {
@@ -99,7 +104,7 @@ export function validateIncomeExpensePayload(input: unknown): ValidationResult<I
   const categoryId = toRequiredPositiveNumber(input.categoryId);
   const amount = toRequiredPositiveNumber(input.amount);
   const description = toRequiredText(input.description);
-  const transactionDate = toIsoDate(input.transactionDate);
+  const transactionDate = toUtcIsoDateTime(input.transactionDate);
   const subcategoryId = toOptionalPositiveNumber(input.subcategoryId);
   const merchantId = toOptionalPositiveNumber(input.merchantId);
   const tags = toNormalizedTags(input.tags);
@@ -136,7 +141,7 @@ export function validateTransferPayload(input: unknown): ValidationResult<Transf
   const categoryId = toRequiredPositiveNumber(input.categoryId);
   const amount = toRequiredPositiveNumber(input.amount);
   const description = toRequiredText(input.description);
-  const transactionDate = toIsoDate(input.transactionDate);
+  const transactionDate = toUtcIsoDateTime(input.transactionDate);
   const subcategoryId = toOptionalPositiveNumber(input.subcategoryId);
   const merchantId = toOptionalPositiveNumber(input.merchantId);
   const tags = toNormalizedTags(input.tags);

@@ -119,7 +119,7 @@ CREATE TABLE transactions (
     direction VARCHAR(10),
     counterparty_account_id INT,
     description TEXT,
-    transaction_date DATE NOT NULL,
+    transaction_date TIMESTAMP WITH TIME ZONE NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     created_by VARCHAR(100),

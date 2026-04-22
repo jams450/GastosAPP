@@ -22,5 +22,5 @@ public class CreateTransactionRequest
     public string? Description { get; set; }
 
     [Required]
-    public DateTime TransactionDate { get; set; }
+    public DateTimeOffset TransactionDate { get; set; }
 }

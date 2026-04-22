@@ -6,6 +6,6 @@ public class UpdateTransferRequest
     public int? SubcategoryId { get; set; }
     public int? MerchantId { get; set; }
     public string? Description { get; set; }
-    public DateTime? TransactionDate { get; set; }
+    public DateTimeOffset? TransactionDate { get; set; }
     public IEnumerable<string>? Tags { get; set; }
 }

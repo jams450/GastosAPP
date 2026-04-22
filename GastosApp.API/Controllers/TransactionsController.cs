@@ -125,7 +125,7 @@ namespace GastosApp.API.Controllers
                     MerchantId = request.MerchantId,
                     Amount = request.Amount,
                     Description = request.Description,
-                    TransactionDate = DateTime.SpecifyKind(request.TransactionDate, DateTimeKind.Utc)
+                    TransactionDate = request.TransactionDate.UtcDateTime
                 };
 
                 var createdTransaction = await _transactionService.CreateIncomeAsync(transaction);
@@ -176,7 +176,7 @@ namespace GastosApp.API.Controllers
                     MerchantId = request.MerchantId,
                     Amount = request.Amount,
                     Description = request.Description,
-                    TransactionDate = DateTime.SpecifyKind(request.TransactionDate, DateTimeKind.Utc)
+                    TransactionDate = request.TransactionDate.UtcDateTime
                 };
 
                 var createdTransaction = await _transactionService.CreateExpenseAsync(transaction);
@@ -215,7 +215,7 @@ namespace GastosApp.API.Controllers
                     request.DestinationAccountId,
                     request.Amount,
                     request.Description,
-                    request.TransactionDate,
+                    request.TransactionDate?.UtcDateTime,
                     request.CategoryId,
                     request.SubcategoryId,
                     request.MerchantId,
@@ -252,7 +252,7 @@ namespace GastosApp.API.Controllers
                 if (request.Amount.HasValue) existingTransaction.Amount = request.Amount.Value;
                 if (request.Description != null) existingTransaction.Description = request.Description;
                 if (request.TransactionDate.HasValue) 
-                    existingTransaction.TransactionDate = DateTime.SpecifyKind(request.TransactionDate.Value, DateTimeKind.Utc);
+                    existingTransaction.TransactionDate = request.TransactionDate.Value.UtcDateTime;
 
                 var userId = GetCurrentUserId();
                 var dimensionsValidation = await _transactionService.ValidateAnalyticsDimensionsAsync(
@@ -335,7 +335,7 @@ namespace GastosApp.API.Controllers
                     request.SubcategoryId,
                     request.MerchantId,
                     request.Description,
-                    request.TransactionDate,
+                    request.TransactionDate?.UtcDateTime,
                     request.Tags);
 
                 if (!result.Success)

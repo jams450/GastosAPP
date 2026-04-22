@@ -50,7 +50,7 @@ namespace GastosApp.BusinessLogic.Models.DataBase
         [Column("description")]
         public string? Description { get; set; }
 
-        [Column("transaction_date")]
+        [Column("transaction_date", TypeName = "timestamp with time zone")]
         [Required]
         public DateTime TransactionDate { get; set; }
 

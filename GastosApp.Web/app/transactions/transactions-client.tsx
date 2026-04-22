@@ -73,6 +73,8 @@ type TransferGroupItem = {
   transferGroupId: string;
   transactionDate: string;
   amount: number;
+  sourceAccountId: number;
+  destinationAccountId: number | null;
   accountFromName: string;
   accountToName: string;
   categoryId: number | null;
@@ -80,6 +82,12 @@ type TransferGroupItem = {
   merchantId: number | null;
   description: string;
   tags: string[];
+};
+
+type HistoryFilters = {
+  type: "all" | TransactionKind;
+  accountId: number | "all";
+  categoryId: number | "all";
 };
 
 type TransferEditFormState = {
@@ -102,8 +110,14 @@ const typeLabel: Record<TransactionKind, string> = {
   transfer: "Transferencia"
 };
 
-function todayIsoDate(): string {
-  return new Date().toISOString().slice(0, 10);
+function currentLocalDateTimeInput(): string {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  const hours = String(now.getHours()).padStart(2, "0");
+  const minutes = String(now.getMinutes()).padStart(2, "0");
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
 }
 
 function parseTagsInput(input: string): string[] {
@@ -117,8 +131,48 @@ function currentMonthInput(): string {
   return `${year}-${month}`;
 }
 
-function dateInputValue(value: string): string {
-  return value.slice(0, 10);
+function dateTimeLocalInputValue(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return currentLocalDateTimeInput();
+  }
+
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  const hours = String(date.getHours()).padStart(2, "0");
+  const minutes = String(date.getMinutes()).padStart(2, "0");
+
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
+}
+
+function toUtcIsoDateTime(value: string): string | null {
+  if (!value.trim()) {
+    return null;
+  }
+
+  const candidate = /^\d{4}-\d{2}-\d{2}$/.test(value) ? `${value}T00:00` : value;
+  const date = new Date(candidate);
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+
+  return date.toISOString();
+}
+
+function dateTimeLocalDisplay(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "—";
+  }
+
+  const day = String(date.getDate()).padStart(2, "0");
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const year = date.getFullYear();
+  const hours = String(date.getHours()).padStart(2, "0");
+  const minutes = String(date.getMinutes()).padStart(2, "0");
+
+  return `${day}/${month}/${year} ${hours}:${minutes}`;
 }
 
 export function TransactionsClient({ username }: Props) {
@@ -137,7 +191,7 @@ export function TransactionsClient({ username }: Props) {
   const [tagsText, setTagsText] = useState<string>("");
   const [amount, setAmount] = useState<string>("");
   const [description, setDescription] = useState<string>("");
-  const [transactionDate, setTransactionDate] = useState<string>(todayIsoDate());
+  const [transactionDate, setTransactionDate] = useState<string>(currentLocalDateTimeInput());
 
   const [submitLoading, setSubmitLoading] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -147,6 +201,11 @@ export function TransactionsClient({ username }: Props) {
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState<string | null>(null);
   const [historyItems, setHistoryItems] = useState<TransactionHistoryItem[]>([]);
+  const [historyFilters, setHistoryFilters] = useState<HistoryFilters>({
+    type: "all",
+    accountId: "all",
+    categoryId: "all"
+  });
 
   const [editForm, setEditForm] = useState<EditFormState | null>(null);
   const [transferEditForm, setTransferEditForm] = useState<TransferEditFormState | null>(null);
@@ -294,6 +353,8 @@ export function TransactionsClient({ username }: Props) {
           transferGroupId,
           transactionDate: first.transactionDate,
           amount: first.amount,
+          sourceAccountId: first.accountId,
+          destinationAccountId: second?.accountId ?? null,
           accountFromName: first.accountName,
           accountToName: second?.accountName ?? "—",
           categoryId: first.categoryId,
@@ -305,6 +366,60 @@ export function TransactionsClient({ username }: Props) {
       })
       .sort((a, b) => b.transactionDate.localeCompare(a.transactionDate));
   }, [historyItems]);
+
+  const historyAccountOptions = useMemo(
+    () => (catalogs?.accounts ?? []).map((account) => ({ value: account.accountId, label: account.name })),
+    [catalogs]
+  );
+
+  const historyCategoryOptions = useMemo(() => {
+    if (!catalogs) {
+      return [] as { value: number; label: string }[];
+    }
+
+    const source = historyFilters.type === "all" ? catalogs.categories : catalogs.categoriesByType[historyFilters.type] ?? [];
+    return source.map((category) => ({ value: category.categoryId, label: category.name }));
+  }, [catalogs, historyFilters.type]);
+
+  const filteredRegularHistoryItems = useMemo(() => {
+    return regularHistoryItems.filter((item) => {
+      if (historyFilters.type !== "all" && item.type !== historyFilters.type) {
+        return false;
+      }
+
+      if (historyFilters.accountId !== "all" && item.accountId !== historyFilters.accountId) {
+        return false;
+      }
+
+      if (historyFilters.categoryId !== "all" && item.categoryId !== historyFilters.categoryId) {
+        return false;
+      }
+
+      return true;
+    });
+  }, [regularHistoryItems, historyFilters]);
+
+  const filteredTransferGroups = useMemo(() => {
+    return transferGroups.filter((item) => {
+      if (historyFilters.type !== "all" && historyFilters.type !== "transfer") {
+        return false;
+      }
+
+      if (
+        historyFilters.accountId !== "all" &&
+        item.sourceAccountId !== historyFilters.accountId &&
+        item.destinationAccountId !== historyFilters.accountId
+      ) {
+        return false;
+      }
+
+      if (historyFilters.categoryId !== "all" && item.categoryId !== historyFilters.categoryId) {
+        return false;
+      }
+
+      return true;
+    });
+  }, [transferGroups, historyFilters]);
 
   const loadHistory = useCallback(async (month = historyMonth) => {
     setHistoryLoading(true);
@@ -374,6 +489,12 @@ export function TransactionsClient({ username }: Props) {
       return;
     }
 
+    const transactionDateUtc = toUtcIsoDateTime(transactionDate);
+    if (!transactionDateUtc) {
+      setSubmitError("Selecciona una fecha y hora válidas.");
+      return;
+    }
+
     if (!categoryId) {
       setSubmitError("Selecciona una categoría.");
       return;
@@ -408,7 +529,7 @@ export function TransactionsClient({ username }: Props) {
           ...analyticsPayload,
           amount: amountNumber,
           description: description.trim(),
-          transactionDate
+          transactionDate: transactionDateUtc
         };
       } else {
         if (!sourceAccountId || !destinationAccountId) {
@@ -429,7 +550,7 @@ export function TransactionsClient({ username }: Props) {
           ...analyticsPayload,
           amount: amountNumber,
           description: description.trim(),
-          transactionDate
+          transactionDate: transactionDateUtc
         };
       }
 
@@ -451,7 +572,7 @@ export function TransactionsClient({ username }: Props) {
       setSubcategoryId(null);
       setMerchantId(null);
       setTagsText("");
-      setTransactionDate(todayIsoDate());
+      setTransactionDate(currentLocalDateTimeInput());
     } catch {
       setSubmitError("No se pudo conectar con el servidor.");
     } finally {
@@ -470,7 +591,7 @@ export function TransactionsClient({ username }: Props) {
       merchantId: item.merchantId,
       amount: item.amount.toString(),
       description: item.description,
-      transactionDate: dateInputValue(item.transactionDate),
+      transactionDate: dateTimeLocalInputValue(item.transactionDate),
       tagsText: item.tags.join(", ")
     });
   }, []);
@@ -485,7 +606,7 @@ export function TransactionsClient({ username }: Props) {
       subcategoryId: item.subcategoryId,
       merchantId: item.merchantId,
       description: item.description,
-      transactionDate: dateInputValue(item.transactionDate),
+      transactionDate: dateTimeLocalInputValue(item.transactionDate),
       tagsText: item.tags.join(", ")
     });
   }, [catalogs]);
@@ -507,6 +628,12 @@ export function TransactionsClient({ username }: Props) {
       return;
     }
 
+    const editTransactionDateUtc = toUtcIsoDateTime(editForm.transactionDate);
+    if (!editTransactionDateUtc) {
+      setEditError("Selecciona una fecha y hora válidas.");
+      return;
+    }
+
     setEditSaving(true);
     setEditError(null);
 
@@ -518,7 +645,7 @@ export function TransactionsClient({ username }: Props) {
         merchantId: editForm.merchantId ?? undefined,
         amount: amountNumber,
         description: editForm.description.trim(),
-        transactionDate: editForm.transactionDate,
+        transactionDate: editTransactionDateUtc,
         tags: parseTagsInput(editForm.tagsText)
       };
 
@@ -554,6 +681,12 @@ export function TransactionsClient({ username }: Props) {
       return;
     }
 
+    const transferTransactionDateUtc = toUtcIsoDateTime(transferEditForm.transactionDate);
+    if (!transferTransactionDateUtc) {
+      setEditError("Selecciona una fecha y hora válidas.");
+      return;
+    }
+
     setEditSaving(true);
     setEditError(null);
 
@@ -563,7 +696,7 @@ export function TransactionsClient({ username }: Props) {
         subcategoryId: transferEditForm.subcategoryId ?? undefined,
         merchantId: transferEditForm.merchantId ?? undefined,
         description: transferEditForm.description.trim(),
-        transactionDate: transferEditForm.transactionDate,
+        transactionDate: transferTransactionDateUtc,
         tags: parseTagsInput(transferEditForm.tagsText)
       };
 
@@ -647,7 +780,7 @@ export function TransactionsClient({ username }: Props) {
       {
         accessorKey: "transactionDate",
         header: "Fecha",
-        cell: ({ row }) => dateInputValue(row.original.transactionDate)
+        cell: ({ row }) => dateTimeLocalDisplay(row.original.transactionDate)
       },
       {
         accessorKey: "type",
@@ -725,7 +858,7 @@ export function TransactionsClient({ username }: Props) {
       {
         accessorKey: "transactionDate",
         header: "Fecha",
-        cell: ({ row }) => dateInputValue(row.original.transactionDate)
+        cell: ({ row }) => dateTimeLocalDisplay(row.original.transactionDate)
       },
       {
         accessorKey: "accountFromName",
@@ -947,13 +1080,24 @@ export function TransactionsClient({ username }: Props) {
               historyMonth={historyMonth}
               onHistoryMonthChange={setHistoryMonth}
               onReload={() => void loadHistory(historyMonth)}
+              filters={historyFilters}
+              onFiltersChange={setHistoryFilters}
+              onClearFilters={() =>
+                setHistoryFilters({
+                  type: "all",
+                  accountId: "all",
+                  categoryId: "all"
+                })
+              }
+              accountOptions={historyAccountOptions}
+              categoryOptions={historyCategoryOptions}
               historyLoading={historyLoading}
               historyError={historyError}
               successMessage={successMessage}
               historyColumns={historyColumns as ColumnDef<any>[]}
               transferColumns={transferColumns as ColumnDef<any>[]}
-              regularHistoryItems={regularHistoryItems}
-              transferGroups={transferGroups}
+              regularHistoryItems={filteredRegularHistoryItems}
+              transferGroups={filteredTransferGroups}
             />
           )}
         </Card>
@@ -1041,7 +1185,8 @@ export function TransactionsClient({ username }: Props) {
                   />
                   <Input
                     label="Fecha"
-                    type="date"
+                    type="datetime-local"
+                    step="60"
                     value={editForm.transactionDate}
                     onChange={(event) => setEditForm((current) => (current ? { ...current, transactionDate: event.target.value } : current))}
                     required
@@ -1156,7 +1301,8 @@ export function TransactionsClient({ username }: Props) {
 
                 <Input
                   label="Fecha"
-                  type="date"
+                  type="datetime-local"
+                  step="60"
                   value={transferEditForm.transactionDate}
                   onChange={(event) =>
                     setTransferEditForm((current) => (current ? { ...current, transactionDate: event.target.value } : current))

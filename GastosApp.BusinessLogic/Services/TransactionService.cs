@@ -117,7 +117,7 @@ namespace GastosApp.BusinessLogic.Services
                 return (false, "Saldo insuficiente en la cuenta de origen");
 
             var transferGroupId = Guid.NewGuid();
-            var date = transactionDate ?? DateTime.UtcNow;
+            var date = EnsureUtc(transactionDate ?? DateTime.UtcNow);
 
             // Crear transacción de salida (origen)
             var sourceTransaction = new Transaction
@@ -133,7 +133,7 @@ namespace GastosApp.BusinessLogic.Services
                 Direction = "debit",
                 CounterpartyAccountId = destinationAccountId,
                 Description = description ?? $"Transferencia a {destinationAccount.Name}",
-                TransactionDate = DateTime.SpecifyKind(date, DateTimeKind.Utc),
+                TransactionDate = date,
                 Created = DateTime.UtcNow
             };
 
@@ -151,7 +151,7 @@ namespace GastosApp.BusinessLogic.Services
                 Direction = "credit",
                 CounterpartyAccountId = sourceAccountId,
                 Description = description ?? $"Transferencia desde {sourceAccount.Name}",
-                TransactionDate = DateTime.SpecifyKind(date, DateTimeKind.Utc),
+                TransactionDate = date,
                 Created = DateTime.UtcNow
             };
 
@@ -394,7 +394,7 @@ namespace GastosApp.BusinessLogic.Services
 
                 if (transactionDate.HasValue)
                 {
-                    transaction.TransactionDate = DateTime.SpecifyKind(transactionDate.Value, DateTimeKind.Utc);
+                    transaction.TransactionDate = EnsureUtc(transactionDate.Value);
                 }
 
                 transaction.Updated = DateTime.UtcNow;
@@ -424,6 +424,16 @@ namespace GastosApp.BusinessLogic.Services
                 "expense" => transaction.Amount * -1,
                 "transfer" => previousImpact < 0 ? transaction.Amount * -1 : transaction.Amount,
                 _ => previousImpact
+            };
+        }
+
+        private static DateTime EnsureUtc(DateTime value)
+        {
+            return value.Kind switch
+            {
+                DateTimeKind.Utc => value,
+                DateTimeKind.Local => value.ToUniversalTime(),
+                _ => DateTime.SpecifyKind(value, DateTimeKind.Local).ToUniversalTime()
             };
         }
 
