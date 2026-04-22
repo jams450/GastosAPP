@@ -1,19 +1,19 @@
 using System.Globalization;
+using GastosApp.BusinessLogic.Context;
 using GastosApp.BusinessLogic.Interfaces;
 using GastosApp.BusinessLogic.Models.Dashboard;
-using GastosApp.BusinessLogic.Models.DataBase;
-using GastosApp.Models.Interfaces;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 
 namespace GastosApp.BusinessLogic.Services
 {
     public class DashboardService : IDashboardService
     {
-        private readonly IRepository _repository;
+        private readonly ContextSqlGastos _context;
 
-        public DashboardService(IRepository repository)
+        public DashboardService(ContextSqlGastos context)
         {
-            _repository = repository;
+            _context = context;
         }
 
         public async Task<DashboardCreditOverview> GetCreditOverviewAsync(int userId, string? month, string timezoneId = "America/Mexico_City")
@@ -21,114 +21,155 @@ namespace GastosApp.BusinessLogic.Services
             var (year, monthNumber) = ResolveMonth(month, timezoneId);
             var monthStart = new DateTime(year, monthNumber, 1, 0, 0, 0, DateTimeKind.Utc);
             var monthEnd = new DateTime(year, monthNumber, DateTime.DaysInMonth(year, monthNumber), 23, 59, 59, DateTimeKind.Utc);
+            var previousMonthDate = monthStart.AddMonths(-1);
+            var daysInMonth = DateTime.DaysInMonth(year, monthNumber);
+            var previousDaysInMonth = DateTime.DaysInMonth(previousMonthDate.Year, previousMonthDate.Month);
 
-            var accounts = await _repository.Get<Account>(a => a.UserId == userId)
-                .OrderBy(a => a.Name)
+            var sql = @"
+WITH accounts_scope AS (
+    SELECT
+        a.account_id,
+        a.name,
+        a.active,
+        a.is_credit,
+        a.due_day,
+        a.payment_due_day,
+        a.initial_balance,
+        a.credit_limit
+    FROM accounts a
+    WHERE a.user_id = @userId
+),
+tx_scope AS (
+    SELECT
+        t.transaction_id,
+        t.account_id,
+        t.type,
+        t.transfer_group_id,
+        t.amount,
+        t.balance_impact,
+        t.transaction_date
+    FROM transactions t
+    INNER JOIN accounts_scope a ON a.account_id = t.account_id
+    WHERE t.transaction_date <= @monthEnd
+),
+transfer_rank AS (
+    SELECT
+        t.transaction_id,
+        row_number() OVER (PARTITION BY t.transfer_group_id ORDER BY t.transaction_id) AS row_num,
+        count(*) OVER (PARTITION BY t.transfer_group_id) AS group_size
+    FROM tx_scope t
+    WHERE lower(t.type) = 'transfer' AND t.transfer_group_id IS NOT NULL
+),
+tx_with_impact AS (
+    SELECT
+        t.account_id,
+        t.transaction_date,
+        CASE
+            WHEN t.balance_impact <> 0 THEN t.balance_impact
+            WHEN lower(t.type) = 'income' THEN t.amount
+            WHEN lower(t.type) = 'expense' THEN t.amount * -1
+            WHEN lower(t.type) = 'transfer' AND t.transfer_group_id IS NULL THEN t.amount
+            WHEN lower(t.type) = 'transfer' THEN
+                CASE
+                    WHEN coalesce(r.group_size, 0) < 2 THEN t.amount
+                    WHEN r.row_num = 1 THEN t.amount * -1
+                    ELSE t.amount
+                END
+            ELSE 0
+        END AS impact
+    FROM tx_scope t
+    LEFT JOIN transfer_rank r ON r.transaction_id = t.transaction_id
+),
+month_agg AS (
+    SELECT
+        a.account_id,
+        coalesce(sum(CASE WHEN t.transaction_date < @monthStart THEN t.impact ELSE 0 END), 0) AS prior_impact,
+        coalesce(sum(CASE WHEN t.transaction_date >= @monthStart AND t.transaction_date <= @monthEnd AND t.impact > 0 THEN t.impact ELSE 0 END), 0) AS month_income,
+        coalesce(sum(CASE WHEN t.transaction_date >= @monthStart AND t.transaction_date <= @monthEnd AND t.impact < 0 THEN (t.impact * -1) ELSE 0 END), 0) AS month_expense,
+        coalesce(sum(CASE WHEN t.transaction_date >= @monthStart AND t.transaction_date <= @monthEnd THEN t.impact ELSE 0 END), 0) AS month_net
+    FROM accounts_scope a
+    LEFT JOIN tx_with_impact t ON t.account_id = a.account_id
+    GROUP BY a.account_id
+),
+credit_bounds AS (
+    SELECT
+        a.account_id,
+        CASE WHEN a.is_credit THEN make_date(@yearValue, @monthValue, LEAST(GREATEST(coalesce(a.due_day, @daysInMonth), 1), @daysInMonth)) END AS period_end,
+        CASE WHEN a.is_credit THEN (make_date(@previousYear, @previousMonth, LEAST(GREATEST(coalesce(a.due_day, @previousDaysInMonth), 1), @previousDaysInMonth)) + INTERVAL '1 day')::date END AS period_start
+    FROM accounts_scope a
+),
+credit_spent AS (
+    SELECT
+        cb.account_id,
+        coalesce(sum(t.amount), 0) AS period_spent
+    FROM credit_bounds cb
+    LEFT JOIN transactions t
+        ON t.account_id = cb.account_id
+        AND lower(t.type) = 'expense'
+        AND cb.period_start IS NOT NULL
+        AND cb.period_end IS NOT NULL
+        AND t.transaction_date >= cb.period_start
+        AND t.transaction_date <= cb.period_end
+    GROUP BY cb.account_id
+)
+SELECT
+    a.account_id AS ""AccountId"",
+    a.name AS ""Name"",
+    a.active AS ""Active"",
+    a.is_credit AS ""IsCredit"",
+    a.due_day AS ""CutoffDay"",
+    a.payment_due_day AS ""PaymentDueDay"",
+    a.initial_balance AS ""InitialBalance"",
+    (a.initial_balance + coalesce(m.prior_impact, 0)) AS ""OpeningBalance"",
+    coalesce(m.month_income, 0) AS ""MonthIncome"",
+    coalesce(m.month_expense, 0) AS ""MonthExpense"",
+    coalesce(m.month_net, 0) AS ""MonthNet"",
+    (a.initial_balance + coalesce(m.prior_impact, 0) + coalesce(m.month_net, 0)) AS ""ClosingBalance"",
+    a.credit_limit AS ""CreditLimit"",
+    cb.period_start AS ""PeriodStart"",
+    cb.period_end AS ""PeriodEnd"",
+    coalesce(cs.period_spent, 0) AS ""PeriodSpent"",
+    coalesce(cs.period_spent, 0) AS ""PendingInformative""
+FROM accounts_scope a
+LEFT JOIN month_agg m ON m.account_id = a.account_id
+LEFT JOIN credit_bounds cb ON cb.account_id = a.account_id
+LEFT JOIN credit_spent cs ON cs.account_id = a.account_id
+ORDER BY a.name;";
+
+            var accountRows = await _context.Database
+                .SqlQueryRaw<DashboardAccountSqlRow>(
+                    sql,
+                    new NpgsqlParameter("userId", userId),
+                    new NpgsqlParameter("monthStart", monthStart.Date),
+                    new NpgsqlParameter("monthEnd", monthEnd.Date),
+                    new NpgsqlParameter("yearValue", year),
+                    new NpgsqlParameter("monthValue", monthNumber),
+                    new NpgsqlParameter("daysInMonth", daysInMonth),
+                    new NpgsqlParameter("previousYear", previousMonthDate.Year),
+                    new NpgsqlParameter("previousMonth", previousMonthDate.Month),
+                    new NpgsqlParameter("previousDaysInMonth", previousDaysInMonth))
                 .ToListAsync();
 
-            var accountIds = accounts.Select(a => a.AccountId).ToList();
-
-            var transactions = accountIds.Count == 0
-                ? new List<Transaction>()
-                : await _repository.Get<Transaction>(t =>
-                        accountIds.Contains(t.AccountId) &&
-                        t.TransactionDate <= monthEnd)
-                    .OrderBy(t => t.TransactionDate)
-                    .ThenBy(t => t.TransactionId)
-                    .ToListAsync();
-
-            var transactionIdsByTransferGroup = transactions
-                .Where(t => t.Type == "transfer" && t.TransferGroupId.HasValue)
-                .GroupBy(t => t.TransferGroupId!.Value)
-                .ToDictionary(
-                    g => g.Key,
-                    g => g.Select(x => x.TransactionId).OrderBy(id => id).ToArray());
-
-            var accountTransactions = transactions
-                .GroupBy(t => t.AccountId)
-                .ToDictionary(g => g.Key, g => g.ToList());
-
-            var accountOverviews = new List<DashboardAccountOverview>(accounts.Count);
-            foreach (var account in accounts)
+            var accountOverviews = accountRows.Select(row => new DashboardAccountOverview
             {
-                var tx = accountTransactions.TryGetValue(account.AccountId, out var accountTx)
-                    ? accountTx
-                    : new List<Transaction>();
-
-                var openingBalance = account.InitialBalance + tx
-                    .Where(t => t.TransactionDate < monthStart)
-                    .Sum(t => ResolveImpact(t, transactionIdsByTransferGroup));
-
-                var monthTransactions = tx
-                    .Where(t => t.TransactionDate >= monthStart && t.TransactionDate <= monthEnd)
-                    .ToList();
-
-                var monthIncome = monthTransactions
-                    .Select(t => ResolveImpact(t, transactionIdsByTransferGroup))
-                    .Where(impact => impact > 0)
-                    .Sum();
-
-                var monthExpense = monthTransactions
-                    .Select(t => ResolveImpact(t, transactionIdsByTransferGroup))
-                    .Where(impact => impact < 0)
-                    .Sum(impact => impact * -1);
-
-                var monthNet = monthTransactions.Sum(t => ResolveImpact(t, transactionIdsByTransferGroup));
-                var closingBalance = openingBalance + monthNet;
-
-                if (!account.IsCredit)
-                {
-                    accountOverviews.Add(new DashboardAccountOverview
-                    {
-                        AccountId = account.AccountId,
-                        Name = account.Name,
-                        Active = account.Active,
-                        IsCredit = false,
-                        InitialBalance = account.InitialBalance,
-                        OpeningBalance = openingBalance,
-                        MonthIncome = monthIncome,
-                        MonthExpense = monthExpense,
-                        MonthNet = monthNet,
-                        ClosingBalance = closingBalance,
-                        CreditLimit = account.CreditLimit
-                    });
-
-                    continue;
-                }
-
-                var cutoffDay = account.DueDay ?? DateTime.DaysInMonth(year, monthNumber);
-                var periodEnd = CreateSafeDate(year, monthNumber, cutoffDay);
-                var previousCutoff = CreateSafeDate(periodEnd.AddMonths(-1).Year, periodEnd.AddMonths(-1).Month, cutoffDay);
-                var periodStart = previousCutoff.AddDays(1);
-
-                var periodSpent = await _repository.Get<Transaction>(t =>
-                        t.AccountId == account.AccountId &&
-                        t.Type == "expense" &&
-                        t.TransactionDate >= periodStart &&
-                        t.TransactionDate <= periodEnd)
-                    .SumAsync(t => (decimal?)t.Amount) ?? 0m;
-
-                accountOverviews.Add(new DashboardAccountOverview
-                {
-                    AccountId = account.AccountId,
-                    Name = account.Name,
-                    Active = account.Active,
-                    IsCredit = true,
-                    CutoffDay = account.DueDay,
-                    PaymentDueDay = account.PaymentDueDay,
-                    InitialBalance = account.InitialBalance,
-                    OpeningBalance = openingBalance,
-                    MonthIncome = monthIncome,
-                    MonthExpense = monthExpense,
-                    MonthNet = monthNet,
-                    ClosingBalance = closingBalance,
-                    CreditLimit = account.CreditLimit,
-                    PeriodStart = periodStart,
-                    PeriodEnd = periodEnd,
-                    PeriodSpent = periodSpent,
-                    PendingInformative = periodSpent
-                });
-            }
+                AccountId = row.AccountId,
+                Name = row.Name,
+                Active = row.Active,
+                IsCredit = row.IsCredit,
+                CutoffDay = row.CutoffDay,
+                PaymentDueDay = row.PaymentDueDay,
+                InitialBalance = row.InitialBalance,
+                OpeningBalance = row.OpeningBalance,
+                MonthIncome = row.MonthIncome,
+                MonthExpense = row.MonthExpense,
+                MonthNet = row.MonthNet,
+                ClosingBalance = row.ClosingBalance,
+                CreditLimit = row.CreditLimit,
+                PeriodStart = row.PeriodStart,
+                PeriodEnd = row.PeriodEnd,
+                PeriodSpent = row.PeriodSpent,
+                PendingInformative = row.PendingInformative
+            }).ToList();
 
             return new DashboardCreditOverview
             {
@@ -146,37 +187,6 @@ namespace GastosApp.BusinessLogic.Services
             };
         }
 
-        private static decimal ResolveImpact(Transaction transaction, IReadOnlyDictionary<Guid, int[]> transactionIdsByTransferGroup)
-        {
-            if (transaction.BalanceImpact != 0)
-            {
-                return transaction.BalanceImpact;
-            }
-
-            return transaction.Type.ToLowerInvariant() switch
-            {
-                "income" => transaction.Amount,
-                "expense" => transaction.Amount * -1,
-                "transfer" when transaction.TransferGroupId.HasValue
-                    => InferTransferImpact(transaction, transactionIdsByTransferGroup),
-                _ => 0m
-            };
-        }
-
-        private static decimal InferTransferImpact(Transaction transaction, IReadOnlyDictionary<Guid, int[]> transactionIdsByTransferGroup)
-        {
-            if (!transaction.TransferGroupId.HasValue ||
-                !transactionIdsByTransferGroup.TryGetValue(transaction.TransferGroupId.Value, out var orderedIds) ||
-                orderedIds.Length < 2)
-            {
-                return transaction.Amount;
-            }
-
-            return transaction.TransactionId == orderedIds[0]
-                ? transaction.Amount * -1
-                : transaction.Amount;
-        }
-
         private static (int Year, int Month) ResolveMonth(string? month, string timezoneId)
         {
             if (!string.IsNullOrWhiteSpace(month) &&
@@ -190,13 +200,6 @@ namespace GastosApp.BusinessLogic.Services
             return (localNow.Year, localNow.Month);
         }
 
-        private static DateTime CreateSafeDate(int year, int month, int day)
-        {
-            var maxDay = DateTime.DaysInMonth(year, month);
-            var safeDay = Math.Clamp(day, 1, maxDay);
-            return new DateTime(year, month, safeDay, 0, 0, 0, DateTimeKind.Utc);
-        }
-
         private static TimeZoneInfo ResolveTimeZone(string timezoneId)
         {
             try
@@ -207,6 +210,27 @@ namespace GastosApp.BusinessLogic.Services
             {
                 return TimeZoneInfo.FindSystemTimeZoneById("Central Standard Time (Mexico)");
             }
+        }
+
+        private sealed class DashboardAccountSqlRow
+        {
+            public int AccountId { get; set; }
+            public string Name { get; set; } = string.Empty;
+            public bool Active { get; set; }
+            public bool IsCredit { get; set; }
+            public int? CutoffDay { get; set; }
+            public int? PaymentDueDay { get; set; }
+            public decimal InitialBalance { get; set; }
+            public decimal OpeningBalance { get; set; }
+            public decimal MonthIncome { get; set; }
+            public decimal MonthExpense { get; set; }
+            public decimal MonthNet { get; set; }
+            public decimal ClosingBalance { get; set; }
+            public decimal? CreditLimit { get; set; }
+            public DateTime? PeriodStart { get; set; }
+            public DateTime? PeriodEnd { get; set; }
+            public decimal PeriodSpent { get; set; }
+            public decimal PendingInformative { get; set; }
         }
     }
 }
