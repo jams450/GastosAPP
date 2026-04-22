@@ -24,6 +24,7 @@ namespace GastosApp.BusinessLogic.Services
         {
             return await _repository.Get<Tag>(t => (t.UserId == userId || t.UserId == null) && (!onlyActive || t.Active))
                 .OrderBy(t => t.Name)
+                .ThenBy(t => t.TagId)
                 .ToListAsync();
         }
 
@@ -37,6 +38,7 @@ namespace GastosApp.BusinessLogic.Services
 
             return await _repository.Get<Tag>(t => (t.UserId == userId || t.UserId == null) && t.Active && t.NormalizedName.Contains(query))
                 .OrderBy(t => t.Name)
+                .ThenBy(t => t.TagId)
                 .Take(Math.Clamp(take, 1, 100))
                 .ToListAsync();
         }

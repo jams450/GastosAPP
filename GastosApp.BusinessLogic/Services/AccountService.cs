@@ -21,12 +21,18 @@ namespace GastosApp.BusinessLogic.Services
 
         public async Task<IEnumerable<Account>> GetAllByUserIdAsync(int userId)
         {
-            return await _repository.Get<Account>(a => a.UserId == userId).ToListAsync();
+            return await _repository.Get<Account>(a => a.UserId == userId)
+                .OrderBy(a => a.Name)
+                .ThenBy(a => a.AccountId)
+                .ToListAsync();
         }
 
         public async Task<IEnumerable<Account>> GetAllActiveByUserIdAsync(int userId)
         {
-            return await _repository.Get<Account>(a => a.UserId == userId && a.Active).ToListAsync();
+            return await _repository.Get<Account>(a => a.UserId == userId && a.Active)
+                .OrderBy(a => a.Name)
+                .ThenBy(a => a.AccountId)
+                .ToListAsync();
         }
 
         public async Task<Account> CreateAsync(Account account)

@@ -33,6 +33,8 @@ namespace GastosApp.BusinessLogic.Services
             return await _repository.Get<Category>(c => c.UserId == userId || c.UserId == null)
                 .Include(c => c.CategoryTags)
                 .ThenInclude(ct => ct.Tag)
+                .OrderBy(c => c.Name)
+                .ThenBy(c => c.CategoryId)
                 .ToListAsync();
         }
 
@@ -41,6 +43,8 @@ namespace GastosApp.BusinessLogic.Services
             return await _repository.Get<Category>(c => (c.UserId == userId || c.UserId == null) && c.Active)
                 .Include(c => c.CategoryTags)
                 .ThenInclude(ct => ct.Tag)
+                .OrderBy(c => c.Name)
+                .ThenBy(c => c.CategoryId)
                 .ToListAsync();
         }
 
@@ -52,6 +56,8 @@ namespace GastosApp.BusinessLogic.Services
                 c.Active)
                 .Include(c => c.CategoryTags)
                 .ThenInclude(ct => ct.Tag)
+                .OrderBy(c => c.Name)
+                .ThenBy(c => c.CategoryId)
                 .ToListAsync();
         }
 

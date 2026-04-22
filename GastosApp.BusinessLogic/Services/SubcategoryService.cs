@@ -24,6 +24,7 @@ namespace GastosApp.BusinessLogic.Services
         {
             return await _repository.Get<Subcategory>(s => (s.UserId == userId || s.UserId == null) && (!onlyActive || s.Active))
                 .OrderBy(s => s.Name)
+                .ThenBy(s => s.SubcategoryId)
                 .ToListAsync();
         }
 
@@ -34,6 +35,7 @@ namespace GastosApp.BusinessLogic.Services
                     (s.UserId == userId || s.UserId == null) &&
                     (!onlyActive || s.Active))
                 .OrderBy(s => s.Name)
+                .ThenBy(s => s.SubcategoryId)
                 .ToListAsync();
         }
 

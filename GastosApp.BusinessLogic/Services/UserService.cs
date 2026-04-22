@@ -29,7 +29,10 @@ namespace GastosApp.BusinessLogic.Services
 
         public async Task<IEnumerable<User>> GetAllAsync()
         {
-            return await _repository.Get<User>().ToListAsync();
+            return await _repository.Get<User>()
+                .OrderBy(u => u.Name)
+                .ThenBy(u => u.UserId)
+                .ToListAsync();
         }
 
         public async Task<User> CreateAsync(User user)

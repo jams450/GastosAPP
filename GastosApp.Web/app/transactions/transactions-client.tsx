@@ -7,7 +7,6 @@ import { AppMenu } from "@/components/navigation/app-menu";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { DataGrid } from "@/components/data-grid/data-grid";
 import { Input } from "@/components/ui/input";
 import type { Account } from "@/lib/contracts/accounts";
 import type { Category, CategoryType } from "@/lib/contracts/categories";
@@ -15,6 +14,10 @@ import type { Merchant } from "@/lib/contracts/merchants";
 import type { Subcategory } from "@/lib/contracts/subcategories";
 import type { Tag } from "@/lib/contracts/tags";
 import { formatCurrency } from "@/lib/format/currency";
+import { ExpenseForm } from "./_components/create/expense-form";
+import { IncomeForm } from "./_components/create/income-form";
+import { TransferForm } from "./_components/create/transfer-form";
+import { HistoryPanel } from "./_components/history/history-panel";
 
 type TransactionKind = CategoryType;
 
@@ -844,226 +847,114 @@ export function TransactionsClient({ username }: Props) {
               ) : catalogsError ? (
                 <Alert variant="danger">{catalogsError}</Alert>
               ) : (
-                <form onSubmit={onSubmit} className="space-y-4">
-                  {kind === "transfer" ? (
-                    <div className="grid gap-4 md:grid-cols-2">
-                      <label className="grid gap-1.5 text-sm font-medium text-slate-700 dark:text-slate-300">
-                        Cuenta origen
-                        <select
-                          value={sourceAccountId ?? ""}
-                          onChange={(event) => setSourceAccountId(parseSelectedNumber(event.target.value))}
-                          className="h-11 rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-200 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
-                          required
-                        >
-                          <option value="">Selecciona una cuenta</option>
-                          {catalogs?.accounts.map((account) => (
-                            <option key={account.accountId} value={account.accountId}>
-                              {account.name} · {formatCurrency(account.currentBalance)}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-
-                      <label className="grid gap-1.5 text-sm font-medium text-slate-700 dark:text-slate-300">
-                        Cuenta destino
-                        <select
-                          value={destinationAccountId ?? ""}
-                          onChange={(event) => setDestinationAccountId(parseSelectedNumber(event.target.value))}
-                          className="h-11 rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-200 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
-                          required
-                        >
-                          <option value="">Selecciona una cuenta</option>
-                          {catalogs?.accounts.map((account) => (
-                            <option key={account.accountId} value={account.accountId}>
-                              {account.name} · {formatCurrency(account.currentBalance)}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-
-                      <div className="md:col-span-2">
-                        <Button type="button" variant="ghost" className="h-9 px-0 text-sm" onClick={swapTransferAccounts}>
-                          Intercambiar origen y destino
-                        </Button>
-                        <p className="text-xs text-slate-500 dark:text-slate-400">
-                          {sourceAccount ? `Origen: ${sourceAccount.name}` : "Origen sin seleccionar"} ·{" "}
-                          {destinationAccount ? `Destino: ${destinationAccount.name}` : "Destino sin seleccionar"}
-                        </p>
-                      </div>
-                    </div>
-                  ) : (
-                    <label className="grid gap-1.5 text-sm font-medium text-slate-700 dark:text-slate-300">
-                      Cuenta
-                      <select
-                        value={accountId ?? ""}
-                        onChange={(event) => setAccountId(parseSelectedNumber(event.target.value))}
-                        className="h-11 rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-200 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
-                        required
-                      >
-                        <option value="">Selecciona una cuenta</option>
-                        {catalogs?.accounts.map((account) => (
-                          <option key={account.accountId} value={account.accountId}>
-                            {account.name} · {formatCurrency(account.currentBalance)}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                  )}
-
-                  <label className="grid gap-1.5 text-sm font-medium text-slate-700 dark:text-slate-300">
-                    Categoría
-                    <select
-                      value={categoryId ?? ""}
-                      onChange={(event) => setCategoryId(parseSelectedNumber(event.target.value))}
-                      className="h-11 rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-200 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
-                      required
-                    >
-                      <option value="">Selecciona una categoría</option>
-                      {categoriesForKind.map((category) => (
-                        <option key={category.categoryId} value={category.categoryId}>
-                          {category.name}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <label className="grid gap-1.5 text-sm font-medium text-slate-700 dark:text-slate-300">
-                      Subcategoría (opcional)
-                      <select
-                        value={subcategoryId ?? ""}
-                        onChange={(event) => setSubcategoryId(parseSelectedNumber(event.target.value))}
-                        className="h-11 rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-200 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
-                      >
-                        <option value="">Sin subcategoría</option>
-                        {subcategoriesForSelectedCategory.map((subcategory) => (
-                          <option key={subcategory.subcategoryId} value={subcategory.subcategoryId}>
-                            {subcategory.name}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-
-                    <label className="grid gap-1.5 text-sm font-medium text-slate-700 dark:text-slate-300">
-                      Comercio (opcional)
-                      <select
-                        value={merchantId ?? ""}
-                        onChange={(event) => setMerchantId(parseSelectedNumber(event.target.value))}
-                        className="h-11 rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-200 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
-                      >
-                        <option value="">Sin comercio</option>
-                        {catalogs?.merchants.map((merchant) => (
-                          <option key={merchant.merchantId} value={merchant.merchantId}>
-                            {merchant.name}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                  </div>
-
-                  <Input
-                    label="Tags (opcional, separados por coma)"
-                    type="text"
-                    value={tagsText}
-                    onChange={(event) => setTagsText(event.target.value)}
-                    placeholder="ej. steam, oferta, suscripción"
-                    list="transaction-tag-suggestions"
+                kind === "income" ? (
+                  <IncomeForm
+                    accounts={catalogs?.accounts ?? []}
+                    merchants={catalogs?.merchants ?? []}
+                    tags={catalogs?.tags ?? []}
+                    accountId={accountId}
+                    onAccountIdChange={setAccountId}
+                    categoryId={categoryId}
+                    onCategoryIdChange={setCategoryId}
+                    categoriesForKind={categoriesForKind}
+                    subcategoryId={subcategoryId}
+                    onSubcategoryIdChange={setSubcategoryId}
+                    subcategoriesForSelectedCategory={subcategoriesForSelectedCategory}
+                    merchantId={merchantId}
+                    onMerchantIdChange={setMerchantId}
+                    tagsText={tagsText}
+                    onTagsTextChange={setTagsText}
+                    amount={amount}
+                    onAmountChange={setAmount}
+                    transactionDate={transactionDate}
+                    onTransactionDateChange={setTransactionDate}
+                    description={description}
+                    onDescriptionChange={setDescription}
+                    submitError={submitError}
+                    successMessage={successMessage}
+                    submitLoading={submitLoading}
+                    onSubmit={onSubmit}
+                    parseSelectedNumber={parseSelectedNumber}
                   />
-                  <datalist id="transaction-tag-suggestions">
-                    {(catalogs?.tags ?? []).map((tag) => (
-                      <option key={tag.tagId} value={tag.name} />
-                    ))}
-                  </datalist>
-
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <Input
-                      label="Monto"
-                      type="number"
-                      step="0.01"
-                      min="0.01"
-                      value={amount}
-                      onChange={(event) => setAmount(event.target.value)}
-                      placeholder="0.00"
-                      required
-                    />
-
-                    <Input
-                      label="Fecha"
-                      type="date"
-                      value={transactionDate}
-                      onChange={(event) => setTransactionDate(event.target.value)}
-                      required
-                    />
-                  </div>
-
-                  <Input
-                    label="Descripción"
-                    type="text"
-                    value={description}
-                    onChange={(event) => setDescription(event.target.value)}
-                    placeholder="Ej. Interés GBM"
-                    required
+                ) : kind === "expense" ? (
+                  <ExpenseForm
+                    accounts={catalogs?.accounts ?? []}
+                    merchants={catalogs?.merchants ?? []}
+                    tags={catalogs?.tags ?? []}
+                    accountId={accountId}
+                    onAccountIdChange={setAccountId}
+                    categoryId={categoryId}
+                    onCategoryIdChange={setCategoryId}
+                    categoriesForKind={categoriesForKind}
+                    subcategoryId={subcategoryId}
+                    onSubcategoryIdChange={setSubcategoryId}
+                    subcategoriesForSelectedCategory={subcategoriesForSelectedCategory}
+                    merchantId={merchantId}
+                    onMerchantIdChange={setMerchantId}
+                    tagsText={tagsText}
+                    onTagsTextChange={setTagsText}
+                    amount={amount}
+                    onAmountChange={setAmount}
+                    transactionDate={transactionDate}
+                    onTransactionDateChange={setTransactionDate}
+                    description={description}
+                    onDescriptionChange={setDescription}
+                    submitError={submitError}
+                    successMessage={successMessage}
+                    submitLoading={submitLoading}
+                    onSubmit={onSubmit}
+                    parseSelectedNumber={parseSelectedNumber}
                   />
-
-                  {submitError ? <Alert variant="danger">{submitError}</Alert> : null}
-                  {successMessage ? <Alert variant="info">{successMessage}</Alert> : null}
-
-                  <div className="flex justify-end">
-                    <Button type="submit" loading={submitLoading} loadingText="Guardando...">
-                      Guardar {typeLabel[kind].toLowerCase()}
-                    </Button>
-                  </div>
-                </form>
+                ) : (
+                  <TransferForm
+                    accounts={catalogs?.accounts ?? []}
+                    merchants={catalogs?.merchants ?? []}
+                    tags={catalogs?.tags ?? []}
+                    sourceAccountId={sourceAccountId}
+                    onSourceAccountIdChange={setSourceAccountId}
+                    destinationAccountId={destinationAccountId}
+                    onDestinationAccountIdChange={setDestinationAccountId}
+                    sourceAccountName={sourceAccount?.name ?? null}
+                    destinationAccountName={destinationAccount?.name ?? null}
+                    onSwapAccounts={swapTransferAccounts}
+                    categoryId={categoryId}
+                    onCategoryIdChange={setCategoryId}
+                    categoriesForKind={categoriesForKind}
+                    subcategoryId={subcategoryId}
+                    onSubcategoryIdChange={setSubcategoryId}
+                    subcategoriesForSelectedCategory={subcategoriesForSelectedCategory}
+                    merchantId={merchantId}
+                    onMerchantIdChange={setMerchantId}
+                    tagsText={tagsText}
+                    onTagsTextChange={setTagsText}
+                    amount={amount}
+                    onAmountChange={setAmount}
+                    transactionDate={transactionDate}
+                    onTransactionDateChange={setTransactionDate}
+                    description={description}
+                    onDescriptionChange={setDescription}
+                    submitError={submitError}
+                    successMessage={successMessage}
+                    submitLoading={submitLoading}
+                    onSubmit={onSubmit}
+                    parseSelectedNumber={parseSelectedNumber}
+                  />
+                )
               )}
             </>
           ) : (
-            <div className="space-y-4">
-              <div className="grid gap-3 sm:max-w-xs">
-                <Input
-                  label="Mes"
-                  type="month"
-                  value={historyMonth}
-                  onChange={(event) => setHistoryMonth(event.target.value)}
-                />
-                <Button
-                  type="button"
-                  variant="secondary"
-                  className="h-9"
-                  loading={historyLoading}
-                  loadingText="Cargando..."
-                  onClick={() => void loadHistory(historyMonth)}
-                >
-                  Recargar historial
-                </Button>
-              </div>
-
-              {historyError ? <Alert variant="danger">{historyError}</Alert> : null}
-              {successMessage ? <Alert variant="info">{successMessage}</Alert> : null}
-
-              <div className="space-y-2">
-                <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-200">Transacciones normales</h3>
-                <DataGrid
-                  columns={historyColumns}
-                  rows={regularHistoryItems}
-                  mode="client"
-                  density="compact"
-                  loading={historyLoading}
-                  emptyMessage="No hay transacciones normales en este mes"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-200">Transferencias por grupo</h3>
-                <DataGrid
-                  columns={transferColumns}
-                  rows={transferGroups}
-                  mode="client"
-                  density="compact"
-                  loading={historyLoading}
-                  emptyMessage="No hay transferencias en este mes"
-                />
-              </div>
-            </div>
+            <HistoryPanel
+              historyMonth={historyMonth}
+              onHistoryMonthChange={setHistoryMonth}
+              onReload={() => void loadHistory(historyMonth)}
+              historyLoading={historyLoading}
+              historyError={historyError}
+              successMessage={successMessage}
+              historyColumns={historyColumns as ColumnDef<any>[]}
+              transferColumns={transferColumns as ColumnDef<any>[]}
+              regularHistoryItems={regularHistoryItems}
+              transferGroups={transferGroups}
+            />
           )}
         </Card>
 

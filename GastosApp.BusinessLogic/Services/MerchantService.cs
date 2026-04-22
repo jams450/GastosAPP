@@ -24,6 +24,7 @@ namespace GastosApp.BusinessLogic.Services
         {
             return await _repository.Get<Merchant>(m => (m.UserId == userId || m.UserId == null) && (!onlyActive || m.Active))
                 .OrderBy(m => m.Name)
+                .ThenBy(m => m.MerchantId)
                 .ToListAsync();
         }
 
