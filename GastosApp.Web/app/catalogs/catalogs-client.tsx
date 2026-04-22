@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AppMenu } from "@/components/navigation/app-menu";
 import { Alert } from "@/components/ui/alert";
 import { Card } from "@/components/ui/card";
@@ -31,6 +31,11 @@ export function CatalogsClient({ username }: Props) {
   const merchants = catalogs?.merchants ?? [];
   const tags = catalogs?.tags ?? [];
 
+  const totalCatalogItems = useMemo(
+    () => categories.length + subcategories.length + merchants.length + tags.length,
+    [categories.length, merchants.length, subcategories.length, tags.length]
+  );
+
   async function loadCatalogs() {
     setLoading(true);
     setError(null);
@@ -49,15 +54,32 @@ export function CatalogsClient({ username }: Props) {
     void loadCatalogs();
   }, []);
 
+  useEffect(() => {
+    if (!globalSuccess) {
+      return;
+    }
+
+    const timeout = window.setTimeout(() => setGlobalSuccess(null), 3000);
+    return () => window.clearTimeout(timeout);
+  }, [globalSuccess]);
+
   return (
-    <main className="min-h-dvh bg-slate-100 px-4 py-8 dark:bg-slate-900 md:px-8">
+    <main className="min-h-dvh bg-gradient-to-b from-slate-100 via-slate-100 to-slate-200 px-4 py-8 dark:from-slate-950 dark:via-slate-950 dark:to-slate-900 md:px-8">
       <section className="mx-auto w-full max-w-6xl space-y-4">
-        <Card className="p-4">
+        <Card className="border-slate-300/70 bg-white/90 p-4 backdrop-blur dark:border-slate-800 dark:bg-slate-950/95">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="space-y-0.5">
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-sky-700 dark:text-sky-400">Catálogos</p>
+            <div className="space-y-1">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-sky-700 dark:text-sky-400">Catálogos</p>
               <h1 className="text-xl font-semibold tracking-tight text-slate-900 dark:text-slate-100 md:text-2xl">Gestión de catálogos</h1>
-              <p className="text-xs text-slate-600 dark:text-slate-400">Hola {username}. Base para tablas compactas y evolución a server-side.</p>
+              <p className="text-xs text-slate-600 dark:text-slate-400">Hola {username}. Tablas unificadas con búsqueda, filtros, orden y estilos consistentes.</p>
+              <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                <span className="rounded-full border border-slate-300 bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
+                  {totalCatalogItems} elementos
+                </span>
+                <span className="rounded-full border border-slate-300 bg-slate-100 px-2 py-0.5 text-[10px] text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
+                  4 secciones
+                </span>
+              </div>
             </div>
 
             <AppMenu username={username} compact />

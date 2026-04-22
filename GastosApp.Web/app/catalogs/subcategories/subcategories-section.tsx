@@ -8,9 +8,12 @@ import { Input } from "@/components/ui/input";
 import type { Category } from "@/lib/contracts/categories";
 import type { Subcategory } from "@/lib/contracts/subcategories";
 import { requestJson } from "../_shared/catalogs-api";
-import { rowActionButtonClass } from "../_shared/action-button-style";
+import { SectionFilterBar } from "../_shared/section-filter-bar";
+import { SortSummary } from "../_shared/sort-summary";
+import { CatalogActionButton } from "../_shared/catalog-action-button";
 import { SectionCard } from "../_shared/section-card";
 import { StatusBadge } from "../_shared/status-badge";
+import { useCatalogSectionState } from "../_shared/use-catalog-section-state";
 
 type Props = {
   categories: Category[];
@@ -51,10 +54,35 @@ export function SubcategoriesSection({ categories, subcategories, expanded, onTo
   }, [categories]);
 
   const activeCategories = useMemo(() => categories.filter((category) => category.active), [categories]);
-  const filteredSubcategories = useMemo(
-    () => (categoryFilterId ? subcategories.filter((subcategory) => subcategory.categoryId === categoryFilterId) : subcategories),
-    [categoryFilterId, subcategories]
-  );
+  const initialSorting = useMemo(() => [{ id: "categoryName", desc: false }, { id: "name", desc: false }], []);
+  const {
+    filteredRows,
+    searchQuery,
+    setSearchQuery,
+    activeFilter,
+    setActiveFilter,
+    sorting,
+    setSorting,
+    clearFilters,
+    clearSorting
+  } = useCatalogSectionState({
+    rows: subcategories,
+    initialSorting,
+    searchPredicate: (row, normalizedQuery) => {
+      const categoryName = categoryNameById.get(row.categoryId)?.toLowerCase() ?? "";
+      return row.name.toLowerCase().includes(normalizedQuery) || categoryName.includes(normalizedQuery);
+    },
+    activePredicate: (row) => row.active,
+    extraFilterPredicate: (row) => (categoryFilterId ? row.categoryId === categoryFilterId : true)
+  });
+
+  const activeCount = useMemo(() => subcategories.filter((subcategory) => subcategory.active).length, [subcategories]);
+  const inactiveCount = subcategories.length - activeCount;
+
+  function clearAllFilters() {
+    clearFilters();
+    setCategoryFilterId(null);
+  }
 
   function openCreateSubcategoryModal() {
     setSubcategoryForm(emptySubcategoryForm(categories));
@@ -154,18 +182,14 @@ export function SubcategoriesSection({ categories, subcategories, expanded, onTo
         const subcategory = row.original;
         return (
           <div className="flex items-center gap-1.5">
-            <Button type="button" variant="secondary" className={rowActionButtonClass} onClick={() => openEditSubcategoryModal(subcategory)}>
-              Editar
-            </Button>
-            <Button
+            <CatalogActionButton type="button" action="edit" label="Editar" onClick={() => openEditSubcategoryModal(subcategory)} />
+            <CatalogActionButton
               type="button"
-              variant={subcategory.active ? "danger" : "secondary"}
-              className={rowActionButtonClass}
+              action={subcategory.active ? "deactivate" : "activate"}
+              label={subcategory.active ? "Desactivar" : "Activar"}
               onClick={() => void toggleSubcategoryActive(subcategory)}
               disabled={saving}
-            >
-              {subcategory.active ? "Desactivar" : "Activar"}
-            </Button>
+            />
           </div>
         );
       }
@@ -175,41 +199,79 @@ export function SubcategoriesSection({ categories, subcategories, expanded, onTo
   return (
     <>
       <SectionCard
+        id="catalog-section-subcategories"
         title="Subcategorías"
         count={subcategories.length}
+        activeCount={activeCount}
+        inactiveCount={inactiveCount}
         expanded={expanded}
         onToggle={onToggle}
         onCreate={openCreateSubcategoryModal}
         createLabel="Nueva"
       >
-        <div className="space-y-2">
-          <label className="grid max-w-xs gap-1 text-xs font-medium text-slate-700 dark:text-slate-300">
-            Filtrar por categoría
-            <select
-              value={categoryFilterId ?? ""}
-              onChange={(event) => {
-                const value = Number(event.target.value);
-                setCategoryFilterId(Number.isFinite(value) && value > 0 ? value : null);
-              }}
-              className="h-9 rounded-lg border border-slate-300 bg-white px-2 text-xs text-slate-900 outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-200 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
-            >
-              <option value="">Todas</option>
-              {categories.map((category) => (
-                <option key={category.categoryId} value={category.categoryId}>
-                  {category.name}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <DataGrid
-            columns={subcategoryColumns}
-            rows={filteredSubcategories}
-            density="compact"
-            emptyMessage="Sin subcategorías"
-            initialSorting={[{ id: "name", desc: false }]}
-          />
-        </div>
+        <DataGrid
+          columns={subcategoryColumns}
+          rows={filteredRows}
+          sorting={sorting}
+          onSortingChange={setSorting}
+          emptyMessage="Sin subcategorías"
+          allowDensityToggle
+          densityStorageKey="catalogs-grid-density"
+          toolbar={
+            <div className="space-y-2">
+              <SectionFilterBar
+                searchPlaceholder="Buscar por subcategoría o categoría"
+                searchValue={searchQuery}
+                onSearchChange={setSearchQuery}
+                activeFilter={activeFilter}
+                onActiveFilterChange={setActiveFilter}
+                onClearFilters={clearAllFilters}
+                extraFilters={[
+                  {
+                    label: "Categoría",
+                    content: (
+                      <select
+                        value={categoryFilterId ?? ""}
+                        onChange={(event) => {
+                          const value = Number(event.target.value);
+                          setCategoryFilterId(Number.isFinite(value) && value > 0 ? value : null);
+                        }}
+                        className="h-9 rounded-lg border border-slate-300 bg-white px-2 text-xs text-slate-900 outline-none transition focus:border-sky-500 focus:ring-2 focus:ring-sky-200 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                      >
+                        <option value="">Todas</option>
+                        {categories.map((category) => (
+                          <option key={category.categoryId} value={category.categoryId}>
+                            {category.name}
+                          </option>
+                        ))}
+                      </select>
+                    )
+                  }
+                ]}
+                chips={
+                  categoryFilterId
+                    ? [
+                        {
+                          id: "category",
+                          label: `Categoría: ${categoryNameById.get(categoryFilterId) ?? "N/A"}`,
+                          onClear: () => setCategoryFilterId(null)
+                        }
+                      ]
+                    : undefined
+                }
+              />
+              <SortSummary
+                sorting={sorting}
+                onClearSorting={clearSorting}
+                labelsByColumnId={{
+                  name: "Nombre",
+                  categoryName: "Categoría",
+                  active: "Estado"
+                }}
+              />
+            </div>
+          }
+        />
       </SectionCard>
 
       {subcategoryModalOpen ? (

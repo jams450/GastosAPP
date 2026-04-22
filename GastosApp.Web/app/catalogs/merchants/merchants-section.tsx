@@ -1,5 +1,5 @@
 import type { ColumnDef } from "@tanstack/react-table";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import { DataGrid } from "@/components/data-grid/data-grid";
 import { Button } from "@/components/ui/button";
@@ -7,9 +7,12 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import type { Merchant } from "@/lib/contracts/merchants";
 import { requestJson } from "../_shared/catalogs-api";
-import { rowActionButtonClass } from "../_shared/action-button-style";
+import { SectionFilterBar } from "../_shared/section-filter-bar";
+import { SortSummary } from "../_shared/sort-summary";
+import { CatalogActionButton } from "../_shared/catalog-action-button";
 import { SectionCard } from "../_shared/section-card";
 import { StatusBadge } from "../_shared/status-badge";
+import { useCatalogSectionState } from "../_shared/use-catalog-section-state";
 
 type Props = {
   merchants: Merchant[];
@@ -34,6 +37,27 @@ export function MerchantsSection({ merchants, expanded, onToggle, onCatalogChang
   const [saving, setSaving] = useState(false);
   const [merchantModalOpen, setMerchantModalOpen] = useState(false);
   const [merchantForm, setMerchantForm] = useState<MerchantFormState>(emptyMerchantForm());
+
+  const initialSorting = useMemo(() => [{ id: "name", desc: false }], []);
+  const {
+    filteredRows,
+    searchQuery,
+    setSearchQuery,
+    activeFilter,
+    setActiveFilter,
+    sorting,
+    setSorting,
+    clearFilters,
+    clearSorting
+  } = useCatalogSectionState({
+    rows: merchants,
+    initialSorting,
+    searchPredicate: (row, normalizedQuery) => row.name.toLowerCase().includes(normalizedQuery),
+    activePredicate: (row) => row.active
+  });
+
+  const activeCount = useMemo(() => merchants.filter((merchant) => merchant.active).length, [merchants]);
+  const inactiveCount = merchants.length - activeCount;
 
   function openCreateMerchantModal() {
     setMerchantForm(emptyMerchantForm());
@@ -112,18 +136,14 @@ export function MerchantsSection({ merchants, expanded, onToggle, onCatalogChang
         const merchant = row.original;
         return (
           <div className="flex items-center gap-1.5">
-            <Button type="button" variant="secondary" className={rowActionButtonClass} onClick={() => openEditMerchantModal(merchant)}>
-              Editar
-            </Button>
-            <Button
+            <CatalogActionButton type="button" action="edit" label="Editar" onClick={() => openEditMerchantModal(merchant)} />
+            <CatalogActionButton
               type="button"
-              variant={merchant.active ? "danger" : "secondary"}
-              className={rowActionButtonClass}
+              action={merchant.active ? "deactivate" : "activate"}
+              label={merchant.active ? "Desactivar" : "Activar"}
               onClick={() => void toggleMerchantActive(merchant)}
               disabled={saving}
-            >
-              {merchant.active ? "Desactivar" : "Activar"}
-            </Button>
+            />
           </div>
         );
       }
@@ -132,8 +152,38 @@ export function MerchantsSection({ merchants, expanded, onToggle, onCatalogChang
 
   return (
     <>
-      <SectionCard title="Comercios" count={merchants.length} expanded={expanded} onToggle={onToggle} onCreate={openCreateMerchantModal}>
-        <DataGrid columns={merchantColumns} rows={merchants} density="compact" emptyMessage="Sin comercios" initialSorting={[{ id: "name", desc: false }]} />
+      <SectionCard
+        id="catalog-section-merchants"
+        title="Comercios"
+        count={merchants.length}
+        activeCount={activeCount}
+        inactiveCount={inactiveCount}
+        expanded={expanded}
+        onToggle={onToggle}
+        onCreate={openCreateMerchantModal}
+      >
+        <DataGrid
+          columns={merchantColumns}
+          rows={filteredRows}
+          sorting={sorting}
+          onSortingChange={setSorting}
+          emptyMessage="Sin comercios"
+          allowDensityToggle
+          densityStorageKey="catalogs-grid-density"
+          toolbar={
+            <div className="space-y-2">
+              <SectionFilterBar
+                searchPlaceholder="Buscar comercio"
+                searchValue={searchQuery}
+                onSearchChange={setSearchQuery}
+                activeFilter={activeFilter}
+                onActiveFilterChange={setActiveFilter}
+                onClearFilters={clearFilters}
+              />
+              <SortSummary sorting={sorting} onClearSorting={clearSorting} labelsByColumnId={{ name: "Nombre", active: "Estado" }} />
+            </div>
+          }
+        />
       </SectionCard>
 
       {merchantModalOpen ? (

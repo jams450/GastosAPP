@@ -1,5 +1,5 @@
 import type { ColumnDef } from "@tanstack/react-table";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import { DataGrid } from "@/components/data-grid/data-grid";
 import { Button } from "@/components/ui/button";
@@ -7,9 +7,12 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import type { Tag } from "@/lib/contracts/tags";
 import { requestJson } from "../_shared/catalogs-api";
-import { rowActionButtonClass } from "../_shared/action-button-style";
+import { SectionFilterBar } from "../_shared/section-filter-bar";
+import { SortSummary } from "../_shared/sort-summary";
+import { CatalogActionButton } from "../_shared/catalog-action-button";
 import { SectionCard } from "../_shared/section-card";
 import { StatusBadge } from "../_shared/status-badge";
+import { useCatalogSectionState } from "../_shared/use-catalog-section-state";
 
 type Props = {
   tags: Tag[];
@@ -34,6 +37,27 @@ export function TagsSection({ tags, expanded, onToggle, onCatalogChanged, onErro
   const [saving, setSaving] = useState(false);
   const [tagModalOpen, setTagModalOpen] = useState(false);
   const [tagForm, setTagForm] = useState<TagFormState>(emptyTagForm());
+
+  const initialSorting = useMemo(() => [{ id: "name", desc: false }], []);
+  const {
+    filteredRows,
+    searchQuery,
+    setSearchQuery,
+    activeFilter,
+    setActiveFilter,
+    sorting,
+    setSorting,
+    clearFilters,
+    clearSorting
+  } = useCatalogSectionState({
+    rows: tags,
+    initialSorting,
+    searchPredicate: (row, normalizedQuery) => row.name.toLowerCase().includes(normalizedQuery),
+    activePredicate: (row) => row.active
+  });
+
+  const activeCount = useMemo(() => tags.filter((tag) => tag.active).length, [tags]);
+  const inactiveCount = tags.length - activeCount;
 
   function openCreateTagModal() {
     setTagForm(emptyTagForm());
@@ -108,18 +132,14 @@ export function TagsSection({ tags, expanded, onToggle, onCatalogChanged, onErro
         const tag = row.original;
         return (
           <div className="flex items-center gap-1.5">
-            <Button type="button" variant="secondary" className={rowActionButtonClass} onClick={() => openEditTagModal(tag)}>
-              Editar
-            </Button>
-            <Button
+            <CatalogActionButton type="button" action="edit" label="Editar" onClick={() => openEditTagModal(tag)} />
+            <CatalogActionButton
               type="button"
-              variant={tag.active ? "danger" : "secondary"}
-              className={rowActionButtonClass}
+              action={tag.active ? "deactivate" : "activate"}
+              label={tag.active ? "Desactivar" : "Activar"}
               onClick={() => void toggleTagActive(tag)}
               disabled={saving}
-            >
-              {tag.active ? "Desactivar" : "Activar"}
-            </Button>
+            />
           </div>
         );
       }
@@ -128,8 +148,38 @@ export function TagsSection({ tags, expanded, onToggle, onCatalogChanged, onErro
 
   return (
     <>
-      <SectionCard title="Tags" count={tags.length} expanded={expanded} onToggle={onToggle} onCreate={openCreateTagModal}>
-        <DataGrid columns={tagColumns} rows={tags} density="compact" emptyMessage="Sin tags" initialSorting={[{ id: "name", desc: false }]} />
+      <SectionCard
+        id="catalog-section-tags"
+        title="Tags"
+        count={tags.length}
+        activeCount={activeCount}
+        inactiveCount={inactiveCount}
+        expanded={expanded}
+        onToggle={onToggle}
+        onCreate={openCreateTagModal}
+      >
+        <DataGrid
+          columns={tagColumns}
+          rows={filteredRows}
+          sorting={sorting}
+          onSortingChange={setSorting}
+          emptyMessage="Sin tags"
+          allowDensityToggle
+          densityStorageKey="catalogs-grid-density"
+          toolbar={
+            <div className="space-y-2">
+              <SectionFilterBar
+                searchPlaceholder="Buscar tag"
+                searchValue={searchQuery}
+                onSearchChange={setSearchQuery}
+                activeFilter={activeFilter}
+                onActiveFilterChange={setActiveFilter}
+                onClearFilters={clearFilters}
+              />
+              <SortSummary sorting={sorting} onClearSorting={clearSorting} labelsByColumnId={{ name: "Nombre", active: "Estado" }} />
+            </div>
+          }
+        />
       </SectionCard>
 
       {tagModalOpen ? (

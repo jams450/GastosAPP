@@ -1,5 +1,5 @@
 import type { ColumnDef } from "@tanstack/react-table";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import { DataGrid } from "@/components/data-grid/data-grid";
 import { Button } from "@/components/ui/button";
@@ -7,9 +7,12 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import type { Category, CategoryType } from "@/lib/contracts/categories";
 import { requestJson } from "../_shared/catalogs-api";
-import { rowActionButtonClass } from "../_shared/action-button-style";
+import { SectionFilterBar } from "../_shared/section-filter-bar";
+import { SortSummary } from "../_shared/sort-summary";
+import { CatalogActionButton } from "../_shared/catalog-action-button";
 import { SectionCard } from "../_shared/section-card";
 import { StatusBadge } from "../_shared/status-badge";
+import { useCatalogSectionState } from "../_shared/use-catalog-section-state";
 
 type Props = {
   categories: Category[];
@@ -54,6 +57,34 @@ export function CategoriesSection({ categories, expanded, onToggle, onCatalogCha
   const [saving, setSaving] = useState(false);
   const [categoryModalOpen, setCategoryModalOpen] = useState(false);
   const [categoryForm, setCategoryForm] = useState<CategoryFormState>(emptyCategoryForm());
+  const [typeFilter, setTypeFilter] = useState<CategoryType | "all">("all");
+
+  const initialSorting = useMemo(() => [{ id: "name", desc: false }], []);
+  const {
+    filteredRows,
+    searchQuery,
+    setSearchQuery,
+    activeFilter,
+    setActiveFilter,
+    sorting,
+    setSorting,
+    clearFilters,
+    clearSorting
+  } = useCatalogSectionState({
+    rows: categories,
+    initialSorting,
+    searchPredicate: (row, normalizedQuery) => row.name.toLowerCase().includes(normalizedQuery) || row.tags.some((tag) => tag.toLowerCase().includes(normalizedQuery)),
+    activePredicate: (row) => row.active,
+    extraFilterPredicate: (row) => (typeFilter === "all" ? true : row.type === typeFilter)
+  });
+
+  const activeCount = useMemo(() => categories.filter((category) => category.active).length, [categories]);
+  const inactiveCount = categories.length - activeCount;
+
+  function clearAllFilters() {
+    clearFilters();
+    setTypeFilter("all");
+  }
 
   function openCreateCategoryModal() {
     setCategoryForm(emptyCategoryForm());
@@ -163,18 +194,14 @@ export function CategoriesSection({ categories, expanded, onToggle, onCatalogCha
         const category = row.original;
         return (
           <div className="flex items-center gap-1.5">
-            <Button type="button" variant="secondary" className={rowActionButtonClass} onClick={() => openEditCategoryModal(category)}>
-              Editar
-            </Button>
-            <Button
+            <CatalogActionButton type="button" action="edit" label="Editar" onClick={() => openEditCategoryModal(category)} />
+            <CatalogActionButton
               type="button"
-              variant={category.active ? "danger" : "secondary"}
-              className={rowActionButtonClass}
+              action={category.active ? "deactivate" : "activate"}
+              label={category.active ? "Desactivar" : "Activar"}
               onClick={() => void toggleCategoryActive(category)}
               disabled={saving}
-            >
-              {category.active ? "Desactivar" : "Activar"}
-            </Button>
+            />
           </div>
         );
       }
@@ -184,14 +211,76 @@ export function CategoriesSection({ categories, expanded, onToggle, onCatalogCha
   return (
     <>
       <SectionCard
+        id="catalog-section-categories"
         title="Categorías"
         count={categories.length}
+        activeCount={activeCount}
+        inactiveCount={inactiveCount}
         expanded={expanded}
         onToggle={onToggle}
         onCreate={openCreateCategoryModal}
         createLabel="Nueva"
       >
-        <DataGrid columns={categoryColumns} rows={categories} density="compact" emptyMessage="Sin categorías" initialSorting={[{ id: "name", desc: false }]} />
+        <DataGrid
+          columns={categoryColumns}
+          rows={filteredRows}
+          sorting={sorting}
+          onSortingChange={setSorting}
+          emptyMessage="Sin categorías"
+          allowDensityToggle
+          densityStorageKey="catalogs-grid-density"
+          toolbar={
+            <div className="space-y-2">
+              <SectionFilterBar
+                searchPlaceholder="Buscar por nombre o tag"
+                searchValue={searchQuery}
+                onSearchChange={setSearchQuery}
+                activeFilter={activeFilter}
+                onActiveFilterChange={setActiveFilter}
+                onClearFilters={clearAllFilters}
+                extraFilters={[
+                  {
+                    label: "Tipo",
+                    content: (
+                      <select
+                        value={typeFilter}
+                        onChange={(event) => setTypeFilter(event.target.value as CategoryType | "all")}
+                        className="h-9 rounded-lg border border-slate-300 bg-white px-2 text-xs text-slate-900 outline-none transition focus:border-sky-500 focus:ring-2 focus:ring-sky-200 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                      >
+                        <option value="all">Todos</option>
+                        <option value="income">Ingreso</option>
+                        <option value="expense">Gasto</option>
+                        <option value="transfer">Transferencia</option>
+                      </select>
+                    )
+                  }
+                ]}
+                chips={
+                  typeFilter !== "all"
+                    ? [
+                        {
+                          id: "type",
+                          label: `Tipo: ${categoryTypeLabel[typeFilter]}`,
+                          onClear: () => setTypeFilter("all")
+                        }
+                      ]
+                    : undefined
+                }
+              />
+              <SortSummary
+                sorting={sorting}
+                onClearSorting={clearSorting}
+                labelsByColumnId={{
+                  name: "Nombre",
+                  type: "Tipo",
+                  color: "Color",
+                  tags: "Tags",
+                  active: "Estado"
+                }}
+              />
+            </div>
+          }
+        />
       </SectionCard>
 
       {categoryModalOpen ? (
