@@ -29,3 +29,4 @@ EXPOSE 8080
 
 # Run the app
 ENTRYPOINT ["dotnet", "GastosApp.API.dll"]
+
