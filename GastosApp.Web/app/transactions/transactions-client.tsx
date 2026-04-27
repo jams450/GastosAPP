@@ -1094,8 +1094,8 @@ export function TransactionsClient({ username }: Props) {
               historyLoading={historyLoading}
               historyError={historyError}
               successMessage={successMessage}
-              historyColumns={historyColumns as ColumnDef<any>[]}
-              transferColumns={transferColumns as ColumnDef<any>[]}
+              historyColumns={historyColumns as ColumnDef<unknown>[]}
+              transferColumns={transferColumns as ColumnDef<unknown>[]}
               regularHistoryItems={filteredRegularHistoryItems}
               transferGroups={filteredTransferGroups}
             />

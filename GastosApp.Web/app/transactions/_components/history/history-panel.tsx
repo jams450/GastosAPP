@@ -31,10 +31,10 @@ type Props = {
   historyLoading: boolean;
   historyError: string | null;
   successMessage: string | null;
-  historyColumns: ColumnDef<any>[];
-  transferColumns: ColumnDef<any>[];
-  regularHistoryItems: any[];
-  transferGroups: any[];
+  historyColumns: ColumnDef<unknown>[];
+  transferColumns: ColumnDef<unknown>[];
+  regularHistoryItems: unknown[];
+  transferGroups: unknown[];
 };
 
 export function HistoryPanel({
