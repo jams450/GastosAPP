@@ -86,6 +86,8 @@ export function AccountsOverview() {
         cashTotal: 0,
         creditUsed: 0,
         totalDebt: 0,
+        creditDebtMsi: 0,
+        creditDebtNormal: 0,
         monthIncome: 0,
         monthExpense: 0
       },

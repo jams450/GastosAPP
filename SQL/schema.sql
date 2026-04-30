@@ -157,3 +157,127 @@ CREATE INDEX idx_merchants_user ON merchants(user_id);
 CREATE INDEX idx_tags_user ON tags(user_id);
 CREATE INDEX idx_tags_normalized ON tags(normalized_name);
 CREATE INDEX idx_transaction_tags_tag ON transaction_tags(tag_id);
+
+-- Credit Cycles Table
+CREATE TABLE credit_cycles (
+    cycle_id SERIAL PRIMARY KEY,
+    account_id INT NOT NULL,
+    start_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    cutoff_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    due_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    opening_balance DECIMAL(15,2) NOT NULL DEFAULT 0,
+    new_charges DECIMAL(15,2) NOT NULL DEFAULT 0,
+    interests_fees DECIMAL(15,2) NOT NULL DEFAULT 0,
+    payments_until_cutoff DECIMAL(15,2) NOT NULL DEFAULT 0,
+    statement_balance DECIMAL(15,2) NOT NULL DEFAULT 0,
+    minimum_due DECIMAL(15,2) NOT NULL DEFAULT 0,
+    paid_by_due_date DECIMAL(15,2) NOT NULL DEFAULT 0,
+    remaining_by_due_date DECIMAL(15,2) NOT NULL DEFAULT 0,
+    state VARCHAR(20) NOT NULL DEFAULT 'Open' CHECK (state IN ('Open', 'Closed', 'Settled', 'Overdue')),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_by VARCHAR(100),
+    updated_by VARCHAR(100),
+    FOREIGN KEY (account_id) REFERENCES accounts(account_id) ON DELETE CASCADE
+);
+
+-- Credit Charges Table
+CREATE TABLE credit_charges (
+    charge_id SERIAL PRIMARY KEY,
+    account_id INT NOT NULL,
+    source_transaction_id INT NOT NULL UNIQUE,
+    cycle_id INT,
+    occurred_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    principal_amount DECIMAL(15,2) NOT NULL CHECK (principal_amount > 0),
+    status VARCHAR(20) NOT NULL DEFAULT 'Open' CHECK (status IN ('Open', 'PartiallyPaid', 'Paid', 'Reversed')),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_by VARCHAR(100),
+    updated_by VARCHAR(100),
+    FOREIGN KEY (account_id) REFERENCES accounts(account_id) ON DELETE CASCADE,
+    FOREIGN KEY (source_transaction_id) REFERENCES transactions(transaction_id) ON DELETE CASCADE,
+    FOREIGN KEY (cycle_id) REFERENCES credit_cycles(cycle_id) ON DELETE SET NULL
+);
+
+-- Credit Installment Plans Table
+CREATE TABLE credit_installment_plans (
+    plan_id SERIAL PRIMARY KEY,
+    account_id INT NOT NULL,
+    source_charge_id INT NOT NULL UNIQUE,
+    plan_type VARCHAR(20) NOT NULL DEFAULT 'Revolving' CHECK (plan_type IN ('MSI', 'Revolving')),
+    months INT NOT NULL DEFAULT 1 CHECK (months >= 1),
+    principal_amount DECIMAL(15,2) NOT NULL CHECK (principal_amount > 0),
+    monthly_amount_base DECIMAL(15,2) NOT NULL DEFAULT 0,
+    rounding_residual DECIMAL(15,2) NOT NULL DEFAULT 0,
+    start_cycle_id INT,
+    status VARCHAR(20) NOT NULL DEFAULT 'Active' CHECK (status IN ('Active', 'Completed', 'Cancelled')),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_by VARCHAR(100),
+    updated_by VARCHAR(100),
+    FOREIGN KEY (account_id) REFERENCES accounts(account_id) ON DELETE CASCADE,
+    FOREIGN KEY (source_charge_id) REFERENCES credit_charges(charge_id) ON DELETE CASCADE,
+    FOREIGN KEY (start_cycle_id) REFERENCES credit_cycles(cycle_id) ON DELETE SET NULL
+);
+
+-- Credit Installments Table
+CREATE TABLE credit_installments (
+    installment_id SERIAL PRIMARY KEY,
+    plan_id INT NOT NULL,
+    installment_number INT NOT NULL CHECK (installment_number >= 1),
+    due_cycle_id INT,
+    due_date TIMESTAMP WITH TIME ZONE NOT NULL,
+    principal_due DECIMAL(15,2) NOT NULL DEFAULT 0,
+    interest_due DECIMAL(15,2) NOT NULL DEFAULT 0,
+    fee_due DECIMAL(15,2) NOT NULL DEFAULT 0,
+    total_due DECIMAL(15,2) NOT NULL CHECK (total_due > 0),
+    status VARCHAR(20) NOT NULL DEFAULT 'Open' CHECK (status IN ('Open', 'PartiallyPaid', 'Paid', 'Overdue')),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_by VARCHAR(100),
+    updated_by VARCHAR(100),
+    FOREIGN KEY (plan_id) REFERENCES credit_installment_plans(plan_id) ON DELETE CASCADE,
+    FOREIGN KEY (due_cycle_id) REFERENCES credit_cycles(cycle_id) ON DELETE SET NULL,
+    UNIQUE (plan_id, installment_number)
+);
+
+-- Credit Payments Table
+CREATE TABLE credit_payments (
+    payment_id SERIAL PRIMARY KEY,
+    account_id INT NOT NULL,
+    source_transaction_id INT NOT NULL UNIQUE,
+    paid_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    amount DECIMAL(15,2) NOT NULL CHECK (amount > 0),
+    status VARCHAR(20) NOT NULL DEFAULT 'Posted' CHECK (status IN ('Posted', 'Voided')),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_by VARCHAR(100),
+    updated_by VARCHAR(100),
+    FOREIGN KEY (account_id) REFERENCES accounts(account_id) ON DELETE CASCADE,
+    FOREIGN KEY (source_transaction_id) REFERENCES transactions(transaction_id) ON DELETE CASCADE
+);
+
+-- Installment Allocations Table
+CREATE TABLE installment_allocations (
+    allocation_id SERIAL PRIMARY KEY,
+    payment_id INT NOT NULL,
+    installment_id INT NOT NULL,
+    allocated_amount DECIMAL(15,2) NOT NULL CHECK (allocated_amount > 0),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_by VARCHAR(100),
+    updated_by VARCHAR(100),
+    FOREIGN KEY (payment_id) REFERENCES credit_payments(payment_id) ON DELETE CASCADE,
+    FOREIGN KEY (installment_id) REFERENCES credit_installments(installment_id) ON DELETE CASCADE
+);
+
+-- Credit domain indexes
+CREATE UNIQUE INDEX uq_credit_cycles_account_cutoff ON credit_cycles(account_id, cutoff_at);
+CREATE INDEX idx_credit_cycles_account_due ON credit_cycles(account_id, due_at);
+CREATE INDEX idx_credit_charges_account_occurred ON credit_charges(account_id, occurred_at);
+CREATE INDEX idx_credit_charges_account_status ON credit_charges(account_id, status);
+CREATE INDEX idx_credit_installment_plans_account_status ON credit_installment_plans(account_id, status);
+CREATE INDEX idx_credit_installments_due_cycle_status ON credit_installments(due_cycle_id, status);
+CREATE INDEX idx_credit_payments_account_paid_at ON credit_payments(account_id, paid_at);
+CREATE INDEX idx_installment_allocations_payment ON installment_allocations(payment_id);
+CREATE INDEX idx_installment_allocations_installment ON installment_allocations(installment_id);

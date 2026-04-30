@@ -13,6 +13,8 @@ namespace GastosApp.BusinessLogic.Models.Dashboard
         public decimal CashTotal { get; set; }
         public decimal CreditUsed { get; set; }
         public decimal TotalDebt { get; set; }
+        public decimal CreditDebtMsi { get; set; }
+        public decimal CreditDebtNormal { get; set; }
         public decimal MonthIncome { get; set; }
         public decimal MonthExpense { get; set; }
     }
@@ -37,5 +39,7 @@ namespace GastosApp.BusinessLogic.Models.Dashboard
         public decimal PeriodSpent { get; set; }
         public decimal EstimatedCutoffPayment { get; set; }
         public decimal PendingInformative { get; set; }
+        public decimal MsiOutstanding { get; set; }
+        public decimal NormalOutstanding { get; set; }
     }
 }

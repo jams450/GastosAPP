@@ -117,6 +117,32 @@ credit_spent AS (
         AND ti.transaction_date >= cb.period_start
         AND ti.transaction_date < (cb.period_end + INTERVAL '1 day')
     GROUP BY cb.account_id
+),
+installment_paid AS (
+    SELECT
+        ia.installment_id,
+        coalesce(sum(ia.allocated_amount), 0) AS allocated_total
+    FROM installment_allocations ia
+    INNER JOIN credit_payments cp ON cp.payment_id = ia.payment_id AND cp.status = 'Posted'
+    GROUP BY ia.installment_id
+),
+credit_installment_breakdown AS (
+    SELECT
+        cip.account_id,
+        coalesce(sum(CASE
+            WHEN cip.plan_type = 'MSI' THEN GREATEST(ci.total_due - coalesce(ip.allocated_total, 0), 0)
+            ELSE 0
+        END), 0) AS msi_outstanding,
+        coalesce(sum(CASE
+            WHEN cip.plan_type = 'Revolving' THEN GREATEST(ci.total_due - coalesce(ip.allocated_total, 0), 0)
+            ELSE 0
+        END), 0) AS normal_outstanding
+    FROM credit_installments ci
+    INNER JOIN credit_installment_plans cip ON cip.plan_id = ci.plan_id
+    INNER JOIN accounts_scope a ON a.account_id = cip.account_id AND a.is_credit = TRUE
+    LEFT JOIN installment_paid ip ON ip.installment_id = ci.installment_id
+    WHERE ci.status IN ('Open', 'PartiallyPaid', 'Overdue')
+    GROUP BY cip.account_id
 )
 SELECT
     a.account_id AS ""AccountId"",
@@ -136,11 +162,14 @@ SELECT
     cb.period_end AS ""PeriodEnd"",
     coalesce(cs.period_spent, 0) AS ""PeriodSpent"",
     coalesce(cs.estimated_cutoff_payment, 0) AS ""EstimatedCutoffPayment"",
-    coalesce(cs.period_spent, 0) AS ""PendingInformative""
+    coalesce(cs.period_spent, 0) AS ""PendingInformative"",
+    coalesce(cib.msi_outstanding, 0) AS ""MsiOutstanding"",
+    coalesce(cib.normal_outstanding, 0) AS ""NormalOutstanding""
 FROM accounts_scope a
 LEFT JOIN month_agg m ON m.account_id = a.account_id
 LEFT JOIN credit_bounds cb ON cb.account_id = a.account_id
 LEFT JOIN credit_spent cs ON cs.account_id = a.account_id
+LEFT JOIN credit_installment_breakdown cib ON cib.account_id = a.account_id
 ORDER BY a.name;";
 
             var accountRows = await _context.Database
@@ -176,7 +205,9 @@ ORDER BY a.name;";
                 PeriodEnd = row.PeriodEnd,
                 PeriodSpent = row.PeriodSpent,
                 EstimatedCutoffPayment = row.EstimatedCutoffPayment,
-                PendingInformative = row.PendingInformative
+                PendingInformative = row.PendingInformative,
+                MsiOutstanding = row.MsiOutstanding,
+                NormalOutstanding = row.NormalOutstanding
             }).ToList();
 
             return new DashboardCreditOverview
@@ -188,6 +219,8 @@ ORDER BY a.name;";
                     CashTotal = accountOverviews.Where(a => !a.IsCredit).Sum(a => a.ClosingBalance),
                     CreditUsed = accountOverviews.Where(a => a.IsCredit).Sum(a => a.ClosingBalance),
                     TotalDebt = accountOverviews.Where(a => a.IsCredit).Sum(a => (a.CreditLimit ?? 0m) - a.ClosingBalance),
+                    CreditDebtMsi = accountOverviews.Where(a => a.IsCredit).Sum(a => a.MsiOutstanding),
+                    CreditDebtNormal = accountOverviews.Where(a => a.IsCredit).Sum(a => a.NormalOutstanding),
                     MonthIncome = accountOverviews.Sum(a => a.MonthIncome),
                     MonthExpense = accountOverviews.Sum(a => a.MonthExpense)
                 },
@@ -240,6 +273,8 @@ ORDER BY a.name;";
             public decimal PeriodSpent { get; set; }
             public decimal EstimatedCutoffPayment { get; set; }
             public decimal PendingInformative { get; set; }
+            public decimal MsiOutstanding { get; set; }
+            public decimal NormalOutstanding { get; set; }
         }
     }
 }

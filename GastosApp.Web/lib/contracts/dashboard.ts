@@ -2,6 +2,8 @@ export type DashboardSummary = {
   cashTotal: number;
   creditUsed: number;
   totalDebt: number;
+  creditDebtMsi: number;
+  creditDebtNormal: number;
   monthIncome: number;
   monthExpense: number;
 };
@@ -25,6 +27,8 @@ export type DashboardAccountOverview = {
   periodSpent: number;
   estimatedCutoffPayment: number;
   pendingInformative: number;
+  msiOutstanding: number;
+  normalOutstanding: number;
 };
 
 export type DashboardCreditOverview = {
@@ -103,7 +107,9 @@ function normalizeAccount(input: unknown): DashboardAccountOverview | null {
     periodEnd: toOptionalDateString(input.periodEnd),
     periodSpent: toFiniteNumber(input.periodSpent),
     estimatedCutoffPayment: toFiniteNumber(input.estimatedCutoffPayment),
-    pendingInformative: toFiniteNumber(input.pendingInformative)
+    pendingInformative: toFiniteNumber(input.pendingInformative),
+    msiOutstanding: toFiniteNumber(input.msiOutstanding),
+    normalOutstanding: toFiniteNumber(input.normalOutstanding)
   };
 }
 
@@ -116,6 +122,8 @@ export function normalizeDashboardCreditOverview(input: unknown): DashboardCredi
         cashTotal: 0,
         creditUsed: 0,
         totalDebt: 0,
+        creditDebtMsi: 0,
+        creditDebtNormal: 0,
         monthIncome: 0,
         monthExpense: 0
       },
@@ -135,6 +143,8 @@ export function normalizeDashboardCreditOverview(input: unknown): DashboardCredi
       cashTotal: toFiniteNumber(summaryInput.cashTotal),
       creditUsed: toFiniteNumber(summaryInput.creditUsed),
       totalDebt: toFiniteNumber(summaryInput.totalDebt),
+      creditDebtMsi: toFiniteNumber(summaryInput.creditDebtMsi),
+      creditDebtNormal: toFiniteNumber(summaryInput.creditDebtNormal),
       monthIncome: toFiniteNumber(summaryInput.monthIncome),
       monthExpense: toFiniteNumber(summaryInput.monthExpense)
     },
