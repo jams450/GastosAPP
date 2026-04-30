@@ -152,7 +152,6 @@ function CreditDetails({ account }: { account: DashboardAccountOverview }) {
       <Kpi label="Pago estimado al corte" value={account.estimatedCutoffPayment} toneClass="text-amber-700 dark:text-amber-400" plain />
       <Kpi label="Pendiente MSI" value={account.msiOutstanding} toneClass="text-indigo-700 dark:text-indigo-400" plain />
       <Kpi label="Pendiente normal" value={account.normalOutstanding} toneClass="text-fuchsia-700 dark:text-fuchsia-400" plain />
-      <Kpi label="Pendiente (informativo)" value={account.pendingInformative} toneClass="text-rose-700 dark:text-rose-400" plain />
     </div>
   );
 }

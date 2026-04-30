@@ -26,7 +26,6 @@ export type DashboardAccountOverview = {
   periodEnd: string | null;
   periodSpent: number;
   estimatedCutoffPayment: number;
-  pendingInformative: number;
   msiOutstanding: number;
   normalOutstanding: number;
 };
@@ -107,7 +106,6 @@ function normalizeAccount(input: unknown): DashboardAccountOverview | null {
     periodEnd: toOptionalDateString(input.periodEnd),
     periodSpent: toFiniteNumber(input.periodSpent),
     estimatedCutoffPayment: toFiniteNumber(input.estimatedCutoffPayment),
-    pendingInformative: toFiniteNumber(input.pendingInformative),
     msiOutstanding: toFiniteNumber(input.msiOutstanding),
     normalOutstanding: toFiniteNumber(input.normalOutstanding)
   };

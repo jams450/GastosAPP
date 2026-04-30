@@ -25,4 +25,6 @@ public class CreateTransferRequest
     public int? MerchantId { get; set; }
 
     public IEnumerable<string>? Tags { get; set; }
+
+    public List<CreditInstallmentAllocationRequest>? CreditAllocations { get; set; }
 }

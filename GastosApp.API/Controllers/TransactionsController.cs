@@ -130,6 +130,27 @@ namespace GastosApp.API.Controllers
 
                 var createdTransaction = await _transactionService.CreateIncomeAsync(transaction);
                 await _transactionService.SyncTransactionTagsAsync(createdTransaction.TransactionId, userId, request.Tags);
+
+                if (account.IsCredit)
+                {
+                    var allocationItems = request.CreditAllocations?
+                        .Where(a => a.InstallmentId > 0 && a.Amount > 0)
+                        .Select(a => (a.InstallmentId, a.Amount))
+                        .ToList() ?? [];
+
+                    var paymentResult = await _transactionService.RegisterCreditPaymentAsync(
+                        account.AccountId,
+                        createdTransaction.TransactionId,
+                        transaction.TransactionDate,
+                        transaction.Amount,
+                        allocationItems);
+
+                    if (!paymentResult.Success)
+                    {
+                        return BadRequest(new { Message = paymentResult.ErrorMessage ?? "No se pudo registrar pago de crédito" });
+                    }
+                }
+
                 _logger.LogInformation("Income transaction created: {TransactionId}", createdTransaction.TransactionId);
 
                 var created = await _transactionService.GetByIdAsync(createdTransaction.TransactionId);
@@ -181,6 +202,19 @@ namespace GastosApp.API.Controllers
 
                 var createdTransaction = await _transactionService.CreateExpenseAsync(transaction);
                 await _transactionService.SyncTransactionTagsAsync(createdTransaction.TransactionId, userId, request.Tags);
+
+                if (account.IsCredit && request.MsiMonths.HasValue && request.MsiMonths.Value > 1)
+                {
+                    var convertResult = await _transactionService.ConvertChargeToMsiAsync(
+                        createdTransaction.TransactionId,
+                        request.MsiMonths.Value);
+
+                    if (!convertResult.Success)
+                    {
+                        return BadRequest(new { Message = convertResult.ErrorMessage ?? "No se pudo convertir cargo a MSI" });
+                    }
+                }
+
                 _logger.LogInformation("Expense transaction created: {TransactionId}", createdTransaction.TransactionId);
 
                 var created = await _transactionService.GetByIdAsync(createdTransaction.TransactionId);
@@ -223,6 +257,36 @@ namespace GastosApp.API.Controllers
 
                 if (!result.Success)
                     return BadRequest(new { Message = result.ErrorMessage });
+
+                var destinationAccount = await _accountService.GetByIdAsync(request.DestinationAccountId);
+                if (destinationAccount?.IsCredit == true)
+                {
+                    var destinationTransactions = await _transactionService.GetAllByAccountIdAsync(request.DestinationAccountId);
+                    var destinationTx = destinationTransactions
+                        .Where(t => t.Type == "transfer" && t.Direction == "credit" && t.CounterpartyAccountId == request.SourceAccountId)
+                        .OrderByDescending(t => t.TransactionId)
+                        .FirstOrDefault();
+
+                    if (destinationTx != null)
+                    {
+                        var allocationItems = request.CreditAllocations?
+                            .Where(a => a.InstallmentId > 0 && a.Amount > 0)
+                            .Select(a => (a.InstallmentId, a.Amount))
+                            .ToList() ?? [];
+
+                        var paymentResult = await _transactionService.RegisterCreditPaymentAsync(
+                            destinationAccount.AccountId,
+                            destinationTx.TransactionId,
+                            destinationTx.TransactionDate,
+                            destinationTx.Amount,
+                            allocationItems);
+
+                        if (!paymentResult.Success)
+                        {
+                            return BadRequest(new { Message = paymentResult.ErrorMessage ?? "No se pudo registrar pago de crédito" });
+                        }
+                    }
+                }
 
                 _logger.LogInformation("Transfer created from account {Source} to {Destination}", 
                     request.SourceAccountId, request.DestinationAccountId);
@@ -365,6 +429,41 @@ namespace GastosApp.API.Controllers
             {
                 _logger.LogError(ex, "Error recalculating balance for account {AccountId}", accountId);
                 return StatusCode(500, new { Message = "An error occurred while recalculating balance" });
+            }
+        }
+
+        [HttpGet("credit/{accountId}/open-installments")]
+        public async Task<IActionResult> GetOpenCreditInstallments(int accountId)
+        {
+            try
+            {
+                var installments = await _transactionService.GetOpenCreditInstallmentsAsync(accountId);
+                return Ok(installments);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error retrieving open installments for account {AccountId}", accountId);
+                return StatusCode(500, new { Message = "An error occurred while retrieving open installments" });
+            }
+        }
+
+        [HttpPost("credit/convert-charge-msi")]
+        public async Task<IActionResult> ConvertChargeToMsi([FromBody] ConvertChargeToMsiRequest request)
+        {
+            try
+            {
+                var result = await _transactionService.ConvertChargeToMsiAsync(request.SourceTransactionId, request.Months);
+                if (!result.Success)
+                {
+                    return BadRequest(new { Message = result.ErrorMessage ?? "Failed to convert charge to MSI" });
+                }
+
+                return Ok(new { Message = "Cargo convertido a MSI correctamente" });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error converting charge {TransactionId} to MSI", request.SourceTransactionId);
+                return StatusCode(500, new { Message = "An error occurred while converting charge to MSI" });
             }
         }
 

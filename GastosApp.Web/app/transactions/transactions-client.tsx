@@ -14,6 +14,7 @@ import type { Merchant } from "@/lib/contracts/merchants";
 import type { Subcategory } from "@/lib/contracts/subcategories";
 import type { Tag } from "@/lib/contracts/tags";
 import { formatCurrency } from "@/lib/format/currency";
+import type { CreditInstallmentAllocation, CreditOpenInstallmentItem } from "@/lib/contracts/transactions";
 import { ExpenseForm } from "./_components/create/expense-form";
 import { IncomeForm } from "./_components/create/income-form";
 import { TransferForm } from "./_components/create/transfer-form";
@@ -324,6 +325,12 @@ export function TransactionsClient({ username }: Props) {
     return map;
   }, [catalogs]);
 
+  const accountById = useMemo(() => {
+    const map = new Map<number, Account>();
+    catalogs?.accounts.forEach((account) => map.set(account.accountId, account));
+    return map;
+  }, [catalogs]);
+
   const regularHistoryItems = useMemo(
     () => historyItems.filter((item) => item.type !== "transfer"),
     [historyItems]
@@ -516,11 +523,63 @@ export function TransactionsClient({ username }: Props) {
         tags: parsedTags.length > 0 ? parsedTags : undefined
       };
 
+      const resolveAllocationsForCreditAccount = async (
+        creditAccountId: number,
+        paymentAmount: number
+      ): Promise<CreditInstallmentAllocation[]> => {
+        const response = await fetch(`/api/bff/transactions/credit/open-installments/${creditAccountId}`, {
+          cache: "no-store"
+        });
+
+        if (!response.ok) {
+          throw new Error("No fue posible cargar mensualidades pendientes de crédito");
+        }
+
+        const items = (await response.json()) as CreditOpenInstallmentItem[];
+        const openItems = items
+          .filter((item) => item.remainingAmount > 0)
+          .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
+
+        if (openItems.length === 0) {
+          throw new Error("No hay cargos pendientes para aplicar pago en esta cuenta crédito.");
+        }
+
+        const allocations: CreditInstallmentAllocation[] = [];
+        let remaining = paymentAmount;
+
+        for (const item of openItems) {
+          if (remaining <= 0) {
+            break;
+          }
+
+          const allocationAmount = Math.min(item.remainingAmount, remaining);
+          if (allocationAmount > 0) {
+            allocations.push({
+              installmentId: item.installmentId,
+              amount: Number(allocationAmount.toFixed(2))
+            });
+            remaining = Number((remaining - allocationAmount).toFixed(2));
+          }
+        }
+
+        if (remaining > 0) {
+          throw new Error("Monto excede saldo pendiente de cargos crédito. Ajusta monto o liquida primero otros cargos.");
+        }
+
+        return allocations;
+      };
+
       if (kind === "income" || kind === "expense") {
         if (!accountId) {
           setSubmitError("Selecciona una cuenta.");
           return;
         }
+
+        const selectedAccount = accountById.get(accountId);
+        const creditAllocations =
+          kind === "income" && selectedAccount?.isCredit
+            ? await resolveAllocationsForCreditAccount(accountId, amountNumber)
+            : undefined;
 
         endpoint = kind === "income" ? "/api/bff/transactions/income" : "/api/bff/transactions/expense";
         payload = {
@@ -529,7 +588,8 @@ export function TransactionsClient({ username }: Props) {
           ...analyticsPayload,
           amount: amountNumber,
           description: description.trim(),
-          transactionDate: transactionDateUtc
+          transactionDate: transactionDateUtc,
+          creditAllocations
         };
       } else {
         if (!sourceAccountId || !destinationAccountId) {
@@ -542,6 +602,11 @@ export function TransactionsClient({ username }: Props) {
           return;
         }
 
+        const destinationAccount = accountById.get(destinationAccountId);
+        const creditAllocations = destinationAccount?.isCredit
+          ? await resolveAllocationsForCreditAccount(destinationAccountId, amountNumber)
+          : undefined;
+
         endpoint = "/api/bff/transactions/transfer";
         payload = {
           sourceAccountId,
@@ -550,7 +615,8 @@ export function TransactionsClient({ username }: Props) {
           ...analyticsPayload,
           amount: amountNumber,
           description: description.trim(),
-          transactionDate: transactionDateUtc
+          transactionDate: transactionDateUtc,
+          creditAllocations
         };
       }
 
@@ -748,6 +814,38 @@ export function TransactionsClient({ username }: Props) {
     }
   }, [loadHistory]);
 
+  const onConvertChargeToMsi = useCallback(async (item: TransactionHistoryItem) => {
+    const monthsRaw = window.prompt("¿A cuántos meses MSI deseas convertir este cargo? (2-60)", "3");
+    if (!monthsRaw) {
+      return;
+    }
+
+    const months = Number(monthsRaw);
+    if (!Number.isInteger(months) || months < 2 || months > 60) {
+      setHistoryError("Meses MSI inválido. Debe ser entero entre 2 y 60.");
+      return;
+    }
+
+    setHistoryError(null);
+    try {
+      const response = await fetch("/api/bff/transactions/credit/convert-charge-msi", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sourceTransactionId: item.transactionId, months })
+      });
+
+      if (!response.ok) {
+        const data = (await response.json().catch(() => null)) as { message?: string } | null;
+        throw new Error(data?.message ?? "No se pudo convertir cargo a MSI");
+      }
+
+      setSuccessMessage("Cargo convertido a MSI correctamente.");
+      await loadHistory();
+    } catch (error) {
+      setHistoryError(error instanceof Error ? error.message : "No se pudo convertir cargo a MSI");
+    }
+  }, [loadHistory]);
+
   const onDeleteTransferGroup = useCallback(async (item: TransferGroupItem) => {
     const confirmed = window.confirm("¿Seguro que quieres eliminar esta transferencia completa?");
     if (!confirmed) {
@@ -845,12 +943,22 @@ export function TransactionsClient({ username }: Props) {
               >
                 Borrar
               </Button>
+              {item.type === "expense" && accountById.get(item.accountId)?.isCredit ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="h-6 px-1.5 text-[10px]"
+                  onClick={() => void onConvertChargeToMsi(item)}
+                >
+                  MSI
+                </Button>
+              ) : null}
             </div>
           );
         }
       }
     ],
-    [categoryNameById, deleteLoadingId, merchantNameById, onDelete, openEditModal, subcategoryNameById]
+    [accountById, categoryNameById, deleteLoadingId, merchantNameById, onConvertChargeToMsi, onDelete, openEditModal, subcategoryNameById]
   );
 
   const transferColumns = useMemo<ColumnDef<TransferGroupItem>[]>(

@@ -9,6 +9,8 @@ export type IncomeExpenseTransactionRequest = {
   amount: number;
   description: string;
   transactionDate: string;
+  msiMonths?: number;
+  creditAllocations?: CreditInstallmentAllocation[];
 };
 
 export type TransferTransactionRequest = {
@@ -21,6 +23,26 @@ export type TransferTransactionRequest = {
   amount: number;
   description: string;
   transactionDate: string;
+  creditAllocations?: CreditInstallmentAllocation[];
+};
+
+export type CreditInstallmentAllocation = {
+  installmentId: number;
+  amount: number;
+};
+
+export type CreditOpenInstallmentItem = {
+  installmentId: number;
+  planId: number;
+  planType: "MSI" | "Revolving";
+  installmentNumber: number;
+  months: number;
+  dueDate: string;
+  totalDue: number;
+  paidAmount: number;
+  remainingAmount: number;
+  sourceTransactionId: number;
+  description: string;
 };
 
 export type ValidationResult<T> =
@@ -76,6 +98,43 @@ function toNormalizedTags(value: unknown): string[] | undefined {
   return tags.length > 0 ? [...new Set(tags)] : undefined;
 }
 
+function toCreditAllocations(value: unknown): CreditInstallmentAllocation[] | undefined {
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+
+  const rows = value
+    .map((entry) => {
+      if (!isRecord(entry)) {
+        return null;
+      }
+
+      const installmentId = toRequiredPositiveNumber(entry.installmentId);
+      const amount = toRequiredPositiveNumber(entry.amount);
+      if (!installmentId || !amount) {
+        return null;
+      }
+
+      return { installmentId, amount } satisfies CreditInstallmentAllocation;
+    })
+    .filter((entry): entry is CreditInstallmentAllocation => Boolean(entry));
+
+  return rows.length > 0 ? rows : undefined;
+}
+
+function toOptionalMsiMonths(value: unknown): number | undefined {
+  if (value === undefined || value === null || value === "") {
+    return undefined;
+  }
+
+  const parsed = typeof value === "number" ? value : Number(value);
+  if (!Number.isInteger(parsed) || parsed < 2 || parsed > 60) {
+    return undefined;
+  }
+
+  return parsed;
+}
+
 function toUtcIsoDateTime(value: unknown): string | null {
   if (typeof value !== "string") {
     return null;
@@ -108,6 +167,8 @@ export function validateIncomeExpensePayload(input: unknown): ValidationResult<I
   const subcategoryId = toOptionalPositiveNumber(input.subcategoryId);
   const merchantId = toOptionalPositiveNumber(input.merchantId);
   const tags = toNormalizedTags(input.tags);
+  const msiMonths = toOptionalMsiMonths(input.msiMonths);
+  const creditAllocations = toCreditAllocations(input.creditAllocations);
 
   if (!accountId || !categoryId || !amount || !description || !transactionDate) {
     return {
@@ -126,7 +187,9 @@ export function validateIncomeExpensePayload(input: unknown): ValidationResult<I
       tags,
       amount,
       description,
-      transactionDate
+      transactionDate,
+      msiMonths,
+      creditAllocations
     }
   };
 }
@@ -145,6 +208,7 @@ export function validateTransferPayload(input: unknown): ValidationResult<Transf
   const subcategoryId = toOptionalPositiveNumber(input.subcategoryId);
   const merchantId = toOptionalPositiveNumber(input.merchantId);
   const tags = toNormalizedTags(input.tags);
+  const creditAllocations = toCreditAllocations(input.creditAllocations);
 
   if (!sourceAccountId || !destinationAccountId || !categoryId || !amount || !description || !transactionDate) {
     return {
@@ -171,7 +235,52 @@ export function validateTransferPayload(input: unknown): ValidationResult<Transf
       tags,
       amount,
       description,
-      transactionDate
+      transactionDate,
+      creditAllocations
     }
   };
+}
+
+export function normalizeCreditOpenInstallments(input: unknown): CreditOpenInstallmentItem[] {
+  if (!Array.isArray(input)) {
+    return [];
+  }
+
+  return input
+    .map((row) => {
+      if (!isRecord(row)) {
+        return null;
+      }
+
+      const installmentId = toRequiredPositiveNumber(row.installmentId);
+      const planId = toRequiredPositiveNumber(row.planId);
+      const installmentNumber = toRequiredPositiveNumber(row.installmentNumber);
+      const months = toRequiredPositiveNumber(row.months);
+      const totalDue = toRequiredPositiveNumber(row.totalDue);
+      const remainingAmount = toRequiredPositiveNumber(row.remainingAmount);
+      const sourceTransactionId = toRequiredPositiveNumber(row.sourceTransactionId);
+      const paidAmount = typeof row.paidAmount === "number" ? row.paidAmount : Number(row.paidAmount ?? 0);
+      const planType = row.planType === "MSI" ? "MSI" : "Revolving";
+      const dueDate = typeof row.dueDate === "string" ? row.dueDate : "";
+      const description = typeof row.description === "string" ? row.description : "";
+
+      if (!installmentId || !planId || !installmentNumber || !months || !totalDue || !remainingAmount || !sourceTransactionId || !dueDate) {
+        return null;
+      }
+
+      return {
+        installmentId,
+        planId,
+        planType,
+        installmentNumber,
+        months,
+        dueDate,
+        totalDue,
+        paidAmount: Number.isFinite(paidAmount) ? paidAmount : 0,
+        remainingAmount,
+        sourceTransactionId,
+        description
+      } satisfies CreditOpenInstallmentItem;
+    })
+    .filter((row): row is CreditOpenInstallmentItem => Boolean(row));
 }

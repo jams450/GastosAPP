@@ -162,7 +162,6 @@ SELECT
     cb.period_end AS ""PeriodEnd"",
     coalesce(cs.period_spent, 0) AS ""PeriodSpent"",
     coalesce(cs.estimated_cutoff_payment, 0) AS ""EstimatedCutoffPayment"",
-    coalesce(cs.period_spent, 0) AS ""PendingInformative"",
     coalesce(cib.msi_outstanding, 0) AS ""MsiOutstanding"",
     coalesce(cib.normal_outstanding, 0) AS ""NormalOutstanding""
 FROM accounts_scope a
@@ -205,7 +204,6 @@ ORDER BY a.name;";
                 PeriodEnd = row.PeriodEnd,
                 PeriodSpent = row.PeriodSpent,
                 EstimatedCutoffPayment = row.EstimatedCutoffPayment,
-                PendingInformative = row.PendingInformative,
                 MsiOutstanding = row.MsiOutstanding,
                 NormalOutstanding = row.NormalOutstanding
             }).ToList();
@@ -272,7 +270,6 @@ ORDER BY a.name;";
             public DateTime? PeriodEnd { get; set; }
             public decimal PeriodSpent { get; set; }
             public decimal EstimatedCutoffPayment { get; set; }
-            public decimal PendingInformative { get; set; }
             public decimal MsiOutstanding { get; set; }
             public decimal NormalOutstanding { get; set; }
         }

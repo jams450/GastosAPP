@@ -23,4 +23,9 @@ public class CreateTransactionRequest
 
     [Required]
     public DateTimeOffset TransactionDate { get; set; }
+
+    [Range(2, 60)]
+    public int? MsiMonths { get; set; }
+
+    public List<CreditInstallmentAllocationRequest>? CreditAllocations { get; set; }
 }
