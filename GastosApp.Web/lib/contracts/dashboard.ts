@@ -23,6 +23,7 @@ export type DashboardAccountOverview = {
   periodStart: string | null;
   periodEnd: string | null;
   periodSpent: number;
+  estimatedCutoffPayment: number;
   pendingInformative: number;
 };
 
@@ -101,6 +102,7 @@ function normalizeAccount(input: unknown): DashboardAccountOverview | null {
     periodStart: toOptionalDateString(input.periodStart),
     periodEnd: toOptionalDateString(input.periodEnd),
     periodSpent: toFiniteNumber(input.periodSpent),
+    estimatedCutoffPayment: toFiniteNumber(input.estimatedCutoffPayment),
     pendingInformative: toFiniteNumber(input.pendingInformative)
   };
 }

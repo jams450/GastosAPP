@@ -931,8 +931,10 @@ export function TransactionsClient({ username }: Props) {
   );
 
   return (
-    <main className="min-h-dvh w-full bg-slate-100 px-4 py-8 dark:bg-slate-900 md:px-6 xl:px-8">
-      <section className="w-full space-y-6">
+    <main className="relative min-h-dvh w-full overflow-x-clip bg-slate-100 px-4 py-8 dark:bg-slate-900 md:px-6 xl:px-8">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_0%_0%,rgba(14,165,233,0.18),transparent_30%),radial-gradient(circle_at_100%_0%,rgba(59,130,246,0.14),transparent_32%)] dark:bg-[radial-gradient(circle_at_0%_0%,rgba(14,165,233,0.14),transparent_30%),radial-gradient(circle_at_100%_0%,rgba(37,99,235,0.2),transparent_34%)]" />
+
+      <section className="relative w-full space-y-6">
         <Card className="p-6">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="space-y-1">

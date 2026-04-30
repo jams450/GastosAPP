@@ -2,7 +2,7 @@ import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { SESSION_COOKIE_NAME } from "@/lib/auth/session";
 
-const privateRoutes = ["/dashboard", "/transactions", "/catalogs"];
+const privateRoutes = ["/dashboard", "/accounts", "/transactions", "/catalogs"];
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -22,5 +22,5 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/login", "/dashboard/:path*", "/transactions/:path*", "/catalogs/:path*"]
+  matcher: ["/login", "/dashboard/:path*", "/accounts/:path*", "/transactions/:path*", "/catalogs/:path*"]
 };

@@ -20,7 +20,7 @@ export function DashboardToolbar({
   onViewModeChange
 }: DashboardToolbarProps) {
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-950">
+    <section className="sticky top-0 z-20 rounded-2xl border border-slate-200 bg-white/95 p-4 backdrop-blur dark:border-slate-800 dark:bg-slate-950/95">
       <div className="grid gap-4 lg:grid-cols-[1fr_auto] lg:items-end">
         <div className="space-y-1">
           <h2 className="m-0 text-lg font-semibold text-slate-900 dark:text-slate-100">Filtro del dashboard</h2>

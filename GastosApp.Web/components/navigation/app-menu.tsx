@@ -14,6 +14,7 @@ type AppMenuProps = {
 
 const navItems = [
   { href: "/dashboard", label: "Dashboard" },
+  { href: "/accounts", label: "Cuentas" },
   { href: "/transactions", label: "Transacciones" },
   { href: "/catalogs", label: "Catálogos" }
 ] as const;

@@ -21,6 +21,12 @@ namespace GastosApp.BusinessLogic.Context
         public DbSet<CategoryTag> CategoryTags { get; set; } = null!;
         public DbSet<TransactionTag> TransactionTags { get; set; } = null!;
         public DbSet<Transaction> Transactions { get; set; } = null!;
+        public DbSet<CreditCycle> CreditCycles { get; set; } = null!;
+        public DbSet<CreditCharge> CreditCharges { get; set; } = null!;
+        public DbSet<CreditInstallmentPlan> CreditInstallmentPlans { get; set; } = null!;
+        public DbSet<CreditInstallment> CreditInstallments { get; set; } = null!;
+        public DbSet<CreditPayment> CreditPayments { get; set; } = null!;
+        public DbSet<InstallmentAllocation> InstallmentAllocations { get; set; } = null!;
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -39,6 +45,10 @@ namespace GastosApp.BusinessLogic.Context
             modelBuilder.Entity<Account>(entity =>
             {
                 entity.HasMany(e => e.Transactions).WithOne(e => e.Account).HasForeignKey(e => e.AccountId);
+                entity.HasMany(e => e.CreditCharges).WithOne(e => e.Account).HasForeignKey(e => e.AccountId);
+                entity.HasMany(e => e.CreditPayments).WithOne(e => e.Account).HasForeignKey(e => e.AccountId);
+                entity.HasMany(e => e.CreditCycles).WithOne(e => e.Account).HasForeignKey(e => e.AccountId);
+                entity.HasMany(e => e.CreditInstallmentPlans).WithOne(e => e.Account).HasForeignKey(e => e.AccountId);
             });
 
             modelBuilder.Entity<Category>(entity =>
@@ -99,6 +109,79 @@ namespace GastosApp.BusinessLogic.Context
                 entity.HasIndex(e => new { e.CategoryId, e.TransactionDate });
                 entity.HasIndex(e => new { e.SubcategoryId, e.TransactionDate });
                 entity.HasIndex(e => new { e.MerchantId, e.TransactionDate });
+            });
+
+            modelBuilder.Entity<CreditCycle>(entity =>
+            {
+                entity.HasIndex(e => new { e.AccountId, e.CutoffAt }).IsUnique();
+                entity.HasIndex(e => new { e.AccountId, e.DueAt });
+            });
+
+            modelBuilder.Entity<CreditCharge>(entity =>
+            {
+                entity.HasIndex(e => e.SourceTransactionId).IsUnique();
+                entity.HasIndex(e => new { e.AccountId, e.OccurredAt });
+                entity.HasIndex(e => new { e.AccountId, e.Status });
+                entity.HasOne(e => e.SourceTransaction)
+                    .WithOne(e => e.CreditCharge)
+                    .HasForeignKey<CreditCharge>(e => e.SourceTransactionId)
+                    .OnDelete(DeleteBehavior.Cascade);
+                entity.HasOne(e => e.Cycle)
+                    .WithMany(e => e.Charges)
+                    .HasForeignKey(e => e.CycleId)
+                    .OnDelete(DeleteBehavior.SetNull);
+            });
+
+            modelBuilder.Entity<CreditInstallmentPlan>(entity =>
+            {
+                entity.HasIndex(e => e.SourceChargeId).IsUnique();
+                entity.HasIndex(e => new { e.AccountId, e.Status });
+                entity.HasOne(e => e.SourceCharge)
+                    .WithOne(e => e.InstallmentPlan)
+                    .HasForeignKey<CreditInstallmentPlan>(e => e.SourceChargeId)
+                    .OnDelete(DeleteBehavior.Cascade);
+                entity.HasOne(e => e.StartCycle)
+                    .WithMany()
+                    .HasForeignKey(e => e.StartCycleId)
+                    .OnDelete(DeleteBehavior.SetNull);
+            });
+
+            modelBuilder.Entity<CreditInstallment>(entity =>
+            {
+                entity.HasIndex(e => new { e.PlanId, e.InstallmentNumber }).IsUnique();
+                entity.HasIndex(e => new { e.DueCycleId, e.Status });
+                entity.HasOne(e => e.Plan)
+                    .WithMany(e => e.Installments)
+                    .HasForeignKey(e => e.PlanId)
+                    .OnDelete(DeleteBehavior.Cascade);
+                entity.HasOne(e => e.DueCycle)
+                    .WithMany(e => e.Installments)
+                    .HasForeignKey(e => e.DueCycleId)
+                    .OnDelete(DeleteBehavior.SetNull);
+            });
+
+            modelBuilder.Entity<CreditPayment>(entity =>
+            {
+                entity.HasIndex(e => e.SourceTransactionId).IsUnique();
+                entity.HasIndex(e => new { e.AccountId, e.PaidAt });
+                entity.HasOne(e => e.SourceTransaction)
+                    .WithOne(e => e.CreditPayment)
+                    .HasForeignKey<CreditPayment>(e => e.SourceTransactionId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            modelBuilder.Entity<InstallmentAllocation>(entity =>
+            {
+                entity.HasIndex(e => e.PaymentId);
+                entity.HasIndex(e => e.InstallmentId);
+                entity.HasOne(e => e.Payment)
+                    .WithMany(e => e.Allocations)
+                    .HasForeignKey(e => e.PaymentId)
+                    .OnDelete(DeleteBehavior.Cascade);
+                entity.HasOne(e => e.Installment)
+                    .WithMany(e => e.Allocations)
+                    .HasForeignKey(e => e.InstallmentId)
+                    .OnDelete(DeleteBehavior.Cascade);
             });
         }
     }

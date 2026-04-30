@@ -35,6 +35,7 @@ namespace GastosApp.BusinessLogic.Models.Dashboard
         public DateTime? PeriodStart { get; set; }
         public DateTime? PeriodEnd { get; set; }
         public decimal PeriodSpent { get; set; }
+        public decimal EstimatedCutoffPayment { get; set; }
         public decimal PendingInformative { get; set; }
     }
 }

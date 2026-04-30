@@ -147,9 +147,10 @@ function HeaderMetric({
 function CreditDetails({ account }: { account: DashboardAccountOverview }) {
   return (
     <div className="mt-5 grid gap-x-8 gap-y-4 sm:grid-cols-2 xl:grid-cols-4">
-      <Kpi label="Día de corte" value={account.cutoffDay ?? "No definido"} plain />
-      <Kpi label="Pago límite" value={account.paymentDueDay ?? "No definida"} plain />
-      <Kpi label="Pendiente (informativo)" value={account.pendingInformative} toneClass={getBalanceToneClass(account.pendingInformative)} plain />
+      <Kpi label="Día de corte" value={account.cutoffDay ?? "No definido"} plain formatAsCurrency={false} />
+      <Kpi label="Pago límite" value={account.paymentDueDay ?? "No definido"} plain formatAsCurrency={false} />
+      <Kpi label="Pago estimado al corte" value={account.estimatedCutoffPayment} toneClass="text-amber-700 dark:text-amber-400" plain />
+      <Kpi label="Pendiente (informativo)" value={account.pendingInformative} toneClass="text-rose-700 dark:text-rose-400" plain />
     </div>
   );
 }
@@ -159,15 +160,17 @@ function Kpi({
   value,
   toneClass,
   compact = false,
-  plain = false
+  plain = false,
+  formatAsCurrency = true
 }: {
   label: string;
   value: number | string;
   toneClass?: string;
   compact?: boolean;
   plain?: boolean;
+  formatAsCurrency?: boolean;
 }) {
-  const formattedValue = typeof value === "number" ? formatAmount(value) : value;
+  const formattedValue = typeof value === "number" ? (formatAsCurrency ? formatAmount(value) : String(value)) : value;
 
   return (
     <div className={plain

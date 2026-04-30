@@ -101,15 +101,21 @@ credit_bounds AS (
 credit_spent AS (
     SELECT
         cb.account_id,
-        coalesce(sum(t.amount), 0) AS period_spent
+        coalesce(sum(CASE WHEN lower(t.type) = 'expense' THEN t.amount ELSE 0 END), 0) AS period_spent,
+        GREATEST(coalesce(sum(ti.impact), 0) * -1, 0) AS estimated_cutoff_payment
     FROM credit_bounds cb
     LEFT JOIN transactions t
         ON t.account_id = cb.account_id
-        AND lower(t.type) = 'expense'
         AND cb.period_start IS NOT NULL
         AND cb.period_end IS NOT NULL
         AND t.transaction_date >= cb.period_start
         AND t.transaction_date < (cb.period_end + INTERVAL '1 day')
+    LEFT JOIN tx_with_impact ti
+        ON ti.account_id = cb.account_id
+        AND cb.period_start IS NOT NULL
+        AND cb.period_end IS NOT NULL
+        AND ti.transaction_date >= cb.period_start
+        AND ti.transaction_date < (cb.period_end + INTERVAL '1 day')
     GROUP BY cb.account_id
 )
 SELECT
@@ -129,6 +135,7 @@ SELECT
     cb.period_start AS ""PeriodStart"",
     cb.period_end AS ""PeriodEnd"",
     coalesce(cs.period_spent, 0) AS ""PeriodSpent"",
+    coalesce(cs.estimated_cutoff_payment, 0) AS ""EstimatedCutoffPayment"",
     coalesce(cs.period_spent, 0) AS ""PendingInformative""
 FROM accounts_scope a
 LEFT JOIN month_agg m ON m.account_id = a.account_id
@@ -168,6 +175,7 @@ ORDER BY a.name;";
                 PeriodStart = row.PeriodStart,
                 PeriodEnd = row.PeriodEnd,
                 PeriodSpent = row.PeriodSpent,
+                EstimatedCutoffPayment = row.EstimatedCutoffPayment,
                 PendingInformative = row.PendingInformative
             }).ToList();
 
@@ -230,6 +238,7 @@ ORDER BY a.name;";
             public DateTime? PeriodStart { get; set; }
             public DateTime? PeriodEnd { get; set; }
             public decimal PeriodSpent { get; set; }
+            public decimal EstimatedCutoffPayment { get; set; }
             public decimal PendingInformative { get; set; }
         }
     }

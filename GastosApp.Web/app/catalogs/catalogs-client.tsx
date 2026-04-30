@@ -64,8 +64,10 @@ export function CatalogsClient({ username }: Props) {
   }, [globalSuccess]);
 
   return (
-    <main className="min-h-dvh bg-gradient-to-b from-slate-100 via-slate-100 to-slate-200 px-4 py-8 dark:from-slate-950 dark:via-slate-950 dark:to-slate-900 md:px-8">
-      <section className="mx-auto w-full max-w-6xl space-y-4">
+    <main className="relative min-h-dvh overflow-x-clip bg-slate-100 px-4 py-8 dark:bg-slate-900 md:px-8">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_0%_0%,rgba(14,165,233,0.18),transparent_30%),radial-gradient(circle_at_100%_0%,rgba(59,130,246,0.14),transparent_32%)] dark:bg-[radial-gradient(circle_at_0%_0%,rgba(14,165,233,0.14),transparent_30%),radial-gradient(circle_at_100%_0%,rgba(37,99,235,0.2),transparent_34%)]" />
+
+      <section className="relative mx-auto w-full max-w-6xl space-y-4">
         <Card className="border-slate-300/70 bg-white/90 p-4 backdrop-blur dark:border-slate-800 dark:bg-slate-950/95">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="space-y-1">

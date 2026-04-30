@@ -58,5 +58,9 @@ namespace GastosApp.BusinessLogic.Models.DataBase
         [ForeignKey("UserId")]
         public virtual User User { get; set; } = null!;
         public virtual ICollection<Transaction> Transactions { get; set; } = new List<Transaction>();
+        public virtual ICollection<CreditCharge> CreditCharges { get; set; } = new List<CreditCharge>();
+        public virtual ICollection<CreditPayment> CreditPayments { get; set; } = new List<CreditPayment>();
+        public virtual ICollection<CreditCycle> CreditCycles { get; set; } = new List<CreditCycle>();
+        public virtual ICollection<CreditInstallmentPlan> CreditInstallmentPlans { get; set; } = new List<CreditInstallmentPlan>();
     }
 }

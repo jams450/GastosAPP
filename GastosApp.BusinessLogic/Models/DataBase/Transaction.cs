@@ -67,5 +67,7 @@ namespace GastosApp.BusinessLogic.Models.DataBase
         public virtual Merchant? Merchant { get; set; }
 
         public virtual ICollection<TransactionTag> TransactionTags { get; set; } = new List<TransactionTag>();
+        public virtual CreditCharge? CreditCharge { get; set; }
+        public virtual CreditPayment? CreditPayment { get; set; }
     }
 }
