@@ -70,6 +70,7 @@ function DetailContent({ account }: { account: DashboardAccountOverview }) {
   return (
     <>
       <div className="grid gap-x-8 gap-y-4 sm:grid-cols-2 xl:grid-cols-4">
+        <Kpi label="Saldo actual" value={account.closingBalance} toneClass={getBalanceToneClass(account.closingBalance)} plain />
         <Kpi label="Inicial" value={account.initialBalance} plain />
         <Kpi label="Apertura mes" value={account.openingBalance} plain />
         <Kpi label="Ingresos mes" value={account.monthIncome} toneClass="text-emerald-700 dark:text-emerald-400" plain />
@@ -86,6 +87,7 @@ function CompactContent({ account, viewMode }: { account: DashboardAccountOvervi
 
   return (
     <div className={isThreeColumns ? "grid grid-cols-1 gap-3" : "grid gap-2 sm:grid-cols-2"}>
+      <Kpi label="Saldo actual" value={account.closingBalance} compact toneClass={getBalanceToneClass(account.closingBalance)} />
       <Kpi label="Apertura" value={account.openingBalance} compact />
 
       {account.isCredit ? (

@@ -675,9 +675,10 @@ namespace GastosApp.BusinessLogic.Services
             }
 
             var normalized = items
-                .Where(i => i.Amount > 0)
+                .Where(i => i.Amount > 0 && i.CategoryId > 0)
                 .Select(i => new OpeningCreditChargeInput
                 {
+                    CategoryId = i.CategoryId,
                     Amount = decimal.Round(i.Amount, 2, MidpointRounding.AwayFromZero),
                     Months = i.Months <= 0 ? 1 : i.Months,
                     Description = string.IsNullOrWhiteSpace(i.Description) ? "Saldo inicial heredado" : i.Description!.Trim(),
@@ -701,6 +702,7 @@ namespace GastosApp.BusinessLogic.Services
                 var syntheticTransaction = await _repository.Save(new Transaction
                 {
                     AccountId = creditAccountId,
+                    CategoryId = input.CategoryId,
                     Type = "opening_credit",
                     Amount = input.Amount,
                     BalanceImpact = 0m,

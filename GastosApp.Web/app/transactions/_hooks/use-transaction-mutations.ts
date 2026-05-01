@@ -131,6 +131,7 @@ export function useTransactionMutations(params: Params) {
             creditAccountId: accountId,
             items: [
               {
+                categoryId,
                 amount: amountNumber,
                 months: msiMonths,
                 description: description.trim(),

@@ -602,6 +602,7 @@ namespace GastosApp.API.Controllers
                     request.CreditAccountId,
                     request.Items.Select(i => new GastosApp.BusinessLogic.Models.Transactions.OpeningCreditChargeInput
                     {
+                        CategoryId = i.CategoryId,
                         Amount = i.Amount,
                         Months = i.Months,
                         Description = i.Description,
