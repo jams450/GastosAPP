@@ -288,6 +288,11 @@ namespace GastosApp.BusinessLogic.Services
             {
                 await _accountService.UpdateBalanceAsync(existing.AccountId, adjustment);
             }
+
+            if (transaction.Type == "expense")
+            {
+                await SynchronizeCreditChargePlanAsync(id, transaction.Amount, transaction.TransactionDate);
+            }
             
             return result;
         }
@@ -456,11 +461,25 @@ namespace GastosApp.BusinessLogic.Services
                 return (false, "La cuenta destino no es de crédito");
             }
 
-            var existingPayment = await _repository.Get<CreditPayment>(p => p.SourceTransactionId == sourceTransactionId)
-                .AnyAsync();
-            if (existingPayment)
+            var sourceTransaction = await _repository.Get<Transaction>(t => t.TransactionId == sourceTransactionId)
+                .FirstOrDefaultAsync();
+            if (sourceTransaction == null)
             {
-                return (false, "Esta transacción ya está vinculada a un pago de crédito");
+                return (false, "No existe transacción origen para aplicar pago de crédito");
+            }
+
+            var existingPayment = await _repository.GetTrack<CreditPayment>()
+                .FirstOrDefaultAsync(p => p.SourceTransactionId == sourceTransactionId);
+
+            var maxAllowedFromSource = sourceTransaction.Amount;
+            if (existingPayment != null && existingPayment.Amount + amount > maxAllowedFromSource)
+            {
+                return (false, "La aplicación excede monto disponible de transacción origen");
+            }
+
+            if (existingPayment == null && amount > maxAllowedFromSource)
+            {
+                return (false, "La aplicación excede monto disponible de transacción origen");
             }
 
             var installmentIds = allocationList.Select(a => a.InstallmentId).Distinct().ToList();
@@ -496,15 +515,25 @@ namespace GastosApp.BusinessLogic.Services
                 }
             }
 
-            var creditPayment = await _repository.Save(new CreditPayment
+            CreditPayment creditPayment;
+            if (existingPayment == null)
             {
-                AccountId = creditAccountId,
-                SourceTransactionId = sourceTransactionId,
-                PaidAt = EnsureUtc(paidAt),
-                Amount = amount,
-                Status = "Posted",
-                Created = DateTime.UtcNow
-            });
+                creditPayment = await _repository.Save(new CreditPayment
+                {
+                    AccountId = creditAccountId,
+                    SourceTransactionId = sourceTransactionId,
+                    PaidAt = EnsureUtc(paidAt),
+                    Amount = amount,
+                    Status = "Posted",
+                    Created = DateTime.UtcNow
+                });
+            }
+            else
+            {
+                existingPayment.Amount += amount;
+                existingPayment.Updated = DateTime.UtcNow;
+                creditPayment = existingPayment;
+            }
 
             foreach (var allocation in allocationList)
             {
@@ -632,6 +661,104 @@ namespace GastosApp.BusinessLogic.Services
                     };
                 })
                 .Where(x => x.RemainingAmount > 0)
+                .ToList();
+        }
+
+        public async Task<(bool Success, string? ErrorMessage, int CreatedCount)> CreateOpeningCreditChargesAsync(
+            int creditAccountId,
+            IEnumerable<OpeningCreditChargeInput> items)
+        {
+            var account = await _accountService.GetByIdAsync(creditAccountId);
+            if (account == null || !account.IsCredit)
+            {
+                return (false, "La cuenta indicada no es de crédito", 0);
+            }
+
+            var normalized = items
+                .Where(i => i.Amount > 0)
+                .Select(i => new OpeningCreditChargeInput
+                {
+                    Amount = decimal.Round(i.Amount, 2, MidpointRounding.AwayFromZero),
+                    Months = i.Months <= 0 ? 1 : i.Months,
+                    Description = string.IsNullOrWhiteSpace(i.Description) ? "Saldo inicial heredado" : i.Description!.Trim(),
+                    OccurredAt = i.OccurredAt
+                })
+                .ToList();
+
+            if (normalized.Count == 0)
+            {
+                return (false, "Debes enviar al menos un cargo con monto mayor a cero", 0);
+            }
+
+            foreach (var input in normalized)
+            {
+                if (input.Months < 1 || input.Months > 60)
+                {
+                    return (false, "Meses inválido. Debe estar entre 1 y 60", 0);
+                }
+
+                var occurredAt = EnsureUtc(input.OccurredAt ?? DateTime.UtcNow);
+                var syntheticTransaction = await _repository.Save(new Transaction
+                {
+                    AccountId = creditAccountId,
+                    Type = "opening_credit",
+                    Amount = input.Amount,
+                    BalanceImpact = 0m,
+                    Direction = "credit",
+                    Description = input.Description,
+                    TransactionDate = occurredAt,
+                    Created = DateTime.UtcNow
+                });
+
+                await CreateCreditChargeWithPlanAsync(
+                    syntheticTransaction,
+                    input.Months,
+                    input.Months > 1 ? "MSI" : "Revolving");
+            }
+
+            return (true, null, normalized.Count);
+        }
+
+        public async Task<IEnumerable<CreditChargeSummaryItem>> GetCreditChargeSummariesAsync(IEnumerable<int> sourceTransactionIds)
+        {
+            var ids = sourceTransactionIds.Distinct().ToList();
+            if (ids.Count == 0)
+            {
+                return [];
+            }
+
+            var plans = await _repository.Get<CreditInstallmentPlan>()
+                .Include(p => p.SourceCharge)
+                .Include(p => p.Installments)
+                .Where(p => ids.Contains(p.SourceCharge.SourceTransactionId))
+                .ToListAsync();
+
+            if (plans.Count == 0)
+            {
+                return [];
+            }
+
+            var installmentIds = plans.SelectMany(p => p.Installments).Select(i => i.InstallmentId).Distinct().ToList();
+            var paidByInstallment = installmentIds.Count == 0
+                ? new Dictionary<int, decimal>()
+                : await _repository.Get<InstallmentAllocation>(a => installmentIds.Contains(a.InstallmentId))
+                    .GroupBy(a => a.InstallmentId)
+                    .Select(g => new { InstallmentId = g.Key, Paid = g.Sum(x => x.AllocatedAmount) })
+                    .ToDictionaryAsync(x => x.InstallmentId, x => x.Paid);
+
+            return plans
+                .Select(plan =>
+                {
+                    var totalDue = plan.Installments.Sum(i => i.TotalDue);
+                    var paidTotal = plan.Installments.Sum(i => paidByInstallment.TryGetValue(i.InstallmentId, out var value) ? value : 0m);
+                    return new CreditChargeSummaryItem
+                    {
+                        SourceTransactionId = plan.SourceCharge.SourceTransactionId,
+                        Months = Math.Max(plan.Months, 1),
+                        RemainingAmount = Math.Max(totalDue - paidTotal, 0m),
+                        Status = plan.SourceCharge.Status
+                    };
+                })
                 .ToList();
         }
 
@@ -798,6 +925,62 @@ namespace GastosApp.BusinessLogic.Services
             }
 
             await _repository.SaveChangesAsync();
+        }
+
+        private async Task SynchronizeCreditChargePlanAsync(int sourceTransactionId, decimal newAmount, DateTime newTransactionDate)
+        {
+            var charge = await _repository.GetTrack<CreditCharge>()
+                .Include(c => c.InstallmentPlan)
+                .ThenInclude(p => p!.Installments)
+                .FirstOrDefaultAsync(c => c.SourceTransactionId == sourceTransactionId);
+
+            if (charge?.InstallmentPlan == null)
+            {
+                return;
+            }
+
+            var plan = charge.InstallmentPlan;
+            var months = Math.Max(plan.Months, 1);
+
+            charge.PrincipalAmount = newAmount;
+            charge.OccurredAt = EnsureUtc(newTransactionDate);
+            charge.Updated = DateTime.UtcNow;
+
+            var monthlyAmountBase = Math.Round(newAmount / months, 2, MidpointRounding.AwayFromZero);
+            var roundingResidual = newAmount - (monthlyAmountBase * months);
+
+            plan.PrincipalAmount = newAmount;
+            plan.MonthlyAmountBase = monthlyAmountBase;
+            plan.RoundingResidual = roundingResidual;
+            plan.Updated = DateTime.UtcNow;
+
+            var orderedInstallments = plan.Installments
+                .OrderBy(i => i.InstallmentNumber)
+                .ToList();
+
+            if (orderedInstallments.Count != months)
+            {
+                return;
+            }
+
+            foreach (var installment in orderedInstallments)
+            {
+                var totalDue = monthlyAmountBase;
+                if (installment.InstallmentNumber == months)
+                {
+                    totalDue += roundingResidual;
+                }
+
+                installment.DueDate = EnsureUtc(newTransactionDate.Date.AddMonths(installment.InstallmentNumber));
+                installment.PrincipalDue = totalDue;
+                installment.InterestDue = 0m;
+                installment.FeeDue = 0m;
+                installment.TotalDue = totalDue;
+                installment.Updated = DateTime.UtcNow;
+            }
+
+            await _repository.SaveChangesAsync();
+            await RecalculateInstallmentStatusesAsync(orderedInstallments.Select(i => i.InstallmentId));
         }
     }
 }

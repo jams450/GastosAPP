@@ -1,180 +1,31 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { FormEvent } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { AppMenu } from "@/components/navigation/app-menu";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import type { Account } from "@/lib/contracts/accounts";
-import type { Category, CategoryType } from "@/lib/contracts/categories";
-import type { Merchant } from "@/lib/contracts/merchants";
-import type { Subcategory } from "@/lib/contracts/subcategories";
-import type { Tag } from "@/lib/contracts/tags";
-import { formatCurrency } from "@/lib/format/currency";
-import type { CreditInstallmentAllocation, CreditOpenInstallmentItem } from "@/lib/contracts/transactions";
 import { ExpenseForm } from "./_components/create/expense-form";
 import { IncomeForm } from "./_components/create/income-form";
 import { TransferForm } from "./_components/create/transfer-form";
 import { HistoryPanel } from "./_components/history/history-panel";
-
-type TransactionKind = CategoryType;
-
-type CatalogsResponse = {
-  accounts: Account[];
-  categories: Category[];
-  subcategories: Subcategory[];
-  merchants: Merchant[];
-  tags: Tag[];
-  categoriesByType: {
-    income: Category[];
-    expense: Category[];
-    transfer: Category[];
-  };
-};
-
-type TransactionHistoryItem = {
-  transactionId: number;
-  accountId: number;
-  accountName: string;
-  categoryId: number | null;
-  subcategoryId: number | null;
-  merchantId: number | null;
-  type: TransactionKind;
-  transferGroupId: string | null;
-  amount: number;
-  description: string;
-  transactionDate: string;
-  tags: string[];
-};
-
-type TransactionListResponse = {
-  month: string;
-  transactions: TransactionHistoryItem[];
-};
-
-type ViewMode = "create" | "history";
-
-type EditFormState = {
-  transactionId: number;
-  type: TransactionKind;
-  accountId: number;
-  categoryId: number;
-  subcategoryId: number | null;
-  merchantId: number | null;
-  amount: string;
-  description: string;
-  transactionDate: string;
-  tagsText: string;
-};
-
-type TransferGroupItem = {
-  transferGroupId: string;
-  transactionDate: string;
-  amount: number;
-  sourceAccountId: number;
-  destinationAccountId: number | null;
-  accountFromName: string;
-  accountToName: string;
-  categoryId: number | null;
-  subcategoryId: number | null;
-  merchantId: number | null;
-  description: string;
-  tags: string[];
-};
-
-type HistoryFilters = {
-  type: "all" | TransactionKind;
-  accountId: number | "all";
-  categoryId: number | "all";
-};
-
-type TransferEditFormState = {
-  transferGroupId: string;
-  categoryId: number;
-  subcategoryId: number | null;
-  merchantId: number | null;
-  description: string;
-  transactionDate: string;
-  tagsText: string;
-};
+import { CreditAllocationSelector } from "./_components/create/credit-allocation-selector";
+import { EditTransactionModal } from "./_components/history/edit-transaction-modal";
+import { EditTransferModal } from "./_components/history/edit-transfer-modal";
+import { useCreditAllocation } from "./_hooks/use-credit-allocation";
+import { useTransactionsHistory } from "./_hooks/use-transactions-history";
+import { useHistoryColumns } from "./_hooks/use-history-columns";
+import { useTransactionMutations } from "./_hooks/use-transaction-mutations";
+import { currentLocalDateTimeInput, currentMonthInput, dateTimeLocalInputValue, parseSelectedNumber } from "./_lib/transactions-utils";
+import { type CatalogsResponse, type EditFormState, type TransactionHistoryItem, type TransactionKind, type TransferEditFormState, type TransferGroupItem, type ViewMode, typeLabel } from "./_lib/transactions-types";
+import type { Account } from "@/lib/contracts/accounts";
+import type { Category } from "@/lib/contracts/categories";
+import type { Subcategory } from "@/lib/contracts/subcategories";
 
 type Props = {
   username: string;
 };
-
-const typeLabel: Record<TransactionKind, string> = {
-  income: "Ingreso",
-  expense: "Gasto",
-  transfer: "Transferencia"
-};
-
-function currentLocalDateTimeInput(): string {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, "0");
-  const day = String(now.getDate()).padStart(2, "0");
-  const hours = String(now.getHours()).padStart(2, "0");
-  const minutes = String(now.getMinutes()).padStart(2, "0");
-  return `${year}-${month}-${day}T${hours}:${minutes}`;
-}
-
-function parseTagsInput(input: string): string[] {
-  return [...new Set(input.split(",").map((tag) => tag.trim()).filter(Boolean))].slice(0, 20);
-}
-
-function currentMonthInput(): string {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, "0");
-  return `${year}-${month}`;
-}
-
-function dateTimeLocalInputValue(value: string): string {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return currentLocalDateTimeInput();
-  }
-
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  const hours = String(date.getHours()).padStart(2, "0");
-  const minutes = String(date.getMinutes()).padStart(2, "0");
-
-  return `${year}-${month}-${day}T${hours}:${minutes}`;
-}
-
-function toUtcIsoDateTime(value: string): string | null {
-  if (!value.trim()) {
-    return null;
-  }
-
-  const candidate = /^\d{4}-\d{2}-\d{2}$/.test(value) ? `${value}T00:00` : value;
-  const date = new Date(candidate);
-  if (Number.isNaN(date.getTime())) {
-    return null;
-  }
-
-  return date.toISOString();
-}
-
-function dateTimeLocalDisplay(value: string): string {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return "—";
-  }
-
-  const day = String(date.getDate()).padStart(2, "0");
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const year = date.getFullYear();
-  const hours = String(date.getHours()).padStart(2, "0");
-  const minutes = String(date.getMinutes()).padStart(2, "0");
-
-  return `${day}/${month}/${year} ${hours}:${minutes}`;
-}
 
 export function TransactionsClient({ username }: Props) {
   const [kind, setKind] = useState<TransactionKind>("expense");
@@ -193,20 +44,13 @@ export function TransactionsClient({ username }: Props) {
   const [amount, setAmount] = useState<string>("");
   const [description, setDescription] = useState<string>("");
   const [transactionDate, setTransactionDate] = useState<string>(currentLocalDateTimeInput());
+  const [msiMonths, setMsiMonths] = useState<number>(1);
 
   const [submitLoading, setSubmitLoading] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   const [historyMonth, setHistoryMonth] = useState<string>(currentMonthInput());
-  const [historyLoading, setHistoryLoading] = useState(false);
-  const [historyError, setHistoryError] = useState<string | null>(null);
-  const [historyItems, setHistoryItems] = useState<TransactionHistoryItem[]>([]);
-  const [historyFilters, setHistoryFilters] = useState<HistoryFilters>({
-    type: "all",
-    accountId: "all",
-    categoryId: "all"
-  });
 
   const [editForm, setEditForm] = useState<EditFormState | null>(null);
   const [transferEditForm, setTransferEditForm] = useState<TransferEditFormState | null>(null);
@@ -331,121 +175,45 @@ export function TransactionsClient({ username }: Props) {
     return map;
   }, [catalogs]);
 
-  const regularHistoryItems = useMemo(
-    () => historyItems.filter((item) => item.type !== "transfer"),
-    [historyItems]
-  );
+  const {
+    historyLoading,
+    historyError,
+    setHistoryError,
+    historyFilters,
+    setHistoryFilters,
+    historyAccountOptions,
+    historyCategoryOptions,
+    filteredRegularHistoryItems,
+    filteredTransferGroups,
+    loadHistory
+  } = useTransactionsHistory({ catalogs, historyMonth });
 
-  const transferGroups = useMemo<TransferGroupItem[]>(() => {
-    const grouped = new Map<string, TransactionHistoryItem[]>();
-
-    historyItems
-      .filter((item) => item.type === "transfer" && item.transferGroupId)
-      .forEach((item) => {
-        const key = item.transferGroupId as string;
-        const current = grouped.get(key) ?? [];
-        current.push(item);
-        grouped.set(key, current);
-      });
-
-    return Array.from(grouped.entries())
-      .map(([transferGroupId, items]) => {
-        const ordered = [...items].sort((a, b) => a.transactionId - b.transactionId);
-        const first = ordered[0];
-        const second = ordered[1];
-
-        const mergedTags = [...new Set(ordered.flatMap((item) => item.tags))];
-
-        return {
-          transferGroupId,
-          transactionDate: first.transactionDate,
-          amount: first.amount,
-          sourceAccountId: first.accountId,
-          destinationAccountId: second?.accountId ?? null,
-          accountFromName: first.accountName,
-          accountToName: second?.accountName ?? "—",
-          categoryId: first.categoryId,
-          subcategoryId: first.subcategoryId,
-          merchantId: first.merchantId,
-          description: first.description,
-          tags: mergedTags
-        };
-      })
-      .sort((a, b) => b.transactionDate.localeCompare(a.transactionDate));
-  }, [historyItems]);
-
-  const historyAccountOptions = useMemo(
-    () => (catalogs?.accounts ?? []).map((account) => ({ value: account.accountId, label: account.name })),
-    [catalogs]
-  );
-
-  const historyCategoryOptions = useMemo(() => {
-    if (!catalogs) {
-      return [] as { value: number; label: string }[];
-    }
-
-    const source = historyFilters.type === "all" ? catalogs.categories : catalogs.categoriesByType[historyFilters.type] ?? [];
-    return source.map((category) => ({ value: category.categoryId, label: category.name }));
-  }, [catalogs, historyFilters.type]);
-
-  const filteredRegularHistoryItems = useMemo(() => {
-    return regularHistoryItems.filter((item) => {
-      if (historyFilters.type !== "all" && item.type !== historyFilters.type) {
-        return false;
-      }
-
-      if (historyFilters.accountId !== "all" && item.accountId !== historyFilters.accountId) {
-        return false;
-      }
-
-      if (historyFilters.categoryId !== "all" && item.categoryId !== historyFilters.categoryId) {
-        return false;
-      }
-
-      return true;
-    });
-  }, [regularHistoryItems, historyFilters]);
-
-  const filteredTransferGroups = useMemo(() => {
-    return transferGroups.filter((item) => {
-      if (historyFilters.type !== "all" && historyFilters.type !== "transfer") {
-        return false;
-      }
-
-      if (
-        historyFilters.accountId !== "all" &&
-        item.sourceAccountId !== historyFilters.accountId &&
-        item.destinationAccountId !== historyFilters.accountId
-      ) {
-        return false;
-      }
-
-      if (historyFilters.categoryId !== "all" && item.categoryId !== historyFilters.categoryId) {
-        return false;
-      }
-
-      return true;
-    });
-  }, [transferGroups, historyFilters]);
-
-  const loadHistory = useCallback(async (month = historyMonth) => {
-    setHistoryLoading(true);
-    setHistoryError(null);
-    try {
-      const response = await fetch(`/api/bff/transactions/list?month=${encodeURIComponent(month)}`, { cache: "no-store" });
-      if (!response.ok) {
-        const data = (await response.json().catch(() => null)) as { message?: string } | null;
-        throw new Error(data?.message ?? "No se pudo cargar el historial");
-      }
-
-      const data = (await response.json()) as TransactionListResponse;
-      setHistoryItems(data.transactions);
-    } catch (error) {
-      setHistoryError(error instanceof Error ? error.message : "No se pudo cargar el historial");
-    } finally {
-      setHistoryLoading(false);
-    }
-  }, [historyMonth]);
+  const {
+    allocationMode,
+    setAllocationMode,
+    openInstallments,
+    openInstallmentsLoading,
+    openInstallmentsError,
+    selectedInstallmentAmounts,
+    selectedAllocations,
+    selectedAllocationTotal,
+    targetCreditAccountId,
+    isCreditPaymentFlow,
+    reloadOpenInstallments,
+    setAllocationAmount,
+    clearAllocations,
+    autoDistributeAllocationsByAmount,
+    useSelectedTotalAsAmount
+  } = useCreditAllocation({
+    kind,
+    viewMode,
+    accountId,
+    destinationAccountId,
+    accountById,
+    amount,
+    onAmountChange: setAmount,
+    setSubmitError
+  });
 
   useEffect(() => {
     if (viewMode === "history") {
@@ -470,180 +238,9 @@ export function TransactionsClient({ username }: Props) {
     return catalogs.subcategories.filter((subcategory) => subcategory.categoryId === transferEditForm.categoryId);
   }, [transferEditForm, catalogs]);
 
-  function parseSelectedNumber(value: string): number | null {
-    const parsed = Number(value);
-    return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
-  }
-
   function swapTransferAccounts() {
     setSourceAccountId(destinationAccountId);
     setDestinationAccountId(sourceAccountId);
-  }
-
-  async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setSubmitError(null);
-    setSuccessMessage(null);
-
-    const amountNumber = Number(amount);
-    if (!Number.isFinite(amountNumber) || amountNumber <= 0) {
-      setSubmitError("Ingresa un monto mayor a 0.");
-      return;
-    }
-
-    if (!transactionDate) {
-      setSubmitError("Selecciona una fecha válida.");
-      return;
-    }
-
-    const transactionDateUtc = toUtcIsoDateTime(transactionDate);
-    if (!transactionDateUtc) {
-      setSubmitError("Selecciona una fecha y hora válidas.");
-      return;
-    }
-
-    if (!categoryId) {
-      setSubmitError("Selecciona una categoría.");
-      return;
-    }
-
-    if (!description.trim()) {
-      setSubmitError("La descripción es obligatoria.");
-      return;
-    }
-
-    setSubmitLoading(true);
-    try {
-      let endpoint = "/api/bff/transactions/expense";
-      let payload: Record<string, unknown>;
-      const parsedTags = parseTagsInput(tagsText);
-      const analyticsPayload = {
-        subcategoryId: subcategoryId ?? undefined,
-        merchantId: merchantId ?? undefined,
-        tags: parsedTags.length > 0 ? parsedTags : undefined
-      };
-
-      const resolveAllocationsForCreditAccount = async (
-        creditAccountId: number,
-        paymentAmount: number
-      ): Promise<CreditInstallmentAllocation[]> => {
-        const response = await fetch(`/api/bff/transactions/credit/open-installments/${creditAccountId}`, {
-          cache: "no-store"
-        });
-
-        if (!response.ok) {
-          throw new Error("No fue posible cargar mensualidades pendientes de crédito");
-        }
-
-        const items = (await response.json()) as CreditOpenInstallmentItem[];
-        const openItems = items
-          .filter((item) => item.remainingAmount > 0)
-          .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
-
-        if (openItems.length === 0) {
-          throw new Error("No hay cargos pendientes para aplicar pago en esta cuenta crédito.");
-        }
-
-        const allocations: CreditInstallmentAllocation[] = [];
-        let remaining = paymentAmount;
-
-        for (const item of openItems) {
-          if (remaining <= 0) {
-            break;
-          }
-
-          const allocationAmount = Math.min(item.remainingAmount, remaining);
-          if (allocationAmount > 0) {
-            allocations.push({
-              installmentId: item.installmentId,
-              amount: Number(allocationAmount.toFixed(2))
-            });
-            remaining = Number((remaining - allocationAmount).toFixed(2));
-          }
-        }
-
-        if (remaining > 0) {
-          throw new Error("Monto excede saldo pendiente de cargos crédito. Ajusta monto o liquida primero otros cargos.");
-        }
-
-        return allocations;
-      };
-
-      if (kind === "income" || kind === "expense") {
-        if (!accountId) {
-          setSubmitError("Selecciona una cuenta.");
-          return;
-        }
-
-        const selectedAccount = accountById.get(accountId);
-        const creditAllocations =
-          kind === "income" && selectedAccount?.isCredit
-            ? await resolveAllocationsForCreditAccount(accountId, amountNumber)
-            : undefined;
-
-        endpoint = kind === "income" ? "/api/bff/transactions/income" : "/api/bff/transactions/expense";
-        payload = {
-          accountId,
-          categoryId,
-          ...analyticsPayload,
-          amount: amountNumber,
-          description: description.trim(),
-          transactionDate: transactionDateUtc,
-          creditAllocations
-        };
-      } else {
-        if (!sourceAccountId || !destinationAccountId) {
-          setSubmitError("Selecciona cuenta origen y destino.");
-          return;
-        }
-
-        if (sourceAccountId === destinationAccountId) {
-          setSubmitError("La cuenta origen y destino deben ser diferentes.");
-          return;
-        }
-
-        const destinationAccount = accountById.get(destinationAccountId);
-        const creditAllocations = destinationAccount?.isCredit
-          ? await resolveAllocationsForCreditAccount(destinationAccountId, amountNumber)
-          : undefined;
-
-        endpoint = "/api/bff/transactions/transfer";
-        payload = {
-          sourceAccountId,
-          destinationAccountId,
-          categoryId,
-          ...analyticsPayload,
-          amount: amountNumber,
-          description: description.trim(),
-          transactionDate: transactionDateUtc,
-          creditAllocations
-        };
-      }
-
-      const response = await fetch(endpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
-      });
-
-      if (!response.ok) {
-        const data = (await response.json().catch(() => null)) as { message?: string } | null;
-        setSubmitError(data?.message ?? "No se pudo registrar la transacción.");
-        return;
-      }
-
-      setSuccessMessage(`${typeLabel[kind]} registrada correctamente.`);
-      setAmount("");
-      setDescription("");
-      setSubcategoryId(null);
-      setMerchantId(null);
-      setTagsText("");
-      setTransactionDate(currentLocalDateTimeInput());
-    } catch {
-      setSubmitError("No se pudo conectar con el servidor.");
-    } finally {
-      setSubmitLoading(false);
-    }
   }
 
   const openEditModal = useCallback((item: TransactionHistoryItem) => {
@@ -677,366 +274,71 @@ export function TransactionsClient({ username }: Props) {
     });
   }, [catalogs]);
 
-  async function onSaveEdit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!editForm) {
-      return;
-    }
+  const {
+    onSubmit,
+    onSaveEdit,
+    onSaveTransferEdit,
+    onDelete,
+    onDeleteTransferGroup,
+    onConvertChargeToMsi,
+    onApplyExistingPayment
+  } = useTransactionMutations({
+    createState: {
+      kind,
+      accountId,
+      sourceAccountId,
+      destinationAccountId,
+      categoryId,
+      subcategoryId,
+      merchantId,
+      tagsText,
+      amount,
+      description,
+      transactionDate,
+      msiMonths
+    },
+    selectedAllocations,
+    selectedAllocationTotal,
+    allocationMode,
+    isCreditPaymentFlow,
+    reloadOpenInstallments,
+    loadHistory,
+    setSubmitLoading,
+    setSubmitError,
+    setSuccessMessage,
+    setAmount,
+    setDescription,
+    setSubcategoryId,
+    setMerchantId,
+    setTagsText,
+    setTransactionDate,
+    setMsiMonths,
+    clearAllocations,
+    editForm,
+    setEditSaving,
+    setEditError,
+    setEditForm,
+    transferEditForm,
+    setTransferEditForm,
+    setDeleteLoadingId,
+    setDeleteTransferGroupId,
+    setHistoryError
+  });
 
-    const amountNumber = Number(editForm.amount);
-    if (!Number.isFinite(amountNumber) || amountNumber <= 0) {
-      setEditError("Ingresa un monto mayor a 0.");
-      return;
-    }
-
-    if (!editForm.categoryId) {
-      setEditError("Selecciona una categoría.");
-      return;
-    }
-
-    const editTransactionDateUtc = toUtcIsoDateTime(editForm.transactionDate);
-    if (!editTransactionDateUtc) {
-      setEditError("Selecciona una fecha y hora válidas.");
-      return;
-    }
-
-    setEditSaving(true);
-    setEditError(null);
-
-    try {
-      const payload = {
-        accountId: editForm.accountId,
-        categoryId: editForm.categoryId,
-        subcategoryId: editForm.subcategoryId ?? undefined,
-        merchantId: editForm.merchantId ?? undefined,
-        amount: amountNumber,
-        description: editForm.description.trim(),
-        transactionDate: editTransactionDateUtc,
-        tags: parseTagsInput(editForm.tagsText)
-      };
-
-      const response = await fetch(`/api/bff/transactions/${editForm.transactionId}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
-      });
-
-      if (!response.ok) {
-        const data = (await response.json().catch(() => null)) as { message?: string } | null;
-        throw new Error(data?.message ?? "No se pudo actualizar la transacción");
-      }
-
-      setSuccessMessage("Transacción actualizada correctamente.");
-      setEditForm(null);
-      await loadHistory();
-    } catch (error) {
-      setEditError(error instanceof Error ? error.message : "No se pudo actualizar la transacción");
-    } finally {
-      setEditSaving(false);
-    }
-  }
-
-  async function onSaveTransferEdit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!transferEditForm) {
-      return;
-    }
-
-    if (!transferEditForm.categoryId) {
-      setEditError("Selecciona una categoría.");
-      return;
-    }
-
-    const transferTransactionDateUtc = toUtcIsoDateTime(transferEditForm.transactionDate);
-    if (!transferTransactionDateUtc) {
-      setEditError("Selecciona una fecha y hora válidas.");
-      return;
-    }
-
-    setEditSaving(true);
-    setEditError(null);
-
-    try {
-      const payload = {
-        categoryId: transferEditForm.categoryId,
-        subcategoryId: transferEditForm.subcategoryId ?? undefined,
-        merchantId: transferEditForm.merchantId ?? undefined,
-        description: transferEditForm.description.trim(),
-        transactionDate: transferTransactionDateUtc,
-        tags: parseTagsInput(transferEditForm.tagsText)
-      };
-
-      const response = await fetch(`/api/bff/transactions/transfers/${transferEditForm.transferGroupId}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
-      });
-
-      if (!response.ok) {
-        const data = (await response.json().catch(() => null)) as { message?: string } | null;
-        throw new Error(data?.message ?? "No se pudo actualizar la transferencia");
-      }
-
-      setSuccessMessage("Transferencia actualizada correctamente.");
-      setTransferEditForm(null);
-      await loadHistory();
-    } catch (error) {
-      setEditError(error instanceof Error ? error.message : "No se pudo actualizar la transferencia");
-    } finally {
-      setEditSaving(false);
-    }
-  }
-
-  const onDelete = useCallback(async (item: TransactionHistoryItem) => {
-    const confirmed = window.confirm("¿Seguro que quieres eliminar esta transacción?");
-    if (!confirmed) {
-      return;
-    }
-
-    setDeleteLoadingId(item.transactionId);
-    setHistoryError(null);
-    try {
-      const response = await fetch(`/api/bff/transactions/${item.transactionId}`, {
-        method: "DELETE"
-      });
-
-      if (!response.ok) {
-        const data = (await response.json().catch(() => null)) as { message?: string } | null;
-        throw new Error(data?.message ?? "No se pudo eliminar la transacción");
-      }
-
-      setSuccessMessage("Transacción eliminada correctamente.");
-      await loadHistory();
-    } catch (error) {
-      setHistoryError(error instanceof Error ? error.message : "No se pudo eliminar la transacción");
-    } finally {
-      setDeleteLoadingId(null);
-    }
-  }, [loadHistory]);
-
-  const onConvertChargeToMsi = useCallback(async (item: TransactionHistoryItem) => {
-    const monthsRaw = window.prompt("¿A cuántos meses MSI deseas convertir este cargo? (2-60)", "3");
-    if (!monthsRaw) {
-      return;
-    }
-
-    const months = Number(monthsRaw);
-    if (!Number.isInteger(months) || months < 2 || months > 60) {
-      setHistoryError("Meses MSI inválido. Debe ser entero entre 2 y 60.");
-      return;
-    }
-
-    setHistoryError(null);
-    try {
-      const response = await fetch("/api/bff/transactions/credit/convert-charge-msi", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sourceTransactionId: item.transactionId, months })
-      });
-
-      if (!response.ok) {
-        const data = (await response.json().catch(() => null)) as { message?: string } | null;
-        throw new Error(data?.message ?? "No se pudo convertir cargo a MSI");
-      }
-
-      setSuccessMessage("Cargo convertido a MSI correctamente.");
-      await loadHistory();
-    } catch (error) {
-      setHistoryError(error instanceof Error ? error.message : "No se pudo convertir cargo a MSI");
-    }
-  }, [loadHistory]);
-
-  const onDeleteTransferGroup = useCallback(async (item: TransferGroupItem) => {
-    const confirmed = window.confirm("¿Seguro que quieres eliminar esta transferencia completa?");
-    if (!confirmed) {
-      return;
-    }
-
-    setDeleteTransferGroupId(item.transferGroupId);
-    setHistoryError(null);
-    try {
-      const response = await fetch(`/api/bff/transactions/transfers/${item.transferGroupId}`, {
-        method: "DELETE"
-      });
-
-      if (!response.ok) {
-        const data = (await response.json().catch(() => null)) as { message?: string } | null;
-        throw new Error(data?.message ?? "No se pudo eliminar la transferencia");
-      }
-
-      setSuccessMessage("Transferencia eliminada correctamente.");
-      await loadHistory();
-    } catch (error) {
-      setHistoryError(error instanceof Error ? error.message : "No se pudo eliminar la transferencia");
-    } finally {
-      setDeleteTransferGroupId(null);
-    }
-  }, [loadHistory]);
-
-  const historyColumns = useMemo<ColumnDef<TransactionHistoryItem>[]>(
-    () => [
-      {
-        accessorKey: "transactionDate",
-        header: "Fecha",
-        cell: ({ row }) => dateTimeLocalDisplay(row.original.transactionDate)
-      },
-      {
-        accessorKey: "type",
-        header: "Tipo",
-        cell: ({ row }) => typeLabel[row.original.type]
-      },
-      {
-        accessorKey: "accountName",
-        header: "Cuenta"
-      },
-      {
-        accessorKey: "categoryId",
-        header: "Categoría",
-        cell: ({ row }) => (row.original.categoryId ? (categoryNameById.get(row.original.categoryId) ?? "—") : "—")
-      },
-      {
-        accessorKey: "subcategoryId",
-        header: "Subcategoría",
-        cell: ({ row }) => (row.original.subcategoryId ? (subcategoryNameById.get(row.original.subcategoryId) ?? "—") : "—")
-      },
-      {
-        accessorKey: "merchantId",
-        header: "Comercio",
-        cell: ({ row }) => (row.original.merchantId ? (merchantNameById.get(row.original.merchantId) ?? "—") : "—")
-      },
-      {
-        accessorKey: "amount",
-        header: "Monto",
-        cell: ({ row }) => formatCurrency(row.original.amount)
-      },
-      {
-        accessorKey: "description",
-        header: "Descripción"
-      },
-      {
-        accessorKey: "tags",
-        header: "Tags",
-        cell: ({ row }) => (row.original.tags.length > 0 ? row.original.tags.join(", ") : "—")
-      },
-      {
-        id: "actions",
-        header: "Acciones",
-        enableSorting: false,
-        cell: ({ row }) => {
-          const item = row.original;
-          return (
-            <div className="flex gap-1">
-              <Button
-                type="button"
-                variant="secondary"
-                className="h-6 px-1.5 text-[10px]"
-                onClick={() => openEditModal(item)}
-              >
-                Editar
-              </Button>
-              <Button
-                type="button"
-                variant="danger"
-                className="h-6 px-1.5 text-[10px]"
-                disabled={deleteLoadingId === item.transactionId}
-                onClick={() => void onDelete(item)}
-              >
-                Borrar
-              </Button>
-              {item.type === "expense" && accountById.get(item.accountId)?.isCredit ? (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  className="h-6 px-1.5 text-[10px]"
-                  onClick={() => void onConvertChargeToMsi(item)}
-                >
-                  MSI
-                </Button>
-              ) : null}
-            </div>
-          );
-        }
-      }
-    ],
-    [accountById, categoryNameById, deleteLoadingId, merchantNameById, onConvertChargeToMsi, onDelete, openEditModal, subcategoryNameById]
-  );
-
-  const transferColumns = useMemo<ColumnDef<TransferGroupItem>[]>(
-    () => [
-      {
-        accessorKey: "transactionDate",
-        header: "Fecha",
-        cell: ({ row }) => dateTimeLocalDisplay(row.original.transactionDate)
-      },
-      {
-        accessorKey: "accountFromName",
-        header: "Cuenta A"
-      },
-      {
-        accessorKey: "accountToName",
-        header: "Cuenta B"
-      },
-      {
-        accessorKey: "categoryId",
-        header: "Categoría",
-        cell: ({ row }) => (row.original.categoryId ? (categoryNameById.get(row.original.categoryId) ?? "—") : "—")
-      },
-      {
-        accessorKey: "subcategoryId",
-        header: "Subcategoría",
-        cell: ({ row }) => (row.original.subcategoryId ? (subcategoryNameById.get(row.original.subcategoryId) ?? "—") : "—")
-      },
-      {
-        accessorKey: "merchantId",
-        header: "Comercio",
-        cell: ({ row }) => (row.original.merchantId ? (merchantNameById.get(row.original.merchantId) ?? "—") : "—")
-      },
-      {
-        accessorKey: "amount",
-        header: "Monto",
-        cell: ({ row }) => formatCurrency(row.original.amount)
-      },
-      {
-        accessorKey: "description",
-        header: "Descripción"
-      },
-      {
-        accessorKey: "tags",
-        header: "Tags",
-        cell: ({ row }) => (row.original.tags.length > 0 ? row.original.tags.join(", ") : "—")
-      },
-      {
-        id: "actions",
-        header: "Acciones",
-        enableSorting: false,
-        cell: ({ row }) => {
-          const item = row.original;
-          return (
-            <div className="flex gap-1">
-              <Button
-                type="button"
-                variant="secondary"
-                className="h-6 px-1.5 text-[10px]"
-                onClick={() => openTransferEditModal(item)}
-              >
-                Editar
-              </Button>
-              <Button
-                type="button"
-                variant="danger"
-                className="h-6 px-1.5 text-[10px]"
-                disabled={deleteTransferGroupId === item.transferGroupId}
-                onClick={() => void onDeleteTransferGroup(item)}
-              >
-                Borrar
-              </Button>
-            </div>
-          );
-        }
-      }
-    ],
-    [categoryNameById, deleteTransferGroupId, merchantNameById, onDeleteTransferGroup, openTransferEditModal, subcategoryNameById]
-  );
+  const { historyColumns, transferColumns } = useHistoryColumns({
+    accountById,
+    categoryNameById,
+    subcategoryNameById,
+    merchantNameById,
+    deleteLoadingId,
+    deleteTransferGroupId,
+    onEdit: openEditModal,
+    onDelete,
+    onConvertToMsi: onConvertChargeToMsi,
+    onApplyExistingPayment,
+    onEditTransfer: openTransferEditModal,
+    onDeleteTransfer: onDeleteTransferGroup
+  });
 
   return (
     <main className="relative min-h-dvh w-full overflow-x-clip bg-slate-100 px-4 py-8 dark:bg-slate-900 md:px-6 xl:px-8">
@@ -1111,6 +413,8 @@ export function TransactionsClient({ username }: Props) {
                     onAmountChange={setAmount}
                     transactionDate={transactionDate}
                     onTransactionDateChange={setTransactionDate}
+                    msiMonths={msiMonths}
+                    onMsiMonthsChange={setMsiMonths}
                     description={description}
                     onDescriptionChange={setDescription}
                     submitError={submitError}
@@ -1184,6 +488,23 @@ export function TransactionsClient({ username }: Props) {
                   />
                 )
               )}
+
+              {viewMode === "create" && (kind === "income" || kind === "transfer") && targetCreditAccountId ? (
+                <CreditAllocationSelector
+                  items={openInstallments}
+                  loading={openInstallmentsLoading}
+                  error={openInstallmentsError}
+                  mode={allocationMode}
+                  onModeChange={setAllocationMode}
+                  selectedByInstallment={selectedInstallmentAmounts}
+                  onSelectedAmountChange={setAllocationAmount}
+                  enteredAmount={amount}
+                  selectedTotal={selectedAllocationTotal}
+                  onAutoDistributeFromAmount={autoDistributeAllocationsByAmount}
+                  onUseSelectedAsAmount={useSelectedTotalAsAmount}
+                  onClear={clearAllocations}
+                />
+              ) : null}
             </>
           ) : (
             <HistoryPanel
@@ -1212,248 +533,31 @@ export function TransactionsClient({ username }: Props) {
           )}
         </Card>
 
-        {editForm ? (
-          <div className="fixed inset-0 z-50 grid place-items-center bg-slate-900/50 p-4">
-            <Card className="w-full max-w-xl p-6">
-              <form className="space-y-4" onSubmit={(event) => void onSaveEdit(event)}>
-                <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Editar transacción</h3>
+        <EditTransactionModal
+          open={Boolean(editForm)}
+          form={editForm}
+          catalogs={catalogs}
+          subcategories={editSubcategories}
+          parseSelectedNumber={parseSelectedNumber}
+          onChange={setEditForm}
+          onClose={() => setEditForm(null)}
+          onSubmit={(event) => void onSaveEdit(event)}
+          saving={editSaving}
+          error={editError}
+        />
 
-                <label className="grid gap-1.5 text-sm font-medium text-slate-700 dark:text-slate-300">
-                  Categoría
-                  <select
-                    value={editForm.categoryId}
-                    onChange={(event) => {
-                      const nextCategoryId = parseSelectedNumber(event.target.value) ?? 0;
-                      setEditForm((current) =>
-                        current
-                          ? {
-                              ...current,
-                              categoryId: nextCategoryId,
-                              subcategoryId: null
-                            }
-                          : current
-                      );
-                    }}
-                    className="h-11 rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-200 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
-                    required
-                  >
-                    {(catalogs?.categoriesByType[editForm.type ?? "expense"] ?? catalogs?.categories ?? []).map((category) => (
-                      <option key={category.categoryId} value={category.categoryId}>
-                        {category.name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-
-                <div className="grid gap-4 md:grid-cols-2">
-                  <label className="grid gap-1.5 text-sm font-medium text-slate-700 dark:text-slate-300">
-                    Subcategoría (opcional)
-                    <select
-                      value={editForm.subcategoryId ?? ""}
-                      onChange={(event) =>
-                        setEditForm((current) => (current ? { ...current, subcategoryId: parseSelectedNumber(event.target.value) } : current))
-                      }
-                      className="h-11 rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-200 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
-                    >
-                      <option value="">Sin subcategoría</option>
-                      {editSubcategories.map((subcategory) => (
-                        <option key={subcategory.subcategoryId} value={subcategory.subcategoryId}>
-                          {subcategory.name}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-
-                  <label className="grid gap-1.5 text-sm font-medium text-slate-700 dark:text-slate-300">
-                    Comercio (opcional)
-                    <select
-                      value={editForm.merchantId ?? ""}
-                      onChange={(event) =>
-                        setEditForm((current) => (current ? { ...current, merchantId: parseSelectedNumber(event.target.value) } : current))
-                      }
-                      className="h-11 rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-200 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
-                    >
-                      <option value="">Sin comercio</option>
-                      {(catalogs?.merchants ?? []).map((merchant) => (
-                        <option key={merchant.merchantId} value={merchant.merchantId}>
-                          {merchant.name}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                </div>
-
-                <div className="grid gap-4 md:grid-cols-2">
-                  <Input
-                    label="Monto"
-                    type="number"
-                    step="0.01"
-                    min="0.01"
-                    value={editForm.amount}
-                    onChange={(event) => setEditForm((current) => (current ? { ...current, amount: event.target.value } : current))}
-                    required
-                  />
-                  <Input
-                    label="Fecha"
-                    type="datetime-local"
-                    step="60"
-                    value={editForm.transactionDate}
-                    onChange={(event) => setEditForm((current) => (current ? { ...current, transactionDate: event.target.value } : current))}
-                    required
-                  />
-                </div>
-
-                <Input
-                  label="Descripción"
-                  type="text"
-                  value={editForm.description}
-                  onChange={(event) => setEditForm((current) => (current ? { ...current, description: event.target.value } : current))}
-                  required
-                />
-
-                <Input
-                  label="Tags (opcional, separados por coma)"
-                  type="text"
-                  value={editForm.tagsText}
-                  onChange={(event) => setEditForm((current) => (current ? { ...current, tagsText: event.target.value } : current))}
-                  list="transaction-tag-suggestions"
-                />
-
-                {editError ? <Alert variant="danger">{editError}</Alert> : null}
-
-                <div className="flex justify-end gap-2">
-                  <Button type="button" variant="secondary" onClick={() => setEditForm(null)}>
-                    Cancelar
-                  </Button>
-                  <Button type="submit" loading={editSaving} loadingText="Guardando...">
-                    Guardar cambios
-                  </Button>
-                </div>
-              </form>
-            </Card>
-          </div>
-        ) : null}
-
-        {transferEditForm ? (
-          <div className="fixed inset-0 z-50 grid place-items-center bg-slate-900/50 p-4">
-            <Card className="w-full max-w-xl p-6">
-              <form className="space-y-4" onSubmit={(event) => void onSaveTransferEdit(event)}>
-                <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Editar transferencia (grupo)</h3>
-
-                <label className="grid gap-1.5 text-sm font-medium text-slate-700 dark:text-slate-300">
-                  Categoría
-                  <select
-                    value={transferEditForm.categoryId}
-                    onChange={(event) => {
-                      const nextCategoryId = parseSelectedNumber(event.target.value) ?? 0;
-                      setTransferEditForm((current) =>
-                        current
-                          ? {
-                              ...current,
-                              categoryId: nextCategoryId,
-                              subcategoryId: null
-                            }
-                          : current
-                      );
-                    }}
-                    className="h-11 rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-200 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
-                    required
-                  >
-                    {(catalogs?.categoriesByType.transfer ?? catalogs?.categories ?? []).map((category) => (
-                      <option key={category.categoryId} value={category.categoryId}>
-                        {category.name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-
-                <div className="grid gap-4 md:grid-cols-2">
-                  <label className="grid gap-1.5 text-sm font-medium text-slate-700 dark:text-slate-300">
-                    Subcategoría (opcional)
-                    <select
-                      value={transferEditForm.subcategoryId ?? ""}
-                      onChange={(event) =>
-                        setTransferEditForm((current) =>
-                          current ? { ...current, subcategoryId: parseSelectedNumber(event.target.value) } : current
-                        )
-                      }
-                      className="h-11 rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-200 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
-                    >
-                      <option value="">Sin subcategoría</option>
-                      {transferEditSubcategories.map((subcategory) => (
-                        <option key={subcategory.subcategoryId} value={subcategory.subcategoryId}>
-                          {subcategory.name}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-
-                  <label className="grid gap-1.5 text-sm font-medium text-slate-700 dark:text-slate-300">
-                    Comercio (opcional)
-                    <select
-                      value={transferEditForm.merchantId ?? ""}
-                      onChange={(event) =>
-                        setTransferEditForm((current) =>
-                          current ? { ...current, merchantId: parseSelectedNumber(event.target.value) } : current
-                        )
-                      }
-                      className="h-11 rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-200 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
-                    >
-                      <option value="">Sin comercio</option>
-                      {(catalogs?.merchants ?? []).map((merchant) => (
-                        <option key={merchant.merchantId} value={merchant.merchantId}>
-                          {merchant.name}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                </div>
-
-                <Input
-                  label="Fecha"
-                  type="datetime-local"
-                  step="60"
-                  value={transferEditForm.transactionDate}
-                  onChange={(event) =>
-                    setTransferEditForm((current) => (current ? { ...current, transactionDate: event.target.value } : current))
-                  }
-                  required
-                />
-
-                <Input
-                  label="Descripción"
-                  type="text"
-                  value={transferEditForm.description}
-                  onChange={(event) =>
-                    setTransferEditForm((current) => (current ? { ...current, description: event.target.value } : current))
-                  }
-                  required
-                />
-
-                <Input
-                  label="Tags (opcional, separados por coma)"
-                  type="text"
-                  value={transferEditForm.tagsText}
-                  onChange={(event) =>
-                    setTransferEditForm((current) => (current ? { ...current, tagsText: event.target.value } : current))
-                  }
-                  list="transaction-tag-suggestions"
-                />
-
-                {editError ? <Alert variant="danger">{editError}</Alert> : null}
-
-                <div className="flex justify-end gap-2">
-                  <Button type="button" variant="secondary" onClick={() => setTransferEditForm(null)}>
-                    Cancelar
-                  </Button>
-                  <Button type="submit" loading={editSaving} loadingText="Guardando...">
-                    Guardar cambios
-                  </Button>
-                </div>
-              </form>
-            </Card>
-          </div>
-        ) : null}
+        <EditTransferModal
+          open={Boolean(transferEditForm)}
+          form={transferEditForm}
+          catalogs={catalogs}
+          subcategories={transferEditSubcategories}
+          parseSelectedNumber={parseSelectedNumber}
+          onChange={setTransferEditForm}
+          onClose={() => setTransferEditForm(null)}
+          onSubmit={(event) => void onSaveTransferEdit(event)}
+          saving={editSaving}
+          error={editError}
+        />
       </section>
     </main>
   );

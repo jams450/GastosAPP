@@ -16,6 +16,16 @@ type TransactionListItem = {
   description: string;
   transactionDate: string;
   tags: string[];
+  creditMonths: number | null;
+  creditRemainingAmount: number | null;
+  creditStatus: string | null;
+};
+
+type CreditChargeSummary = {
+  sourceTransactionId: number;
+  months: number;
+  remainingAmount: number;
+  status: string;
 };
 
 function isRecord(value: unknown): value is UnknownRecord {
@@ -66,8 +76,24 @@ function normalizeTransaction(input: unknown): TransactionListItem | null {
     transactionDate,
     tags: Array.isArray(input.tags)
       ? input.tags.filter((tag): tag is string => typeof tag === "string").map((tag) => tag.trim()).filter(Boolean)
-      : []
+      : [],
+    creditMonths: null,
+    creditRemainingAmount: null,
+    creditStatus: null
   };
+}
+
+function normalizeCreditSummary(input: unknown): CreditChargeSummary | null {
+  if (!isRecord(input)) return null;
+  const sourceTransactionId = toNumber(input.sourceTransactionId ?? input.SourceTransactionId);
+  const months = toNumber(input.months ?? input.Months);
+  const remainingAmount = toNumber(input.remainingAmount ?? input.RemainingAmount);
+  const statusRaw = input.status ?? input.Status;
+  const status = typeof statusRaw === "string" ? statusRaw : "";
+  if (sourceTransactionId === null || months === null || remainingAmount === null || !status) {
+    return null;
+  }
+  return { sourceTransactionId, months, remainingAmount, status };
 }
 
 function monthWindow(month: string) {
@@ -140,9 +166,10 @@ export async function GET(request: Request) {
             return null;
           }
 
-          return { accountId, name };
+          const isCredit = value.isCredit === true || value.IsCredit === true;
+          return { accountId, name, isCredit };
         })
-        .filter((value): value is { accountId: number; name: string } => value !== null)
+        .filter((value): value is { accountId: number; name: string; isCredit: boolean } => value !== null)
     : [];
 
   const transactionResponses = await Promise.all(
@@ -180,6 +207,36 @@ export async function GET(request: Request) {
       accountName: accountNameById.get(item.accountId) ?? "Cuenta"
     }))
     .sort((a, b) => new Date(b.transactionDate).getTime() - new Date(a.transactionDate).getTime());
+
+  const creditAccountIds = new Set(accounts.filter((account) => account.isCredit).map((account) => account.accountId));
+  const creditExpenseIds = transactions
+    .filter((item) => item.type === "expense" && creditAccountIds.has(item.accountId))
+    .map((item) => item.transactionId);
+
+  if (creditExpenseIds.length > 0) {
+    const summariesResponse = await fetch(`${getApiBaseUrl()}/api/transactions/credit/charge-summaries`, {
+      method: "POST",
+      headers,
+      cache: "no-store",
+      body: JSON.stringify({ sourceTransactionIds: creditExpenseIds })
+    });
+
+    if (summariesResponse.ok) {
+      const summariesRaw = (await summariesResponse.json().catch(() => [])) as unknown;
+      const summaries = Array.isArray(summariesRaw)
+        ? summariesRaw.map((item) => normalizeCreditSummary(item)).filter((item): item is CreditChargeSummary => item !== null)
+        : [];
+
+      const summaryByTxId = new Map(summaries.map((summary) => [summary.sourceTransactionId, summary]));
+      for (const item of transactions) {
+        const summary = summaryByTxId.get(item.transactionId);
+        if (!summary) continue;
+        item.creditMonths = summary.months;
+        item.creditRemainingAmount = summary.remainingAmount;
+        item.creditStatus = summary.status;
+      }
+    }
+  }
 
   return NextResponse.json({ month, transactions });
 }

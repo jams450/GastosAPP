@@ -30,6 +30,8 @@ type Props = {
   onAmountChange: (value: string) => void;
   transactionDate: string;
   onTransactionDateChange: (value: string) => void;
+  msiMonths: number;
+  onMsiMonthsChange: (value: number) => void;
   description: string;
   onDescriptionChange: (value: string) => void;
   submitError: string | null;
@@ -59,6 +61,8 @@ export function ExpenseForm({
   onAmountChange,
   transactionDate,
   onTransactionDateChange,
+  msiMonths,
+  onMsiMonthsChange,
   description,
   onDescriptionChange,
   submitError,
@@ -209,6 +213,29 @@ export function ExpenseForm({
             </div>
           </div>
         </div>
+
+        {selectedAccount?.isCredit ? (
+          <label className="grid gap-1.5 text-sm font-medium text-slate-700 dark:text-slate-300">
+            Meses sin interés
+            <select
+              value={msiMonths}
+              onChange={(event) => onMsiMonthsChange(Number(event.target.value) || 1)}
+              className="h-11 rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none focus:border-rose-500 focus:ring-2 focus:ring-rose-200 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+            >
+              <option value={1}>1 mensualidad (normal)</option>
+              <option value={2}>2 MSI</option>
+              <option value={3}>3 MSI</option>
+              <option value={6}>6 MSI</option>
+              <option value={9}>9 MSI</option>
+              <option value={12}>12 MSI</option>
+              <option value={18}>18 MSI</option>
+              <option value={24}>24 MSI</option>
+            </select>
+            <span className="text-xs text-slate-500 dark:text-slate-400">
+              Selecciona 1 para compra normal o más de 1 para convertir cargo a MSI.
+            </span>
+          </label>
+        ) : null}
       </section>
 
       <section className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-950">

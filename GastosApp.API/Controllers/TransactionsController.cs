@@ -467,6 +467,161 @@ namespace GastosApp.API.Controllers
             }
         }
 
+        [HttpPost("credit/charge-summaries")]
+        public async Task<IActionResult> GetCreditChargeSummaries([FromBody] CreditChargeSummariesRequest request)
+        {
+            try
+            {
+                var sourceIds = request.SourceTransactionIds
+                    .Where(id => id > 0)
+                    .Distinct()
+                    .ToList();
+
+                if (sourceIds.Count == 0)
+                {
+                    return Ok(Array.Empty<object>());
+                }
+
+                var summaries = await _transactionService.GetCreditChargeSummariesAsync(sourceIds);
+                return Ok(summaries);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error retrieving credit charge summaries");
+                return StatusCode(500, new { Message = "An error occurred while retrieving credit charge summaries" });
+            }
+        }
+
+        [HttpPost("credit/apply-existing-payment")]
+        public async Task<IActionResult> ApplyExistingCreditPayment([FromBody] ApplyCreditPaymentRequest request)
+        {
+            try
+            {
+                if (request.SourceTransactionId <= 0 || request.CreditAccountId <= 0)
+                {
+                    return BadRequest(new { Message = "Parámetros inválidos" });
+                }
+
+                var account = await _accountService.GetByIdAsync(request.CreditAccountId);
+                if (account == null || !account.IsCredit)
+                {
+                    return BadRequest(new { Message = "La cuenta destino no es de crédito" });
+                }
+
+                var source = await _transactionService.GetByIdAsync(request.SourceTransactionId);
+                if (source == null)
+                {
+                    return NotFound(new { Message = "Transacción origen no encontrada" });
+                }
+
+                if (source.AccountId != request.CreditAccountId)
+                {
+                    return BadRequest(new { Message = "La transacción origen no pertenece a la cuenta crédito indicada" });
+                }
+
+                if (!(source.Type == "income" || source.Type == "transfer"))
+                {
+                    return BadRequest(new { Message = "Solo ingresos o transferencias pueden aplicarse como pago" });
+                }
+
+                var amountToApply = request.Amount ?? source.Amount;
+                if (amountToApply <= 0)
+                {
+                    return BadRequest(new { Message = "Monto a aplicar inválido" });
+                }
+
+                var installments = (await _transactionService.GetOpenCreditInstallmentsAsync(request.CreditAccountId))
+                    .OrderBy(i => i.DueDate)
+                    .ToList();
+
+                if (installments.Count == 0)
+                {
+                    return BadRequest(new { Message = "No hay mensualidades pendientes para aplicar" });
+                }
+
+                var pendingTotal = installments.Sum(i => i.RemainingAmount);
+                if (amountToApply > pendingTotal)
+                {
+                    return BadRequest(new { Message = "Monto a aplicar excede saldo pendiente de mensualidades" });
+                }
+
+                var remaining = amountToApply;
+                var allocations = new List<(int InstallmentId, decimal Amount)>();
+                foreach (var item in installments)
+                {
+                    if (remaining <= 0) break;
+                    var assign = Math.Min(item.RemainingAmount, remaining);
+                    if (assign <= 0) continue;
+                    allocations.Add((item.InstallmentId, assign));
+                    remaining -= assign;
+                }
+
+                if (remaining > 0)
+                {
+                    return BadRequest(new { Message = "No se pudo distribuir monto a mensualidades" });
+                }
+
+                var result = await _transactionService.RegisterCreditPaymentAsync(
+                    request.CreditAccountId,
+                    request.SourceTransactionId,
+                    source.TransactionDate,
+                    amountToApply,
+                    allocations);
+
+                if (!result.Success)
+                {
+                    return BadRequest(new { Message = result.ErrorMessage ?? "No se pudo aplicar pago existente" });
+                }
+
+                return Ok(new { Message = "Pago aplicado a mensualidades correctamente", AppliedAmount = amountToApply });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error applying existing payment transaction {TransactionId}", request.SourceTransactionId);
+                return StatusCode(500, new { Message = "An error occurred while applying existing payment" });
+            }
+        }
+
+        [HttpPost("credit/opening-charges")]
+        public async Task<IActionResult> CreateOpeningCreditCharges([FromBody] CreateOpeningCreditChargesRequest request)
+        {
+            try
+            {
+                if (request.CreditAccountId <= 0 || request.Items == null || request.Items.Count == 0)
+                {
+                    return BadRequest(new { Message = "Debes enviar cuenta crédito e items válidos" });
+                }
+
+                var account = await _accountService.GetByIdAsync(request.CreditAccountId);
+                if (account == null || !account.IsCredit)
+                {
+                    return BadRequest(new { Message = "La cuenta indicada no es de crédito" });
+                }
+
+                var result = await _transactionService.CreateOpeningCreditChargesAsync(
+                    request.CreditAccountId,
+                    request.Items.Select(i => new GastosApp.BusinessLogic.Models.Transactions.OpeningCreditChargeInput
+                    {
+                        Amount = i.Amount,
+                        Months = i.Months,
+                        Description = i.Description,
+                        OccurredAt = i.OccurredAt?.UtcDateTime
+                    }));
+
+                if (!result.Success)
+                {
+                    return BadRequest(new { Message = result.ErrorMessage ?? "No se pudieron crear cargos de apertura" });
+                }
+
+                return Ok(new { Message = "Cargos de apertura creados correctamente", CreatedCount = result.CreatedCount });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error creating opening credit charges for account {AccountId}", request.CreditAccountId);
+                return StatusCode(500, new { Message = "An error occurred while creating opening credit charges" });
+            }
+        }
+
         private int GetCurrentUserId()
         {
             return _currentUserService.GetUserId()

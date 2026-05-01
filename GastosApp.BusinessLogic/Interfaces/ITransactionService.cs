@@ -51,5 +51,9 @@ namespace GastosApp.BusinessLogic.Interfaces
             IEnumerable<(int InstallmentId, decimal Amount)> allocations);
         Task<(bool Success, string? ErrorMessage)> ConvertChargeToMsiAsync(int sourceTransactionId, int months);
         Task<IEnumerable<CreditInstallmentOpenItem>> GetOpenCreditInstallmentsAsync(int creditAccountId);
+        Task<IEnumerable<CreditChargeSummaryItem>> GetCreditChargeSummariesAsync(IEnumerable<int> sourceTransactionIds);
+        Task<(bool Success, string? ErrorMessage, int CreatedCount)> CreateOpeningCreditChargesAsync(
+            int creditAccountId,
+            IEnumerable<OpeningCreditChargeInput> items);
     }
 }
