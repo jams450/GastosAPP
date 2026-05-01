@@ -66,6 +66,14 @@ function normalizeTransaction(input: unknown): TransactionListItem | null {
     return null;
   }
 
+  const rawTags = input.tags ?? input.Tags;
+  const normalizedTags = Array.isArray(rawTags)
+    ? rawTags
+        .filter((tag): tag is string => typeof tag === "string")
+        .map((tag) => tag.trim())
+        .filter(Boolean)
+    : [];
+
   return {
     transactionId,
     accountId,
@@ -77,9 +85,7 @@ function normalizeTransaction(input: unknown): TransactionListItem | null {
     amount,
     description: typeof (input.description ?? input.Description) === "string" ? String(input.description ?? input.Description) : "",
     transactionDate,
-    tags: Array.isArray(input.tags ?? input.Tags)
-      ? (input.tags ?? input.Tags).filter((tag): tag is string => typeof tag === "string").map((tag) => tag.trim()).filter(Boolean)
-      : [],
+    tags: normalizedTags,
     creditMonths: null,
     creditRemainingAmount: null,
     creditStatus: null
