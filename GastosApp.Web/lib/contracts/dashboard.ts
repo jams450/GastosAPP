@@ -17,6 +17,7 @@ export type DashboardAccountOverview = {
   paymentDueDay: number | null;
   initialBalance: number;
   openingBalance: number;
+  currentBalance: number;
   monthIncome: number;
   monthExpense: number;
   monthNet: number;
@@ -97,6 +98,7 @@ function normalizeAccount(input: unknown): DashboardAccountOverview | null {
     paymentDueDay: toOptionalInt(input.paymentDueDay),
     initialBalance: toFiniteNumber(input.initialBalance),
     openingBalance: toFiniteNumber(input.openingBalance),
+    currentBalance: toFiniteNumber(input.currentBalance),
     monthIncome: toFiniteNumber(input.monthIncome),
     monthExpense: toFiniteNumber(input.monthExpense),
     monthNet: toFiniteNumber(input.monthNet),

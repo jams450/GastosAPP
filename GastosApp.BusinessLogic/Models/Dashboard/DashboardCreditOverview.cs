@@ -29,6 +29,7 @@ namespace GastosApp.BusinessLogic.Models.Dashboard
         public int? PaymentDueDay { get; set; }
         public decimal InitialBalance { get; set; }
         public decimal OpeningBalance { get; set; }
+        public decimal CurrentBalance { get; set; }
         public decimal MonthIncome { get; set; }
         public decimal MonthExpense { get; set; }
         public decimal MonthNet { get; set; }

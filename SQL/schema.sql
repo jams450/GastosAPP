@@ -112,7 +112,7 @@ CREATE TABLE transactions (
     category_id INT,
     subcategory_id INT,
     merchant_id INT,
-    type VARCHAR(20) NOT NULL CHECK (type IN ('income', 'expense', 'transfer')),
+    type VARCHAR(20) NOT NULL CHECK (type IN ('income', 'expense', 'transfer', 'opening_credit', 'transfer_in', 'transfer_out')),
     transfer_group_id UUID,
     amount DECIMAL(15, 2) NOT NULL,
     balance_impact DECIMAL(15, 2) NOT NULL DEFAULT 0.00,

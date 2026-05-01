@@ -152,6 +152,7 @@ SELECT
     a.due_day AS ""CutoffDay"",
     a.payment_due_day AS ""PaymentDueDay"",
     a.initial_balance AS ""InitialBalance"",
+    a.current_balance AS ""CurrentBalance"",
     (a.initial_balance + coalesce(m.prior_impact, 0)) AS ""OpeningBalance"",
     coalesce(m.month_income, 0) AS ""MonthIncome"",
     coalesce(m.month_expense, 0) AS ""MonthExpense"",
@@ -194,6 +195,7 @@ ORDER BY a.name;";
                 CutoffDay = row.CutoffDay,
                 PaymentDueDay = row.PaymentDueDay,
                 InitialBalance = row.InitialBalance,
+                CurrentBalance = row.CurrentBalance,
                 OpeningBalance = row.OpeningBalance,
                 MonthIncome = row.MonthIncome,
                 MonthExpense = row.MonthExpense,
@@ -260,6 +262,7 @@ ORDER BY a.name;";
             public int? CutoffDay { get; set; }
             public int? PaymentDueDay { get; set; }
             public decimal InitialBalance { get; set; }
+            public decimal CurrentBalance { get; set; }
             public decimal OpeningBalance { get; set; }
             public decimal MonthIncome { get; set; }
             public decimal MonthExpense { get; set; }
