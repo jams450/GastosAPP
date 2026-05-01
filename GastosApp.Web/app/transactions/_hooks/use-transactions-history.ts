@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState } from "react";
 import type { Category } from "@/lib/contracts/categories";
-import type { CatalogsResponse, HistoryFilters, TransactionHistoryItem, TransactionKind, TransactionListResponse, TransferGroupItem } from "../_lib/transactions-types";
+import type { CatalogsResponse, HistoryFilters, TransactionHistoryItem, TransactionListResponse, TransferGroupItem } from "../_lib/transactions-types";
 
 type Params = {
   catalogs: CatalogsResponse | null;

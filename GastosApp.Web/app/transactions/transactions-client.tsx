@@ -300,6 +300,10 @@ export function TransactionsClient({ username }: Props) {
   }
 
   const openEditModal = useCallback((item: TransactionHistoryItem) => {
+    if (item.type === "opening_credit") {
+      return;
+    }
+
     setEditError(null);
     setEditForm({
       transactionId: item.transactionId,
