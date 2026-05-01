@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { AppMenu } from "@/components/navigation/app-menu";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -28,8 +29,28 @@ type Props = {
 };
 
 export function TransactionsClient({ username }: Props) {
-  const [kind, setKind] = useState<TransactionKind>("expense");
-  const [viewMode, setViewMode] = useState<ViewMode>("create");
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  const urlKind = useMemo<TransactionKind>(() => {
+    const value = searchParams.get("kind");
+    if (value === "income" || value === "expense" || value === "transfer") {
+      return value;
+    }
+    return "expense";
+  }, [searchParams]);
+
+  const urlViewMode = useMemo<ViewMode>(() => {
+    const value = searchParams.get("view");
+    if (value === "create" || value === "history") {
+      return value;
+    }
+    return "create";
+  }, [searchParams]);
+
+  const [kind, setKind] = useState<TransactionKind>(urlKind);
+  const [viewMode, setViewMode] = useState<ViewMode>(urlViewMode);
   const [catalogs, setCatalogs] = useState<CatalogsResponse | null>(null);
   const [catalogsLoading, setCatalogsLoading] = useState(true);
   const [catalogsError, setCatalogsError] = useState<string | null>(null);
@@ -45,6 +66,7 @@ export function TransactionsClient({ username }: Props) {
   const [description, setDescription] = useState<string>("");
   const [transactionDate, setTransactionDate] = useState<string>(currentLocalDateTimeInput());
   const [msiMonths, setMsiMonths] = useState<number>(1);
+  const [openingCreditCharge, setOpeningCreditCharge] = useState<boolean>(false);
 
   const [submitLoading, setSubmitLoading] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -58,6 +80,34 @@ export function TransactionsClient({ username }: Props) {
   const [editError, setEditError] = useState<string | null>(null);
   const [deleteLoadingId, setDeleteLoadingId] = useState<number | null>(null);
   const [deleteTransferGroupId, setDeleteTransferGroupId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (kind !== urlKind) {
+      setKind(urlKind);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [urlKind]);
+
+  useEffect(() => {
+    if (viewMode !== urlViewMode) {
+      setViewMode(urlViewMode);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [urlViewMode]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(searchParams.toString());
+    const currentView = params.get("view");
+    const currentKind = params.get("kind");
+    if (currentView === viewMode && currentKind === kind) {
+      return;
+    }
+
+    params.set("view", viewMode);
+    params.set("kind", kind);
+    const nextUrl = `${pathname}?${params.toString()}`;
+    router.replace(nextUrl, { scroll: false });
+  }, [kind, pathname, router, searchParams, viewMode]);
 
   useEffect(() => {
     let isMounted = true;
@@ -174,6 +224,12 @@ export function TransactionsClient({ username }: Props) {
     catalogs?.accounts.forEach((account) => map.set(account.accountId, account));
     return map;
   }, [catalogs]);
+
+  useEffect(() => {
+    if (!accountId || !accountById.get(accountId)?.isCredit) {
+      setOpeningCreditCharge(false);
+    }
+  }, [accountById, accountId]);
 
   const {
     historyLoading,
@@ -295,7 +351,8 @@ export function TransactionsClient({ username }: Props) {
       amount,
       description,
       transactionDate,
-      msiMonths
+      msiMonths,
+      openingCreditCharge
     },
     selectedAllocations,
     selectedAllocationTotal,
@@ -313,6 +370,7 @@ export function TransactionsClient({ username }: Props) {
     setTagsText,
     setTransactionDate,
     setMsiMonths,
+    setOpeningCreditCharge,
     clearAllocations,
     editForm,
     setEditSaving,
@@ -379,6 +437,7 @@ export function TransactionsClient({ username }: Props) {
                       setKind(item);
                       setSubmitError(null);
                       setSuccessMessage(null);
+                      setOpeningCreditCharge(false);
                     }}
                     className="h-10"
                   >
@@ -413,8 +472,6 @@ export function TransactionsClient({ username }: Props) {
                     onAmountChange={setAmount}
                     transactionDate={transactionDate}
                     onTransactionDateChange={setTransactionDate}
-                    msiMonths={msiMonths}
-                    onMsiMonthsChange={setMsiMonths}
                     description={description}
                     onDescriptionChange={setDescription}
                     submitError={submitError}
@@ -444,6 +501,10 @@ export function TransactionsClient({ username }: Props) {
                     onAmountChange={setAmount}
                     transactionDate={transactionDate}
                     onTransactionDateChange={setTransactionDate}
+                    msiMonths={msiMonths}
+                    onMsiMonthsChange={setMsiMonths}
+                    openingCreditCharge={openingCreditCharge}
+                    onOpeningCreditChargeChange={setOpeningCreditCharge}
                     description={description}
                     onDescriptionChange={setDescription}
                     submitError={submitError}

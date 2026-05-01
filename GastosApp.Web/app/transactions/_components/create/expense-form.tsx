@@ -32,6 +32,8 @@ type Props = {
   onTransactionDateChange: (value: string) => void;
   msiMonths: number;
   onMsiMonthsChange: (value: number) => void;
+  openingCreditCharge: boolean;
+  onOpeningCreditChargeChange: (value: boolean) => void;
   description: string;
   onDescriptionChange: (value: string) => void;
   submitError: string | null;
@@ -63,6 +65,8 @@ export function ExpenseForm({
   onTransactionDateChange,
   msiMonths,
   onMsiMonthsChange,
+  openingCreditCharge,
+  onOpeningCreditChargeChange,
   description,
   onDescriptionChange,
   submitError,
@@ -215,26 +219,40 @@ export function ExpenseForm({
         </div>
 
         {selectedAccount?.isCredit ? (
-          <label className="grid gap-1.5 text-sm font-medium text-slate-700 dark:text-slate-300">
-            Meses sin interés
-            <select
-              value={msiMonths}
-              onChange={(event) => onMsiMonthsChange(Number(event.target.value) || 1)}
-              className="h-11 rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none focus:border-rose-500 focus:ring-2 focus:ring-rose-200 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
-            >
-              <option value={1}>1 mensualidad (normal)</option>
-              <option value={2}>2 MSI</option>
-              <option value={3}>3 MSI</option>
-              <option value={6}>6 MSI</option>
-              <option value={9}>9 MSI</option>
-              <option value={12}>12 MSI</option>
-              <option value={18}>18 MSI</option>
-              <option value={24}>24 MSI</option>
-            </select>
-            <span className="text-xs text-slate-500 dark:text-slate-400">
-              Selecciona 1 para compra normal o más de 1 para convertir cargo a MSI.
-            </span>
-          </label>
+          <div className="space-y-3 rounded-xl border border-rose-300/60 bg-white/80 p-3 dark:border-rose-800/60 dark:bg-slate-950/60">
+            <label className="grid gap-1.5 text-sm font-medium text-slate-700 dark:text-slate-300">
+              Meses sin interés
+              <select
+                value={msiMonths}
+                onChange={(event) => onMsiMonthsChange(Number(event.target.value) || 1)}
+                className="h-11 rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none focus:border-rose-500 focus:ring-2 focus:ring-rose-200 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+              >
+                <option value={1}>1 mensualidad (normal)</option>
+                <option value={2}>2 MSI</option>
+                <option value={3}>3 MSI</option>
+                <option value={6}>6 MSI</option>
+                <option value={9}>9 MSI</option>
+                <option value={12}>12 MSI</option>
+                <option value={18}>18 MSI</option>
+                <option value={24}>24 MSI</option>
+              </select>
+              <span className="text-xs text-slate-500 dark:text-slate-400">
+                Selecciona 1 para compra normal o más de 1 para convertir cargo a MSI.
+              </span>
+            </label>
+
+            <label className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200">
+              <input
+                type="checkbox"
+                checked={openingCreditCharge}
+                onChange={(event) => onOpeningCreditChargeChange(event.target.checked)}
+                className="mt-0.5 h-4 w-4 rounded border-amber-400 text-amber-600 focus:ring-amber-500"
+              />
+              <span>
+                Registrar como <strong>cargo de apertura</strong> (deuda heredada). <strong>No afectará saldos/totales de cuentas</strong>; solo crea deuda en plan de crédito.
+              </span>
+            </label>
+          </div>
         ) : null}
       </section>
 

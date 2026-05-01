@@ -17,6 +17,7 @@ type CreateState = {
   description: string;
   transactionDate: string;
   msiMonths: number;
+  openingCreditCharge: boolean;
 };
 
 type Params = {
@@ -37,6 +38,7 @@ type Params = {
   setTagsText: (v: string) => void;
   setTransactionDate: (v: string) => void;
   setMsiMonths: (v: number) => void;
+  setOpeningCreditCharge: (v: boolean) => void;
   clearAllocations: () => void;
   editForm: EditFormState | null;
   setEditSaving: (v: boolean) => void;
@@ -68,6 +70,7 @@ export function useTransactionMutations(params: Params) {
     setTagsText,
     setTransactionDate,
     setMsiMonths,
+    setOpeningCreditCharge,
     clearAllocations,
     editForm,
     setEditSaving,
@@ -85,7 +88,7 @@ export function useTransactionMutations(params: Params) {
     setSubmitError(null);
     setSuccessMessage(null);
 
-    const { kind, accountId, sourceAccountId, destinationAccountId, categoryId, subcategoryId, merchantId, tagsText, description, transactionDate, msiMonths } = createState;
+    const { kind, accountId, sourceAccountId, destinationAccountId, categoryId, subcategoryId, merchantId, tagsText, description, transactionDate, msiMonths, openingCreditCharge } = createState;
     let amountNumber = Number(createState.amount);
 
     const transactionDateUtc = toUtcIsoDateTime(transactionDate);
@@ -122,17 +125,32 @@ export function useTransactionMutations(params: Params) {
 
       if (kind === "income" || kind === "expense") {
         if (!accountId) return setSubmitError("Selecciona una cuenta.");
-        endpoint = kind === "income" ? "/api/bff/transactions/income" : "/api/bff/transactions/expense";
-        payload = {
-          accountId,
-          categoryId,
-          ...analyticsPayload,
-          amount: amountNumber,
-          description: description.trim(),
-          transactionDate: transactionDateUtc,
-          msiMonths: kind === "expense" && msiMonths > 1 ? msiMonths : undefined,
-          creditAllocations
-        };
+        if (kind === "expense" && openingCreditCharge) {
+          endpoint = "/api/bff/transactions/credit/opening-charges";
+          payload = {
+            creditAccountId: accountId,
+            items: [
+              {
+                amount: amountNumber,
+                months: msiMonths,
+                description: description.trim(),
+                occurredAt: transactionDateUtc
+              }
+            ]
+          };
+        } else {
+          endpoint = kind === "income" ? "/api/bff/transactions/income" : "/api/bff/transactions/expense";
+          payload = {
+            accountId,
+            categoryId,
+            ...analyticsPayload,
+            amount: amountNumber,
+            description: description.trim(),
+            transactionDate: transactionDateUtc,
+            msiMonths: kind === "expense" && msiMonths > 1 ? msiMonths : undefined,
+            creditAllocations
+          };
+        }
       } else {
         if (!sourceAccountId || !destinationAccountId) return setSubmitError("Selecciona cuenta origen y destino.");
         if (sourceAccountId === destinationAccountId) return setSubmitError("La cuenta origen y destino deben ser diferentes.");
@@ -146,7 +164,9 @@ export function useTransactionMutations(params: Params) {
         return setSubmitError(data?.message ?? "No se pudo registrar la transacción.");
       }
 
-      setSuccessMessage("Transacción registrada correctamente.");
+      setSuccessMessage(kind === "expense" && openingCreditCharge
+        ? "Cargo de apertura registrado sin afectar totales."
+        : "Transacción registrada correctamente.");
       setAmount("");
       setDescription("");
       setSubcategoryId(null);
@@ -154,6 +174,7 @@ export function useTransactionMutations(params: Params) {
       setTagsText("");
       setTransactionDate(currentLocalDateTimeInput());
       setMsiMonths(1);
+      setOpeningCreditCharge(false);
       clearAllocations();
       if (isCreditPaymentFlow) {
         await reloadOpenInstallments();
@@ -163,7 +184,7 @@ export function useTransactionMutations(params: Params) {
     } finally {
       setSubmitLoading(false);
     }
-  }, [allocationMode, clearAllocations, createState, isCreditPaymentFlow, reloadOpenInstallments, selectedAllocationTotal, selectedAllocations, setAmount, setDescription, setMerchantId, setMsiMonths, setSubcategoryId, setSubmitError, setSubmitLoading, setSuccessMessage, setTagsText, setTransactionDate]);
+  }, [allocationMode, clearAllocations, createState, isCreditPaymentFlow, reloadOpenInstallments, selectedAllocationTotal, selectedAllocations, setAmount, setDescription, setMerchantId, setMsiMonths, setOpeningCreditCharge, setSubcategoryId, setSubmitError, setSubmitLoading, setSuccessMessage, setTagsText, setTransactionDate]);
 
   const onSaveEdit = useCallback(async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();

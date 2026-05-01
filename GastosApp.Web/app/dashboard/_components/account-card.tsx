@@ -1,7 +1,20 @@
+import { useState } from "react";
 import type { DashboardViewMode } from "@/app/dashboard/_components/dashboard-view-mode";
 import { formatAmount } from "@/app/dashboard/_components/dashboard-format";
 import type { DashboardAccountOverview } from "@/lib/contracts/dashboard";
 import { getBalanceToneClass } from "@/lib/accounts/metrics";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+
+type CreditInstallmentItem = {
+  installmentId: number;
+  planType: "MSI" | "Revolving";
+  installmentNumber: number;
+  months: number;
+  dueDate: string;
+  remainingAmount: number;
+  description: string;
+};
 
 type AccountCardProps = {
   account: DashboardAccountOverview;
@@ -145,15 +158,165 @@ function HeaderMetric({
 }
 
 function CreditDetails({ account }: { account: DashboardAccountOverview }) {
+  const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [items, setItems] = useState<CreditInstallmentItem[]>([]);
+
+  async function openPendingModal() {
+    setOpen(true);
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await fetch(`/api/bff/transactions/credit/open-installments/${account.accountId}`, { cache: "no-store" });
+      if (!response.ok) {
+        throw new Error("No se pudieron cargar cargos pendientes");
+      }
+
+      const payload = (await response.json().catch(() => [])) as Array<Record<string, unknown>>;
+      const normalized = Array.isArray(payload)
+        ? payload
+          .map((row) => {
+            const installmentId = Number(row.installmentId ?? 0);
+            const planType = row.planType === "MSI" ? "MSI" : "Revolving";
+            const installmentNumber = Number(row.installmentNumber ?? 1);
+            const months = Number(row.months ?? 1);
+            const dueDate = String(row.dueDate ?? "");
+            const remainingAmount = Number(row.remainingAmount ?? 0);
+            const description = typeof row.description === "string" ? row.description : "Cargo crédito";
+
+            if (installmentId <= 0 || remainingAmount <= 0) {
+              return null;
+            }
+
+            return {
+              installmentId,
+              planType,
+              installmentNumber,
+              months,
+              dueDate,
+              remainingAmount,
+              description
+            } satisfies CreditInstallmentItem;
+          })
+          .filter((item): item is CreditInstallmentItem => Boolean(item))
+        : [];
+
+      setItems(normalized);
+    } catch {
+      setError("No se pudo cargar el detalle de cargos pendientes.");
+      setItems([]);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const msiItems = items.filter((item) => item.planType === "MSI");
+  const normalItems = items.filter((item) => item.planType !== "MSI");
+  const totalMsi = msiItems.reduce((sum, item) => sum + item.remainingAmount, 0);
+  const totalNormal = normalItems.reduce((sum, item) => sum + item.remainingAmount, 0);
+
   return (
-    <div className="mt-5 grid gap-x-8 gap-y-4 sm:grid-cols-2 xl:grid-cols-6">
-      <Kpi label="Día de corte" value={account.cutoffDay ?? "No definido"} plain formatAsCurrency={false} />
-      <Kpi label="Pago límite" value={account.paymentDueDay ?? "No definido"} plain formatAsCurrency={false} />
-      <Kpi label="Pago estimado al corte" value={account.estimatedCutoffPayment} toneClass="text-amber-700 dark:text-amber-400" plain />
-      <Kpi label="Pendiente MSI" value={account.msiOutstanding} toneClass="text-indigo-700 dark:text-indigo-400" plain />
-      <Kpi label="Pendiente normal" value={account.normalOutstanding} toneClass="text-fuchsia-700 dark:text-fuchsia-400" plain />
-    </div>
+    <>
+      <div className="mt-5 grid gap-x-8 gap-y-4 sm:grid-cols-2 xl:grid-cols-6">
+        <Kpi label="Día de corte" value={account.cutoffDay ?? "No definido"} plain formatAsCurrency={false} />
+        <Kpi label="Pago límite" value={account.paymentDueDay ?? "No definido"} plain formatAsCurrency={false} />
+        <Kpi label="Pago estimado al corte" value={account.estimatedCutoffPayment} toneClass="text-amber-700 dark:text-amber-400" plain />
+        <Kpi label="Pendiente MSI" value={account.msiOutstanding} toneClass="text-indigo-700 dark:text-indigo-400" plain />
+        <Kpi label="Pendiente normal" value={account.normalOutstanding} toneClass="text-fuchsia-700 dark:text-fuchsia-400" plain />
+        <div className="self-end">
+          <Button type="button" variant="secondary" className="h-9 w-full" onClick={() => void openPendingModal()}>
+            Ver cargos pendientes
+          </Button>
+        </div>
+      </div>
+
+      {open ? (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-slate-900/50 p-4">
+          <Card className="w-full max-w-5xl space-y-4 p-5">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Cargos pendientes · {account.name}</h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400">Separado por MSI y normal (revolvente).</p>
+              </div>
+              <Button type="button" variant="secondary" onClick={() => setOpen(false)}>Cerrar</Button>
+            </div>
+
+            {loading ? <p className="text-sm text-slate-600 dark:text-slate-300">Cargando cargos pendientes...</p> : null}
+            {error ? <p className="rounded-xl border border-rose-300 bg-rose-50 px-3 py-2 text-sm text-rose-700 dark:border-rose-800 dark:bg-rose-950/40 dark:text-rose-300">{error}</p> : null}
+
+            {!loading && !error ? (
+              <div className="grid gap-4 lg:grid-cols-2">
+                <PendingGroup title="MSI" toneClass="text-indigo-700 dark:text-indigo-300" items={msiItems} total={totalMsi} />
+                <PendingGroup title="Normal" toneClass="text-fuchsia-700 dark:text-fuchsia-300" items={normalItems} total={totalNormal} />
+              </div>
+            ) : null}
+          </Card>
+        </div>
+      ) : null}
+    </>
   );
+}
+
+function PendingGroup({
+  title,
+  toneClass,
+  items,
+  total
+}: {
+  title: string;
+  toneClass: string;
+  items: CreditInstallmentItem[];
+  total: number;
+}) {
+  return (
+    <section className="space-y-2 rounded-xl border border-slate-200 p-3 dark:border-slate-700">
+      <div className="flex items-center justify-between gap-2">
+        <h4 className={`text-sm font-semibold ${toneClass}`}>{title}</h4>
+        <p className="text-xs text-slate-500 dark:text-slate-400">{items.length} cargos</p>
+      </div>
+
+      <div className="max-h-72 overflow-auto rounded-lg border border-slate-200 dark:border-slate-800">
+        <table className="w-full text-xs">
+          <thead className="bg-slate-50 text-slate-600 dark:bg-slate-900 dark:text-slate-300">
+            <tr>
+              <th className="px-2 py-2 text-left font-semibold">Cargo</th>
+              <th className="px-2 py-2 text-left font-semibold">Mensualidad</th>
+              <th className="px-2 py-2 text-left font-semibold">Vence</th>
+              <th className="px-2 py-2 text-right font-semibold">Falta</th>
+            </tr>
+          </thead>
+          <tbody>
+            {items.length === 0 ? (
+              <tr>
+                <td className="px-2 py-3 text-slate-500 dark:text-slate-400" colSpan={4}>Sin cargos pendientes</td>
+              </tr>
+            ) : (
+              items.map((item) => (
+                <tr key={item.installmentId} className="border-t border-slate-100 dark:border-slate-800">
+                  <td className="px-2 py-2 text-slate-700 dark:text-slate-200">{item.description}</td>
+                  <td className="px-2 py-2 text-slate-700 dark:text-slate-200">{item.installmentNumber}/{item.months}</td>
+                  <td className="px-2 py-2 text-slate-700 dark:text-slate-200">{formatDate(item.dueDate)}</td>
+                  <td className="px-2 py-2 text-right font-semibold text-slate-900 dark:text-slate-100">{formatAmount(item.remainingAmount)}</td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      <p className="text-right text-sm font-semibold text-slate-900 dark:text-slate-100">Total: {formatAmount(total)}</p>
+    </section>
+  );
+}
+
+function formatDate(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "—";
+  const day = String(date.getDate()).padStart(2, "0");
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const year = date.getFullYear();
+  return `${day}/${month}/${year}`;
 }
 
 function Kpi({
