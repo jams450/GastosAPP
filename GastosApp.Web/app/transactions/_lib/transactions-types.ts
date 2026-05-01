@@ -5,6 +5,7 @@ import type { Subcategory } from "@/lib/contracts/subcategories";
 import type { Tag } from "@/lib/contracts/tags";
 
 export type TransactionKind = CategoryType;
+export type HistoryTransactionType = TransactionKind | "opening_credit";
 
 export type CatalogsResponse = {
   accounts: Account[];
@@ -26,7 +27,7 @@ export type TransactionHistoryItem = {
   categoryId: number | null;
   subcategoryId: number | null;
   merchantId: number | null;
-  type: TransactionKind;
+  type: HistoryTransactionType;
   transferGroupId: string | null;
   amount: number;
   description: string;
@@ -93,4 +94,9 @@ export const typeLabel: Record<TransactionKind, string> = {
   income: "Ingreso",
   expense: "Gasto",
   transfer: "Transferencia"
+};
+
+export const historyTypeLabel: Record<HistoryTransactionType, string> = {
+  ...typeLabel,
+  opening_credit: "Gasto heredado"
 };

@@ -3,6 +3,7 @@ import { getApiBaseUrl } from "@/lib/api/config";
 import { getServerSession } from "@/lib/auth/session";
 
 type UnknownRecord = Record<string, unknown>;
+const TRANSACTIONS_TIMEZONE = "America/Mexico_City";
 
 type TransactionListItem = {
   transactionId: number;
@@ -10,7 +11,7 @@ type TransactionListItem = {
   categoryId: number | null;
   subcategoryId: number | null;
   merchantId: number | null;
-  type: "income" | "expense" | "transfer";
+  type: "income" | "expense" | "transfer" | "opening_credit";
   transferGroupId: string | null;
   amount: number;
   description: string;
@@ -47,17 +48,19 @@ function normalizeTransaction(input: unknown): TransactionListItem | null {
     return null;
   }
 
-  const transactionId = toNumber(input.transactionId);
-  const accountId = toNumber(input.accountId);
-  const amount = toNumber(input.amount);
-  const type = typeof input.type === "string" ? input.type.toLowerCase() : "";
-  const transactionDate = typeof input.transactionDate === "string" ? input.transactionDate : "";
+  const transactionId = toNumber(input.transactionId ?? input.TransactionId);
+  const accountId = toNumber(input.accountId ?? input.AccountId);
+  const amount = toNumber(input.amount ?? input.Amount);
+  const typeRaw = input.type ?? input.Type;
+  const type = typeof typeRaw === "string" ? typeRaw.toLowerCase() : "";
+  const transactionDateRaw = input.transactionDate ?? input.TransactionDate;
+  const transactionDate = typeof transactionDateRaw === "string" ? transactionDateRaw : "";
 
   if (
     transactionId === null ||
     accountId === null ||
     amount === null ||
-    !(type === "income" || type === "expense" || type === "transfer") ||
+    !(type === "income" || type === "expense" || type === "transfer" || type === "opening_credit") ||
     !transactionDate
   ) {
     return null;
@@ -66,16 +69,16 @@ function normalizeTransaction(input: unknown): TransactionListItem | null {
   return {
     transactionId,
     accountId,
-    categoryId: toOptionalNumber(input.categoryId),
-    subcategoryId: toOptionalNumber(input.subcategoryId),
-    merchantId: toOptionalNumber(input.merchantId),
+    categoryId: toOptionalNumber(input.categoryId ?? input.CategoryId),
+    subcategoryId: toOptionalNumber(input.subcategoryId ?? input.SubcategoryId),
+    merchantId: toOptionalNumber(input.merchantId ?? input.MerchantId),
     type,
-    transferGroupId: typeof input.transferGroupId === "string" ? input.transferGroupId : null,
+    transferGroupId: typeof (input.transferGroupId ?? input.TransferGroupId) === "string" ? String(input.transferGroupId ?? input.TransferGroupId) : null,
     amount,
-    description: typeof input.description === "string" ? input.description : "",
+    description: typeof (input.description ?? input.Description) === "string" ? String(input.description ?? input.Description) : "",
     transactionDate,
-    tags: Array.isArray(input.tags)
-      ? input.tags.filter((tag): tag is string => typeof tag === "string").map((tag) => tag.trim()).filter(Boolean)
+    tags: Array.isArray(input.tags ?? input.Tags)
+      ? (input.tags ?? input.Tags).filter((tag): tag is string => typeof tag === "string").map((tag) => tag.trim()).filter(Boolean)
       : [],
     creditMonths: null,
     creditRemainingAmount: null,
@@ -96,27 +99,36 @@ function normalizeCreditSummary(input: unknown): CreditChargeSummary | null {
   return { sourceTransactionId, months, remainingAmount, status };
 }
 
-function monthWindow(month: string) {
-  const start = new Date(`${month}-01T00:00:00.000Z`);
-  if (Number.isNaN(start.getTime())) {
-    return null;
-  }
+function getYearMonthInTimezone(dateIso: string, timezone: string): string | null {
+  const date = new Date(dateIso);
+  if (Number.isNaN(date.getTime())) return null;
 
-  const end = new Date(start);
-  end.setUTCMonth(end.getUTCMonth() + 1);
-  end.setUTCMilliseconds(end.getUTCMilliseconds() - 1);
+  const formatter = new Intl.DateTimeFormat("en-CA", {
+    timeZone: timezone,
+    year: "numeric",
+    month: "2-digit"
+  });
 
-  return {
-    startIso: start.toISOString(),
-    endIso: end.toISOString()
-  };
+  const parts = formatter.formatToParts(date);
+  const year = parts.find((part) => part.type === "year")?.value;
+  const month = parts.find((part) => part.type === "month")?.value;
+  if (!year || !month) return null;
+
+  return `${year}-${month}`;
 }
 
-function currentMonth() {
+function currentMonth(timezone = TRANSACTIONS_TIMEZONE) {
+  const month = getYearMonthInTimezone(new Date().toISOString(), timezone);
+  if (month) return month;
+
   const date = new Date();
-  const year = date.getUTCFullYear();
-  const month = String(date.getUTCMonth() + 1).padStart(2, "0");
-  return `${year}-${month}`;
+  const year = date.getFullYear();
+  const monthFallback = String(date.getMonth() + 1).padStart(2, "0");
+  return `${year}-${monthFallback}`;
+}
+
+function isTransactionInMonth(dateIso: string, month: string, timezone = TRANSACTIONS_TIMEZONE) {
+  return getYearMonthInTimezone(dateIso, timezone) === month;
 }
 
 export async function GET(request: Request) {
@@ -129,11 +141,6 @@ export async function GET(request: Request) {
   const month = (searchParams.get("month") ?? currentMonth()).trim();
   if (!/^\d{4}-\d{2}$/.test(month)) {
     return NextResponse.json({ message: "month must use YYYY-MM format" }, { status: 400 });
-  }
-
-  const window = monthWindow(month);
-  if (!window) {
-    return NextResponse.json({ message: "Invalid month" }, { status: 400 });
   }
 
   const headers = {
@@ -160,8 +167,9 @@ export async function GET(request: Request) {
     ? accountsRaw
         .filter((value): value is UnknownRecord => isRecord(value))
         .map((value) => {
-          const accountId = toNumber(value.accountId);
-          const name = typeof value.name === "string" ? value.name.trim() : "";
+          const accountId = toNumber(value.accountId ?? value.AccountId);
+          const nameRaw = value.name ?? value.Name;
+          const name = typeof nameRaw === "string" ? nameRaw.trim() : "";
           if (accountId === null || !name) {
             return null;
           }
@@ -175,7 +183,7 @@ export async function GET(request: Request) {
   const transactionResponses = await Promise.all(
     accounts.map((account) =>
       fetch(
-        `${getApiBaseUrl()}/api/transactions/account/${account.accountId}/date-range?startDate=${encodeURIComponent(window.startIso)}&endDate=${encodeURIComponent(window.endIso)}`,
+        `${getApiBaseUrl()}/api/transactions/account/${account.accountId}`,
         {
           method: "GET",
           headers,
@@ -202,6 +210,7 @@ export async function GET(request: Request) {
     .flatMap((items) => (Array.isArray(items) ? items : []))
     .map((item) => normalizeTransaction(item))
     .filter((item): item is TransactionListItem => item !== null)
+    .filter((item) => isTransactionInMonth(item.transactionDate, month))
     .map((item) => ({
       ...item,
       accountName: accountNameById.get(item.accountId) ?? "Cuenta"

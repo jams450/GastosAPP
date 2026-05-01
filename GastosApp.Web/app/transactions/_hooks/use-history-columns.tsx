@@ -3,7 +3,7 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { Button } from "@/components/ui/button";
 import { formatCurrency } from "@/lib/format/currency";
 import { dateTimeLocalDisplay } from "../_lib/transactions-utils";
-import { type TransactionHistoryItem, type TransferGroupItem, typeLabel } from "../_lib/transactions-types";
+import { historyTypeLabel, type TransactionHistoryItem, type TransferGroupItem } from "../_lib/transactions-types";
 
 type Params = {
   accountById: Map<number, { isCredit?: boolean }>;
@@ -37,7 +37,7 @@ export function useHistoryColumns({
   const historyColumns = useMemo<ColumnDef<TransactionHistoryItem>[]>(
     () => [
       { accessorKey: "transactionDate", header: "Fecha", cell: ({ row }) => dateTimeLocalDisplay(row.original.transactionDate) },
-      { accessorKey: "type", header: "Tipo", cell: ({ row }) => typeLabel[row.original.type] },
+      { accessorKey: "type", header: "Tipo", cell: ({ row }) => historyTypeLabel[row.original.type] },
       { accessorKey: "accountName", header: "Cuenta" },
       { accessorKey: "categoryId", header: "Categoría", cell: ({ row }) => (row.original.categoryId ? (categoryNameById.get(row.original.categoryId) ?? "—") : "—") },
       { accessorKey: "subcategoryId", header: "Subcategoría", cell: ({ row }) => (row.original.subcategoryId ? (subcategoryNameById.get(row.original.subcategoryId) ?? "—") : "—") },
@@ -84,9 +84,14 @@ export function useHistoryColumns({
         enableSorting: false,
         cell: ({ row }) => {
           const item = row.original;
+          const isOpeningCredit = item.type === "opening_credit";
           return (
             <div className="flex gap-1">
-              <Button type="button" variant="secondary" className="h-6 px-1.5 text-[10px]" onClick={() => onEdit(item)}>Editar</Button>
+              {!isOpeningCredit ? (
+                <Button type="button" variant="secondary" className="h-6 px-1.5 text-[10px]" onClick={() => onEdit(item)}>
+                  Editar
+                </Button>
+              ) : null}
               <Button type="button" variant="danger" className="h-6 px-1.5 text-[10px]" disabled={deleteLoadingId === item.transactionId} onClick={() => void onDelete(item)}>Borrar</Button>
               {item.type === "expense" && accountById.get(item.accountId)?.isCredit ? (
                 <Button type="button" variant="secondary" className="h-6 border-indigo-300 bg-indigo-50 px-2 text-[10px] font-semibold text-indigo-700 hover:bg-indigo-100 dark:border-indigo-800 dark:bg-indigo-950/50 dark:text-indigo-300 dark:hover:bg-indigo-900/50" onClick={() => void onConvertToMsi(item)}>Convertir MSI</Button>

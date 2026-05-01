@@ -71,7 +71,13 @@ export function useTransactionsHistory({ catalogs, historyMonth }: Params) {
 
   const filteredRegularHistoryItems = useMemo(() => {
     return regularHistoryItems.filter((item) => {
-      if (historyFilters.type !== "all" && item.type !== historyFilters.type) return false;
+      if (historyFilters.type !== "all") {
+        if (historyFilters.type === "expense") {
+          if (!(item.type === "expense" || item.type === "opening_credit")) return false;
+        } else if (item.type !== historyFilters.type) {
+          return false;
+        }
+      }
       if (historyFilters.accountId !== "all" && item.accountId !== historyFilters.accountId) return false;
       if (historyFilters.categoryId !== "all" && item.categoryId !== historyFilters.categoryId) return false;
       return true;

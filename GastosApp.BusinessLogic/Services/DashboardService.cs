@@ -35,6 +35,7 @@ WITH accounts_scope AS (
         a.due_day,
         a.payment_due_day,
         a.initial_balance,
+        a.current_balance,
         a.credit_limit
     FROM accounts a
     WHERE a.user_id = @userId
