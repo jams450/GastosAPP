@@ -66,7 +66,8 @@ namespace GastosApp.API.Controllers
         {
             try
             {
-                var account = await _accountService.GetByIdAsync(id);
+                var userId = GetCurrentUserId();
+                var account = await _accountService.GetByIdForUserAsync(id, userId);
                 if (account == null)
                     return NotFound(new { Message = $"Account with ID {id} not found" });
 
@@ -141,7 +142,8 @@ namespace GastosApp.API.Controllers
         {
             try
             {
-                var existingAccount = await _accountService.GetByIdAsync(id);
+                var userId = GetCurrentUserId();
+                var existingAccount = await _accountService.GetByIdForUserAsync(id, userId);
                 if (existingAccount == null)
                     return NotFound(new { Message = $"Account with ID {id} not found" });
 
@@ -189,7 +191,8 @@ namespace GastosApp.API.Controllers
         {
             try
             {
-                var existingAccount = await _accountService.GetByIdAsync(id);
+                var userId = GetCurrentUserId();
+                var existingAccount = await _accountService.GetByIdForUserAsync(id, userId);
                 if (existingAccount == null)
                     return NotFound(new { Message = $"Account with ID {id} not found" });
 
@@ -212,7 +215,8 @@ namespace GastosApp.API.Controllers
         {
             try
             {
-                var existingAccount = await _accountService.GetByIdAsync(id);
+                var userId = GetCurrentUserId();
+                var existingAccount = await _accountService.GetByIdForUserAsync(id, userId);
                 if (existingAccount == null)
                     return NotFound(new { Message = $"Account with ID {id} not found" });
 
@@ -235,7 +239,8 @@ namespace GastosApp.API.Controllers
         {
             try
             {
-                var existingAccount = await _accountService.GetByIdAsync(id);
+                var userId = GetCurrentUserId();
+                var existingAccount = await _accountService.GetByIdForUserAsync(id, userId);
                 if (existingAccount == null)
                     return NotFound(new { Message = $"Account with ID {id} not found" });
 
@@ -258,7 +263,8 @@ namespace GastosApp.API.Controllers
         {
             try
             {
-                var account = await _accountService.GetByIdAsync(id);
+                var userId = GetCurrentUserId();
+                var account = await _accountService.GetByIdForUserAsync(id, userId);
                 if (account == null)
                     return NotFound(new { Message = $"Account with ID {id} not found" });
 

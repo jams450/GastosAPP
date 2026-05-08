@@ -77,7 +77,7 @@ namespace GastosApp.BusinessLogic.Services
             var result = await _repository.Save<Transaction>(transaction);
             
             // Actualizar saldo de la cuenta
-            await _accountService.UpdateBalanceAsync(transaction.AccountId, transaction.Amount);
+            await UpdateAccountBalanceAsync(transaction.AccountId, transaction.Amount);
             
             return result;
         }
@@ -99,7 +99,7 @@ namespace GastosApp.BusinessLogic.Services
             }
             
             // Actualizar saldo de la cuenta (restar)
-            await _accountService.UpdateBalanceAsync(transaction.AccountId, -transaction.Amount);
+            await UpdateAccountBalanceAsync(transaction.AccountId, -transaction.Amount);
 
             var account = await _accountService.GetByIdAsync(transaction.AccountId);
             if (account?.IsCredit == true)
@@ -185,8 +185,8 @@ namespace GastosApp.BusinessLogic.Services
             await SyncTransactionTagsAsync(createdDestination.TransactionId, destinationAccount.UserId, tags);
 
             // Actualizar saldos
-            await _accountService.UpdateBalanceAsync(sourceAccountId, -amount);
-            await _accountService.UpdateBalanceAsync(destinationAccountId, amount);
+            await UpdateAccountBalanceAsync(sourceAccountId, -amount);
+            await UpdateAccountBalanceAsync(destinationAccountId, amount);
 
             return (true, null);
         }
@@ -423,7 +423,7 @@ namespace GastosApp.BusinessLogic.Services
             var adjustment = transaction.BalanceImpact - previousImpact;
             if (adjustment != 0)
             {
-                await _accountService.UpdateBalanceAsync(existing.AccountId, adjustment);
+                await UpdateAccountBalanceAsync(existing.AccountId, adjustment);
             }
 
             if (transaction.Type == "expense")
@@ -447,7 +447,7 @@ namespace GastosApp.BusinessLogic.Services
             }
 
             var balanceAdjustment = balanceImpact * -1;
-            await _accountService.UpdateBalanceAsync(transaction.AccountId, balanceAdjustment);
+            await UpdateAccountBalanceAsync(transaction.AccountId, balanceAdjustment);
 
             var result = await _repository.RemoveAsync<Transaction>(id);
             return result > 0;
@@ -471,7 +471,7 @@ namespace GastosApp.BusinessLogic.Services
 
                 var balanceAdjustment = balanceImpact * -1;
                 
-                await _accountService.UpdateBalanceAsync(transaction.AccountId, balanceAdjustment);
+                await UpdateAccountBalanceAsync(transaction.AccountId, balanceAdjustment);
             }
 
             // Eliminar transacciones
@@ -899,6 +899,20 @@ namespace GastosApp.BusinessLogic.Services
                     };
                 })
                 .ToList();
+        }
+
+        private async Task UpdateAccountBalanceAsync(int accountId, decimal amount)
+        {
+            var account = await _repository.GetTrack<Account>()
+                .FirstOrDefaultAsync(a => a.AccountId == accountId);
+
+            if (account == null)
+            {
+                throw new ArgumentException($"Account with ID {accountId} not found");
+            }
+
+            account.CurrentBalance += amount;
+            await _repository.SaveChangesAsync();
         }
 
         private static decimal ResolveUpdatedBalanceImpact(Transaction transaction, decimal previousImpact)

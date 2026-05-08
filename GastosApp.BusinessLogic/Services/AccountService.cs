@@ -18,6 +18,12 @@ namespace GastosApp.BusinessLogic.Services
             return await _repository.GetByIdAsync<Account>(id);
         }
 
+        public async Task<Account?> GetByIdForUserAsync(int id, int userId)
+        {
+            return await _repository.Get<Account>(a => a.AccountId == id && a.UserId == userId)
+                .FirstOrDefaultAsync();
+        }
+
         public async Task<IEnumerable<Account>> GetAllByUserIdAsync(int userId)
         {
             return await _repository.Get<Account>(a => a.UserId == userId)
@@ -36,14 +42,13 @@ namespace GastosApp.BusinessLogic.Services
 
         public async Task<Account> CreateAsync(Account account)
         {
-            var validation = await ValidateAccountAsync(account);
+            var validation = ValidateAccount(account);
             if (!validation.IsValid)
             {
                 throw new ArgumentException(validation.ErrorMessage);
             }
 
             account.Active = true;
-            account.Created = DateTime.UtcNow;
             return await _repository.Save<Account>(account);
         }
 
@@ -52,14 +57,13 @@ namespace GastosApp.BusinessLogic.Services
             var existing = await _repository.GetByIdAsync<Account>(id);
             if (existing == null) return null;
 
-            var validation = await ValidateAccountAsync(account);
+            var validation = ValidateAccount(account);
             if (!validation.IsValid)
             {
                 throw new ArgumentException(validation.ErrorMessage);
             }
 
             account.AccountId = id;
-            account.Updated = DateTime.UtcNow;
             return await _repository.SaveUpdate<Account>(id, account);
         }
 
@@ -71,70 +75,40 @@ namespace GastosApp.BusinessLogic.Services
 
         public async Task<bool> UpdateActiveStatusAsync(int id, bool active)
         {
-            return await _repository.UpdateFieldAsync<Account>(id, "Active", active);
-        }
-
-        public async Task<bool> UpdateBalanceAsync(int accountId, decimal amount)
-        {
-            var account = await _repository.GetByIdAsync<Account>(accountId);
-            if (account == null) return false;
-
-            account.CurrentBalance += amount;
-            account.Updated = DateTime.UtcNow;
-            await _repository.SaveChangesAsync();
-            return true;
+            return await _repository.UpdateFieldAsync<Account, bool>(id, a => a.Active, active);
         }
 
         public async Task<bool> RecalculateBalanceAsync(int accountId)
         {
-            var transactions = await _repository.Get<Transaction>(t => t.AccountId == accountId).ToListAsync();
-            
-            decimal balance = 0;
-            foreach (var transaction in transactions)
-            {
-                switch (transaction.Type.ToLower())
-                {
-                    case "income":
-                        balance += transaction.Amount;
-                        break;
-                    case "expense":
-                        balance -= transaction.Amount;
-                        break;
-                    case "transfer":
-                        // Las transferencias se manejan en pares, una negativa (salida) y una positiva (entrada)
-                        // Solo sumamos si es entrada (amount positivo en cuenta destino)
-                        // o restamos si es salida (amount positivo pero tipo transfer indica salida)
-                        // La lógica exacta depende de cómo se registren las transferencias
-                        break;
-                }
-            }
+            var balance = await _repository.Get<Transaction>(t => t.AccountId == accountId)
+                .SumAsync(t => t.BalanceImpact);
 
-            return await _repository.UpdateFieldAsync<Account>(accountId, "CurrentBalance", balance);
+            return await _repository.UpdateFieldAsync<Account, decimal>(accountId, a => a.CurrentBalance, balance);
         }
 
-        public Task<(bool IsValid, string? ErrorMessage)> ValidateAccountAsync(Account account)
+        private static (bool IsValid, string? ErrorMessage) ValidateAccount(Account account)
         {
             if (account.DueDay.HasValue && (account.DueDay.Value < 1 || account.DueDay.Value > 31))
             {
-                return Task.FromResult<(bool, string?)>((false, "DueDay must be between 1 and 31"));
+                return (false, "DueDay must be between 1 and 31");
             }
 
             if (account.PaymentDueDay.HasValue && (account.PaymentDueDay.Value < 1 || account.PaymentDueDay.Value > 31))
             {
-                return Task.FromResult<(bool, string?)>((false, "PaymentDueDay must be between 1 and 31"));
+                return (false, "PaymentDueDay must be between 1 and 31");
             }
 
             if (account.IsCredit && !account.DueDay.HasValue)
             {
-                return Task.FromResult<(bool, string?)>((false, "DueDay is required when IsCredit is true"));
+                return (false, "DueDay is required when IsCredit is true");
             }
 
             if (account.EarnsInterest && account.AnnualInterestRate <= 0)
             {
-                return Task.FromResult<(bool, string?)>((false, "AnnualInterestRate must be greater than 0 when EarnsInterest is true"));
+                return (false, "AnnualInterestRate must be greater than 0 when EarnsInterest is true");
             }
 
-            return Task.FromResult<(bool, string?)>((true, null));
+            return (true, null);
         }
 
         public async Task<(decimal TotalExpenses, DateTime PeriodStart, DateTime PeriodEnd)> GetCreditCardExpensesForPeriodAsync(int accountId, DateTime referenceDate)
@@ -179,13 +153,12 @@ namespace GastosApp.BusinessLogic.Services
             var periodEndExclusive = periodEnd.AddDays(1);
 
             // Obtener todas las transacciones de gasto del período
-            var transactions = await _repository.Get<Transaction>(t => 
+            var totalExpenses = await _repository.Get<Transaction>(t => 
                 t.AccountId == accountId &&
-                t.Type.ToLower() == "expense" &&
+                t.BalanceImpact < 0 &&
                 t.TransactionDate >= periodStart &&
-                t.TransactionDate < periodEndExclusive).ToListAsync();
-
-            decimal totalExpenses = transactions.Sum(t => t.Amount);
+                t.TransactionDate < periodEndExclusive)
+                .SumAsync(t => Math.Abs(t.BalanceImpact));
 
             return (totalExpenses, periodStart, periodEnd);
         }
