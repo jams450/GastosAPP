@@ -44,4 +44,49 @@ public class AuthController : ControllerBase
             return StatusCode(500, new { Message = "An error occurred during authentication" });
         }
     }
+
+    [HttpPost("refresh")]
+    public async Task<IActionResult> Refresh([FromBody] RefreshTokenRequest request)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(request.RefreshToken))
+            {
+                return BadRequest(new { Message = "Refresh token is required" });
+            }
+
+            var response = await _authService.RefreshAsync(request.RefreshToken);
+            if (response == null)
+            {
+                return Unauthorized(new { Message = "Invalid refresh token" });
+            }
+
+            return Ok(response);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error during token refresh");
+            return StatusCode(500, new { Message = "An error occurred during token refresh" });
+        }
+    }
+
+    [HttpPost("logout")]
+    public async Task<IActionResult> Logout([FromBody] RefreshTokenRequest request)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(request.RefreshToken))
+            {
+                return Ok(new { Ok = true });
+            }
+
+            await _authService.RevokeRefreshTokenAsync(request.RefreshToken);
+            return Ok(new { Ok = true });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error during logout");
+            return StatusCode(500, new { Message = "An error occurred during logout" });
+        }
+    }
 }

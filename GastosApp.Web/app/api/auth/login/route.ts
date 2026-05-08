@@ -12,6 +12,8 @@ type ApiLoginResponse = {
   token: string;
   expiration: string;
   username: string;
+  refreshToken?: string;
+  refreshTokenExpiration?: string;
 };
 
 export async function POST(request: Request) {
@@ -47,6 +49,8 @@ export async function POST(request: Request) {
   const sessionToken = await encryptSession({
     accessToken: loginData.token,
     expiresAt: loginData.expiration,
+    refreshToken: loginData.refreshToken,
+    refreshExpiresAt: loginData.refreshTokenExpiration,
     user: {
       id: userId,
       username: loginData.username,
@@ -62,7 +66,7 @@ export async function POST(request: Request) {
     secure: SESSION_COOKIE_SECURE,
     sameSite: "lax",
     path: "/",
-    expires: new Date(loginData.expiration)
+    expires: new Date(loginData.refreshTokenExpiration ?? loginData.expiration)
   });
 
   return response;

@@ -13,6 +13,7 @@ namespace GastosApp.BusinessLogic.Context
         }
 
         public DbSet<User> Users { get; set; } = null!;
+        public DbSet<UserSession> UserSessions { get; set; } = null!;
         public DbSet<Account> Accounts { get; set; } = null!;
         public DbSet<Category> Categories { get; set; } = null!;
         public DbSet<Subcategory> Subcategories { get; set; } = null!;
@@ -43,6 +44,14 @@ namespace GastosApp.BusinessLogic.Context
                 entity.HasMany(e => e.Merchants).WithOne(e => e.User).HasForeignKey(e => e.UserId);
                 entity.HasMany(e => e.Tags).WithOne(e => e.User).HasForeignKey(e => e.UserId);
                 entity.HasMany(e => e.OwnedBillableParties).WithOne(e => e.OwnerUser).HasForeignKey(e => e.OwnerUserId);
+                entity.HasMany(e => e.Sessions).WithOne(e => e.User).HasForeignKey(e => e.UserId);
+            });
+
+            modelBuilder.Entity<UserSession>(entity =>
+            {
+                entity.HasIndex(e => e.UserId);
+                entity.HasIndex(e => e.RefreshTokenHash).IsUnique();
+                entity.HasIndex(e => e.ExpiresAt);
             });
 
             modelBuilder.Entity<Account>(entity =>

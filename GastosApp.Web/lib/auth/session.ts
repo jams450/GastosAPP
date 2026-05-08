@@ -16,6 +16,8 @@ type SessionUser = {
 export type AuthSession = {
   accessToken: string;
   expiresAt: string;
+  refreshToken?: string;
+  refreshExpiresAt?: string;
   user: SessionUser;
 };
 
@@ -35,11 +37,13 @@ export async function encryptSession(session: AuthSession): Promise<string> {
   return await new EncryptJWT({
     accessToken: session.accessToken,
     user: session.user,
-    expiresAt: session.expiresAt
+    expiresAt: session.expiresAt,
+    refreshToken: session.refreshToken,
+    refreshExpiresAt: session.refreshExpiresAt
   })
     .setProtectedHeader({ alg: "dir", enc: "A256GCM" })
     .setIssuedAt()
-    .setExpirationTime(new Date(session.expiresAt))
+    .setExpirationTime(new Date(session.refreshExpiresAt ?? session.expiresAt))
     .encrypt(secret);
 }
 
@@ -50,6 +54,8 @@ export async function decryptSession(token: string): Promise<AuthSession | null>
 
     const accessToken = payload.accessToken;
     const expiresAt = payload.expiresAt;
+    const refreshToken = payload.refreshToken;
+    const refreshExpiresAt = payload.refreshExpiresAt;
     const user = payload.user;
 
     if (
@@ -70,6 +76,8 @@ export async function decryptSession(token: string): Promise<AuthSession | null>
     return {
       accessToken,
       expiresAt,
+      refreshToken: typeof refreshToken === "string" ? refreshToken : undefined,
+      refreshExpiresAt: typeof refreshExpiresAt === "string" ? refreshExpiresAt : undefined,
       user: {
         id: u.id,
         username: u.username,

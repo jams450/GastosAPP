@@ -18,7 +18,7 @@ public class JwtService : IJwtService
         _securityKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(key));
     }
 
-    public string GenerateToken(int userId, string username, bool isAdmin = false)
+    public string GenerateToken(int userId, string username, bool isAdmin = false, int sessionVersion = 1, Guid? sessionId = null)
     {
         var credentials = new SigningCredentials(_securityKey, SecurityAlgorithms.HmacSha256);
 
@@ -27,8 +27,14 @@ public class JwtService : IJwtService
             new(JwtRegisteredClaimNames.Sub, userId.ToString()),
             new(ClaimTypes.NameIdentifier, userId.ToString()),
             new Claim(ClaimTypes.Name, username),
+            new("sessionVersion", sessionVersion.ToString()),
             new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
         };
+
+        if (sessionId.HasValue)
+        {
+            claims.Add(new Claim("sid", sessionId.Value.ToString()));
+        }
 
         // Agregar claim de Admin si corresponde
         if (isAdmin)
