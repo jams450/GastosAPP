@@ -449,7 +449,7 @@ namespace GastosApp.BusinessLogic.Services
             var balanceAdjustment = balanceImpact * -1;
             await _accountService.UpdateBalanceAsync(transaction.AccountId, balanceAdjustment);
 
-            var result = await _repository.DeleteModel<Transaction>(id);
+            var result = await _repository.RemoveAsync<Transaction>(id);
             return result > 0;
         }
 

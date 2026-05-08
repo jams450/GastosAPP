@@ -5,9 +5,6 @@ namespace GastosApp.BusinessLogic.Interfaces
 {
     public interface IRepository
     {
-        string GetNombre();
-        string GetUsername();
-
         IQueryable<T> Get<T>() where T : class;
         IQueryable<T> Get<T>(Expression<Func<T, bool>> predicate) where T : class;
         DbSet<T> GetTrack<T>() where T : class;
@@ -28,10 +25,9 @@ namespace GastosApp.BusinessLogic.Interfaces
         Task<int> RemoveAsync<T>(T entity) where T : class;
         Task<int> RemoveAsync<T>(int id) where T : class;
         Task<int> RemoveRangeAsync<T>(List<T> entities) where T : class;
-        Task<int> DeleteModel<T>(int id) where T : class;
 
         Task<List<T>> SyncAsync<T>(List<T> newListModel, List<T> currentListModel, Func<T, object> keySelector) where T : class;
-        (List<T> ToAdd, List<T> ToRemove) DiffList<T, TKey>(IEnumerable<T> original, IEnumerable<T> updated, Func<T, TKey> keySelector);
+        (List<T> ToAdd, List<T> ToRemove) DiffList<T, TKey>(IEnumerable<T> original, IEnumerable<T> updated, Func<T, TKey> keySelector) where TKey : notnull;
 
         Task<int> ExecuteSqlRawAsync(string sql, params object[] parameters);
         Task<int> SaveChangesAsync();

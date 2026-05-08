@@ -65,7 +65,7 @@ namespace GastosApp.BusinessLogic.Services
 
         public async Task<bool> DeleteAsync(int id)
         {
-            var result = await _repository.DeleteModel<Account>(id);
+            var result = await _repository.RemoveAsync<Account>(id);
             return result > 0;
         }
 
