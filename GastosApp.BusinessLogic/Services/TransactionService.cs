@@ -11,12 +11,14 @@ namespace GastosApp.BusinessLogic.Services
         private readonly IRepository _repository;
         private readonly IAccountService _accountService;
         private readonly ITagService _tagService;
+        private readonly IBillablePartyService _billablePartyService;
 
-        public TransactionService(IRepository repository, IAccountService accountService, ITagService tagService)
+        public TransactionService(IRepository repository, IAccountService accountService, ITagService tagService, IBillablePartyService billablePartyService)
         {
             _repository = repository;
             _accountService = accountService;
             _tagService = tagService;
+            _billablePartyService = billablePartyService;
         }
 
         public async Task<Transaction?> GetByIdAsync(int id)
@@ -24,6 +26,8 @@ namespace GastosApp.BusinessLogic.Services
             return await _repository.Get<Transaction>(t => t.TransactionId == id)
                 .Include(t => t.TransactionTags)
                 .ThenInclude(tt => tt.Tag)
+                .Include(t => t.TransactionAllocations)
+                .ThenInclude(a => a.BillableParty)
                 .FirstOrDefaultAsync();
         }
 
@@ -32,6 +36,8 @@ namespace GastosApp.BusinessLogic.Services
             return await _repository.Get<Transaction>(t => t.AccountId == accountId)
                 .Include(t => t.TransactionTags)
                 .ThenInclude(tt => tt.Tag)
+                .Include(t => t.TransactionAllocations)
+                .ThenInclude(a => a.BillableParty)
                 .OrderByDescending(t => t.TransactionDate)
                 .ToListAsync();
         }
@@ -44,6 +50,8 @@ namespace GastosApp.BusinessLogic.Services
                 t.TransactionDate <= endDate)
                 .Include(t => t.TransactionTags)
                 .ThenInclude(tt => tt.Tag)
+                .Include(t => t.TransactionAllocations)
+                .ThenInclude(a => a.BillableParty)
                 .OrderByDescending(t => t.TransactionDate)
                 .ToListAsync();
         }
@@ -53,6 +61,8 @@ namespace GastosApp.BusinessLogic.Services
             return await _repository.Get<Transaction>(t => t.CategoryId == categoryId)
                 .Include(t => t.TransactionTags)
                 .ThenInclude(tt => tt.Tag)
+                .Include(t => t.TransactionAllocations)
+                .ThenInclude(a => a.BillableParty)
                 .OrderByDescending(t => t.TransactionDate)
                 .ToListAsync();
         }
@@ -73,7 +83,7 @@ namespace GastosApp.BusinessLogic.Services
             return result;
         }
 
-        public async Task<Transaction> CreateExpenseAsync(Transaction transaction)
+        public async Task<Transaction> CreateExpenseAsync(Transaction transaction, int userId, IEnumerable<ExpenseAllocationInput>? allocations = null)
         {
             transaction.Type = "expense";
             transaction.BalanceImpact = transaction.Amount * -1;
@@ -82,6 +92,12 @@ namespace GastosApp.BusinessLogic.Services
             transaction.Created = DateTime.UtcNow;
             
             var result = await _repository.Save<Transaction>(transaction);
+
+            var allocationResult = await ReplaceExpenseAllocationsAsync(result.TransactionId, userId, allocations, fallbackToSelfWhenEmpty: true);
+            if (!allocationResult.Success)
+            {
+                throw new ArgumentException(allocationResult.ErrorMessage ?? "Invalid expense allocation");
+            }
             
             // Actualizar saldo de la cuenta (restar)
             await _accountService.UpdateBalanceAsync(transaction.AccountId, -transaction.Amount);
@@ -258,6 +274,128 @@ namespace GastosApp.BusinessLogic.Services
                     TagId = tagId
                 });
             }
+        }
+
+        public async Task<(bool Success, string? ErrorMessage)> ReplaceExpenseAllocationsAsync(int transactionId, int userId, IEnumerable<ExpenseAllocationInput>? allocations, bool fallbackToSelfWhenEmpty = true)
+        {
+            var transaction = await _repository.GetByIdAsync<Transaction>(transactionId);
+            if (transaction == null)
+            {
+                return (false, "Transaction not found");
+            }
+
+            if (!string.Equals(transaction.Type, "expense", StringComparison.OrdinalIgnoreCase))
+            {
+                return (true, null);
+            }
+
+            var normalizedInputs = (allocations ?? [])
+                .Where(a => a != null && a.BillablePartyId > 0 && a.Value > 0)
+                .Select(a => new ExpenseAllocationInput
+                {
+                    BillablePartyId = a.BillablePartyId,
+                    Type = (a.Type ?? string.Empty).Trim().ToLowerInvariant(),
+                    Value = a.Value
+                })
+                .ToList();
+
+            if (normalizedInputs.Count == 0)
+            {
+                if (!fallbackToSelfWhenEmpty)
+                {
+                    return (true, null);
+                }
+
+                var selfParty = await _billablePartyService.EnsureSelfPartyAsync(userId);
+                normalizedInputs = [new ExpenseAllocationInput { BillablePartyId = selfParty.BillablePartyId, Type = "percentage", Value = 100m }];
+            }
+
+            var duplicateBillablePartyId = normalizedInputs
+                .GroupBy(a => a.BillablePartyId)
+                .Where(g => g.Count() > 1)
+                .Select(g => (int?)g.Key)
+                .FirstOrDefault();
+
+            if (duplicateBillablePartyId.HasValue)
+            {
+                return (false, $"Duplicate billable party in allocation: {duplicateBillablePartyId.Value}");
+            }
+
+            var billablePartyIds = normalizedInputs.Select(a => a.BillablePartyId).Distinct().ToList();
+            var billableParties = await _repository.Get<BillableParty>(p => billablePartyIds.Contains(p.BillablePartyId) && p.OwnerUserId == userId && p.Active)
+                .ToListAsync();
+
+            if (billableParties.Count != billablePartyIds.Count)
+            {
+                return (false, "One or more billable parties are invalid for this user");
+            }
+
+            var hasPercentage = normalizedInputs.Any(a => a.Type == "percentage");
+            var hasAmount = normalizedInputs.Any(a => a.Type == "amount");
+            if (hasPercentage && hasAmount)
+            {
+                return (false, "Allocations cannot mix percentage and amount modes");
+            }
+
+            if (!hasPercentage && !hasAmount)
+            {
+                return (false, "Allocation type must be percentage or amount");
+            }
+
+            var computedAmounts = new List<decimal>();
+            if (hasPercentage)
+            {
+                var totalPercent = normalizedInputs.Sum(a => a.Value);
+                if (Math.Abs(totalPercent - 100m) > 0.0001m)
+                {
+                    return (false, "Percentage allocations must sum exactly 100");
+                }
+
+                decimal accumulated = 0m;
+                for (var i = 0; i < normalizedInputs.Count; i++)
+                {
+                    var isLast = i == normalizedInputs.Count - 1;
+                    var amount = isLast
+                        ? Math.Round(transaction.Amount - accumulated, 2, MidpointRounding.AwayFromZero)
+                        : Math.Round(transaction.Amount * (normalizedInputs[i].Value / 100m), 2, MidpointRounding.AwayFromZero);
+                    computedAmounts.Add(amount);
+                    accumulated += amount;
+                }
+            }
+            else
+            {
+                var totalAmount = normalizedInputs.Sum(a => a.Value);
+                if (Math.Abs(totalAmount - transaction.Amount) > 0.01m)
+                {
+                    return (false, "Amount allocations must sum exactly transaction amount");
+                }
+
+                computedAmounts.AddRange(normalizedInputs.Select(a => Math.Round(a.Value, 2, MidpointRounding.AwayFromZero)));
+            }
+
+            var existing = await _repository.Get<TransactionAllocation>(a => a.TransactionId == transactionId).ToListAsync();
+            if (existing.Count > 0)
+            {
+                await _repository.RemoveRangeAsync(existing);
+            }
+
+            for (var i = 0; i < normalizedInputs.Count; i++)
+            {
+                var input = normalizedInputs[i];
+                var party = billableParties.First(p => p.BillablePartyId == input.BillablePartyId);
+                await _repository.Save(new TransactionAllocation
+                {
+                    TransactionId = transactionId,
+                    BillablePartyId = input.BillablePartyId,
+                    AllocationMode = hasPercentage ? "percentage" : "amount",
+                    AllocationValue = input.Value,
+                    CalculatedAmount = computedAmounts[i],
+                    BillablePartySnapshotName = party.DisplayName,
+                    Created = DateTime.UtcNow
+                });
+            }
+
+            return (true, null);
         }
 
         public async Task<Transaction?> UpdateAsync(int id, Transaction transaction)

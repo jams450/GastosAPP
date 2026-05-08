@@ -37,5 +37,6 @@ namespace GastosApp.BusinessLogic.Models.DataBase
         public virtual ICollection<Subcategory> Subcategories { get; set; } = new List<Subcategory>();
         public virtual ICollection<Merchant> Merchants { get; set; } = new List<Merchant>();
         public virtual ICollection<Tag> Tags { get; set; } = new List<Tag>();
+        public virtual ICollection<BillableParty> OwnedBillableParties { get; set; } = new List<BillableParty>();
     }
 }

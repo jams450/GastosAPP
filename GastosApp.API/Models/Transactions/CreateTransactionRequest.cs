@@ -28,4 +28,6 @@ public class CreateTransactionRequest
     public int? MsiMonths { get; set; }
 
     public List<CreditInstallmentAllocationRequest>? CreditAllocations { get; set; }
+
+    public List<TransactionAllocationRequest>? Allocations { get; set; }
 }

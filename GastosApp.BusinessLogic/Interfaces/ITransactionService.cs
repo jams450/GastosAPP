@@ -12,7 +12,7 @@ namespace GastosApp.BusinessLogic.Interfaces
         
         // Transacciones normales (ingreso/gasto)
         Task<Transaction> CreateIncomeAsync(Transaction transaction);
-        Task<Transaction> CreateExpenseAsync(Transaction transaction);
+        Task<Transaction> CreateExpenseAsync(Transaction transaction, int userId, IEnumerable<ExpenseAllocationInput>? allocations = null);
         
         // Transferencias entre cuentas
         Task<(bool Success, string? ErrorMessage)> CreateTransferAsync(
@@ -43,6 +43,7 @@ namespace GastosApp.BusinessLogic.Interfaces
         Task<decimal> CalculateAccountBalanceAsync(int accountId);
         Task<(bool IsValid, string? ErrorMessage)> ValidateAnalyticsDimensionsAsync(int userId, int? categoryId, int? subcategoryId, int? merchantId);
         Task SyncTransactionTagsAsync(int transactionId, int userId, IEnumerable<string>? tagNames);
+        Task<(bool Success, string? ErrorMessage)> ReplaceExpenseAllocationsAsync(int transactionId, int userId, IEnumerable<ExpenseAllocationInput>? allocations, bool fallbackToSelfWhenEmpty = true);
         Task<(bool Success, string? ErrorMessage)> RegisterCreditPaymentAsync(
             int creditAccountId,
             int sourceTransactionId,

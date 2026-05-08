@@ -27,6 +27,8 @@ namespace GastosApp.BusinessLogic.Context
         public DbSet<CreditInstallment> CreditInstallments { get; set; } = null!;
         public DbSet<CreditPayment> CreditPayments { get; set; } = null!;
         public DbSet<InstallmentAllocation> InstallmentAllocations { get; set; } = null!;
+        public DbSet<BillableParty> BillableParties { get; set; } = null!;
+        public DbSet<TransactionAllocation> TransactionAllocations { get; set; } = null!;
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -40,6 +42,7 @@ namespace GastosApp.BusinessLogic.Context
                 entity.HasMany(e => e.Subcategories).WithOne(e => e.User).HasForeignKey(e => e.UserId);
                 entity.HasMany(e => e.Merchants).WithOne(e => e.User).HasForeignKey(e => e.UserId);
                 entity.HasMany(e => e.Tags).WithOne(e => e.User).HasForeignKey(e => e.UserId);
+                entity.HasMany(e => e.OwnedBillableParties).WithOne(e => e.OwnerUser).HasForeignKey(e => e.OwnerUserId);
             });
 
             modelBuilder.Entity<Account>(entity =>
@@ -109,6 +112,31 @@ namespace GastosApp.BusinessLogic.Context
                 entity.HasIndex(e => new { e.CategoryId, e.TransactionDate });
                 entity.HasIndex(e => new { e.SubcategoryId, e.TransactionDate });
                 entity.HasIndex(e => new { e.MerchantId, e.TransactionDate });
+            });
+
+            modelBuilder.Entity<BillableParty>(entity =>
+            {
+                entity.HasIndex(e => new { e.OwnerUserId, e.NormalizedName }).IsUnique();
+                entity.HasIndex(e => new { e.OwnerUserId, e.Type, e.Active });
+                entity.HasOne(e => e.LinkedUser)
+                    .WithMany()
+                    .HasForeignKey(e => e.LinkedUserId)
+                    .OnDelete(DeleteBehavior.SetNull);
+            });
+
+            modelBuilder.Entity<TransactionAllocation>(entity =>
+            {
+                entity.HasIndex(e => e.TransactionId);
+                entity.HasIndex(e => e.BillablePartyId);
+                entity.HasIndex(e => new { e.TransactionId, e.BillablePartyId }).IsUnique();
+                entity.HasOne(e => e.Transaction)
+                    .WithMany(e => e.TransactionAllocations)
+                    .HasForeignKey(e => e.TransactionId)
+                    .OnDelete(DeleteBehavior.Cascade);
+                entity.HasOne(e => e.BillableParty)
+                    .WithMany(e => e.TransactionAllocations)
+                    .HasForeignKey(e => e.BillablePartyId)
+                    .OnDelete(DeleteBehavior.Restrict);
             });
 
             modelBuilder.Entity<CreditCycle>(entity =>

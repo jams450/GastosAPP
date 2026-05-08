@@ -16,7 +16,8 @@ const navItems = [
   { href: "/dashboard", label: "Dashboard" },
   { href: "/accounts", label: "Cuentas" },
   { href: "/transactions", label: "Transacciones" },
-  { href: "/catalogs", label: "Catálogos" }
+  { href: "/catalogs", label: "Catálogos" },
+  { href: "/users", label: "Usuarios" }
 ] as const;
 
 export function AppMenu({ username, compact = false }: AppMenuProps) {

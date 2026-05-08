@@ -157,6 +157,7 @@ static void RegisterServices(IServiceCollection services)
     services.AddScoped<ISubcategoryService, SubcategoryService>();
     services.AddScoped<IMerchantService, MerchantService>();
     services.AddScoped<ITagService, TagService>();
+    services.AddScoped<IBillablePartyService, BillablePartyService>();
     services.AddScoped<ITransactionService, TransactionService>();
     services.AddScoped<IDashboardService, DashboardService>();
 }

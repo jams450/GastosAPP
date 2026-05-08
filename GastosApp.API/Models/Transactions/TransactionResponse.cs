@@ -16,4 +16,5 @@ public class TransactionResponse
     public string? Description { get; set; }
     public DateTime TransactionDate { get; set; }
     public IEnumerable<string> Tags { get; set; } = Array.Empty<string>();
+    public IEnumerable<TransactionAllocationResponse> Allocations { get; set; } = Array.Empty<TransactionAllocationResponse>();
 }

@@ -139,6 +139,43 @@ CREATE TABLE transaction_tags (
     FOREIGN KEY (tag_id) REFERENCES tags(tag_id) ON DELETE CASCADE
 );
 
+-- Billable Parties Catalog (per owner user)
+CREATE TABLE billable_parties (
+    billable_party_id SERIAL PRIMARY KEY,
+    owner_user_id INT NOT NULL,
+    linked_user_id INT,
+    type VARCHAR(30) NOT NULL CHECK (type IN ('self', 'system_user', 'external_person')),
+    display_name VARCHAR(120) NOT NULL,
+    normalized_name VARCHAR(120) NOT NULL,
+    active BOOLEAN DEFAULT TRUE,
+    notes VARCHAR(400),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_by VARCHAR(100),
+    updated_by VARCHAR(100),
+    FOREIGN KEY (owner_user_id) REFERENCES users(user_id) ON DELETE CASCADE,
+    FOREIGN KEY (linked_user_id) REFERENCES users(user_id) ON DELETE SET NULL,
+    UNIQUE (owner_user_id, normalized_name)
+);
+
+-- Transaction Allocations (expense split across parties)
+CREATE TABLE transaction_allocations (
+    transaction_allocation_id SERIAL PRIMARY KEY,
+    transaction_id INT NOT NULL,
+    billable_party_id INT NOT NULL,
+    allocation_mode VARCHAR(20) NOT NULL CHECK (allocation_mode IN ('percentage', 'amount')),
+    allocation_value DECIMAL(15,4) NOT NULL CHECK (allocation_value > 0),
+    calculated_amount DECIMAL(15,2) NOT NULL CHECK (calculated_amount >= 0),
+    billable_party_snapshot_name VARCHAR(120) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_by VARCHAR(100),
+    updated_by VARCHAR(100),
+    FOREIGN KEY (transaction_id) REFERENCES transactions(transaction_id) ON DELETE CASCADE,
+    FOREIGN KEY (billable_party_id) REFERENCES billable_parties(billable_party_id) ON DELETE RESTRICT,
+    UNIQUE (transaction_id, billable_party_id)
+);
+
 -- Indexes for better performance
 CREATE INDEX idx_transactions_account ON transactions(account_id);
 CREATE INDEX idx_transactions_date ON transactions(transaction_date);
@@ -157,6 +194,10 @@ CREATE INDEX idx_merchants_user ON merchants(user_id);
 CREATE INDEX idx_tags_user ON tags(user_id);
 CREATE INDEX idx_tags_normalized ON tags(normalized_name);
 CREATE INDEX idx_transaction_tags_tag ON transaction_tags(tag_id);
+CREATE INDEX idx_billable_parties_owner ON billable_parties(owner_user_id);
+CREATE INDEX idx_billable_parties_owner_type ON billable_parties(owner_user_id, type, active);
+CREATE INDEX idx_transaction_allocations_transaction ON transaction_allocations(transaction_id);
+CREATE INDEX idx_transaction_allocations_party ON transaction_allocations(billable_party_id);
 
 -- Credit Cycles Table
 CREATE TABLE credit_cycles (

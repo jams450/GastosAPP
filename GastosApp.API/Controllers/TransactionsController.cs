@@ -106,6 +106,9 @@ namespace GastosApp.API.Controllers
                     return NotFound(new { Message = $"Account with ID {request.AccountId} not found" });
 
                 var userId = GetCurrentUserId();
+                if (account.UserId != userId)
+                    return Forbid();
+
                 var dimensionsValidation = await _transactionService.ValidateAnalyticsDimensionsAsync(
                     userId,
                     request.CategoryId,
@@ -200,7 +203,15 @@ namespace GastosApp.API.Controllers
                     TransactionDate = request.TransactionDate.UtcDateTime
                 };
 
-                var createdTransaction = await _transactionService.CreateExpenseAsync(transaction);
+                var allocationInputs = request.Allocations?
+                    .Select(a => new GastosApp.BusinessLogic.Models.Transactions.ExpenseAllocationInput
+                    {
+                        BillablePartyId = a.BillablePartyId,
+                        Type = a.Type,
+                        Value = a.Value
+                    });
+
+                var createdTransaction = await _transactionService.CreateExpenseAsync(transaction, userId, allocationInputs);
                 await _transactionService.SyncTransactionTagsAsync(createdTransaction.TransactionId, userId, request.Tags);
 
                 if (account.IsCredit && request.MsiMonths.HasValue && request.MsiMonths.Value > 1)
@@ -309,6 +320,17 @@ namespace GastosApp.API.Controllers
                 if (existingTransaction == null)
                     return NotFound(new { Message = $"Transaction with ID {id} not found" });
 
+                var account = await _accountService.GetByIdAsync(existingTransaction.AccountId);
+                var userId = GetCurrentUserId();
+                if (account == null || account.UserId != userId)
+                    return Forbid();
+
+                var amountChanged = request.Amount.HasValue && request.Amount.Value != existingTransaction.Amount;
+                if (amountChanged && string.Equals(existingTransaction.Type, "expense", StringComparison.OrdinalIgnoreCase) && !request.ReplaceAllocations)
+                {
+                    return BadRequest(new { Message = "When changing expense amount you must set ReplaceAllocations=true and send allocations." });
+                }
+
                 // Actualizar campos
                 if (request.CategoryId.HasValue) existingTransaction.CategoryId = request.CategoryId.Value;
                 if (request.SubcategoryId.HasValue) existingTransaction.SubcategoryId = request.SubcategoryId.Value;
@@ -318,7 +340,6 @@ namespace GastosApp.API.Controllers
                 if (request.TransactionDate.HasValue) 
                     existingTransaction.TransactionDate = request.TransactionDate.Value.UtcDateTime;
 
-                var userId = GetCurrentUserId();
                 var dimensionsValidation = await _transactionService.ValidateAnalyticsDimensionsAsync(
                     userId,
                     existingTransaction.CategoryId,
@@ -332,6 +353,29 @@ namespace GastosApp.API.Controllers
 
                 var updatedTransaction = await _transactionService.UpdateAsync(id, existingTransaction);
                 await _transactionService.SyncTransactionTagsAsync(id, userId, request.Tags);
+
+                if (request.ReplaceAllocations)
+                {
+                    var allocationInputs = request.Allocations?
+                        .Select(a => new GastosApp.BusinessLogic.Models.Transactions.ExpenseAllocationInput
+                        {
+                            BillablePartyId = a.BillablePartyId,
+                            Type = a.Type,
+                            Value = a.Value
+                        });
+
+                    var allocationResult = await _transactionService.ReplaceExpenseAllocationsAsync(
+                        id,
+                        userId,
+                        allocationInputs,
+                        fallbackToSelfWhenEmpty: true);
+
+                    if (!allocationResult.Success)
+                    {
+                        return BadRequest(new { Message = allocationResult.ErrorMessage });
+                    }
+                }
+
                 _logger.LogInformation("Transaction updated: {TransactionId}", id);
 
                 var updated = await _transactionService.GetByIdAsync(id);
@@ -637,6 +681,19 @@ namespace GastosApp.API.Controllers
                 .OrderBy(name => name)
                 .ToArray();
 
+            var allocations = transaction.TransactionAllocations
+                .OrderBy(a => a.TransactionAllocationId)
+                .Select(a => new TransactionAllocationResponse
+                {
+                    TransactionAllocationId = a.TransactionAllocationId,
+                    BillablePartyId = a.BillablePartyId,
+                    BillablePartyName = a.BillableParty?.DisplayName ?? a.BillablePartySnapshotName,
+                    AllocationMode = a.AllocationMode,
+                    AllocationValue = a.AllocationValue,
+                    CalculatedAmount = a.CalculatedAmount
+                })
+                .ToArray();
+
             return new TransactionResponse
             {
                 TransactionId = transaction.TransactionId,
@@ -652,7 +709,8 @@ namespace GastosApp.API.Controllers
                 CounterpartyAccountId = transaction.CounterpartyAccountId,
                 Description = transaction.Description,
                 TransactionDate = transaction.TransactionDate,
-                Tags = tags
+                Tags = tags,
+                Allocations = allocations
             };
         }
     }

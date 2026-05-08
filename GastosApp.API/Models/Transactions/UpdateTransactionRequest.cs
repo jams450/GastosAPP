@@ -15,4 +15,8 @@ public class UpdateTransactionRequest
     public string? Description { get; set; }
 
     public DateTimeOffset? TransactionDate { get; set; }
+
+    public List<TransactionAllocationRequest>? Allocations { get; set; }
+
+    public bool ReplaceAllocations { get; set; } = false;
 }
