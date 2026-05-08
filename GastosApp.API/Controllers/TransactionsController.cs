@@ -1,7 +1,6 @@
 using GastosApp.BusinessLogic.Interfaces;
-using GastosApp.BusinessLogic.Models.DataBase;
+using GastosApp.Models.Entities;
 using GastosApp.API.Models.Transactions;
-using GastosApp.Models.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 

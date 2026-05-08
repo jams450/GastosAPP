@@ -1,5 +1,4 @@
 using GastosApp.BusinessLogic.Interfaces;
-using GastosApp.Models.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 

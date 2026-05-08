@@ -1,6 +1,6 @@
 using System.Security.Claims;
 using System.IdentityModel.Tokens.Jwt;
-using GastosApp.Models.Interfaces;
+using GastosApp.BusinessLogic.Interfaces;
 
 namespace GastosApp.API.Services
 {

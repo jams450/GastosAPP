@@ -1,6 +1,5 @@
 using GastosApp.BusinessLogic.Interfaces;
-using GastosApp.BusinessLogic.Models.DataBase;
-using GastosApp.Models.Interfaces;
+using GastosApp.Models.Entities;
 using Microsoft.EntityFrameworkCore;
 using System.Text.RegularExpressions;
 

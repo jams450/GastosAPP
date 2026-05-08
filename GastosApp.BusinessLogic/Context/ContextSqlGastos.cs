@@ -1,15 +1,18 @@
 using Microsoft.EntityFrameworkCore;
-using GastosApp.Models.Interfaces;
-using GastosApp.Models.Context;
-using GastosApp.BusinessLogic.Models.DataBase;
+using GastosApp.BusinessLogic.Interfaces;
+using GastosApp.Models.Entities;
+using GastosApp.Models.Models;
 
 namespace GastosApp.BusinessLogic.Context
 {
-    public class ContextSqlGastos : ContextSql
+    public class ContextSqlGastos : DbContext
     {
+        private readonly ICurrentUserService _currentUser;
+
         public ContextSqlGastos(DbContextOptions<ContextSqlGastos> options, ICurrentUserService currentUser)
-            : base(options, currentUser)
+            : base(options)
         {
+            _currentUser = currentUser;
         }
 
         public DbSet<User> Users { get; set; } = null!;
@@ -30,6 +33,43 @@ namespace GastosApp.BusinessLogic.Context
         public DbSet<InstallmentAllocation> InstallmentAllocations { get; set; } = null!;
         public DbSet<BillableParty> BillableParties { get; set; } = null!;
         public DbSet<TransactionAllocation> TransactionAllocations { get; set; } = null!;
+
+        public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+        {
+            ApplyAuditInfo();
+            return base.SaveChangesAsync(cancellationToken);
+        }
+
+        public override int SaveChanges()
+        {
+            ApplyAuditInfo();
+            return base.SaveChanges();
+        }
+
+        private void ApplyAuditInfo()
+        {
+            var now = DateTime.UtcNow;
+            var userName = _currentUser.GetName();
+
+            foreach (var entry in ChangeTracker.Entries<BaseModel>())
+            {
+                if (entry.State == EntityState.Added)
+                {
+                    entry.Entity.Created = now;
+                    entry.Entity.CreatedBy = userName;
+                    continue;
+                }
+
+                if (entry.State == EntityState.Modified)
+                {
+                    entry.Property(nameof(BaseModel.Created)).IsModified = false;
+                    entry.Property(nameof(BaseModel.CreatedBy)).IsModified = false;
+
+                    entry.Entity.Updated = now;
+                    entry.Entity.UpdatedBy = userName;
+                }
+            }
+        }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {

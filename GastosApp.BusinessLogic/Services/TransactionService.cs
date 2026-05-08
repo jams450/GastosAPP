@@ -1,7 +1,6 @@
 using GastosApp.BusinessLogic.Interfaces;
-using GastosApp.BusinessLogic.Models.DataBase;
+using GastosApp.Models.Entities;
 using GastosApp.BusinessLogic.Models.Transactions;
-using GastosApp.Models.Interfaces;
 using Microsoft.EntityFrameworkCore;
 
 namespace GastosApp.BusinessLogic.Services

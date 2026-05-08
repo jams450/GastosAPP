@@ -1,6 +1,6 @@
 using System.ComponentModel.DataAnnotations.Schema;
 
-namespace GastosApp.BusinessLogic.Models.DataBase
+namespace GastosApp.Models.Entities
 {
     [Table("transaction_tags")]
     public class TransactionTag

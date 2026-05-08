@@ -2,30 +2,26 @@ using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 using GastosApp.Models.Models;
 
-namespace GastosApp.BusinessLogic.Models.DataBase
+namespace GastosApp.Models.Entities
 {
-    [Table("subcategories")]
-    public class Subcategory : BaseModel
+    [Table("merchants")]
+    public class Merchant : BaseModel
     {
         [Key]
-        [Column("subcategory_id")]
-        public int SubcategoryId { get; set; }
+        [Column("merchant_id")]
+        public int MerchantId { get; set; }
 
         [Column("user_id")]
         public int? UserId { get; set; }
 
-        [Column("category_id")]
-        [Required]
-        public int CategoryId { get; set; }
-
         [Column("name")]
         [Required]
-        [StringLength(100)]
+        [StringLength(120)]
         public string Name { get; set; } = string.Empty;
 
         [Column("normalized_name")]
         [Required]
-        [StringLength(100)]
+        [StringLength(120)]
         public string NormalizedName { get; set; } = string.Empty;
 
         [Column("active")]
@@ -33,9 +29,6 @@ namespace GastosApp.BusinessLogic.Models.DataBase
 
         [ForeignKey(nameof(UserId))]
         public virtual User? User { get; set; }
-
-        [ForeignKey(nameof(CategoryId))]
-        public virtual Category Category { get; set; } = null!;
 
         public virtual ICollection<Transaction> Transactions { get; set; } = new List<Transaction>();
     }

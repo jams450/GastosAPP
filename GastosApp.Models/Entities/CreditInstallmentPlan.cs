@@ -2,7 +2,7 @@ using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 using GastosApp.Models.Models;
 
-namespace GastosApp.BusinessLogic.Models.DataBase
+namespace GastosApp.Models.Entities
 {
     [Table("credit_installment_plans")]
     public class CreditInstallmentPlan : BaseModel

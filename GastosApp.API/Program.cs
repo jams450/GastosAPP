@@ -5,7 +5,6 @@ using GastosApp.API.Services;
 using GastosApp.BusinessLogic.Context;
 using GastosApp.BusinessLogic.Interfaces;
 using GastosApp.BusinessLogic.Services;
-using GastosApp.Models.Interfaces;
 using IPasswordService = GastosApp.BusinessLogic.Interfaces.IPasswordService;
 using PasswordService = GastosApp.BusinessLogic.Services.PasswordService;
 using Microsoft.AspNetCore.Authentication.JwtBearer;

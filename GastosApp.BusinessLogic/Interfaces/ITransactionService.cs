@@ -1,4 +1,4 @@
-using GastosApp.BusinessLogic.Models.DataBase;
+using GastosApp.Models.Entities;
 using GastosApp.BusinessLogic.Models.Transactions;
 
 namespace GastosApp.BusinessLogic.Interfaces

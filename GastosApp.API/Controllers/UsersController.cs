@@ -1,5 +1,5 @@
 using GastosApp.BusinessLogic.Interfaces;
-using GastosApp.BusinessLogic.Models.DataBase;
+using GastosApp.Models.Entities;
 using GastosApp.API.Models.Users;
 using Mapster;
 using Microsoft.AspNetCore.Authorization;

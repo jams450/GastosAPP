@@ -1,6 +1,5 @@
 using GastosApp.BusinessLogic.Interfaces;
-using GastosApp.BusinessLogic.Models.DataBase;
-using GastosApp.Models.Interfaces;
+using GastosApp.Models.Entities;
 using IPasswordService = GastosApp.BusinessLogic.Interfaces.IPasswordService;
 using Microsoft.EntityFrameworkCore;
 
@@ -10,11 +9,16 @@ namespace GastosApp.BusinessLogic.Services
     {
         private readonly IRepository _repository;
         private readonly IPasswordService _passwordService;
+        private readonly IBillablePartyService _billablePartyService;
 
-        public UserService(IRepository repository, IPasswordService passwordService)
+        public UserService(
+            IRepository repository,
+            IPasswordService passwordService,
+            IBillablePartyService billablePartyService)
         {
             _repository = repository;
             _passwordService = passwordService;
+            _billablePartyService = billablePartyService;
         }
 
         public async Task<User?> GetByIdAsync(int id)
@@ -41,7 +45,11 @@ namespace GastosApp.BusinessLogic.Services
             user.Password = _passwordService.HashPassword(user.Password);
             user.Active = true;
             user.Created = DateTime.UtcNow;
-            return await _repository.Save<User>(user);
+
+            var createdUser = await _repository.Save<User>(user);
+            await _billablePartyService.EnsureSelfPartyAsync(createdUser.UserId, createdUser.Name);
+
+            return createdUser;
         }
 
         public async Task<User?> UpdateAsync(int id, User user)

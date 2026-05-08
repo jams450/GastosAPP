@@ -2,7 +2,7 @@ using GastosApp.API.Models.Auth;
 using GastosApp.API.Interfaces;
 using GastosApp.BusinessLogic.Context;
 using GastosApp.BusinessLogic.Interfaces;
-using GastosApp.BusinessLogic.Models.DataBase;
+using GastosApp.Models.Entities;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Cryptography;
 using System.Text;

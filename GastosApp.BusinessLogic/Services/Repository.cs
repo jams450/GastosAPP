@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Threading.Tasks;
-using GastosApp.Models.Interfaces;
+using GastosApp.BusinessLogic.Interfaces;
 using Microsoft.EntityFrameworkCore;
 using System.Reflection;
 using GastosApp.BusinessLogic.Context;
