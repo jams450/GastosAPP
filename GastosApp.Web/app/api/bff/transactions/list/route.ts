@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getApiBaseUrl } from "@/lib/api/config";
+import { attachSessionCookie, fetchApiWithAutoRefresh } from "@/lib/auth/api-session";
 import { getServerSession } from "@/lib/auth/session";
 
 type UnknownRecord = Record<string, unknown>;
@@ -139,6 +140,7 @@ function isTransactionInMonth(dateIso: string, month: string, timezone = TRANSAC
 
 export async function GET(request: Request) {
   const session = await getServerSession();
+  let authSession = session;
   if (!session) {
     return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
   }
@@ -149,16 +151,12 @@ export async function GET(request: Request) {
     return NextResponse.json({ message: "month must use YYYY-MM format" }, { status: 400 });
   }
 
-  const headers = {
-    Authorization: `Bearer ${session.accessToken}`,
-    "Content-Type": "application/json"
-  };
-
-  const accountsResponse = await fetch(`${getApiBaseUrl()}/api/accounts`, {
+  const accountsCall = await fetchApiWithAutoRefresh(authSession, `${getApiBaseUrl()}/api/accounts`, {
     method: "GET",
-    headers,
     cache: "no-store"
   });
+  const accountsResponse = accountsCall.response;
+  authSession = accountsCall.session;
 
   if (!accountsResponse.ok) {
     const body = (await accountsResponse.json().catch(() => null)) as { message?: string; Message?: string } | null;
@@ -192,7 +190,10 @@ export async function GET(request: Request) {
         `${getApiBaseUrl()}/api/transactions/account/${account.accountId}`,
         {
           method: "GET",
-          headers,
+          headers: {
+            Authorization: `Bearer ${authSession.accessToken}`,
+            "Content-Type": "application/json"
+          },
           cache: "no-store"
         }
       )
@@ -229,12 +230,13 @@ export async function GET(request: Request) {
     .map((item) => item.transactionId);
 
   if (creditExpenseIds.length > 0) {
-    const summariesResponse = await fetch(`${getApiBaseUrl()}/api/transactions/credit/charge-summaries`, {
+    const summariesCall = await fetchApiWithAutoRefresh(authSession, `${getApiBaseUrl()}/api/transactions/credit/charge-summaries`, {
       method: "POST",
-      headers,
       cache: "no-store",
       body: JSON.stringify({ sourceTransactionIds: creditExpenseIds })
     });
+    const summariesResponse = summariesCall.response;
+    authSession = summariesCall.session;
 
     if (summariesResponse.ok) {
       const summariesRaw = (await summariesResponse.json().catch(() => [])) as unknown;
@@ -253,5 +255,7 @@ export async function GET(request: Request) {
     }
   }
 
-  return NextResponse.json({ month, transactions });
+  const out = NextResponse.json({ month, transactions });
+  await attachSessionCookie(out, authSession, session);
+  return out;
 }

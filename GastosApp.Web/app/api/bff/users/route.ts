@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getApiBaseUrl } from "@/lib/api/config";
+import { attachSessionCookie, fetchApiWithAutoRefresh } from "@/lib/auth/api-session";
 import { getServerSession } from "@/lib/auth/session";
 import { normalizeUsers } from "@/lib/contracts/users-admin";
 
@@ -12,12 +13,8 @@ export async function GET() {
   if (!session) return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
   if (!isAdmin(session.user.role)) return NextResponse.json({ message: "Forbidden" }, { status: 403 });
 
-  const response = await fetch(`${getApiBaseUrl()}/api/users`, {
+  const { response, session: updatedSession } = await fetchApiWithAutoRefresh(session, `${getApiBaseUrl()}/api/users`, {
     method: "GET",
-    headers: {
-      Authorization: `Bearer ${session.accessToken}`,
-      "Content-Type": "application/json"
-    },
     cache: "no-store"
   });
 
@@ -27,7 +24,9 @@ export async function GET() {
   }
 
   const raw = await response.json();
-  return NextResponse.json(normalizeUsers(raw));
+  const result = NextResponse.json(normalizeUsers(raw));
+  await attachSessionCookie(result, updatedSession, session);
+  return result;
 }
 
 export async function POST(request: Request) {
@@ -36,20 +35,18 @@ export async function POST(request: Request) {
   if (!isAdmin(session.user.role)) return NextResponse.json({ message: "Forbidden" }, { status: 403 });
 
   const body = await request.json();
-  const response = await fetch(`${getApiBaseUrl()}/api/users`, {
+  const { response, session: updatedSession } = await fetchApiWithAutoRefresh(session, `${getApiBaseUrl()}/api/users`, {
     method: "POST",
-    headers: {
-      Authorization: `Bearer ${session.accessToken}`,
-      "Content-Type": "application/json"
-    },
     body: JSON.stringify(body)
   });
 
   const raw = await response.text();
-  return new NextResponse(raw, {
+  const result = new NextResponse(raw, {
     status: response.status,
     headers: {
       "content-type": response.headers.get("content-type") ?? "application/json"
     }
   });
+  await attachSessionCookie(result, updatedSession, session);
+  return result;
 }

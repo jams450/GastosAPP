@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getApiBaseUrl } from "@/lib/api/config";
+import { attachSessionCookie, fetchApiWithAutoRefresh } from "@/lib/auth/api-session";
 import { getServerSession } from "@/lib/auth/session";
 import { normalizeAccounts } from "@/lib/contracts/accounts";
 
@@ -10,12 +11,8 @@ export async function GET() {
     return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
   }
 
-  const response = await fetch(`${getApiBaseUrl()}/api/accounts`, {
+  const { response, session: updatedSession } = await fetchApiWithAutoRefresh(session, `${getApiBaseUrl()}/api/accounts`, {
     method: "GET",
-    headers: {
-      Authorization: `Bearer ${session.accessToken}`,
-      "Content-Type": "application/json"
-    },
     cache: "no-store"
   });
 
@@ -27,7 +24,9 @@ export async function GET() {
   const rawAccounts = await response.json();
   const accounts = normalizeAccounts(rawAccounts);
 
-  return NextResponse.json(accounts);
+  const result = NextResponse.json(accounts);
+  await attachSessionCookie(result, updatedSession, session);
+  return result;
 }
 
 export async function POST(request: Request) {
@@ -38,20 +37,18 @@ export async function POST(request: Request) {
   }
 
   const body = await request.json();
-  const response = await fetch(`${getApiBaseUrl()}/api/accounts`, {
+  const { response, session: updatedSession } = await fetchApiWithAutoRefresh(session, `${getApiBaseUrl()}/api/accounts`, {
     method: "POST",
-    headers: {
-      Authorization: `Bearer ${session.accessToken}`,
-      "Content-Type": "application/json"
-    },
     body: JSON.stringify(body)
   });
 
   const raw = await response.text();
-  return new NextResponse(raw, {
+  const result = new NextResponse(raw, {
     status: response.status,
     headers: {
       "content-type": response.headers.get("content-type") ?? "application/json"
     }
   });
+  await attachSessionCookie(result, updatedSession, session);
+  return result;
 }
