@@ -64,6 +64,10 @@ public class BillablePartiesController : ControllerBase
 
             return CreatedAtAction(nameof(GetById), new { id = created.BillablePartyId }, Map(created));
         }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { Message = ex.Message });
+        }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error creating billable party");
@@ -92,6 +96,10 @@ public class BillablePartiesController : ControllerBase
             }
 
             return Ok(Map(updated));
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { Message = ex.Message });
         }
         catch (Exception ex)
         {

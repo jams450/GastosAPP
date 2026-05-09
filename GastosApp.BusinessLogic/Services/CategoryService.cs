@@ -60,13 +60,6 @@ namespace GastosApp.BusinessLogic.Services
                 .ToListAsync();
         }
 
-        public async Task<Category> CreateAsync(Category category)
-        {
-            category.Active = true;
-            category.Created = DateTime.UtcNow;
-            return await _repository.Save<Category>(category);
-        }
-
         public async Task<Category> CreateWithTagsAsync(Category category, int userId, IEnumerable<string>? tags)
         {
             category.UserId = userId;
@@ -76,16 +69,6 @@ namespace GastosApp.BusinessLogic.Services
             await SyncTagsAsync(createdCategory, userId, tags);
 
             return (await GetByIdWithTagsAsync(createdCategory.CategoryId, userId)) ?? createdCategory;
-        }
-
-        public async Task<Category?> UpdateAsync(int id, Category category)
-        {
-            var existing = await _repository.GetByIdAsync<Category>(id);
-            if (existing == null) return null;
-
-            category.CategoryId = id;
-            category.Updated = DateTime.UtcNow;
-            return await _repository.SaveUpdate<Category>(id, category);
         }
 
         public async Task<Category?> UpdateWithTagsAsync(int id, Category category, int userId, IEnumerable<string>? tags)
@@ -110,12 +93,6 @@ namespace GastosApp.BusinessLogic.Services
             await SyncTagsAsync(existing, userId, tags);
 
             return await GetByIdWithTagsAsync(id, userId);
-        }
-
-        public async Task<bool> DeleteAsync(int id)
-        {
-            var result = await _repository.RemoveAsync<Category>(id);
-            return result > 0;
         }
 
         public async Task<bool> UpdateActiveStatusAsync(int id, bool active)

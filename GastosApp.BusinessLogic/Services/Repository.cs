@@ -267,6 +267,11 @@ namespace GastosApp.BusinessLogic.Services
             return await _context.Database.ExecuteSqlRawAsync(sql, parameters);
         }
 
+        public async Task<List<T>> SqlQueryAsync<T>(string sql, params object[] parameters) where T : class
+        {
+            return await _context.Database.SqlQueryRaw<T>(sql, parameters).ToListAsync();
+        }
+
         public async Task<int> SaveChangesAsync()
         {
             return await _context.SaveChangesAsync();

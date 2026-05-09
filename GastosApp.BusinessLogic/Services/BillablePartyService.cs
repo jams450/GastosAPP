@@ -6,6 +6,10 @@ namespace GastosApp.BusinessLogic.Services;
 
 public class BillablePartyService : IBillablePartyService
 {
+    private const string TypeSelf = "self";
+    private const string TypeSystemUser = "system_user";
+    private const string TypeExternalPerson = "external_person";
+
     private readonly IRepository _repository;
 
     public BillablePartyService(IRepository repository)
@@ -29,19 +33,27 @@ public class BillablePartyService : IBillablePartyService
 
     public async Task<BillableParty> CreateAsync(BillableParty billableParty, int ownerUserId)
     {
+        var displayName = NormalizeDisplayNameOrThrow(billableParty.DisplayName);
+
         billableParty.OwnerUserId = ownerUserId;
-        billableParty.DisplayName = (billableParty.DisplayName ?? string.Empty).Trim();
-        billableParty.NormalizedName = Normalize(billableParty.DisplayName);
+        billableParty.DisplayName = displayName;
+        billableParty.NormalizedName = Normalize(displayName);
         billableParty.Type = NormalizeType(billableParty.Type);
         billableParty.Active = true;
-        billableParty.Created = DateTime.UtcNow;
 
-        if (billableParty.Type == "self")
+        if (billableParty.Type == TypeSelf)
         {
             billableParty.LinkedUserId = ownerUserId;
         }
 
-        return await _repository.Save(billableParty);
+        try
+        {
+            return await _repository.Save(billableParty);
+        }
+        catch (DbUpdateException ex)
+        {
+            throw new ArgumentException("A billable party with same name already exists for this user", ex);
+        }
     }
 
     public async Task<BillableParty?> UpdateAsync(int id, BillableParty billableParty, int ownerUserId)
@@ -54,24 +66,37 @@ public class BillablePartyService : IBillablePartyService
             return null;
         }
 
-        if (!string.IsNullOrWhiteSpace(billableParty.Type))
+        var incomingType = string.IsNullOrWhiteSpace(billableParty.Type)
+            ? existing.Type
+            : NormalizeType(billableParty.Type);
+
+        if (existing.Type == TypeSelf && incomingType != TypeSelf)
         {
-            existing.Type = NormalizeType(billableParty.Type);
+            throw new ArgumentException("Self billable party type cannot be changed");
         }
 
-        if (!string.IsNullOrWhiteSpace(billableParty.DisplayName))
+        existing.Type = incomingType;
+
+        if (billableParty.DisplayName != null)
         {
-            existing.DisplayName = billableParty.DisplayName.Trim();
+            existing.DisplayName = NormalizeDisplayNameOrThrow(billableParty.DisplayName);
             existing.NormalizedName = Normalize(existing.DisplayName);
         }
 
         existing.Notes = billableParty.Notes;
-        existing.Active = billableParty.Active;
-        existing.LinkedUserId = existing.Type == "self"
+        existing.LinkedUserId = existing.Type == TypeSelf
             ? ownerUserId
             : billableParty.LinkedUserId;
-        existing.Updated = DateTime.UtcNow;
-        await _repository.SaveChangesAsync();
+
+        try
+        {
+            await _repository.SaveChangesAsync();
+        }
+        catch (DbUpdateException ex)
+        {
+            throw new ArgumentException("A billable party with same name already exists for this user", ex);
+        }
+
         return existing;
     }
 
@@ -85,13 +110,12 @@ public class BillablePartyService : IBillablePartyService
             return false;
         }
 
-        if (existing.Type == "self" && !active)
+        if (existing.Type == TypeSelf && !active)
         {
             return false;
         }
 
         existing.Active = active;
-        existing.Updated = DateTime.UtcNow;
         await _repository.SaveChangesAsync();
         return true;
     }
@@ -99,14 +123,13 @@ public class BillablePartyService : IBillablePartyService
     public async Task<BillableParty> EnsureSelfPartyAsync(int ownerUserId, string? preferredName = null)
     {
         var existing = await _repository.GetTrack<BillableParty>()
-            .FirstOrDefaultAsync(p => p.OwnerUserId == ownerUserId && p.Type == "self");
+            .FirstOrDefaultAsync(p => p.OwnerUserId == ownerUserId && p.Type == TypeSelf);
 
         if (existing != null)
         {
             if (!existing.Active)
             {
                 existing.Active = true;
-                existing.Updated = DateTime.UtcNow;
                 await _repository.SaveChangesAsync();
             }
 
@@ -118,14 +141,20 @@ public class BillablePartyService : IBillablePartyService
         {
             OwnerUserId = ownerUserId,
             LinkedUserId = ownerUserId,
-            Type = "self",
+            Type = TypeSelf,
             DisplayName = displayName,
             NormalizedName = Normalize(displayName),
-            Active = true,
-            Created = DateTime.UtcNow
+            Active = true
         };
 
-        return await _repository.Save(party);
+        try
+        {
+            return await _repository.Save(party);
+        }
+        catch (DbUpdateException ex)
+        {
+            throw new ArgumentException("A billable party with same name already exists for this user", ex);
+        }
     }
 
     private static string NormalizeType(string? type)
@@ -133,10 +162,21 @@ public class BillablePartyService : IBillablePartyService
         var normalized = (type ?? string.Empty).Trim().ToLowerInvariant();
         return normalized switch
         {
-            "self" => "self",
-            "system_user" => "system_user",
-            _ => "external_person"
+            TypeSelf => TypeSelf,
+            TypeSystemUser => TypeSystemUser,
+            _ => TypeExternalPerson
         };
+    }
+
+    private static string NormalizeDisplayNameOrThrow(string? displayName)
+    {
+        var normalized = (displayName ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(normalized))
+        {
+            throw new ArgumentException("DisplayName is required");
+        }
+
+        return normalized;
     }
 
     private static string Normalize(string value)

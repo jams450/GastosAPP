@@ -30,6 +30,7 @@ namespace GastosApp.BusinessLogic.Interfaces
         (List<T> ToAdd, List<T> ToRemove) DiffList<T, TKey>(IEnumerable<T> original, IEnumerable<T> updated, Func<T, TKey> keySelector) where TKey : notnull;
 
         Task<int> ExecuteSqlRawAsync(string sql, params object[] parameters);
+        Task<List<T>> SqlQueryAsync<T>(string sql, params object[] parameters) where T : class;
         Task<int> SaveChangesAsync();
     }
 }

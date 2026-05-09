@@ -83,3 +83,9 @@ pnpm-debug.log*
 **/.env.test.local
 **/.env.production.local
 **/.env
+gastos_dev.dump
+skills-lock.json
+.agents/skills/frontend-design/LICENSE.txt
+.agents/skills/frontend-design/SKILL.md
+GastosApp.API/appsettings.json
+Templates/1777396645352.pdf
