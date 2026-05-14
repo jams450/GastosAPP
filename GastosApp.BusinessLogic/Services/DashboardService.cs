@@ -21,6 +21,8 @@ namespace GastosApp.BusinessLogic.Services
             var monthStart = new DateTime(year, monthNumber, 1, 0, 0, 0, DateTimeKind.Utc);
             var nextMonthStart = monthStart.AddMonths(1);
             var previousMonthDate = monthStart.AddMonths(-1);
+            var daysInMonth = DateTime.DaysInMonth(year, monthNumber);
+            var previousDaysInMonth = DateTime.DaysInMonth(previousMonthDate.Year, previousMonthDate.Month);
             var sql = @"
                     SELECT *
                     FROM fn_dashboard_credit_overview(
@@ -29,8 +31,10 @@ namespace GastosApp.BusinessLogic.Services
                         @nextMonthStart,
                         @yearValue,
                         @monthValue,
+                        @daysInMonth,
                         @previousYear,
-                        @previousMonth
+                        @previousMonth,
+                        @previousDaysInMonth
                     )
                     ORDER BY ""Name"";";
 
@@ -41,8 +45,10 @@ namespace GastosApp.BusinessLogic.Services
                 new NpgsqlParameter("nextMonthStart", nextMonthStart),
                 new NpgsqlParameter("yearValue", year),
                 new NpgsqlParameter("monthValue", monthNumber),
+                new NpgsqlParameter("daysInMonth", daysInMonth),
                 new NpgsqlParameter("previousYear", previousMonthDate.Year),
-                new NpgsqlParameter("previousMonth", previousMonthDate.Month));
+                new NpgsqlParameter("previousMonth", previousMonthDate.Month),
+                new NpgsqlParameter("previousDaysInMonth", previousDaysInMonth));
 
             var accountOverviews = accountRows.Adapt<List<DashboardAccountOverview>>();
 

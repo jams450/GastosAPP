@@ -61,6 +61,10 @@ public class MerchantsController : ControllerBase
             var created = await _merchantService.CreateAsync(merchant, userId);
             return CreatedAtAction(nameof(GetById), new { id = created.MerchantId }, Map(created));
         }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { Message = ex.Message });
+        }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error creating merchant");
@@ -87,6 +91,10 @@ public class MerchantsController : ControllerBase
             }
 
             return Ok(Map(updated));
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { Message = ex.Message });
         }
         catch (Exception ex)
         {
