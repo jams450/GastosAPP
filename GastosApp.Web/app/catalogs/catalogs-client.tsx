@@ -10,6 +10,7 @@ import { CategoriesSection } from "./categories/categories-section";
 import { MerchantsSection } from "./merchants/merchants-section";
 import { SubcategoriesSection } from "./subcategories/subcategories-section";
 import { TagsSection } from "./tags/tags-section";
+import { BillablePartiesSection } from "./billable-parties/billable-parties-section";
 
 type Props = {
   username: string;
@@ -30,10 +31,11 @@ export function CatalogsClient({ username }: Props) {
   const subcategories = catalogs?.subcategories ?? [];
   const merchants = catalogs?.merchants ?? [];
   const tags = catalogs?.tags ?? [];
+  const billableParties = catalogs?.billableParties ?? [];
 
   const totalCatalogItems = useMemo(
-    () => categories.length + subcategories.length + merchants.length + tags.length,
-    [categories.length, merchants.length, subcategories.length, tags.length]
+    () => categories.length + subcategories.length + merchants.length + tags.length + billableParties.length,
+    [billableParties.length, categories.length, merchants.length, subcategories.length, tags.length]
   );
 
   async function loadCatalogs() {
@@ -79,7 +81,7 @@ export function CatalogsClient({ username }: Props) {
                   {totalCatalogItems} elementos
                 </span>
                 <span className="rounded-full border border-slate-300 bg-slate-100 px-2 py-0.5 text-[10px] text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
-                  4 secciones
+                  5 secciones
                 </span>
               </div>
             </div>
@@ -129,6 +131,15 @@ export function CatalogsClient({ username }: Props) {
               tags={tags}
               expanded={expandedSection === "tags"}
               onToggle={() => toggleSection("tags")}
+              onCatalogChanged={loadCatalogs}
+              onError={setError}
+              onSuccess={setGlobalSuccess}
+            />
+
+            <BillablePartiesSection
+              billableParties={billableParties}
+              expanded={expandedSection === "billableParties"}
+              onToggle={() => toggleSection("billableParties")}
               onCatalogChanged={loadCatalogs}
               onError={setError}
               onSuccess={setGlobalSuccess}

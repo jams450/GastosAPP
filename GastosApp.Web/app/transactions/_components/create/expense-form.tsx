@@ -3,17 +3,21 @@ import type { FormEvent } from "react";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Plus, Trash2 } from "lucide-react";
 import { formatCurrency } from "@/lib/format/currency";
 import type { Account } from "@/lib/contracts/accounts";
 import type { Category } from "@/lib/contracts/categories";
 import type { Merchant } from "@/lib/contracts/merchants";
 import type { Subcategory } from "@/lib/contracts/subcategories";
 import type { Tag } from "@/lib/contracts/tags";
+import type { BillableParty } from "@/lib/contracts/billable-parties";
+import type { ExpenseAllocationFormState } from "../../_lib/transactions-types";
 
 type Props = {
   accounts: Account[];
   merchants: Merchant[];
   tags: Tag[];
+  billableParties: BillableParty[];
   accountId: number | null;
   onAccountIdChange: (value: number | null) => void;
   categoryId: number | null;
@@ -34,6 +38,8 @@ type Props = {
   onMsiMonthsChange: (value: number) => void;
   openingCreditCharge: boolean;
   onOpeningCreditChargeChange: (value: boolean) => void;
+  expenseAllocations: ExpenseAllocationFormState[];
+  onExpenseAllocationsChange: (value: ExpenseAllocationFormState[]) => void;
   description: string;
   onDescriptionChange: (value: string) => void;
   submitError: string | null;
@@ -47,6 +53,7 @@ export function ExpenseForm({
   accounts,
   merchants,
   tags,
+  billableParties,
   accountId,
   onAccountIdChange,
   categoryId,
@@ -67,6 +74,8 @@ export function ExpenseForm({
   onMsiMonthsChange,
   openingCreditCharge,
   onOpeningCreditChargeChange,
+  expenseAllocations,
+  onExpenseAllocationsChange,
   description,
   onDescriptionChange,
   submitError,
@@ -75,7 +84,7 @@ export function ExpenseForm({
   onSubmit,
   parseSelectedNumber
 }: Props) {
-  const [showOptional, setShowOptional] = useState(false);
+  const [showOptional, setShowOptional] = useState(true);
 
   const selectedAccount = useMemo(
     () => accounts.find((account) => account.accountId === accountId) ?? null,
@@ -90,6 +99,16 @@ export function ExpenseForm({
   const amountNumber = Number(amount);
   const amountIsValid = Number.isFinite(amountNumber) && amountNumber > 0;
   const isSubmitEnabled = Boolean(accountId && categoryId && transactionDate && description.trim() && amountIsValid);
+  const allocationType = expenseAllocations[0]?.type ?? "percentage";
+  const assignedTotal = expenseAllocations.reduce((acc, row) => {
+    const value = Number(row.value);
+    if (!row.billablePartyId || !Number.isFinite(value) || value <= 0) {
+      return acc;
+    }
+    return acc + value;
+  }, 0);
+  const allocationTarget = allocationType === "percentage" ? 100 : (amountIsValid ? amountNumber : 0);
+  const remainingAllocation = Math.max(0, allocationTarget - assignedTotal);
 
   const descriptionPlaceholder = selectedCategoryName.includes("super")
     ? "Ej. Compra semanal supermercado"
@@ -139,44 +158,46 @@ export function ExpenseForm({
         <p className="text-xs text-slate-600 dark:text-slate-400">Completa obligatorios primero. Detalles opcionales después.</p>
       </header>
 
+      <div className="grid gap-4 lg:grid-cols-2 lg:items-start">
       <section className="space-y-4 rounded-2xl border border-rose-200/70 bg-rose-50/40 p-4 dark:border-rose-900/60 dark:bg-rose-950/30">
         <p className="text-xs font-semibold uppercase tracking-wide text-rose-700 dark:text-rose-300">Datos obligatorios</p>
 
         <label className="grid gap-1.5 text-sm font-medium text-slate-700 dark:text-slate-300">
-          Cuenta *
-          <select
-            value={accountId ?? ""}
-            onChange={(event) => onAccountIdChange(parseSelectedNumber(event.target.value))}
-            className="h-11 rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none focus:border-rose-500 focus:ring-2 focus:ring-rose-200 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
-            required
-          >
-            <option value="">Selecciona una cuenta</option>
-            {accounts.map((account) => (
-              <option key={account.accountId} value={account.accountId}>
-                {account.name} · {formatCurrency(account.currentBalance)}
-              </option>
-            ))}
-          </select>
-          <span className="text-xs text-slate-500 dark:text-slate-400">
-            {selectedAccount ? `Saldo actual: ${formatCurrency(selectedAccount.currentBalance)}` : "Elige cuenta para ver saldo"}
-          </span>
-        </label>
+          <div className="grid gap-4 md:grid-cols-2">
+            <label className="grid gap-1.5 text-sm font-medium text-slate-700 dark:text-slate-300">
+              Cuenta *
+              <select
+                value={accountId ?? ""}
+                onChange={(event) => onAccountIdChange(parseSelectedNumber(event.target.value))}
+                className="h-11 rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none focus:border-rose-500 focus:ring-2 focus:ring-rose-200 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                required
+              >
+                <option value="">Selecciona una cuenta</option>
+                {accounts.map((account) => (
+                  <option key={account.accountId} value={account.accountId}>
+                    {account.name} · {formatCurrency(account.currentBalance)}
+                  </option>
+                ))}
+              </select>
+            </label>
 
-        <label className="grid gap-1.5 text-sm font-medium text-slate-700 dark:text-slate-300">
-          Categoría *
-          <select
-            value={categoryId ?? ""}
-            onChange={(event) => onCategoryIdChange(parseSelectedNumber(event.target.value))}
-            className="h-11 rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none focus:border-rose-500 focus:ring-2 focus:ring-rose-200 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
-            required
-          >
-            <option value="">Selecciona una categoría</option>
-            {categoriesForKind.map((category) => (
-              <option key={category.categoryId} value={category.categoryId}>
-                {category.name}
-              </option>
-            ))}
-          </select>
+            <label className="grid gap-1.5 text-sm font-medium text-slate-700 dark:text-slate-300">
+              Categoría *
+              <select
+                value={categoryId ?? ""}
+                onChange={(event) => onCategoryIdChange(parseSelectedNumber(event.target.value))}
+                className="h-11 rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none focus:border-rose-500 focus:ring-2 focus:ring-rose-200 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                required
+              >
+                <option value="">Selecciona una categoría</option>
+                {categoriesForKind.map((category) => (
+                  <option key={category.categoryId} value={category.categoryId}>
+                    {category.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
         </label>
 
         <div className="grid gap-4 md:grid-cols-2">
@@ -208,15 +229,26 @@ export function ExpenseForm({
               required
             />
             <div className="flex flex-wrap gap-2 px-1">
-              <Button type="button" variant="ghost" className="h-7 rounded-lg px-2 text-xs" onClick={setNowDateTime}>
+              <Button type="button" variant="secondary" className="h-8 rounded-lg border-slate-300 px-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800" onClick={setNowDateTime}>
                 Ahora
               </Button>
-              <Button type="button" variant="ghost" className="h-7 rounded-lg px-2 text-xs" onClick={setYesterdayNight}>
+              <Button type="button" variant="secondary" className="h-8 rounded-lg border-slate-300 px-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800" onClick={setYesterdayNight}>
                 Ayer 21:00
               </Button>
             </div>
           </div>
         </div>
+
+        <Input
+          label="Descripción *"
+          type="text"
+          value={description}
+          onChange={(event) => onDescriptionChange(event.target.value)}
+          placeholder={descriptionPlaceholder}
+          maxLength={120}
+          required
+        />
+        <p className="-mt-3 px-1 text-right text-xs text-slate-500 dark:text-slate-400">{description.trim().length}/120</p>
 
         {selectedAccount?.isCredit ? (
           <div className="space-y-3 rounded-xl border border-rose-300/60 bg-white/80 p-3 dark:border-rose-800/60 dark:bg-slate-950/60">
@@ -333,20 +365,94 @@ export function ExpenseForm({
                 ))}
               </div>
             ) : null}
+
           </div>
         ) : null}
       </section>
+      </div>
 
-      <Input
-        label="Descripción *"
-        type="text"
-        value={description}
-        onChange={(event) => onDescriptionChange(event.target.value)}
-        placeholder={descriptionPlaceholder}
-        maxLength={120}
-        required
-      />
-      <p className="-mt-3 px-1 text-right text-xs text-slate-500 dark:text-slate-400">{description.trim().length}/120</p>
+      <section className="space-y-2 rounded-2xl border border-sky-200 bg-sky-50 p-4 dark:border-sky-900/70 dark:bg-sky-950/20">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="text-xs font-semibold uppercase tracking-wide text-sky-700 dark:text-sky-300">Asignación cobrable</p>
+          <label className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-300">
+            Tipo general
+            <select
+              value={allocationType}
+              onChange={(event) => {
+                const nextType = event.target.value === "amount" ? "amount" : "percentage";
+                onExpenseAllocationsChange(expenseAllocations.map((row) => ({ ...row, type: nextType })));
+              }}
+              className="h-8 rounded-lg border border-slate-300 bg-white px-2 text-xs dark:border-slate-700 dark:bg-slate-900"
+            >
+              <option value="percentage">Porcentaje</option>
+              <option value="amount">Monto</option>
+            </select>
+          </label>
+          <Button
+            type="button"
+            variant="secondary"
+            className="h-8 rounded-lg border-sky-300 px-2.5 text-xs text-sky-700 hover:bg-sky-100 dark:border-sky-800 dark:text-sky-200"
+            onClick={() => onExpenseAllocationsChange([...expenseAllocations, { rowId: crypto.randomUUID(), billablePartyId: null, type: allocationType, value: "" }])}
+          >
+            <Plus className="mr-1 h-3.5 w-3.5" aria-hidden="true" />
+            Agregar responsable
+          </Button>
+        </div>
+        <p className="text-xs text-slate-600 dark:text-slate-400">
+          Tipo general: <strong>{allocationType === "percentage" ? "Porcentaje" : "Monto"}</strong> · Asignado: <strong>{assignedTotal.toFixed(2)}</strong> · Restante: <strong>{remainingAllocation.toFixed(2)} {allocationType === "percentage" ? "%" : "MXN"}</strong>
+        </p>
+
+        <div className="space-y-2">
+          {expenseAllocations.map((allocation, index) => (
+            <div key={allocation.rowId} className="grid gap-2 md:grid-cols-[1fr_180px_auto]">
+              <label className="grid gap-1 text-xs font-medium text-slate-700 dark:text-slate-300">
+                Responsable
+                <select
+                  value={allocation.billablePartyId ?? ""}
+                  onChange={(event) => {
+                    const next = [...expenseAllocations];
+                    next[index] = { ...allocation, billablePartyId: parseSelectedNumber(event.target.value) };
+                    onExpenseAllocationsChange(next);
+                  }}
+                  className="h-10 rounded-lg border border-slate-300 bg-white px-2 text-sm dark:border-slate-700 dark:bg-slate-900"
+                >
+                  <option value="">Sin asignación</option>
+                  {billableParties.map((party) => (
+                    <option key={party.billablePartyId} value={party.billablePartyId}>{party.displayName}</option>
+                  ))}
+                </select>
+              </label>
+
+              <Input
+                label={allocationType === "percentage" ? "Valor (%)" : "Valor ($)"}
+                type="number"
+                step="0.01"
+                min="0.01"
+                value={allocation.value}
+                onChange={(event) => {
+                  const next = [...expenseAllocations];
+                  next[index] = { ...allocation, value: event.target.value };
+                  onExpenseAllocationsChange(next);
+                }}
+                disabled={!allocation.billablePartyId}
+              />
+
+              <div className="flex items-end pb-1">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="h-10 rounded-lg border border-rose-200 px-2 text-xs text-rose-700 hover:bg-rose-50 dark:border-rose-800 dark:text-rose-300 dark:hover:bg-rose-950/30"
+                  onClick={() => onExpenseAllocationsChange(expenseAllocations.filter((item) => item.rowId !== allocation.rowId))}
+                  disabled={expenseAllocations.length <= 1}
+                >
+                  <Trash2 className="mr-1 h-3.5 w-3.5" aria-hidden="true" />
+                  Eliminar
+                </Button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
 
       {submitError ? <Alert variant="danger">{submitError}</Alert> : null}
       {successMessage ? <Alert variant="info">{successMessage}</Alert> : null}

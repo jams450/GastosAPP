@@ -1,6 +1,7 @@
 import type { Account } from "@/lib/contracts/accounts";
 import type { Category, CategoryType } from "@/lib/contracts/categories";
 import type { Merchant } from "@/lib/contracts/merchants";
+import type { BillableParty } from "@/lib/contracts/billable-parties";
 import type { Subcategory } from "@/lib/contracts/subcategories";
 import type { Tag } from "@/lib/contracts/tags";
 
@@ -13,6 +14,7 @@ export type CatalogsResponse = {
   subcategories: Subcategory[];
   merchants: Merchant[];
   tags: Tag[];
+  billableParties: BillableParty[];
   categoriesByType: {
     income: Category[];
     expense: Category[];
@@ -36,6 +38,16 @@ export type TransactionHistoryItem = {
   creditMonths: number | null;
   creditRemainingAmount: number | null;
   creditStatus: string | null;
+  allocations: TransactionAllocationItem[];
+};
+
+export type TransactionAllocationItem = {
+  transactionAllocationId: number;
+  billablePartyId: number;
+  billablePartyName: string;
+  allocationMode: "percentage" | "amount";
+  allocationValue: number;
+  calculatedAmount: number;
 };
 
 export type TransactionListResponse = {
@@ -56,6 +68,14 @@ export type EditFormState = {
   description: string;
   transactionDate: string;
   tagsText: string;
+  allocations: ExpenseAllocationFormState[];
+};
+
+export type ExpenseAllocationFormState = {
+  rowId: string;
+  billablePartyId: number | null;
+  type: "percentage" | "amount";
+  value: string;
 };
 
 export type TransferGroupItem = {

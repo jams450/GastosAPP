@@ -67,12 +67,7 @@ export function IncomeForm({
   onSubmit,
   parseSelectedNumber
 }: Props) {
-  const [showOptional, setShowOptional] = useState(false);
-
-  const selectedAccount = useMemo(
-    () => accounts.find((account) => account.accountId === accountId) ?? null,
-    [accounts, accountId]
-  );
+  const [showOptional, setShowOptional] = useState(true);
 
   const selectedCategoryName = useMemo(
     () => categoriesForKind.find((category) => category.categoryId === categoryId)?.name?.toLowerCase() ?? "",
@@ -131,45 +126,45 @@ export function IncomeForm({
         <p className="text-xs text-slate-600 dark:text-slate-400">Completa obligatorios primero. Detalles opcionales después.</p>
       </header>
 
+      <div className="grid gap-4 lg:grid-cols-2 lg:items-start">
       <section className="space-y-4 rounded-2xl border border-emerald-200/70 bg-emerald-50/40 p-4 dark:border-emerald-900/60 dark:bg-emerald-950/30">
         <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">Datos obligatorios</p>
 
-        <label className="grid gap-1.5 text-sm font-medium text-slate-700 dark:text-slate-300">
-          Cuenta *
-          <select
-            value={accountId ?? ""}
-            onChange={(event) => onAccountIdChange(parseSelectedNumber(event.target.value))}
-            className="h-11 rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
-            required
-          >
-            <option value="">Selecciona una cuenta</option>
-            {accounts.map((account) => (
-              <option key={account.accountId} value={account.accountId}>
-                {account.name} · {formatCurrency(account.currentBalance)}
-              </option>
-            ))}
-          </select>
-          <span className="text-xs text-slate-500 dark:text-slate-400">
-            {selectedAccount ? `Saldo actual: ${formatCurrency(selectedAccount.currentBalance)}` : "Elige cuenta para ver saldo"}
-          </span>
-        </label>
+        <div className="grid gap-4 md:grid-cols-2">
+          <label className="grid gap-1.5 text-sm font-medium text-slate-700 dark:text-slate-300">
+            Cuenta *
+            <select
+              value={accountId ?? ""}
+              onChange={(event) => onAccountIdChange(parseSelectedNumber(event.target.value))}
+              className="h-11 rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+              required
+            >
+              <option value="">Selecciona una cuenta</option>
+              {accounts.map((account) => (
+                <option key={account.accountId} value={account.accountId}>
+                  {account.name} · {formatCurrency(account.currentBalance)}
+                </option>
+              ))}
+            </select>
+          </label>
 
-        <label className="grid gap-1.5 text-sm font-medium text-slate-700 dark:text-slate-300">
-          Categoría *
-          <select
-            value={categoryId ?? ""}
-            onChange={(event) => onCategoryIdChange(parseSelectedNumber(event.target.value))}
-            className="h-11 rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
-            required
-          >
-            <option value="">Selecciona una categoría</option>
-            {categoriesForKind.map((category) => (
-              <option key={category.categoryId} value={category.categoryId}>
-                {category.name}
-              </option>
-            ))}
-          </select>
-        </label>
+          <label className="grid gap-1.5 text-sm font-medium text-slate-700 dark:text-slate-300">
+            Categoría *
+            <select
+              value={categoryId ?? ""}
+              onChange={(event) => onCategoryIdChange(parseSelectedNumber(event.target.value))}
+              className="h-11 rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+              required
+            >
+              <option value="">Selecciona una categoría</option>
+              {categoriesForKind.map((category) => (
+                <option key={category.categoryId} value={category.categoryId}>
+                  {category.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
 
         <div className="grid gap-4 md:grid-cols-2">
           <div className="space-y-1">
@@ -200,15 +195,26 @@ export function IncomeForm({
               required
             />
             <div className="flex flex-wrap gap-2 px-1">
-              <Button type="button" variant="ghost" className="h-7 rounded-lg px-2 text-xs" onClick={setNowDateTime}>
+              <Button type="button" variant="secondary" className="h-8 rounded-lg border-slate-300 px-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800" onClick={setNowDateTime}>
                 Ahora
               </Button>
-              <Button type="button" variant="ghost" className="h-7 rounded-lg px-2 text-xs" onClick={setYesterdayNight}>
+              <Button type="button" variant="secondary" className="h-8 rounded-lg border-slate-300 px-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800" onClick={setYesterdayNight}>
                 Ayer 21:00
               </Button>
             </div>
           </div>
         </div>
+
+        <Input
+          label="Descripción *"
+          type="text"
+          value={description}
+          onChange={(event) => onDescriptionChange(event.target.value)}
+          placeholder={descriptionPlaceholder}
+          maxLength={120}
+          required
+        />
+        <p className="-mt-3 px-1 text-right text-xs text-slate-500 dark:text-slate-400">{description.trim().length}/120</p>
       </section>
 
       <section className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-950">
@@ -291,17 +297,7 @@ export function IncomeForm({
           </div>
         ) : null}
       </section>
-
-      <Input
-        label="Descripción *"
-        type="text"
-        value={description}
-        onChange={(event) => onDescriptionChange(event.target.value)}
-        placeholder={descriptionPlaceholder}
-        maxLength={120}
-        required
-      />
-      <p className="-mt-3 px-1 text-right text-xs text-slate-500 dark:text-slate-400">{description.trim().length}/120</p>
+      </div>
 
       {submitError ? <Alert variant="danger">{submitError}</Alert> : null}
       {successMessage ? <Alert variant="info">{successMessage}</Alert> : null}

@@ -6,6 +6,7 @@ import { normalizeCategories } from "@/lib/contracts/categories";
 import { normalizeSubcategories } from "@/lib/contracts/subcategories";
 import { normalizeMerchants } from "@/lib/contracts/merchants";
 import { normalizeTags } from "@/lib/contracts/tags";
+import { normalizeBillableParties } from "@/lib/contracts/billable-parties";
 
 export async function GET() {
   const session = await getServerSession();
@@ -18,7 +19,7 @@ export async function GET() {
     "Content-Type": "application/json"
   };
 
-  const [accountsResponse, categoriesResponse, subcategoriesResponse, merchantsResponse, tagsResponse] = await Promise.all([
+  const [accountsResponse, categoriesResponse, subcategoriesResponse, merchantsResponse, tagsResponse, billablePartiesResponse] = await Promise.all([
     fetch(`${getApiBaseUrl()}/api/accounts/active`, {
       method: "GET",
       headers: baseHeaders,
@@ -43,13 +44,18 @@ export async function GET() {
       method: "GET",
       headers: baseHeaders,
       cache: "no-store"
+    }),
+    fetch(`${getApiBaseUrl()}/api/BillableParties?onlyActive=true`, {
+      method: "GET",
+      headers: baseHeaders,
+      cache: "no-store"
     })
   ]);
 
-  if (!accountsResponse.ok || !categoriesResponse.ok || !subcategoriesResponse.ok || !merchantsResponse.ok || !tagsResponse.ok) {
-    const status = [accountsResponse.status, categoriesResponse.status, subcategoriesResponse.status, merchantsResponse.status, tagsResponse.status].includes(401)
+  if (!accountsResponse.ok || !categoriesResponse.ok || !subcategoriesResponse.ok || !merchantsResponse.ok || !tagsResponse.ok || !billablePartiesResponse.ok) {
+    const status = [accountsResponse.status, categoriesResponse.status, subcategoriesResponse.status, merchantsResponse.status, tagsResponse.status, billablePartiesResponse.status].includes(401)
       ? 401
-      : Math.max(accountsResponse.status, categoriesResponse.status, subcategoriesResponse.status, merchantsResponse.status, tagsResponse.status);
+      : Math.max(accountsResponse.status, categoriesResponse.status, subcategoriesResponse.status, merchantsResponse.status, tagsResponse.status, billablePartiesResponse.status);
 
     const message = status === 401 ? "Session expired" : "Failed to fetch catalogs";
     return NextResponse.json({ message }, { status });
@@ -60,12 +66,14 @@ export async function GET() {
   const rawSubcategories = await subcategoriesResponse.json();
   const rawMerchants = await merchantsResponse.json();
   const rawTags = await tagsResponse.json();
+  const rawBillableParties = await billablePartiesResponse.json();
 
   const accounts = normalizeAccounts(rawAccounts);
   const categories = normalizeCategories(rawCategories);
   const subcategories = normalizeSubcategories(rawSubcategories);
   const merchants = normalizeMerchants(rawMerchants);
   const tags = normalizeTags(rawTags);
+  const billableParties = normalizeBillableParties(rawBillableParties);
 
   return NextResponse.json({
     accounts,
@@ -73,6 +81,7 @@ export async function GET() {
     subcategories,
     merchants,
     tags,
+    billableParties,
     categoriesByType: {
       income: categories.filter((category) => category.type === "income"),
       expense: categories.filter((category) => category.type === "expense"),

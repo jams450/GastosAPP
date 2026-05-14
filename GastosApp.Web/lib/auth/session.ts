@@ -21,6 +21,21 @@ export type AuthSession = {
   user: SessionUser;
 };
 
+function toTime(value: string | undefined): number {
+  if (!value) {
+    return 0;
+  }
+  const timestamp = new Date(value).getTime();
+  return Number.isFinite(timestamp) ? timestamp : 0;
+}
+
+export function isSessionUsable(session: AuthSession): boolean {
+  const now = Date.now();
+  const accessValid = toTime(session.expiresAt) > now;
+  const refreshValid = toTime(session.refreshExpiresAt) > now;
+  return accessValid || refreshValid;
+}
+
 function getSessionSecret(): Uint8Array {
   const secret = process.env.SESSION_SECRET;
 
@@ -102,7 +117,7 @@ export async function getServerSession(): Promise<AuthSession | null> {
     return null;
   }
 
-  if (new Date(session.expiresAt).getTime() <= Date.now()) {
+  if (!isSessionUsable(session)) {
     return null;
   }
 

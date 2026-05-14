@@ -21,6 +21,14 @@ type TransactionListItem = {
   creditMonths: number | null;
   creditRemainingAmount: number | null;
   creditStatus: string | null;
+  allocations: {
+    transactionAllocationId: number;
+    billablePartyId: number;
+    billablePartyName: string;
+    allocationMode: "percentage" | "amount";
+    allocationValue: number;
+    calculatedAmount: number;
+  }[];
 };
 
 type CreditChargeSummary = {
@@ -75,6 +83,34 @@ function normalizeTransaction(input: unknown): TransactionListItem | null {
         .filter(Boolean)
     : [];
 
+  const rawAllocations = input.allocations ?? input.Allocations;
+  const allocations = Array.isArray(rawAllocations)
+    ? rawAllocations
+        .filter((row): row is UnknownRecord => isRecord(row))
+        .map((row) => {
+          const transactionAllocationId = toNumber(row.transactionAllocationId ?? row.TransactionAllocationId);
+          const billablePartyId = toNumber(row.billablePartyId ?? row.BillablePartyId);
+          const allocationValue = toNumber(row.allocationValue ?? row.AllocationValue);
+          const calculatedAmount = toNumber(row.calculatedAmount ?? row.CalculatedAmount);
+          const allocationModeRaw = row.allocationMode ?? row.AllocationMode;
+          const allocationMode: "percentage" | "amount" | null =
+            allocationModeRaw === "amount" ? "amount" : allocationModeRaw === "percentage" ? "percentage" : null;
+          if (transactionAllocationId === null || billablePartyId === null || allocationValue === null || calculatedAmount === null || !allocationMode) {
+            return null;
+          }
+
+          return {
+            transactionAllocationId,
+            billablePartyId,
+            billablePartyName: typeof (row.billablePartyName ?? row.BillablePartyName) === "string" ? String(row.billablePartyName ?? row.BillablePartyName) : "Responsable",
+            allocationMode,
+            allocationValue,
+            calculatedAmount
+          };
+        })
+        .filter((row): row is NonNullable<typeof row> => row !== null)
+    : [];
+
   return {
     transactionId,
     accountId,
@@ -89,7 +125,8 @@ function normalizeTransaction(input: unknown): TransactionListItem | null {
     tags: normalizedTags,
     creditMonths: null,
     creditRemainingAmount: null,
-    creditStatus: null
+    creditStatus: null,
+    allocations
   };
 }
 
@@ -134,16 +171,21 @@ function currentMonth(timezone = TRANSACTIONS_TIMEZONE) {
   return `${year}-${monthFallback}`;
 }
 
-function isTransactionInMonth(dateIso: string, month: string, timezone = TRANSACTIONS_TIMEZONE) {
-  return getYearMonthInTimezone(dateIso, timezone) === month;
+function getMonthRangeUtc(month: string): { startIso: string; endIso: string } {
+  const [yearText, monthText] = month.split("-");
+  const year = Number(yearText);
+  const monthNumber = Number(monthText);
+  const startUtc = new Date(Date.UTC(year, monthNumber - 1, 1, 0, 0, 0, 0));
+  const endUtc = new Date(Date.UTC(year, monthNumber, 0, 23, 59, 59, 999));
+  return { startIso: startUtc.toISOString(), endIso: endUtc.toISOString() };
 }
 
 export async function GET(request: Request) {
   const session = await getServerSession();
-  let authSession = session;
   if (!session) {
     return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
   }
+  let authSession = session;
 
   const { searchParams } = new URL(request.url);
   const month = (searchParams.get("month") ?? currentMonth()).trim();
@@ -184,32 +226,29 @@ export async function GET(request: Request) {
         .filter((value): value is { accountId: number; name: string; isCredit: boolean } => value !== null)
     : [];
 
-  const transactionResponses = await Promise.all(
-    accounts.map((account) =>
-      fetch(
-        `${getApiBaseUrl()}/api/transactions/account/${account.accountId}`,
-        {
-          method: "GET",
-          headers: {
-            Authorization: `Bearer ${authSession.accessToken}`,
-            "Content-Type": "application/json"
-          },
-          cache: "no-store"
-        }
-      )
-    )
-  );
+  const { startIso, endIso } = getMonthRangeUtc(month);
+  const transactionsByAccount: unknown[] = [];
 
-  const failed = transactionResponses.find((response) => !response.ok);
-  if (failed) {
-    const body = (await failed.json().catch(() => null)) as { message?: string; Message?: string } | null;
-    return NextResponse.json(
-      { message: body?.message ?? body?.Message ?? "Failed to load transactions" },
-      { status: failed.status }
+  for (const account of accounts) {
+    const call = await fetchApiWithAutoRefresh(
+      authSession,
+      `${getApiBaseUrl()}/api/transactions/account/${account.accountId}/date-range?startDate=${encodeURIComponent(startIso)}&endDate=${encodeURIComponent(endIso)}`,
+      {
+        method: "GET",
+        cache: "no-store"
+      }
     );
-  }
+    authSession = call.session;
+    if (!call.response.ok) {
+      const body = (await call.response.json().catch(() => null)) as { message?: string; Message?: string } | null;
+      return NextResponse.json(
+        { message: body?.message ?? body?.Message ?? "Failed to load transactions" },
+        { status: call.response.status }
+      );
+    }
 
-  const transactionsByAccount = await Promise.all(transactionResponses.map((response) => response.json().catch(() => [])));
+    transactionsByAccount.push(await call.response.json().catch(() => []));
+  }
 
   const accountNameById = new Map(accounts.map((account) => [account.accountId, account.name]));
 
@@ -217,7 +256,6 @@ export async function GET(request: Request) {
     .flatMap((items) => (Array.isArray(items) ? items : []))
     .map((item) => normalizeTransaction(item))
     .filter((item): item is TransactionListItem => item !== null)
-    .filter((item) => isTransactionInMonth(item.transactionDate, month))
     .map((item) => ({
       ...item,
       accountName: accountNameById.get(item.accountId) ?? "Cuenta"

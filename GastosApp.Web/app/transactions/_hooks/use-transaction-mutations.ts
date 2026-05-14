@@ -1,6 +1,7 @@
 import { useCallback } from "react";
 import type { FormEvent } from "react";
 import type { CreditInstallmentAllocation } from "@/lib/contracts/transactions";
+import type { ExpenseAllocationFormState } from "../_lib/transactions-types";
 import { currentLocalDateTimeInput, parseTagsInput, toUtcIsoDateTime } from "../_lib/transactions-utils";
 import type { EditFormState, TransactionHistoryItem, TransactionKind, TransferEditFormState, TransferGroupItem } from "../_lib/transactions-types";
 
@@ -18,6 +19,7 @@ type CreateState = {
   transactionDate: string;
   msiMonths: number;
   openingCreditCharge: boolean;
+  expenseAllocations: ExpenseAllocationFormState[];
 };
 
 type Params = {
@@ -27,6 +29,7 @@ type Params = {
   allocationMode: "byAmount" | "bySelection";
   isCreditPaymentFlow: boolean;
   reloadOpenInstallments: () => Promise<void>;
+  refreshCatalogs: () => Promise<void>;
   loadHistory: () => Promise<void>;
   setSubmitLoading: (v: boolean) => void;
   setSubmitError: (v: string | null) => void;
@@ -39,6 +42,8 @@ type Params = {
   setTransactionDate: (v: string) => void;
   setMsiMonths: (v: number) => void;
   setOpeningCreditCharge: (v: boolean) => void;
+  setExpenseAllocations: (v: ExpenseAllocationFormState[]) => void;
+  defaultSelfBillablePartyId: number | null;
   clearAllocations: () => void;
   editForm: EditFormState | null;
   setEditSaving: (v: boolean) => void;
@@ -59,6 +64,7 @@ export function useTransactionMutations(params: Params) {
     allocationMode,
     isCreditPaymentFlow,
     reloadOpenInstallments,
+    refreshCatalogs,
     loadHistory,
     setSubmitLoading,
     setSubmitError,
@@ -71,6 +77,8 @@ export function useTransactionMutations(params: Params) {
     setTransactionDate,
     setMsiMonths,
     setOpeningCreditCharge,
+    setExpenseAllocations,
+    defaultSelfBillablePartyId,
     clearAllocations,
     editForm,
     setEditSaving,
@@ -88,7 +96,7 @@ export function useTransactionMutations(params: Params) {
     setSubmitError(null);
     setSuccessMessage(null);
 
-    const { kind, accountId, sourceAccountId, destinationAccountId, categoryId, subcategoryId, merchantId, tagsText, description, transactionDate, msiMonths, openingCreditCharge } = createState;
+    const { kind, accountId, sourceAccountId, destinationAccountId, categoryId, subcategoryId, merchantId, tagsText, description, transactionDate, msiMonths, openingCreditCharge, expenseAllocations } = createState;
     let amountNumber = Number(createState.amount);
 
     const transactionDateUtc = toUtcIsoDateTime(transactionDate);
@@ -140,6 +148,42 @@ export function useTransactionMutations(params: Params) {
             ]
           };
         } else {
+          const normalizedAllocations = expenseAllocations
+            .map((row) => ({
+              billablePartyId: row.billablePartyId,
+              type: row.type,
+              value: Number(row.value)
+            }))
+            .filter((row) => row.billablePartyId && Number.isFinite(row.value) && row.value > 0) as { billablePartyId: number; type: "percentage" | "amount"; value: number }[];
+
+          const uniqueIds = new Set(normalizedAllocations.map((row) => row.billablePartyId));
+          if (normalizedAllocations.length === 0) {
+            return setSubmitError("Debes asignar al menos un responsable cobrable.");
+          }
+          if (uniqueIds.size !== normalizedAllocations.length) {
+            return setSubmitError("No repitas responsables en asignaciones.");
+          }
+
+          const percentages = normalizedAllocations.filter((row) => row.type === "percentage");
+          const amounts = normalizedAllocations.filter((row) => row.type === "amount");
+          if (percentages.length > 0 && amounts.length > 0) {
+            return setSubmitError("No mezcles asignaciones por porcentaje y por monto.");
+          }
+
+          if (percentages.length > 0) {
+            const total = percentages.reduce((acc, row) => acc + row.value, 0);
+            if (Math.abs(total - 100) > 0.01) {
+              return setSubmitError(`La suma de porcentajes debe ser 100%. Actual: ${total.toFixed(2)}%`);
+            }
+          }
+
+          if (amounts.length > 0) {
+            const total = amounts.reduce((acc, row) => acc + row.value, 0);
+            if (Math.abs(total - amountNumber) > 0.01) {
+              return setSubmitError(`La suma de montos asignados debe ser ${amountNumber.toFixed(2)}.`);
+            }
+          }
+
           endpoint = kind === "income" ? "/api/bff/transactions/income" : "/api/bff/transactions/expense";
           payload = {
             accountId,
@@ -149,7 +193,8 @@ export function useTransactionMutations(params: Params) {
             description: description.trim(),
             transactionDate: transactionDateUtc,
             msiMonths: kind === "expense" && msiMonths > 1 ? msiMonths : undefined,
-            creditAllocations
+            creditAllocations,
+            allocations: kind === "expense" && normalizedAllocations.length > 0 ? normalizedAllocations : undefined
           };
         }
       } else {
@@ -176,7 +221,11 @@ export function useTransactionMutations(params: Params) {
       setTransactionDate(currentLocalDateTimeInput());
       setMsiMonths(1);
       setOpeningCreditCharge(false);
+      setExpenseAllocations([
+        { rowId: crypto.randomUUID(), billablePartyId: defaultSelfBillablePartyId, type: "percentage", value: "100" }
+      ]);
       clearAllocations();
+      await refreshCatalogs();
       if (isCreditPaymentFlow) {
         await reloadOpenInstallments();
       }
@@ -185,7 +234,7 @@ export function useTransactionMutations(params: Params) {
     } finally {
       setSubmitLoading(false);
     }
-  }, [allocationMode, clearAllocations, createState, isCreditPaymentFlow, reloadOpenInstallments, selectedAllocationTotal, selectedAllocations, setAmount, setDescription, setMerchantId, setMsiMonths, setOpeningCreditCharge, setSubcategoryId, setSubmitError, setSubmitLoading, setSuccessMessage, setTagsText, setTransactionDate]);
+  }, [allocationMode, clearAllocations, createState, defaultSelfBillablePartyId, isCreditPaymentFlow, refreshCatalogs, reloadOpenInstallments, selectedAllocationTotal, selectedAllocations, setAmount, setDescription, setExpenseAllocations, setMerchantId, setMsiMonths, setOpeningCreditCharge, setSubcategoryId, setSubmitError, setSubmitLoading, setSuccessMessage, setTagsText, setTransactionDate]);
 
   const onSaveEdit = useCallback(async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -196,12 +245,30 @@ export function useTransactionMutations(params: Params) {
     const transactionDate = toUtcIsoDateTime(editForm.transactionDate);
     if (!transactionDate) return setEditError("Selecciona una fecha y hora válidas.");
 
+    const normalizedAllocations = editForm.allocations
+      .map((row) => ({ billablePartyId: row.billablePartyId, type: row.type, value: Number(row.value) }))
+      .filter((row) => row.billablePartyId && Number.isFinite(row.value) && row.value > 0) as { billablePartyId: number; type: "percentage" | "amount"; value: number }[];
+    const uniqueIds = new Set(normalizedAllocations.map((row) => row.billablePartyId));
+    if (normalizedAllocations.length === 0) return setEditError("Debes asignar al menos un responsable cobrable.");
+    if (uniqueIds.size !== normalizedAllocations.length) return setEditError("No repitas responsables en asignaciones.");
+    const percentages = normalizedAllocations.filter((row) => row.type === "percentage");
+    const amounts = normalizedAllocations.filter((row) => row.type === "amount");
+    if (percentages.length > 0 && amounts.length > 0) return setEditError("No mezcles asignaciones por porcentaje y por monto.");
+    if (percentages.length > 0) {
+      const total = percentages.reduce((acc, row) => acc + row.value, 0);
+      if (Math.abs(total - 100) > 0.01) return setEditError(`La suma de porcentajes debe ser 100%. Actual: ${total.toFixed(2)}%`);
+    }
+    if (amounts.length > 0) {
+      const total = amounts.reduce((acc, row) => acc + row.value, 0);
+      if (Math.abs(total - amountNumber) > 0.01) return setEditError(`La suma de montos asignados debe ser ${amountNumber.toFixed(2)}.`);
+    }
+
     setEditSaving(true); setEditError(null);
     try {
       const response = await fetch(`/api/bff/transactions/${editForm.transactionId}`, {
         method: "PUT", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ accountId: editForm.accountId, categoryId: editForm.categoryId, subcategoryId: editForm.subcategoryId ?? undefined, merchantId: editForm.merchantId ?? undefined, amount: amountNumber, description: editForm.description.trim(), transactionDate, tags: parseTagsInput(editForm.tagsText) })
-      });
+         body: JSON.stringify({ accountId: editForm.accountId, categoryId: editForm.categoryId, subcategoryId: editForm.subcategoryId ?? undefined, merchantId: editForm.merchantId ?? undefined, amount: amountNumber, description: editForm.description.trim(), transactionDate, tags: parseTagsInput(editForm.tagsText), replaceAllocations: true, allocations: normalizedAllocations })
+        });
       if (!response.ok) {
         const data = (await response.json().catch(() => null)) as { message?: string } | null;
         throw new Error(data?.message ?? "No se pudo actualizar la transacción");
@@ -299,29 +366,7 @@ export function useTransactionMutations(params: Params) {
     }
   }, [loadHistory, setHistoryError, setSuccessMessage]);
 
-  const onApplyExistingPayment = useCallback(async (sourceTransactionId: number, creditAccountId: number, maxAmount: number) => {
-    const modeRaw = window.prompt("Aplicar pago: escribe 'full' para completo o 'partial' para parcial", "full");
-    if (!modeRaw) return;
-    const mode = modeRaw.trim().toLowerCase();
-    if (mode !== "full" && mode !== "partial") {
-      setHistoryError("Modo inválido. Usa full o partial.");
-      return;
-    }
-
-    let amount: number | undefined;
-    if (mode === "partial") {
-      const amountRaw = window.prompt(`Monto a aplicar (máximo ${maxAmount.toFixed(2)})`, maxAmount.toFixed(2));
-      if (!amountRaw) return;
-      amount = Number(amountRaw);
-      if (!Number.isFinite(amount) || amount <= 0) {
-        setHistoryError("Monto parcial inválido.");
-        return;
-      }
-      if (amount > maxAmount) {
-        setHistoryError("Monto parcial no puede exceder monto de transacción.");
-        return;
-      }
-    }
+  const onApplyExistingPayment = useCallback(async (sourceTransactionId: number, creditAccountId: number, amount?: number) => {
 
     setHistoryError(null);
     try {
@@ -336,7 +381,7 @@ export function useTransactionMutations(params: Params) {
         throw new Error(data?.message ?? "No se pudo aplicar pago existente");
       }
 
-      setSuccessMessage(mode === "full" ? "Pago completo aplicado a mensualidades." : "Pago parcial aplicado a mensualidades.");
+      setSuccessMessage(typeof amount === "number" ? "Pago parcial aplicado a mensualidades." : "Pago completo aplicado a mensualidades.");
       await loadHistory();
     } catch (error) {
       setHistoryError(error instanceof Error ? error.message : "No se pudo aplicar pago existente");

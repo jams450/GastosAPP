@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getApiBaseUrl } from "@/lib/api/config";
+import { attachSessionCookie, fetchApiWithAutoRefresh } from "@/lib/auth/api-session";
 import { getServerSession } from "@/lib/auth/session";
 import { validateTransferPayload } from "@/lib/contracts/transactions";
 
@@ -15,24 +16,24 @@ export async function POST(request: Request) {
     return NextResponse.json({ message: validation.message }, { status: 400 });
   }
 
-  const response = await fetch(`${getApiBaseUrl()}/api/transactions/transfer`, {
+  const { response, session: updatedSession } = await fetchApiWithAutoRefresh(session, `${getApiBaseUrl()}/api/transactions/transfer`, {
     method: "POST",
-    headers: {
-      Authorization: `Bearer ${session.accessToken}`,
-      "Content-Type": "application/json"
-    },
     body: JSON.stringify(validation.data),
     cache: "no-store"
   });
 
   if (!response.ok) {
     const errorBody = (await response.json().catch(() => null)) as { message?: string; Message?: string } | null;
-    return NextResponse.json(
+    const result = NextResponse.json(
       { message: errorBody?.message ?? errorBody?.Message ?? "Failed to create transfer transaction" },
       { status: response.status }
     );
+    await attachSessionCookie(result, updatedSession, session);
+    return result;
   }
 
   const result = await response.json();
-  return NextResponse.json(result, { status: response.status });
+  const out = NextResponse.json(result, { status: response.status });
+  await attachSessionCookie(out, updatedSession, session);
+  return out;
 }

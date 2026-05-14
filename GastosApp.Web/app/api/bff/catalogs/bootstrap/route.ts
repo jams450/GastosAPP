@@ -5,6 +5,7 @@ import { normalizeCategories } from "@/lib/contracts/categories";
 import { normalizeSubcategories } from "@/lib/contracts/subcategories";
 import { normalizeMerchants } from "@/lib/contracts/merchants";
 import { normalizeTags } from "@/lib/contracts/tags";
+import { normalizeBillableParties } from "@/lib/contracts/billable-parties";
 
 export async function GET() {
   const session = await getServerSession();
@@ -17,36 +18,40 @@ export async function GET() {
     "Content-Type": "application/json"
   };
 
-  const [categoriesRes, subcategoriesRes, merchantsRes, tagsRes] = await Promise.all([
+  const [categoriesRes, subcategoriesRes, merchantsRes, tagsRes, billablePartiesRes] = await Promise.all([
     fetch(`${getApiBaseUrl()}/api/categories`, { method: "GET", headers, cache: "no-store" }),
     fetch(`${getApiBaseUrl()}/api/subcategories`, { method: "GET", headers, cache: "no-store" }),
     fetch(`${getApiBaseUrl()}/api/merchants`, { method: "GET", headers, cache: "no-store" }),
-    fetch(`${getApiBaseUrl()}/api/tags`, { method: "GET", headers, cache: "no-store" })
+    fetch(`${getApiBaseUrl()}/api/tags`, { method: "GET", headers, cache: "no-store" }),
+    fetch(`${getApiBaseUrl()}/api/BillableParties`, { method: "GET", headers, cache: "no-store" })
   ]);
 
-  const responses = [categoriesRes, subcategoriesRes, merchantsRes, tagsRes];
+  const responses = [categoriesRes, subcategoriesRes, merchantsRes, tagsRes, billablePartiesRes];
   const failed = responses.find((response) => !response.ok);
   if (failed) {
     const message = failed.status === 401 ? "Session expired" : "Failed to fetch catalogs";
     return NextResponse.json({ message }, { status: failed.status });
   }
 
-  const [rawCategories, rawSubcategories, rawMerchants, rawTags] = await Promise.all([
+  const [rawCategories, rawSubcategories, rawMerchants, rawTags, rawBillableParties] = await Promise.all([
     categoriesRes.json(),
     subcategoriesRes.json(),
     merchantsRes.json(),
-    tagsRes.json()
+    tagsRes.json(),
+    billablePartiesRes.json()
   ]);
 
   const categories = normalizeCategories(rawCategories);
   const subcategories = normalizeSubcategories(rawSubcategories);
   const merchants = normalizeMerchants(rawMerchants);
   const tags = normalizeTags(rawTags);
+  const billableParties = normalizeBillableParties(rawBillableParties);
 
   return NextResponse.json({
     categories,
     subcategories,
     merchants,
-    tags
+    tags,
+    billableParties
   });
 }

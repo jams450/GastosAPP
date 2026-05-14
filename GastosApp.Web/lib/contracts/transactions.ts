@@ -11,6 +11,7 @@ export type IncomeExpenseTransactionRequest = {
   transactionDate: string;
   msiMonths?: number;
   creditAllocations?: CreditInstallmentAllocation[];
+  allocations?: TransactionAllocation[];
 };
 
 export type TransferTransactionRequest = {
@@ -29,6 +30,12 @@ export type TransferTransactionRequest = {
 export type CreditInstallmentAllocation = {
   installmentId: number;
   amount: number;
+};
+
+export type TransactionAllocation = {
+  billablePartyId: number;
+  type: "percentage" | "amount";
+  value: number;
 };
 
 export type CreditOpenInstallmentItem = {
@@ -122,6 +129,31 @@ function toCreditAllocations(value: unknown): CreditInstallmentAllocation[] | un
   return rows.length > 0 ? rows : undefined;
 }
 
+function toTransactionAllocations(value: unknown): TransactionAllocation[] | undefined {
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+
+  const rows = value
+    .map((entry) => {
+      if (!isRecord(entry)) {
+        return null;
+      }
+
+      const billablePartyId = toRequiredPositiveNumber(entry.billablePartyId);
+      const type = entry.type === "amount" ? "amount" : entry.type === "percentage" ? "percentage" : null;
+      const allocationValue = toRequiredPositiveNumber(entry.value);
+      if (!billablePartyId || !type || !allocationValue) {
+        return null;
+      }
+
+      return { billablePartyId, type, value: allocationValue } satisfies TransactionAllocation;
+    })
+    .filter((entry): entry is TransactionAllocation => Boolean(entry));
+
+  return rows.length > 0 ? rows : undefined;
+}
+
 function toOptionalMsiMonths(value: unknown): number | undefined {
   if (value === undefined || value === null || value === "") {
     return undefined;
@@ -169,6 +201,7 @@ export function validateIncomeExpensePayload(input: unknown): ValidationResult<I
   const tags = toNormalizedTags(input.tags);
   const msiMonths = toOptionalMsiMonths(input.msiMonths);
   const creditAllocations = toCreditAllocations(input.creditAllocations);
+  const allocations = toTransactionAllocations(input.allocations);
 
   if (!accountId || !categoryId || !amount || !description || !transactionDate) {
     return {
@@ -189,7 +222,8 @@ export function validateIncomeExpensePayload(input: unknown): ValidationResult<I
       description,
       transactionDate,
       msiMonths,
-      creditAllocations
+      creditAllocations,
+      allocations
     }
   };
 }

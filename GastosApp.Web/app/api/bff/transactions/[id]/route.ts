@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getApiBaseUrl } from "@/lib/api/config";
+import { attachSessionCookie, fetchApiWithAutoRefresh } from "@/lib/auth/api-session";
 import { getServerSession } from "@/lib/auth/session";
 import { validateIncomeExpensePayload } from "@/lib/contracts/transactions";
 
@@ -37,26 +38,26 @@ export async function PUT(request: Request, { params }: Params) {
     return NextResponse.json({ message: validation.message }, { status: 400 });
   }
 
-  const response = await fetch(`${getApiBaseUrl()}/api/transactions/${transactionId}`, {
+  const { response, session: updatedSession } = await fetchApiWithAutoRefresh(session, `${getApiBaseUrl()}/api/transactions/${transactionId}`, {
     method: "PUT",
-    headers: {
-      Authorization: `Bearer ${session.accessToken}`,
-      "Content-Type": "application/json"
-    },
     body: JSON.stringify(validation.data),
     cache: "no-store"
   });
 
   if (!response.ok) {
     const errorBody = await response.json().catch(() => null);
-    return NextResponse.json(
+    const result = NextResponse.json(
       { message: mapErrorMessage(errorBody, "Failed to update transaction") },
       { status: response.status }
     );
+    await attachSessionCookie(result, updatedSession, session);
+    return result;
   }
 
   const result = await response.json();
-  return NextResponse.json(result, { status: response.status });
+  const out = NextResponse.json(result, { status: response.status });
+  await attachSessionCookie(out, updatedSession, session);
+  return out;
 }
 
 export async function DELETE(_request: Request, { params }: Params) {
@@ -71,23 +72,23 @@ export async function DELETE(_request: Request, { params }: Params) {
     return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
   }
 
-  const response = await fetch(`${getApiBaseUrl()}/api/transactions/${transactionId}`, {
+  const { response, session: updatedSession } = await fetchApiWithAutoRefresh(session, `${getApiBaseUrl()}/api/transactions/${transactionId}`, {
     method: "DELETE",
-    headers: {
-      Authorization: `Bearer ${session.accessToken}`,
-      "Content-Type": "application/json"
-    },
     cache: "no-store"
   });
 
   if (!response.ok) {
     const errorBody = await response.json().catch(() => null);
-    return NextResponse.json(
+    const result = NextResponse.json(
       { message: mapErrorMessage(errorBody, "Failed to delete transaction") },
       { status: response.status }
     );
+    await attachSessionCookie(result, updatedSession, session);
+    return result;
   }
 
   const result = await response.json().catch(() => ({}));
-  return NextResponse.json(result, { status: response.status });
+  const out = NextResponse.json(result, { status: response.status });
+  await attachSessionCookie(out, updatedSession, session);
+  return out;
 }

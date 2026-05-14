@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { HandCoins } from "lucide-react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Button } from "@/components/ui/button";
 import { formatCurrency } from "@/lib/format/currency";
@@ -15,7 +16,7 @@ type Params = {
   onEdit: (item: TransactionHistoryItem) => void;
   onDelete: (item: TransactionHistoryItem) => Promise<void>;
   onConvertToMsi: (item: TransactionHistoryItem) => Promise<void>;
-  onApplyExistingPayment: (sourceTransactionId: number, creditAccountId: number, maxAmount: number) => Promise<void>;
+  onApplyExistingPayment: (sourceTransactionId: number, creditAccountId: number, maxAmount: number) => void | Promise<void>;
   onEditTransfer: (item: TransferGroupItem) => void;
   onDeleteTransfer: (item: TransferGroupItem) => Promise<void>;
 };
@@ -97,7 +98,15 @@ export function useHistoryColumns({
                 <Button type="button" variant="secondary" className="h-6 border-indigo-300 bg-indigo-50 px-2 text-[10px] font-semibold text-indigo-700 hover:bg-indigo-100 dark:border-indigo-800 dark:bg-indigo-950/50 dark:text-indigo-300 dark:hover:bg-indigo-900/50" onClick={() => void onConvertToMsi(item)}>Convertir MSI</Button>
               ) : null}
               {item.type === "income" && accountById.get(item.accountId)?.isCredit ? (
-                <Button type="button" variant="ghost" className="h-6 px-1.5 text-[10px]" onClick={() => void onApplyExistingPayment(item.transactionId, item.accountId, item.amount)}>Aplicar pago</Button>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="h-6 gap-1 border-emerald-300 bg-emerald-50 px-2 text-[10px] font-semibold text-emerald-700 hover:bg-emerald-100 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 dark:hover:bg-emerald-900/50"
+                  onClick={() => void onApplyExistingPayment(item.transactionId, item.accountId, item.amount)}
+                >
+                  <HandCoins className="h-3 w-3" aria-hidden="true" />
+                  Aplicar pago
+                </Button>
               ) : null}
             </div>
           );
@@ -129,7 +138,15 @@ export function useHistoryColumns({
               <Button type="button" variant="secondary" className="h-6 px-1.5 text-[10px]" onClick={() => onEditTransfer(item)}>Editar</Button>
               <Button type="button" variant="danger" className="h-6 px-1.5 text-[10px]" disabled={deleteTransferGroupId === item.transferGroupId} onClick={() => void onDeleteTransfer(item)}>Borrar</Button>
               {item.destinationAccountId && accountById.get(item.destinationAccountId)?.isCredit && item.destinationTransactionId ? (
-                <Button type="button" variant="ghost" className="h-6 px-1.5 text-[10px]" onClick={() => void onApplyExistingPayment(item.destinationTransactionId as number, item.destinationAccountId as number, item.amount)}>Aplicar pago</Button>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="h-6 gap-1 border-emerald-300 bg-emerald-50 px-2 text-[10px] font-semibold text-emerald-700 hover:bg-emerald-100 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 dark:hover:bg-emerald-900/50"
+                  onClick={() => void onApplyExistingPayment(item.destinationTransactionId as number, item.destinationAccountId as number, item.amount)}
+                >
+                  <HandCoins className="h-3 w-3" aria-hidden="true" />
+                  Aplicar pago
+                </Button>
               ) : null}
             </div>
           );
