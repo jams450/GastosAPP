@@ -31,6 +31,8 @@ export async function fetchApiWithAutoRefresh(
     return { response: first, session };
   }
 
+  console.info("[bff.auth.refresh_attempt]", { path: input });
+
   const refreshRes = await fetch(`${getApiBaseUrl()}/api/auth/refresh`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -39,6 +41,7 @@ export async function fetchApiWithAutoRefresh(
   });
 
   if (!refreshRes.ok) {
+    console.warn("[bff.auth.refresh_failed]", { path: input, status: refreshRes.status });
     return { response: first, session };
   }
 
@@ -60,6 +63,7 @@ export async function fetchApiWithAutoRefresh(
   };
 
   const retry = await execute(updatedSession.accessToken);
+  console.info("[bff.auth.refresh_succeeded]", { path: input, retryStatus: retry.status });
   return { response: retry, session: updatedSession };
 }
 
@@ -83,4 +87,5 @@ export async function attachSessionCookie(response: NextResponse, session: AuthS
     path: "/",
     expires: new Date(session.refreshExpiresAt ?? session.expiresAt)
   });
+  console.info("[bff.auth.cookie_rotated]", { userId: session.user.id });
 }

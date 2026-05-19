@@ -1,71 +1,59 @@
 using System.Security.Cryptography;
-using System.Text;
 using GastosApp.BusinessLogic.Interfaces;
-using Microsoft.Extensions.Configuration;
 
 namespace GastosApp.BusinessLogic.Services;
 
 public class PasswordService : IPasswordService
 {
-    private readonly string _key;
-    private readonly string _iv;
-
-    public PasswordService(IConfiguration configuration)
-    {
-        _key = configuration["Encryption:Key"] ?? throw new InvalidOperationException("Encryption:Key not configured");
-        _iv = configuration["Encryption:IV"] ?? throw new InvalidOperationException("Encryption:IV not configured");
-        
-        // Asegurar que la key sea de 32 bytes (256 bits) para AES256
-        if (_key.Length < 32)
-            _key = _key.PadRight(32, '0');
-        else if (_key.Length > 32)
-            _key = _key.Substring(0, 32);
-            
-        // Asegurar que el IV sea de 16 bytes (128 bits)
-        if (_iv.Length < 16)
-            _iv = _iv.PadRight(16, '0');
-        else if (_iv.Length > 16)
-            _iv = _iv.Substring(0, 16);
-    }
+    private const string Scheme = "pbkdf2";
+    private const string Version = "v1";
+    private const int SaltSize = 16;
+    private const int HashSize = 32;
+    private const int Iterations = 120_000;
+    private static readonly HashAlgorithmName Algorithm = HashAlgorithmName.SHA256;
 
     public string HashPassword(string password)
     {
-        using (Aes aes = Aes.Create())
+        if (string.IsNullOrWhiteSpace(password))
         {
-            aes.Key = Encoding.UTF8.GetBytes(_key);
-            aes.IV = Encoding.UTF8.GetBytes(_iv);
-            aes.Mode = CipherMode.CBC;
-            aes.Padding = PaddingMode.PKCS7;
-
-            using (ICryptoTransform encryptor = aes.CreateEncryptor())
-            {
-                byte[] passwordBytes = Encoding.UTF8.GetBytes(password);
-                byte[] encryptedBytes = encryptor.TransformFinalBlock(passwordBytes, 0, passwordBytes.Length);
-                return Convert.ToBase64String(encryptedBytes);
-            }
+            throw new ArgumentException("Password is required", nameof(password));
         }
+
+        var salt = RandomNumberGenerator.GetBytes(SaltSize);
+        var hash = Rfc2898DeriveBytes.Pbkdf2(password, salt, Iterations, Algorithm, HashSize);
+
+        return string.Join('$', Scheme, Version, Iterations, Convert.ToBase64String(salt), Convert.ToBase64String(hash));
     }
 
     public bool VerifyPassword(string password, string hashedPassword)
     {
         try
         {
-            using (Aes aes = Aes.Create())
+            if (string.IsNullOrEmpty(password) || string.IsNullOrWhiteSpace(hashedPassword))
             {
-                aes.Key = Encoding.UTF8.GetBytes(_key);
-                aes.IV = Encoding.UTF8.GetBytes(_iv);
-                aes.Mode = CipherMode.CBC;
-                aes.Padding = PaddingMode.PKCS7;
-
-                using (ICryptoTransform decryptor = aes.CreateDecryptor())
-                {
-                    byte[] encryptedBytes = Convert.FromBase64String(hashedPassword);
-                    byte[] decryptedBytes = decryptor.TransformFinalBlock(encryptedBytes, 0, encryptedBytes.Length);
-                    string decryptedPassword = Encoding.UTF8.GetString(decryptedBytes);
-                    return password == decryptedPassword;
-                }
+                return false;
             }
-        }
+
+            var parts = hashedPassword.Split('$');
+            if (parts.Length != 5)
+            {
+                return false;
+            }
+
+            if (!string.Equals(parts[0], Scheme, StringComparison.Ordinal) ||
+                !string.Equals(parts[1], Version, StringComparison.Ordinal) ||
+                !int.TryParse(parts[2], out var iterations) ||
+                iterations <= 0)
+            {
+                return false;
+            }
+
+            var salt = Convert.FromBase64String(parts[3]);
+            var expectedHash = Convert.FromBase64String(parts[4]);
+            var computedHash = Rfc2898DeriveBytes.Pbkdf2(password, salt, iterations, Algorithm, expectedHash.Length);
+
+            return CryptographicOperations.FixedTimeEquals(computedHash, expectedHash);
+            }
         catch
         {
             return false;

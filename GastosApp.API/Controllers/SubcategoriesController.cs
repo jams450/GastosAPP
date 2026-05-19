@@ -12,18 +12,15 @@ namespace GastosApp.API.Controllers;
 public class SubcategoriesController : ControllerBase
 {
     private readonly ISubcategoryService _subcategoryService;
-    private readonly ICategoryService _categoryService;
     private readonly ICurrentUserService _currentUserService;
     private readonly ILogger<SubcategoriesController> _logger;
 
     public SubcategoriesController(
         ISubcategoryService subcategoryService,
-        ICategoryService categoryService,
         ICurrentUserService currentUserService,
         ILogger<SubcategoriesController> logger)
     {
         _subcategoryService = subcategoryService;
-        _categoryService = categoryService;
         _currentUserService = currentUserService;
         _logger = logger;
     }
@@ -63,11 +60,6 @@ public class SubcategoriesController : ControllerBase
         try
         {
             var userId = GetCurrentUserId();
-            if (!await IsCategoryAccessibleAsync(userId, request.CategoryId))
-            {
-                return BadRequest(new { Message = "Invalid category for current user" });
-            }
-
             var subcategory = new Subcategory
             {
                 CategoryId = request.CategoryId,
@@ -77,6 +69,10 @@ public class SubcategoriesController : ControllerBase
 
             var created = await _subcategoryService.CreateAsync(subcategory, userId);
             return CreatedAtAction(nameof(GetById), new { id = created.SubcategoryId }, Map(created));
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { Message = ex.Message });
         }
         catch (Exception ex)
         {
@@ -91,11 +87,6 @@ public class SubcategoriesController : ControllerBase
         try
         {
             var userId = GetCurrentUserId();
-            if (!await IsCategoryAccessibleAsync(userId, request.CategoryId))
-            {
-                return BadRequest(new { Message = "Invalid category for current user" });
-            }
-
             var update = new Subcategory
             {
                 CategoryId = request.CategoryId,
@@ -110,6 +101,10 @@ public class SubcategoriesController : ControllerBase
             }
 
             return Ok(Map(updated));
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { Message = ex.Message });
         }
         catch (Exception ex)
         {
@@ -129,12 +124,6 @@ public class SubcategoriesController : ControllerBase
         }
 
         return Ok(new { Message = $"Subcategory active status updated to {active}" });
-    }
-
-    private async Task<bool> IsCategoryAccessibleAsync(int userId, int categoryId)
-    {
-        var category = await _categoryService.GetByIdAsync(categoryId);
-        return category != null && (category.UserId == userId || category.UserId == null);
     }
 
     private int GetCurrentUserId()

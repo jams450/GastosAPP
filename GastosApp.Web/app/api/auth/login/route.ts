@@ -2,6 +2,7 @@ import { decodeJwt } from "jose";
 import { NextResponse } from "next/server";
 import { getApiBaseUrl } from "@/lib/api/config";
 import { encryptSession, SESSION_COOKIE_NAME, SESSION_COOKIE_SECURE } from "@/lib/auth/session";
+import { badRequest, getTraceId, unauthorized, upstreamError } from "@/lib/bff/http";
 
 type LoginRequest = {
   username: string;
@@ -17,10 +18,11 @@ type ApiLoginResponse = {
 };
 
 export async function POST(request: Request) {
+  const traceId = getTraceId(request);
   const body = (await request.json()) as LoginRequest;
 
   if (!body.username || !body.password) {
-    return NextResponse.json({ message: "Username and password are required" }, { status: 400 });
+    return badRequest(request, "Username and password are required");
   }
 
   const apiResponse = await fetch(`${getApiBaseUrl()}/api/auth/login`, {
@@ -31,7 +33,7 @@ export async function POST(request: Request) {
   });
 
   if (!apiResponse.ok) {
-    return NextResponse.json({ message: "Invalid credentials" }, { status: apiResponse.status });
+    return upstreamError(request, apiResponse.status, "Invalid credentials");
   }
 
   const loginData = (await apiResponse.json()) as ApiLoginResponse;
@@ -41,7 +43,7 @@ export async function POST(request: Request) {
     claims["http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier"];
   const userId = Number(idRaw);
   if (!idRaw || Number.isNaN(userId)) {
-    return NextResponse.json({ message: "Token does not include a valid user id claim" }, { status: 401 });
+    return unauthorized(request, "Token does not include a valid user id claim");
   }
 
   const role = String(claims["http://schemas.microsoft.com/ws/2008/06/identity/claims/role"]);
@@ -58,7 +60,7 @@ export async function POST(request: Request) {
     }
   });
 
-  const response = NextResponse.json({ user: { id: userId, username: loginData.username, role : role } });
+  const response = NextResponse.json({ user: { id: userId, username: loginData.username, role }, traceId });
   response.cookies.set({
     name: SESSION_COOKIE_NAME,
     value: sessionToken,
@@ -68,6 +70,8 @@ export async function POST(request: Request) {
     path: "/",
     expires: new Date(loginData.refreshTokenExpiration ?? loginData.expiration)
   });
+
+  console.info("[bff.auth.login]", { traceId, userId });
 
   return response;
 }

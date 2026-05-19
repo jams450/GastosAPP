@@ -6,6 +6,7 @@ namespace GastosApp.BusinessLogic.Services
 {
     public class TagService : ITagService
     {
+        private const int MaxNameLength = 80;
         private readonly IRepository _repository;
 
         public TagService(IRepository repository)
@@ -15,13 +16,15 @@ namespace GastosApp.BusinessLogic.Services
 
         public async Task<Tag?> GetByIdAsync(int id, int userId)
         {
-            return await _repository.Get<Tag>(t => t.TagId == id && (t.UserId == userId || t.UserId == null))
+            return await BuildReadableScope(userId)
+                .Where(t => t.TagId == id)
                 .FirstOrDefaultAsync();
         }
 
         public async Task<IEnumerable<Tag>> GetByUserIdAsync(int userId, bool onlyActive = false)
         {
-            return await _repository.Get<Tag>(t => (t.UserId == userId || t.UserId == null) && (!onlyActive || t.Active))
+            return await BuildReadableScope(userId)
+                .Where(t => !onlyActive || t.Active)
                 .OrderBy(t => t.Name)
                 .ThenBy(t => t.TagId)
                 .ToListAsync();
@@ -35,7 +38,8 @@ namespace GastosApp.BusinessLogic.Services
                 return Array.Empty<Tag>();
             }
 
-            return await _repository.Get<Tag>(t => (t.UserId == userId || t.UserId == null) && t.Active && t.NormalizedName.Contains(query))
+            return await BuildReadableScope(userId)
+                .Where(t => t.Active && t.NormalizedName.Contains(query))
                 .OrderBy(t => t.Name)
                 .ThenBy(t => t.TagId)
                 .Take(Math.Clamp(take, 1, 100))
@@ -44,36 +48,51 @@ namespace GastosApp.BusinessLogic.Services
 
         public async Task<Tag> CreateAsync(Tag tag, int userId)
         {
+            var (cleanName, normalizedName) = NormalizeNameOrThrow(tag.Name);
             tag.UserId = userId;
-            tag.Name = tag.Name.Trim();
-            tag.NormalizedName = Normalize(tag.Name);
+            tag.Name = cleanName;
+            tag.NormalizedName = normalizedName;
             tag.Active = true;
-            tag.Created = DateTime.UtcNow;
-            return await _repository.Save(tag);
+
+            try
+            {
+                return await _repository.Save(tag);
+            }
+            catch (DbUpdateException ex)
+            {
+                throw new ArgumentException("A tag with same name already exists for this user", ex);
+            }
         }
 
         public async Task<Tag?> UpdateAsync(int id, Tag tag, int userId)
         {
-            var existing = await _repository.GetTrack<Tag>()
-                .FirstOrDefaultAsync(t => t.TagId == id && (t.UserId == userId || t.UserId == null));
+            var existing = await BuildWritableScope(userId)
+                .FirstOrDefaultAsync(t => t.TagId == id);
 
             if (existing == null)
             {
                 return null;
             }
 
-            existing.Name = tag.Name.Trim();
-            existing.NormalizedName = Normalize(existing.Name);
-            existing.Active = tag.Active;
-            existing.Updated = DateTime.UtcNow;
-            await _repository.SaveChangesAsync();
-            return existing;
+            var (cleanName, normalizedName) = NormalizeNameOrThrow(tag.Name);
+            existing.Name = cleanName;
+            existing.NormalizedName = normalizedName;
+
+            try
+            {
+                await _repository.SaveChangesAsync();
+                return existing;
+            }
+            catch (DbUpdateException ex)
+            {
+                throw new ArgumentException("A tag with same name already exists for this user", ex);
+            }
         }
 
         public async Task<bool> UpdateActiveStatusAsync(int id, int userId, bool active)
         {
-            var existing = await _repository.GetTrack<Tag>()
-                .FirstOrDefaultAsync(t => t.TagId == id && (t.UserId == userId || t.UserId == null));
+            var existing = await BuildWritableScope(userId)
+                .FirstOrDefaultAsync(t => t.TagId == id);
 
             if (existing == null)
             {
@@ -81,7 +100,6 @@ namespace GastosApp.BusinessLogic.Services
             }
 
             existing.Active = active;
-            existing.Updated = DateTime.UtcNow;
             await _repository.SaveChangesAsync();
             return true;
         }
@@ -100,7 +118,8 @@ namespace GastosApp.BusinessLogic.Services
                 return Array.Empty<Tag>();
             }
 
-            var existing = await _repository.Get<Tag>(t => (t.UserId == userId || t.UserId == null) && normalizedTags.Contains(t.NormalizedName))
+            var existing = await BuildReadableScope(userId)
+                .Where(t => normalizedTags.Contains(t.NormalizedName))
                 .ToListAsync();
 
             var existingSet = existing.Select(t => t.NormalizedName).ToHashSet(StringComparer.OrdinalIgnoreCase);
@@ -108,19 +127,59 @@ namespace GastosApp.BusinessLogic.Services
 
             foreach (var normalized in normalizedTags.Where(t => !existingSet.Contains(t)))
             {
-                var tag = new Tag
+                created.Add(new Tag
                 {
                     UserId = userId,
                     Name = normalized,
                     NormalizedName = normalized,
-                    Active = true,
-                    Created = DateTime.UtcNow
-                };
+                    Active = true
+                });
+            }
 
-                created.Add(await _repository.Save(tag));
+            if (created.Count > 0)
+            {
+                _repository.GetTrack<Tag>().AddRange(created);
+                try
+                {
+                    await _repository.SaveChangesAsync();
+                }
+                catch (DbUpdateException)
+                {
+                    var refreshed = await BuildReadableScope(userId)
+                        .Where(t => normalizedTags.Contains(t.NormalizedName))
+                        .ToListAsync();
+
+                    return refreshed;
+                }
             }
 
             return existing.Concat(created).ToList();
+        }
+
+        private IQueryable<Tag> BuildReadableScope(int userId)
+        {
+            return _repository.Get<Tag>(t => t.UserId == userId || t.UserId == null);
+        }
+
+        private IQueryable<Tag> BuildWritableScope(int userId)
+        {
+            return _repository.GetTrack<Tag>().Where(t => t.UserId == userId);
+        }
+
+        private static (string Name, string NormalizedName) NormalizeNameOrThrow(string? value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                throw new ArgumentException("Tag name is required");
+            }
+
+            var cleanedName = value.Trim();
+            if (cleanedName.Length > MaxNameLength)
+            {
+                throw new ArgumentException($"Tag name cannot exceed {MaxNameLength} characters");
+            }
+
+            return (cleanedName, Normalize(cleanedName));
         }
 
         private static string Normalize(string value)

@@ -69,6 +69,10 @@ public class TagsController : ControllerBase
             var created = await _tagService.CreateAsync(tag, userId);
             return CreatedAtAction(nameof(GetById), new { id = created.TagId }, Map(created));
         }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { Message = ex.Message });
+        }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error creating tag");
@@ -95,6 +99,10 @@ public class TagsController : ControllerBase
             }
 
             return Ok(Map(updated));
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { Message = ex.Message });
         }
         catch (Exception ex)
         {

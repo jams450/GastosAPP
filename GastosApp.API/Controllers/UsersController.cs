@@ -129,6 +129,37 @@ public class UsersController : ControllerBase
         }
     }
 
+    [HttpPatch("{id}/password")]
+    public async Task<IActionResult> ChangePassword(int id, [FromBody] UserChangePasswordRequest request)
+    {
+        try
+        {
+            var existingUser = await _userService.GetByIdAsync(id);
+            if (existingUser == null)
+            {
+                return NotFound(new { Message = $"User with ID {id} not found" });
+            }
+
+            var result = await _userService.ChangePasswordAsync(id, request.NewPassword);
+            if (!result)
+            {
+                return StatusCode(500, new { Message = "Failed to change user password" });
+            }
+
+            _logger.LogInformation("User password changed successfully: {Id}", id);
+            return Ok(new { Message = "User password changed successfully" });
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { Message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error changing password for user with ID {Id}", id);
+            return StatusCode(500, new { Message = "An error occurred while changing the user password" });
+        }
+    }
+
     [HttpDelete("{id}")]
     public async Task<IActionResult> Delete(int id)
     {

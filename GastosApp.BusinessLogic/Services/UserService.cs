@@ -41,10 +41,9 @@ namespace GastosApp.BusinessLogic.Services
 
         public async Task<User> CreateAsync(User user)
         {
-            // Encriptar password antes de guardar
+            // Hash password antes de guardar
             user.Password = _passwordService.HashPassword(user.Password);
             user.Active = true;
-            user.Created = DateTime.UtcNow;
 
             var createdUser = await _repository.Save<User>(user);
             await _billablePartyService.EnsureSelfPartyAsync(createdUser.UserId, createdUser.Name);
@@ -54,23 +53,44 @@ namespace GastosApp.BusinessLogic.Services
 
         public async Task<User?> UpdateAsync(int id, User user)
         {
-            var existing = await _repository.GetByIdAsync<User>(id);
+            var existing = await _repository.GetTrack<User>()
+                .FirstOrDefaultAsync(u => u.UserId == id);
+
             if (existing == null) return null;
 
-            // Si se proporciona un nuevo password, encriptarlo
+            existing.Name = user.Name;
+            existing.Email = user.Email;
+            existing.Active = user.Active;
+            existing.Admin = user.Admin;
+
+            // Si se proporciona un nuevo password, hashearlo
             if (!string.IsNullOrEmpty(user.Password) && user.Password != existing.Password)
             {
-                user.Password = _passwordService.HashPassword(user.Password);
-            }
-            else
-            {
-                // Mantener el password existente si no se proporciona uno nuevo
-                user.Password = existing.Password;
+                existing.Password = _passwordService.HashPassword(user.Password);
+                existing.SessionVersion += 1;
             }
 
-            user.UserId = id;
-            user.Updated = DateTime.UtcNow;
-            return await _repository.SaveUpdate<User>(id, user);
+            await _repository.SaveChangesAsync();
+            return existing;
+        }
+
+        public async Task<bool> ChangePasswordAsync(int id, string newPassword)
+        {
+            if (string.IsNullOrWhiteSpace(newPassword))
+            {
+                throw new ArgumentException("New password is required", nameof(newPassword));
+            }
+
+            var existing = await _repository.GetByIdAsync<User>(id);
+            if (existing == null)
+            {
+                return false;
+            }
+
+            existing.Password = _passwordService.HashPassword(newPassword);
+            existing.SessionVersion += 1;
+            await _repository.SaveChangesAsync();
+            return true;
         }
 
         public async Task<bool> DeleteAsync(int id)
