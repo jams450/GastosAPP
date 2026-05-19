@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getApiBaseUrl } from "@/lib/api/config";
+import { attachSessionCookie, fetchApiWithAutoRefresh } from "@/lib/auth/api-session";
 import { getServerSession } from "@/lib/auth/session";
 import { normalizeCategories } from "@/lib/contracts/categories";
 import { normalizeSubcategories } from "@/lib/contracts/subcategories";
@@ -12,33 +13,49 @@ export async function GET() {
   if (!session) {
     return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
   }
+  let authSession = session;
 
-  const headers = {
-    Authorization: `Bearer ${session.accessToken}`,
-    "Content-Type": "application/json"
-  };
+  const categoriesCall = await fetchApiWithAutoRefresh(authSession, `${getApiBaseUrl()}/api/categories`, { method: "GET", cache: "no-store" });
+  authSession = categoriesCall.session;
+  if (!categoriesCall.response.ok) {
+    const message = categoriesCall.response.status === 401 ? "Session expired" : "Failed to fetch catalogs";
+    return NextResponse.json({ message }, { status: categoriesCall.response.status });
+  }
 
-  const [categoriesRes, subcategoriesRes, merchantsRes, tagsRes, billablePartiesRes] = await Promise.all([
-    fetch(`${getApiBaseUrl()}/api/categories`, { method: "GET", headers, cache: "no-store" }),
-    fetch(`${getApiBaseUrl()}/api/subcategories`, { method: "GET", headers, cache: "no-store" }),
-    fetch(`${getApiBaseUrl()}/api/merchants`, { method: "GET", headers, cache: "no-store" }),
-    fetch(`${getApiBaseUrl()}/api/tags`, { method: "GET", headers, cache: "no-store" }),
-    fetch(`${getApiBaseUrl()}/api/BillableParties`, { method: "GET", headers, cache: "no-store" })
-  ]);
+  const subcategoriesCall = await fetchApiWithAutoRefresh(authSession, `${getApiBaseUrl()}/api/subcategories`, { method: "GET", cache: "no-store" });
+  authSession = subcategoriesCall.session;
+  if (!subcategoriesCall.response.ok) {
+    const message = subcategoriesCall.response.status === 401 ? "Session expired" : "Failed to fetch catalogs";
+    return NextResponse.json({ message }, { status: subcategoriesCall.response.status });
+  }
 
-  const responses = [categoriesRes, subcategoriesRes, merchantsRes, tagsRes, billablePartiesRes];
-  const failed = responses.find((response) => !response.ok);
-  if (failed) {
-    const message = failed.status === 401 ? "Session expired" : "Failed to fetch catalogs";
-    return NextResponse.json({ message }, { status: failed.status });
+  const merchantsCall = await fetchApiWithAutoRefresh(authSession, `${getApiBaseUrl()}/api/merchants`, { method: "GET", cache: "no-store" });
+  authSession = merchantsCall.session;
+  if (!merchantsCall.response.ok) {
+    const message = merchantsCall.response.status === 401 ? "Session expired" : "Failed to fetch catalogs";
+    return NextResponse.json({ message }, { status: merchantsCall.response.status });
+  }
+
+  const tagsCall = await fetchApiWithAutoRefresh(authSession, `${getApiBaseUrl()}/api/tags`, { method: "GET", cache: "no-store" });
+  authSession = tagsCall.session;
+  if (!tagsCall.response.ok) {
+    const message = tagsCall.response.status === 401 ? "Session expired" : "Failed to fetch catalogs";
+    return NextResponse.json({ message }, { status: tagsCall.response.status });
+  }
+
+  const billablePartiesCall = await fetchApiWithAutoRefresh(authSession, `${getApiBaseUrl()}/api/BillableParties`, { method: "GET", cache: "no-store" });
+  authSession = billablePartiesCall.session;
+  if (!billablePartiesCall.response.ok) {
+    const message = billablePartiesCall.response.status === 401 ? "Session expired" : "Failed to fetch catalogs";
+    return NextResponse.json({ message }, { status: billablePartiesCall.response.status });
   }
 
   const [rawCategories, rawSubcategories, rawMerchants, rawTags, rawBillableParties] = await Promise.all([
-    categoriesRes.json(),
-    subcategoriesRes.json(),
-    merchantsRes.json(),
-    tagsRes.json(),
-    billablePartiesRes.json()
+    categoriesCall.response.json(),
+    subcategoriesCall.response.json(),
+    merchantsCall.response.json(),
+    tagsCall.response.json(),
+    billablePartiesCall.response.json()
   ]);
 
   const categories = normalizeCategories(rawCategories);
@@ -47,11 +64,13 @@ export async function GET() {
   const tags = normalizeTags(rawTags);
   const billableParties = normalizeBillableParties(rawBillableParties);
 
-  return NextResponse.json({
+  const out = NextResponse.json({
     categories,
     subcategories,
     merchants,
     tags,
     billableParties
   });
+  await attachSessionCookie(out, authSession, session);
+  return out;
 }

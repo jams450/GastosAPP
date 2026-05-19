@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getApiBaseUrl } from "@/lib/api/config";
+import { attachSessionCookie, fetchApiWithAutoRefresh } from "@/lib/auth/api-session";
 import { getServerSession } from "@/lib/auth/session";
 import { normalizeTags } from "@/lib/contracts/tags";
 
@@ -11,14 +12,12 @@ export async function GET(request: Request) {
 
   const { searchParams } = new URL(request.url);
   const query = searchParams.get("q") ?? "";
-  const response = await fetch(`${getApiBaseUrl()}/api/tags/search?q=${encodeURIComponent(query)}`, {
+  const call = await fetchApiWithAutoRefresh(authSession, `${getApiBaseUrl()}/api/tags/search?q=${encodeURIComponent(query)}`, {
     method: "GET",
-    headers: {
-      Authorization: `Bearer ${session.accessToken}`,
-      "Content-Type": "application/json"
-    },
     cache: "no-store"
   });
+  const response = call.response;
+  authSession = call.session;
 
   if (!response.ok) {
     const message = response.status === 401 ? "Session expired" : "Failed to search tags";
@@ -26,5 +25,8 @@ export async function GET(request: Request) {
   }
 
   const payload = await response.json();
-  return NextResponse.json(normalizeTags(payload));
+  const out = NextResponse.json(normalizeTags(payload));
+  await attachSessionCookie(out, authSession, session);
+  return out;
 }
+  let authSession = session;

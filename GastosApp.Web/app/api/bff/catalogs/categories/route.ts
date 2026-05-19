@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getApiBaseUrl } from "@/lib/api/config";
+import { attachSessionCookie, fetchApiWithAutoRefresh } from "@/lib/auth/api-session";
 import { getServerSession } from "@/lib/auth/session";
 import { validateCategoryPayload } from "@/lib/contracts/catalogs";
 import { normalizeCategories } from "@/lib/contracts/categories";
@@ -10,14 +11,13 @@ export async function GET() {
     return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
   }
 
-  const response = await fetch(`${getApiBaseUrl()}/api/categories`, {
+  let authSession = session;
+  const call = await fetchApiWithAutoRefresh(authSession, `${getApiBaseUrl()}/api/categories`, {
     method: "GET",
-    headers: {
-      Authorization: `Bearer ${session.accessToken}`,
-      "Content-Type": "application/json"
-    },
     cache: "no-store"
   });
+  const response = call.response;
+  authSession = call.session;
 
   if (!response.ok) {
     const message = response.status === 401 ? "Session expired" : "Failed to fetch categories";
@@ -25,7 +25,9 @@ export async function GET() {
   }
 
   const payload = await response.json();
-  return NextResponse.json(normalizeCategories(payload));
+  const out = NextResponse.json(normalizeCategories(payload));
+  await attachSessionCookie(out, authSession, session);
+  return out;
 }
 
 export async function POST(request: Request) {
@@ -40,15 +42,13 @@ export async function POST(request: Request) {
     return NextResponse.json({ message: validation.message }, { status: 400 });
   }
 
-  const response = await fetch(`${getApiBaseUrl()}/api/categories`, {
+  const call = await fetchApiWithAutoRefresh(authSession, `${getApiBaseUrl()}/api/categories`, {
     method: "POST",
-    headers: {
-      Authorization: `Bearer ${session.accessToken}`,
-      "Content-Type": "application/json"
-    },
     body: JSON.stringify(validation.data),
     cache: "no-store"
   });
+  const response = call.response;
+  authSession = call.session;
 
   if (!response.ok) {
     const body = (await response.json().catch(() => null)) as { message?: string; Message?: string } | null;
@@ -59,5 +59,8 @@ export async function POST(request: Request) {
   }
 
   const result = await response.json();
-  return NextResponse.json(result, { status: response.status });
+  const out = NextResponse.json(result, { status: response.status });
+  await attachSessionCookie(out, authSession, session);
+  return out;
 }
+  let authSession = session;

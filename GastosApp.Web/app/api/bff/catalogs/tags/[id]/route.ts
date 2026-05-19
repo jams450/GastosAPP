@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getApiBaseUrl } from "@/lib/api/config";
+import { attachSessionCookie, fetchApiWithAutoRefresh } from "@/lib/auth/api-session";
 import { getServerSession } from "@/lib/auth/session";
 import { validateTagPayload } from "@/lib/contracts/catalogs";
 
@@ -21,6 +22,7 @@ export async function PUT(request: Request, { params }: Params) {
   if (!session) {
     return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
   }
+  let authSession = session;
 
   const input = await request.json();
   const validation = validateTagPayload(input);
@@ -28,15 +30,13 @@ export async function PUT(request: Request, { params }: Params) {
     return NextResponse.json({ message: validation.message }, { status: 400 });
   }
 
-  const response = await fetch(`${getApiBaseUrl()}/api/tags/${tagId}`, {
+  const call = await fetchApiWithAutoRefresh(authSession, `${getApiBaseUrl()}/api/tags/${tagId}`, {
     method: "PUT",
-    headers: {
-      Authorization: `Bearer ${session.accessToken}`,
-      "Content-Type": "application/json"
-    },
     body: JSON.stringify(validation.data),
     cache: "no-store"
   });
+  const response = call.response;
+  authSession = call.session;
 
   if (!response.ok) {
     const body = (await response.json().catch(() => null)) as { message?: string; Message?: string } | null;
@@ -47,5 +47,7 @@ export async function PUT(request: Request, { params }: Params) {
   }
 
   const result = await response.json();
-  return NextResponse.json(result, { status: response.status });
+  const out = NextResponse.json(result, { status: response.status });
+  await attachSessionCookie(out, authSession, session);
+  return out;
 }

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getApiBaseUrl } from "@/lib/api/config";
+import { attachSessionCookie, fetchApiWithAutoRefresh } from "@/lib/auth/api-session";
 import { getServerSession } from "@/lib/auth/session";
 import { normalizeAccounts } from "@/lib/contracts/accounts";
 import { normalizeCategories } from "@/lib/contracts/categories";
@@ -13,60 +14,37 @@ export async function GET() {
   if (!session) {
     return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
   }
+  let authSession = session;
+  const accountsCall = await fetchApiWithAutoRefresh(authSession, `${getApiBaseUrl()}/api/accounts/active`, { method: "GET", cache: "no-store" });
+  authSession = accountsCall.session;
+  if (!accountsCall.response.ok) return NextResponse.json({ message: accountsCall.response.status === 401 ? "Session expired" : "Failed to fetch catalogs" }, { status: accountsCall.response.status });
 
-  const baseHeaders = {
-    Authorization: `Bearer ${session.accessToken}`,
-    "Content-Type": "application/json"
-  };
+  const categoriesCall = await fetchApiWithAutoRefresh(authSession, `${getApiBaseUrl()}/api/categories/active`, { method: "GET", cache: "no-store" });
+  authSession = categoriesCall.session;
+  if (!categoriesCall.response.ok) return NextResponse.json({ message: categoriesCall.response.status === 401 ? "Session expired" : "Failed to fetch catalogs" }, { status: categoriesCall.response.status });
 
-  const [accountsResponse, categoriesResponse, subcategoriesResponse, merchantsResponse, tagsResponse, billablePartiesResponse] = await Promise.all([
-    fetch(`${getApiBaseUrl()}/api/accounts/active`, {
-      method: "GET",
-      headers: baseHeaders,
-      cache: "no-store"
-    }),
-    fetch(`${getApiBaseUrl()}/api/categories/active`, {
-      method: "GET",
-      headers: baseHeaders,
-      cache: "no-store"
-    }),
-    fetch(`${getApiBaseUrl()}/api/subcategories?onlyActive=true`, {
-      method: "GET",
-      headers: baseHeaders,
-      cache: "no-store"
-    }),
-    fetch(`${getApiBaseUrl()}/api/merchants?onlyActive=true`, {
-      method: "GET",
-      headers: baseHeaders,
-      cache: "no-store"
-    }),
-    fetch(`${getApiBaseUrl()}/api/tags?onlyActive=true`, {
-      method: "GET",
-      headers: baseHeaders,
-      cache: "no-store"
-    }),
-    fetch(`${getApiBaseUrl()}/api/BillableParties?onlyActive=true`, {
-      method: "GET",
-      headers: baseHeaders,
-      cache: "no-store"
-    })
-  ]);
+  const subcategoriesCall = await fetchApiWithAutoRefresh(authSession, `${getApiBaseUrl()}/api/subcategories?onlyActive=true`, { method: "GET", cache: "no-store" });
+  authSession = subcategoriesCall.session;
+  if (!subcategoriesCall.response.ok) return NextResponse.json({ message: subcategoriesCall.response.status === 401 ? "Session expired" : "Failed to fetch catalogs" }, { status: subcategoriesCall.response.status });
 
-  if (!accountsResponse.ok || !categoriesResponse.ok || !subcategoriesResponse.ok || !merchantsResponse.ok || !tagsResponse.ok || !billablePartiesResponse.ok) {
-    const status = [accountsResponse.status, categoriesResponse.status, subcategoriesResponse.status, merchantsResponse.status, tagsResponse.status, billablePartiesResponse.status].includes(401)
-      ? 401
-      : Math.max(accountsResponse.status, categoriesResponse.status, subcategoriesResponse.status, merchantsResponse.status, tagsResponse.status, billablePartiesResponse.status);
+  const merchantsCall = await fetchApiWithAutoRefresh(authSession, `${getApiBaseUrl()}/api/merchants?onlyActive=true`, { method: "GET", cache: "no-store" });
+  authSession = merchantsCall.session;
+  if (!merchantsCall.response.ok) return NextResponse.json({ message: merchantsCall.response.status === 401 ? "Session expired" : "Failed to fetch catalogs" }, { status: merchantsCall.response.status });
 
-    const message = status === 401 ? "Session expired" : "Failed to fetch catalogs";
-    return NextResponse.json({ message }, { status });
-  }
+  const tagsCall = await fetchApiWithAutoRefresh(authSession, `${getApiBaseUrl()}/api/tags?onlyActive=true`, { method: "GET", cache: "no-store" });
+  authSession = tagsCall.session;
+  if (!tagsCall.response.ok) return NextResponse.json({ message: tagsCall.response.status === 401 ? "Session expired" : "Failed to fetch catalogs" }, { status: tagsCall.response.status });
 
-  const rawAccounts = await accountsResponse.json();
-  const rawCategories = await categoriesResponse.json();
-  const rawSubcategories = await subcategoriesResponse.json();
-  const rawMerchants = await merchantsResponse.json();
-  const rawTags = await tagsResponse.json();
-  const rawBillableParties = await billablePartiesResponse.json();
+  const billablePartiesCall = await fetchApiWithAutoRefresh(authSession, `${getApiBaseUrl()}/api/BillableParties?onlyActive=true`, { method: "GET", cache: "no-store" });
+  authSession = billablePartiesCall.session;
+  if (!billablePartiesCall.response.ok) return NextResponse.json({ message: billablePartiesCall.response.status === 401 ? "Session expired" : "Failed to fetch catalogs" }, { status: billablePartiesCall.response.status });
+
+  const rawAccounts = await accountsCall.response.json();
+  const rawCategories = await categoriesCall.response.json();
+  const rawSubcategories = await subcategoriesCall.response.json();
+  const rawMerchants = await merchantsCall.response.json();
+  const rawTags = await tagsCall.response.json();
+  const rawBillableParties = await billablePartiesCall.response.json();
 
   const accounts = normalizeAccounts(rawAccounts);
   const categories = normalizeCategories(rawCategories);
@@ -75,7 +53,7 @@ export async function GET() {
   const tags = normalizeTags(rawTags);
   const billableParties = normalizeBillableParties(rawBillableParties);
 
-  return NextResponse.json({
+  const out = NextResponse.json({
     accounts,
     categories,
     subcategories,
@@ -88,4 +66,6 @@ export async function GET() {
       transfer: categories.filter((category) => category.type === "transfer")
     }
   });
+  await attachSessionCookie(out, authSession, session);
+  return out;
 }

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getApiBaseUrl } from "@/lib/api/config";
+import { attachSessionCookie, fetchApiWithAutoRefresh } from "@/lib/auth/api-session";
 import { getServerSession } from "@/lib/auth/session";
 
 function isAdmin(role?: string) {
@@ -15,6 +16,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const session = await getServerSession();
   if (!session) return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
   if (!isAdmin(session.user.role)) return NextResponse.json({ message: "Forbidden" }, { status: 403 });
+  let authSession = session;
 
   const { id: idRaw } = await params;
   const id = parseId(idRaw);
@@ -25,20 +27,21 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     return NextResponse.json({ message: "Payload inválido" }, { status: 400 });
   }
 
-  const response = await fetch(`${getApiBaseUrl()}/api/users/${id}/active`, {
+  const call = await fetchApiWithAutoRefresh(authSession, `${getApiBaseUrl()}/api/users/${id}/active`, {
     method: "PATCH",
-    headers: {
-      Authorization: `Bearer ${session.accessToken}`,
-      "Content-Type": "application/json"
-    },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body.active)
   });
+  const response = call.response;
+  authSession = call.session;
 
   const raw = await response.text();
-  return new NextResponse(raw, {
+  const out = new NextResponse(raw, {
     status: response.status,
     headers: {
       "content-type": response.headers.get("content-type") ?? "application/json"
     }
   });
+  await attachSessionCookie(out, authSession, session);
+  return out;
 }

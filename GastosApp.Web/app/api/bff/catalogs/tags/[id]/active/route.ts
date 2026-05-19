@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getApiBaseUrl } from "@/lib/api/config";
+import { attachSessionCookie, fetchApiWithAutoRefresh } from "@/lib/auth/api-session";
 import { getServerSession } from "@/lib/auth/session";
 
 type Params = { params: Promise<{ id: string }> };
@@ -20,6 +21,7 @@ export async function PATCH(request: Request, { params }: Params) {
   if (!session) {
     return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
   }
+  let authSession = session;
 
   const input = (await request.json().catch(() => null)) as { active?: unknown } | null;
   const active = typeof input?.active === "boolean" ? input.active : null;
@@ -27,14 +29,12 @@ export async function PATCH(request: Request, { params }: Params) {
     return NextResponse.json({ message: "active must be boolean" }, { status: 400 });
   }
 
-  const currentTagResponse = await fetch(`${getApiBaseUrl()}/api/tags/${tagId}`, {
+  const currentTagCall = await fetchApiWithAutoRefresh(authSession, `${getApiBaseUrl()}/api/tags/${tagId}`, {
     method: "GET",
-    headers: {
-      Authorization: `Bearer ${session.accessToken}`,
-      "Content-Type": "application/json"
-    },
     cache: "no-store"
   });
+  const currentTagResponse = currentTagCall.response;
+  authSession = currentTagCall.session;
 
   if (!currentTagResponse.ok) {
     const body = (await currentTagResponse.json().catch(() => null)) as { message?: string; Message?: string } | null;
@@ -50,15 +50,13 @@ export async function PATCH(request: Request, { params }: Params) {
     return NextResponse.json({ message: "Invalid current tag payload" }, { status: 500 });
   }
 
-  const response = await fetch(`${getApiBaseUrl()}/api/tags/${tagId}`, {
+  const call = await fetchApiWithAutoRefresh(authSession, `${getApiBaseUrl()}/api/tags/${tagId}`, {
     method: "PUT",
-    headers: {
-      Authorization: `Bearer ${session.accessToken}`,
-      "Content-Type": "application/json"
-    },
     body: JSON.stringify({ name, active }),
     cache: "no-store"
   });
+  const response = call.response;
+  authSession = call.session;
 
   if (!response.ok) {
     const body = (await response.json().catch(() => null)) as { message?: string; Message?: string } | null;
@@ -66,5 +64,7 @@ export async function PATCH(request: Request, { params }: Params) {
   }
 
   const result = await response.json();
-  return NextResponse.json(result, { status: response.status });
+  const out = NextResponse.json(result, { status: response.status });
+  await attachSessionCookie(out, authSession, session);
+  return out;
 }

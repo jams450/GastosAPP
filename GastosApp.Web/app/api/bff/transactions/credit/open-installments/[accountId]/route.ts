@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getApiBaseUrl } from "@/lib/api/config";
+import { attachSessionCookie, fetchApiWithAutoRefresh } from "@/lib/auth/api-session";
 import { getServerSession } from "@/lib/auth/session";
 import { normalizeCreditOpenInstallments } from "@/lib/contracts/transactions";
 
@@ -21,14 +22,16 @@ export async function GET(_request: Request, { params }: Params) {
   if (!session) {
     return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
   }
+  let authSession = session;
 
-  const response = await fetch(`${getApiBaseUrl()}/api/transactions/credit/${parsedAccountId}/open-installments`, {
+  const call = await fetchApiWithAutoRefresh(authSession, `${getApiBaseUrl()}/api/transactions/credit/${parsedAccountId}/open-installments`, {
     headers: {
-      Authorization: `Bearer ${session.accessToken}`,
       "Content-Type": "application/json"
     },
     cache: "no-store"
   });
+  const response = call.response;
+  authSession = call.session;
 
   if (!response.ok) {
     const body = (await response.json().catch(() => null)) as { message?: string; Message?: string } | null;
@@ -36,5 +39,7 @@ export async function GET(_request: Request, { params }: Params) {
   }
 
   const data = await response.json();
-  return NextResponse.json(normalizeCreditOpenInstallments(data));
+  const out = NextResponse.json(normalizeCreditOpenInstallments(data));
+  await attachSessionCookie(out, authSession, session);
+  return out;
 }

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getApiBaseUrl } from "@/lib/api/config";
+import { attachSessionCookie, fetchApiWithAutoRefresh } from "@/lib/auth/api-session";
 import { getServerSession } from "@/lib/auth/session";
 
 type Payload = {
@@ -17,6 +18,7 @@ export async function POST(request: Request) {
   if (!session) {
     return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
   }
+  let authSession = session;
 
   const body = (await request.json().catch(() => null)) as Payload | null;
   const sourceTransactionId = parsePositiveInt(body?.sourceTransactionId);
@@ -26,15 +28,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ message: "sourceTransactionId and months(2..60) are required" }, { status: 400 });
   }
 
-  const response = await fetch(`${getApiBaseUrl()}/api/transactions/credit/convert-charge-msi`, {
+  const call = await fetchApiWithAutoRefresh(authSession, `${getApiBaseUrl()}/api/transactions/credit/convert-charge-msi`, {
     method: "POST",
-    headers: {
-      Authorization: `Bearer ${session.accessToken}`,
-      "Content-Type": "application/json"
-    },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ sourceTransactionId, months }),
     cache: "no-store"
   });
+  const response = call.response;
+  authSession = call.session;
 
   if (!response.ok) {
     const errorBody = (await response.json().catch(() => null)) as { message?: string; Message?: string } | null;
@@ -45,5 +46,7 @@ export async function POST(request: Request) {
   }
 
   const result = await response.json().catch(() => ({}));
-  return NextResponse.json(result, { status: response.status });
+  const out = NextResponse.json(result, { status: response.status });
+  await attachSessionCookie(out, authSession, session);
+  return out;
 }
