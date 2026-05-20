@@ -1,6 +1,7 @@
 import { useCallback } from "react";
 import type { FormEvent } from "react";
 import type { CreditInstallmentAllocation } from "@/lib/contracts/transactions";
+import { csrfFetch } from "@/lib/security/csrf-client";
 import type { ExpenseAllocationFormState } from "../_lib/transactions-types";
 import { currentLocalDateTimeInput, parseTagsInput, toUtcIsoDateTime } from "../_lib/transactions-utils";
 import type { EditFormState, TransactionHistoryItem, TransactionKind, TransferEditFormState, TransferGroupItem } from "../_lib/transactions-types";
@@ -204,7 +205,7 @@ export function useTransactionMutations(params: Params) {
         payload = { sourceAccountId, destinationAccountId, categoryId, ...analyticsPayload, amount: amountNumber, description: description.trim(), transactionDate: transactionDateUtc, creditAllocations };
       }
 
-      const response = await fetch(endpoint, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      const response = await csrfFetch(endpoint, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
       if (!response.ok) {
         const data = (await response.json().catch(() => null)) as { message?: string } | null;
         return setSubmitError(data?.message ?? "No se pudo registrar la transacción.");
@@ -265,7 +266,7 @@ export function useTransactionMutations(params: Params) {
 
     setEditSaving(true); setEditError(null);
     try {
-      const response = await fetch(`/api/bff/transactions/${editForm.transactionId}`, {
+      const response = await csrfFetch(`/api/bff/transactions/${editForm.transactionId}`, {
         method: "PUT", headers: { "Content-Type": "application/json" },
          body: JSON.stringify({ accountId: editForm.accountId, categoryId: editForm.categoryId, subcategoryId: editForm.subcategoryId ?? undefined, merchantId: editForm.merchantId ?? undefined, amount: amountNumber, description: editForm.description.trim(), transactionDate, tags: parseTagsInput(editForm.tagsText), replaceAllocations: true, allocations: normalizedAllocations })
         });
@@ -291,7 +292,7 @@ export function useTransactionMutations(params: Params) {
     if (!transactionDate) return setEditError("Selecciona una fecha y hora válidas.");
     setEditSaving(true); setEditError(null);
     try {
-      const response = await fetch(`/api/bff/transactions/transfers/${transferEditForm.transferGroupId}`, {
+      const response = await csrfFetch(`/api/bff/transactions/transfers/${transferEditForm.transferGroupId}`, {
         method: "PUT", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ categoryId: transferEditForm.categoryId, subcategoryId: transferEditForm.subcategoryId ?? undefined, merchantId: transferEditForm.merchantId ?? undefined, description: transferEditForm.description.trim(), transactionDate, tags: parseTagsInput(transferEditForm.tagsText) })
       });
@@ -314,7 +315,7 @@ export function useTransactionMutations(params: Params) {
     setDeleteLoadingId(item.transactionId);
     setHistoryError(null);
     try {
-      const response = await fetch(`/api/bff/transactions/${item.transactionId}`, { method: "DELETE" });
+      const response = await csrfFetch(`/api/bff/transactions/${item.transactionId}`, { method: "DELETE" });
       if (!response.ok) {
         const data = (await response.json().catch(() => null)) as { message?: string } | null;
         throw new Error(data?.message ?? "No se pudo eliminar la transacción");
@@ -333,7 +334,7 @@ export function useTransactionMutations(params: Params) {
     setDeleteTransferGroupId(item.transferGroupId);
     setHistoryError(null);
     try {
-      const response = await fetch(`/api/bff/transactions/transfers/${item.transferGroupId}`, { method: "DELETE" });
+      const response = await csrfFetch(`/api/bff/transactions/transfers/${item.transferGroupId}`, { method: "DELETE" });
       if (!response.ok) {
         const data = (await response.json().catch(() => null)) as { message?: string } | null;
         throw new Error(data?.message ?? "No se pudo eliminar la transferencia");
@@ -354,7 +355,7 @@ export function useTransactionMutations(params: Params) {
     if (!Number.isInteger(months) || months < 2 || months > 60) return setHistoryError("Meses MSI inválido. Debe ser entero entre 2 y 60.");
     setHistoryError(null);
     try {
-      const response = await fetch("/api/bff/transactions/credit/convert-charge-msi", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sourceTransactionId: item.transactionId, months }) });
+      const response = await csrfFetch("/api/bff/transactions/credit/convert-charge-msi", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sourceTransactionId: item.transactionId, months }) });
       if (!response.ok) {
         const data = (await response.json().catch(() => null)) as { message?: string } | null;
         throw new Error(data?.message ?? "No se pudo convertir cargo a MSI");
@@ -370,7 +371,7 @@ export function useTransactionMutations(params: Params) {
 
     setHistoryError(null);
     try {
-      const response = await fetch("/api/bff/transactions/credit/apply-existing-payment", {
+      const response = await csrfFetch("/api/bff/transactions/credit/apply-existing-payment", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ sourceTransactionId, creditAccountId, amount })

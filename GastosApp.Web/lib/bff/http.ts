@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-type ErrorCode = "UNAUTHORIZED" | "SESSION_EXPIRED" | "FORBIDDEN" | "BAD_REQUEST" | "UPSTREAM_ERROR";
+type ErrorCode = "UNAUTHORIZED" | "SESSION_EXPIRED" | "FORBIDDEN" | "BAD_REQUEST" | "UPSTREAM_ERROR" | "CSRF_REJECTED";
 
 type ErrorPayload = {
   code: ErrorCode;
@@ -35,6 +35,10 @@ export function sessionExpired(requestOrTraceId?: Request | string, message = "S
 
 export function forbidden(requestOrTraceId?: Request | string, message = "Forbidden") {
   return errorResponse(403, { code: "FORBIDDEN", message, traceId: resolveTraceId(requestOrTraceId) });
+}
+
+export function csrfRejected(requestOrTraceId?: Request | string, message = "CSRF validation failed") {
+  return errorResponse(403, { code: "CSRF_REJECTED", message, traceId: resolveTraceId(requestOrTraceId) });
 }
 
 export function badRequest(requestOrTraceId: Request | string | undefined, message: string) {

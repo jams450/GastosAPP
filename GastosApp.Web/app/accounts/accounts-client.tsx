@@ -7,6 +7,7 @@ import { Card } from "@/components/ui/card";
 import type { Account } from "@/lib/contracts/accounts";
 import { normalizeAccounts } from "@/lib/contracts/accounts";
 import { toAccountUpsertPayload, type AccountFormErrors, type AccountUpsertPayload, validateAccountPayload } from "@/lib/contracts/accounts-admin";
+import { csrfFetch } from "@/lib/security/csrf-client";
 import { AccountsTable } from "./_components/accounts-table";
 import { AccountsToolbar } from "./_components/accounts-toolbar";
 import { AccountFormDrawer } from "./_components/account-form-drawer";
@@ -124,7 +125,7 @@ export function AccountsClient({ username }: Props) {
     try {
       const url = editing ? `/api/bff/accounts/${editing.accountId}` : "/api/bff/accounts";
       const method = editing ? "PUT" : "POST";
-      const response = await fetch(url, {
+      const response = await csrfFetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
@@ -148,7 +149,7 @@ export function AccountsClient({ username }: Props) {
   async function toggleActive(account: Account) {
     setError(null);
     try {
-      const response = await fetch(`/api/bff/accounts/${account.accountId}/active`, {
+      const response = await csrfFetch(`/api/bff/accounts/${account.accountId}/active`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ active: !account.active })

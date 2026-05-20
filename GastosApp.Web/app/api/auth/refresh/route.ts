@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { getApiBaseUrl } from "@/lib/api/config";
 import { decryptSession, encryptSession, SESSION_COOKIE_NAME, SESSION_COOKIE_SECURE } from "@/lib/auth/session";
 import { sessionExpired, unauthorized } from "@/lib/bff/http";
+import { issueCsrfToken } from "@/lib/security/csrf";
 
 type ApiRefreshResponse = {
   token: string;
@@ -70,6 +71,7 @@ export async function POST() {
     path: "/",
     expires: new Date(refreshData.refreshTokenExpiration ?? refreshData.expiration)
   });
+  issueCsrfToken(response, refreshData.refreshTokenExpiration ?? refreshData.expiration);
   console.info("[bff.auth.manual_refresh_succeeded]", { traceId, userId });
 
   return response;

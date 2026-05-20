@@ -59,12 +59,6 @@ public class UsersController : ControllerBase
     {
         try
         {
-            var existingUser = await _userService.GetByEmailAsync(request.Email);
-            if (existingUser != null)
-            {
-                return Conflict(new { Message = "A user with this email already exists" });
-            }
-
             var user = request.Adapt<User>();
             var createdUser = await _userService.CreateAsync(user);
             _logger.LogInformation("User created successfully: {Email}", createdUser.Email);
@@ -97,18 +91,6 @@ public class UsersController : ControllerBase
             if (updatedUser == null)
             {
                 return NotFound(new { Message = $"User with ID {id} not found" });
-            }
-
-            if (existingUser.Active != request.Active)
-            {
-                await _userService.UpdateActiveStatusAsync(id, request.Active);
-                updatedUser.Active = request.Active;
-            }
-
-            if (existingUser.Admin != request.Admin)
-            {
-                await _userService.UpdateAdminStatusAsync(id, request.Admin);
-                updatedUser.Admin = request.Admin;
             }
 
             _logger.LogInformation("User updated successfully: {Email}", updatedUser?.Email);

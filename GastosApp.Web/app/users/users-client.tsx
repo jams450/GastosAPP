@@ -5,6 +5,7 @@ import { AppMenu } from "@/components/navigation/app-menu";
 import { Alert } from "@/components/ui/alert";
 import { Card } from "@/components/ui/card";
 import { type AdminUser, type UserFormErrors, type UserFormState, normalizeUsers, toUserFormState, validateUserForm } from "@/lib/contracts/users-admin";
+import { csrfFetch } from "@/lib/security/csrf-client";
 import { UserFormDrawer } from "./_components/user-form-drawer";
 import { UsersTable } from "./_components/users-table";
 import { UsersToolbar } from "./_components/users-toolbar";
@@ -108,7 +109,7 @@ export function UsersClient({ username }: Props) {
     try {
       const url = editing ? `/api/bff/users/${editing.userId}` : "/api/bff/users";
       const method = editing ? "PUT" : "POST";
-      const response = await fetch(url, {
+      const response = await csrfFetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
@@ -132,7 +133,7 @@ export function UsersClient({ username }: Props) {
   async function toggleActive(user: AdminUser) {
     setError(null);
     try {
-      const response = await fetch(`/api/bff/users/${user.userId}/active`, {
+      const response = await csrfFetch(`/api/bff/users/${user.userId}/active`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ active: !user.active })
@@ -155,7 +156,7 @@ export function UsersClient({ username }: Props) {
 
     setError(null);
     try {
-      const response = await fetch(`/api/bff/users/${user.userId}`, { method: "DELETE" });
+      const response = await csrfFetch(`/api/bff/users/${user.userId}`, { method: "DELETE" });
       if (!response.ok) {
         const body = (await response.json().catch(() => null)) as { message?: string; Message?: string } | null;
         throw new Error(body?.message ?? body?.Message ?? "No se pudo borrar usuario");

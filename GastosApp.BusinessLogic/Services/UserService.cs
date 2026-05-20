@@ -88,6 +88,14 @@ namespace GastosApp.BusinessLogic.Services
             existing.Name = normalizedName;
             existing.Email = normalizedEmail;
 
+            if (existing.Active != user.Active)
+            {
+                existing.Active = user.Active;
+                existing.SessionVersion += 1;
+            }
+
+            existing.Admin = user.Admin;
+
             if (!string.IsNullOrEmpty(user.Password) && user.Password != existing.Password)
             {
                 ValidatePasswordOrThrow(user.Password);

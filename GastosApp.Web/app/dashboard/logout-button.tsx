@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { csrfFetch } from "@/lib/security/csrf-client";
 
 export function LogoutButton() {
   const router = useRouter();
@@ -11,7 +12,7 @@ export function LogoutButton() {
   async function onLogout() {
     setLoading(true);
     try {
-      await fetch("/api/auth/logout", { method: "POST" });
+      await csrfFetch("/api/auth/logout", { method: "POST" });
       router.replace("/login");
       router.refresh();
     } finally {

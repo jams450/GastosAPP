@@ -1,4 +1,5 @@
 import type { CatalogsResponse } from "./catalogs-types";
+import { csrfFetch } from "@/lib/security/csrf-client";
 
 function redirectToLoginOnUnauthorized(response: Response): never {
   if (response.status === 401 && typeof window !== "undefined") {
@@ -9,7 +10,7 @@ function redirectToLoginOnUnauthorized(response: Response): never {
 }
 
 export async function requestJson(path: string, init: RequestInit, fallbackMessage: string): Promise<void> {
-  const response = await fetch(path, {
+  const response = await csrfFetch(path, {
     ...init,
     headers: {
       "Content-Type": "application/json",

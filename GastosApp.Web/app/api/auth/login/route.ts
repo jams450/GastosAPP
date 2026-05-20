@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { getApiBaseUrl } from "@/lib/api/config";
 import { encryptSession, SESSION_COOKIE_NAME, SESSION_COOKIE_SECURE } from "@/lib/auth/session";
 import { badRequest, getTraceId, unauthorized, upstreamError } from "@/lib/bff/http";
+import { issueCsrfToken } from "@/lib/security/csrf";
 
 type LoginRequest = {
   username: string;
@@ -70,6 +71,7 @@ export async function POST(request: Request) {
     path: "/",
     expires: new Date(loginData.refreshTokenExpiration ?? loginData.expiration)
   });
+  issueCsrfToken(response, loginData.refreshTokenExpiration ?? loginData.expiration);
 
   console.info("[bff.auth.login]", { traceId, userId });
 

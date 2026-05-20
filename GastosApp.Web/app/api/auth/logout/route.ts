@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { getApiBaseUrl } from "@/lib/api/config";
 import { decryptSession, SESSION_COOKIE_NAME, SESSION_COOKIE_SECURE } from "@/lib/auth/session";
 import { getTraceId } from "@/lib/bff/http";
+import { clearCsrfToken } from "@/lib/security/csrf";
 
 export async function POST(request: Request) {
   const traceId = getTraceId(request);
@@ -31,6 +32,7 @@ export async function POST(request: Request) {
     sameSite: "lax",
     secure: SESSION_COOKIE_SECURE
   });
+  clearCsrfToken(response);
   console.info("[bff.auth.logout]", { traceId });
 
   return response;
