@@ -8,6 +8,8 @@ namespace GastosApp.BusinessLogic.Interfaces
         Task<Transaction> CreateIncomeAsync(Transaction transaction);
         Task<Transaction> CreateExpenseAsync(Transaction transaction, int userId, IEnumerable<ExpenseAllocationInput>? allocations = null);
         Task<Transaction?> UpdateAsync(int id, Transaction transaction);
+        Task<Transaction?> UpdateForUserAsync(int id, int userId, Transaction transaction);
         Task<bool> DeleteAsync(int id);
+        Task<bool> DeleteForUserAsync(int id, int userId);
     }
 }

@@ -14,7 +14,7 @@ public class UserCreateRequest
     public string Email { get; set; } = string.Empty;
 
     [Required]
-    [StringLength(255)]
+    [StringLength(255, MinimumLength = 8)]
     public string Password { get; set; } = string.Empty;
 
     public bool Active { get; set; } = true;

@@ -33,16 +33,22 @@ namespace GastosApp.BusinessLogic.Services
         }
 
         public Task<Transaction?> GetByIdAsync(int id) => _queryService.GetByIdAsync(id);
+        public Task<Transaction?> GetByIdForUserAsync(int id, int userId) => _queryService.GetByIdForUserAsync(id, userId);
         public Task<IEnumerable<Transaction>> GetAllByAccountIdAsync(int accountId) => _queryService.GetAllByAccountIdAsync(accountId);
+        public Task<IEnumerable<Transaction>> GetAllByAccountIdForUserAsync(int accountId, int userId) => _queryService.GetAllByAccountIdForUserAsync(accountId, userId);
         public Task<IEnumerable<Transaction>> GetByDateRangeAsync(int accountId, DateTime startDate, DateTime endDate) => _queryService.GetByDateRangeAsync(accountId, startDate, endDate);
+        public Task<IEnumerable<Transaction>> GetByDateRangeForUserAsync(int accountId, int userId, DateTime startDate, DateTime endDate) => _queryService.GetByDateRangeForUserAsync(accountId, userId, startDate, endDate);
         public Task<IEnumerable<Transaction>> GetByCategoryAsync(int categoryId) => _queryService.GetByCategoryAsync(categoryId);
+        public Task<IEnumerable<Transaction>> GetByCategoryForUserAsync(int categoryId, int userId) => _queryService.GetByCategoryForUserAsync(categoryId, userId);
         public Task<Transaction> CreateIncomeAsync(Transaction transaction) => _commandService.CreateIncomeAsync(transaction);
         public Task<Transaction> CreateExpenseAsync(Transaction transaction, int userId, IEnumerable<ExpenseAllocationInput>? allocations = null) => _commandService.CreateExpenseAsync(transaction, userId, allocations);
-        public Task<(bool Success, string? ErrorMessage)> CreateTransferAsync(int sourceAccountId, int destinationAccountId, decimal amount, string? description = null, DateTime? transactionDate = null, int? categoryId = null, int? subcategoryId = null, int? merchantId = null, IEnumerable<string>? tags = null)
-            => _transferService.CreateTransferAsync(sourceAccountId, destinationAccountId, amount, description, transactionDate, categoryId, subcategoryId, merchantId, tags);
+        public Task<(bool Success, string? ErrorMessage)> CreateTransferAsync(int userId, int sourceAccountId, int destinationAccountId, decimal amount, string? description = null, DateTime? transactionDate = null, int? categoryId = null, int? subcategoryId = null, int? merchantId = null, IEnumerable<string>? tags = null)
+            => _transferService.CreateTransferAsync(userId, sourceAccountId, destinationAccountId, amount, description, transactionDate, categoryId, subcategoryId, merchantId, tags);
         public Task<Transaction?> UpdateAsync(int id, Transaction transaction) => _commandService.UpdateAsync(id, transaction);
+        public Task<Transaction?> UpdateForUserAsync(int id, int userId, Transaction transaction) => _commandService.UpdateForUserAsync(id, userId, transaction);
         public Task<bool> DeleteAsync(int id) => _commandService.DeleteAsync(id);
-        public Task<bool> DeleteTransferAsync(Guid transferGroupId) => _transferService.DeleteTransferAsync(transferGroupId);
+        public Task<bool> DeleteForUserAsync(int id, int userId) => _commandService.DeleteForUserAsync(id, userId);
+        public Task<bool> DeleteTransferAsync(Guid transferGroupId, int userId) => _transferService.DeleteTransferAsync(transferGroupId, userId);
         public Task<(bool Success, string? ErrorMessage)> UpdateTransferMetadataAsync(Guid transferGroupId, int userId, int? categoryId, int? subcategoryId, int? merchantId, string? description, DateTime? transactionDate, IEnumerable<string>? tags)
             => _transferService.UpdateTransferMetadataAsync(transferGroupId, userId, categoryId, subcategoryId, merchantId, description, transactionDate, tags);
         public Task<decimal> CalculateAccountBalanceAsync(int accountId) => _queryService.CalculateAccountBalanceAsync(accountId);

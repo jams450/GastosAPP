@@ -6,9 +6,13 @@ namespace GastosApp.BusinessLogic.Interfaces
     public interface ITransactionService
     {
         Task<Transaction?> GetByIdAsync(int id);
+        Task<Transaction?> GetByIdForUserAsync(int id, int userId);
         Task<IEnumerable<Transaction>> GetAllByAccountIdAsync(int accountId);
+        Task<IEnumerable<Transaction>> GetAllByAccountIdForUserAsync(int accountId, int userId);
         Task<IEnumerable<Transaction>> GetByDateRangeAsync(int accountId, DateTime startDate, DateTime endDate);
+        Task<IEnumerable<Transaction>> GetByDateRangeForUserAsync(int accountId, int userId, DateTime startDate, DateTime endDate);
         Task<IEnumerable<Transaction>> GetByCategoryAsync(int categoryId);
+        Task<IEnumerable<Transaction>> GetByCategoryForUserAsync(int categoryId, int userId);
         
         // Transacciones normales (ingreso/gasto)
         Task<Transaction> CreateIncomeAsync(Transaction transaction);
@@ -16,6 +20,7 @@ namespace GastosApp.BusinessLogic.Interfaces
         
         // Transferencias entre cuentas
         Task<(bool Success, string? ErrorMessage)> CreateTransferAsync(
+            int userId,
             int sourceAccountId, 
             int destinationAccountId, 
             decimal amount, 
@@ -27,8 +32,10 @@ namespace GastosApp.BusinessLogic.Interfaces
             IEnumerable<string>? tags = null);
         
         Task<Transaction?> UpdateAsync(int id, Transaction transaction);
+        Task<Transaction?> UpdateForUserAsync(int id, int userId, Transaction transaction);
         Task<bool> DeleteAsync(int id);
-        Task<bool> DeleteTransferAsync(Guid transferGroupId);
+        Task<bool> DeleteForUserAsync(int id, int userId);
+        Task<bool> DeleteTransferAsync(Guid transferGroupId, int userId);
         Task<(bool Success, string? ErrorMessage)> UpdateTransferMetadataAsync(
             Guid transferGroupId,
             int userId,

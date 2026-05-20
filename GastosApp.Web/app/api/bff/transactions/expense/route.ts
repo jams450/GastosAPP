@@ -1,8 +1,7 @@
-import { NextResponse } from "next/server";
 import { getApiBaseUrl } from "@/lib/api/config";
-import { attachSessionCookie, fetchApiWithAutoRefresh } from "@/lib/auth/api-session";
 import { getServerSession } from "@/lib/auth/session";
-import { badRequest, unauthorized, upstreamError } from "@/lib/bff/http";
+import { badRequest, unauthorized } from "@/lib/bff/http";
+import { proxyJsonWithSession } from "@/lib/bff/proxy";
 import { validateIncomeExpensePayload } from "@/lib/contracts/transactions";
 
 export async function POST(request: Request) {
@@ -17,21 +16,17 @@ export async function POST(request: Request) {
     return badRequest(request, validation.message);
   }
 
-  const { response, session: updatedSession } = await fetchApiWithAutoRefresh(session, `${getApiBaseUrl()}/api/transactions/expense`, {
-    method: "POST",
-    body: JSON.stringify(validation.data),
-    cache: "no-store"
+  const { response } = await proxyJsonWithSession({
+    request,
+    session,
+    url: `${getApiBaseUrl()}/api/transactions/expense`,
+    init: {
+      method: "POST",
+      body: JSON.stringify(validation.data),
+      cache: "no-store"
+    },
+    upstreamErrorMessage: "Failed to create expense transaction"
   });
 
-  if (!response.ok) {
-    const errorBody = (await response.json().catch(() => null)) as { message?: string; Message?: string } | null;
-    const result = upstreamError(request, response.status, errorBody?.message ?? errorBody?.Message ?? "Failed to create expense transaction");
-    await attachSessionCookie(result, updatedSession, session);
-    return result;
-  }
-
-  const result = await response.json();
-  const out = NextResponse.json(result, { status: response.status });
-  await attachSessionCookie(out, updatedSession, session);
-  return out;
+  return response;
 }

@@ -3,6 +3,7 @@ namespace GastosApp.BusinessLogic.Interfaces
     public interface ITransferService
     {
         Task<(bool Success, string? ErrorMessage)> CreateTransferAsync(
+            int userId,
             int sourceAccountId,
             int destinationAccountId,
             decimal amount,
@@ -13,7 +14,7 @@ namespace GastosApp.BusinessLogic.Interfaces
             int? merchantId = null,
             IEnumerable<string>? tags = null);
 
-        Task<bool> DeleteTransferAsync(Guid transferGroupId);
+        Task<bool> DeleteTransferAsync(Guid transferGroupId, int userId);
 
         Task<(bool Success, string? ErrorMessage)> UpdateTransferMetadataAsync(
             Guid transferGroupId,

@@ -3,6 +3,7 @@ import { getApiBaseUrl } from "@/lib/api/config";
 import { attachSessionCookie, fetchApiWithAutoRefresh } from "@/lib/auth/api-session";
 import { getServerSession } from "@/lib/auth/session";
 import { badRequest, unauthorized, upstreamError } from "@/lib/bff/http";
+import { logBff } from "@/lib/bff/observability";
 
 type UnknownRecord = Record<string, unknown>;
 const TRANSACTIONS_TIMEZONE = "America/Mexico_City";
@@ -182,6 +183,8 @@ function getMonthRangeUtc(month: string): { startIso: string; endIso: string } {
 }
 
 export async function GET(request: Request) {
+  const traceId = request.headers.get("x-request-id") ?? request.headers.get("x-correlation-id") ?? crypto.randomUUID();
+  const startedAt = Date.now();
   const session = await getServerSession();
   if (!session) {
     return unauthorized(request);
@@ -225,9 +228,7 @@ export async function GET(request: Request) {
     : [];
 
   const { startIso, endIso } = getMonthRangeUtc(month);
-  const transactionsByAccount: unknown[] = [];
-
-  for (const account of accounts) {
+  const accountRequests = accounts.map(async (account) => {
     const call = await fetchApiWithAutoRefresh(
       authSession,
       `${getApiBaseUrl()}/api/transactions/account/${account.accountId}/date-range?startDate=${encodeURIComponent(startIso)}&endDate=${encodeURIComponent(endIso)}`,
@@ -236,6 +237,14 @@ export async function GET(request: Request) {
         cache: "no-store"
       }
     );
+
+    return { accountId: account.accountId, call };
+  });
+
+  const accountResponses = await Promise.all(accountRequests);
+  const transactionsByAccount: unknown[] = [];
+
+  for (const { call } of accountResponses) {
     authSession = call.session;
     if (!call.response.ok) {
       const body = (await call.response.json().catch(() => null)) as { message?: string; Message?: string } | null;
@@ -290,5 +299,15 @@ export async function GET(request: Request) {
 
   const out = NextResponse.json({ month, transactions });
   await attachSessionCookie(out, authSession, session);
+  logBff("info", {
+    event: "transactions_list_ok",
+    traceId,
+    route: new URL(request.url).pathname,
+    method: request.method,
+    durationMs: Date.now() - startedAt,
+    status: 200,
+    ok: true,
+    details: { month, accounts: accounts.length, transactions: transactions.length }
+  });
   return out;
 }

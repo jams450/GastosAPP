@@ -1,4 +1,5 @@
 using GastosApp.BusinessLogic.Interfaces;
+using GastosApp.BusinessLogic.Models.Transactions;
 using GastosApp.Models.Entities;
 using Microsoft.EntityFrameworkCore;
 
@@ -73,26 +74,28 @@ namespace GastosApp.BusinessLogic.Services
             };
         }
 
-        public string ResolveDirection(decimal balanceImpact) => balanceImpact < 0 ? "debit" : "credit";
+        public string ResolveDirection(decimal balanceImpact) => balanceImpact < 0
+            ? TransactionDomainConstants.Direction.Debit
+            : TransactionDomainConstants.Direction.Credit;
 
         public decimal ResolveUpdatedBalanceImpact(Transaction transaction, decimal previousImpact)
         {
-            return transaction.Type.ToLower() switch
+            return transaction.Type.ToLowerInvariant() switch
             {
-                "income" => transaction.Amount,
-                "expense" => transaction.Amount * -1,
-                "transfer" => previousImpact < 0 ? transaction.Amount * -1 : transaction.Amount,
+                TransactionDomainConstants.TransactionType.Income => transaction.Amount,
+                TransactionDomainConstants.TransactionType.Expense => transaction.Amount * -1,
+                TransactionDomainConstants.TransactionType.Transfer => previousImpact < 0 ? transaction.Amount * -1 : transaction.Amount,
                 _ => previousImpact
             };
         }
 
         public async Task<decimal> InferLegacyBalanceImpactAsync(Transaction transaction)
         {
-            switch (transaction.Type.ToLower())
+            switch (transaction.Type.ToLowerInvariant())
             {
-                case "income": return transaction.Amount;
-                case "expense": return transaction.Amount * -1;
-                case "transfer":
+                case TransactionDomainConstants.TransactionType.Income: return transaction.Amount;
+                case TransactionDomainConstants.TransactionType.Expense: return transaction.Amount * -1;
+                case TransactionDomainConstants.TransactionType.Transfer:
                     if (!transaction.TransferGroupId.HasValue) return transaction.Amount;
                     var ordered = await _repository.Get<Transaction>(t => t.TransferGroupId == transaction.TransferGroupId)
                         .OrderBy(t => t.TransactionId)

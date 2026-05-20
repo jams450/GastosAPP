@@ -12,6 +12,7 @@ namespace GastosApp.BusinessLogic.Interfaces
         Task<bool> ChangePasswordAsync(int id, string newPassword);
         Task<bool> DeleteAsync(int id);
         Task<bool> UpdateActiveStatusAsync(int id, bool active);
+        Task<bool> UpdateAdminStatusAsync(int id, bool isAdmin);
         Task<User?> ValidateCredentialsAsync(string email, string password);
     }
 }

@@ -16,43 +16,54 @@ namespace GastosApp.BusinessLogic.Services
 
         public async Task<Transaction?> GetByIdAsync(int id)
         {
-            return await _repository.Get<Transaction>(t => t.TransactionId == id)
-                .Include(t => t.TransactionTags)
-                .ThenInclude(tt => tt.Tag)
-                .Include(t => t.TransactionAllocations)
-                .ThenInclude(a => a.BillableParty)
+            return await BuildBaseQuery(t => t.TransactionId == id)
+                .FirstOrDefaultAsync();
+        }
+
+        public async Task<Transaction?> GetByIdForUserAsync(int id, int userId)
+        {
+            return await BuildBaseQuery(t => t.TransactionId == id && t.Account.UserId == userId)
                 .FirstOrDefaultAsync();
         }
 
         public async Task<IEnumerable<Transaction>> GetAllByAccountIdAsync(int accountId)
         {
-            return await _repository.Get<Transaction>(t => t.AccountId == accountId)
-                .Include(t => t.TransactionTags)
-                .ThenInclude(tt => tt.Tag)
-                .Include(t => t.TransactionAllocations)
-                .ThenInclude(a => a.BillableParty)
+            return await BuildBaseQuery(t => t.AccountId == accountId)
+                .OrderByDescending(t => t.TransactionDate)
+                .ToListAsync();
+        }
+
+        public async Task<IEnumerable<Transaction>> GetAllByAccountIdForUserAsync(int accountId, int userId)
+        {
+            return await BuildBaseQuery(t => t.AccountId == accountId && t.Account.UserId == userId)
                 .OrderByDescending(t => t.TransactionDate)
                 .ToListAsync();
         }
 
         public async Task<IEnumerable<Transaction>> GetByDateRangeAsync(int accountId, DateTime startDate, DateTime endDate)
         {
-            return await _repository.Get<Transaction>(t => t.AccountId == accountId && t.TransactionDate >= startDate && t.TransactionDate <= endDate)
-                .Include(t => t.TransactionTags)
-                .ThenInclude(tt => tt.Tag)
-                .Include(t => t.TransactionAllocations)
-                .ThenInclude(a => a.BillableParty)
+            return await BuildBaseQuery(t => t.AccountId == accountId && t.TransactionDate >= startDate && t.TransactionDate <= endDate)
+                .OrderByDescending(t => t.TransactionDate)
+                .ToListAsync();
+        }
+
+        public async Task<IEnumerable<Transaction>> GetByDateRangeForUserAsync(int accountId, int userId, DateTime startDate, DateTime endDate)
+        {
+            return await BuildBaseQuery(t => t.AccountId == accountId && t.Account.UserId == userId && t.TransactionDate >= startDate && t.TransactionDate <= endDate)
                 .OrderByDescending(t => t.TransactionDate)
                 .ToListAsync();
         }
 
         public async Task<IEnumerable<Transaction>> GetByCategoryAsync(int categoryId)
         {
-            return await _repository.Get<Transaction>(t => t.CategoryId == categoryId)
-                .Include(t => t.TransactionTags)
-                .ThenInclude(tt => tt.Tag)
-                .Include(t => t.TransactionAllocations)
-                .ThenInclude(a => a.BillableParty)
+            return await BuildBaseQuery(t => t.CategoryId == categoryId)
+                .OrderByDescending(t => t.TransactionDate)
+                .ToListAsync();
+        }
+
+        public async Task<IEnumerable<Transaction>> GetByCategoryForUserAsync(int categoryId, int userId)
+        {
+            return await BuildBaseQuery(t => t.CategoryId == categoryId && t.Account.UserId == userId)
                 .OrderByDescending(t => t.TransactionDate)
                 .ToListAsync();
         }
@@ -68,7 +79,7 @@ namespace GastosApp.BusinessLogic.Services
                 .Include(i => i.Plan)
                 .ThenInclude(p => p.SourceCharge)
                 .ThenInclude(c => c.SourceTransaction)
-                .Where(i => i.Plan.AccountId == creditAccountId && i.Status != "Paid")
+                .Where(i => i.Plan.AccountId == creditAccountId && i.Status != TransactionDomainConstants.CreditStatus.Paid)
                 .OrderBy(i => i.DueDate)
                 .ToListAsync();
 
@@ -134,6 +145,15 @@ namespace GastosApp.BusinessLogic.Services
                     Status = plan.SourceCharge.Status
                 };
             }).ToList();
+        }
+
+        private IQueryable<Transaction> BuildBaseQuery(System.Linq.Expressions.Expression<Func<Transaction, bool>> predicate)
+        {
+            return _repository.Get<Transaction>(predicate)
+                .Include(t => t.TransactionTags)
+                .ThenInclude(tt => tt.Tag)
+                .Include(t => t.TransactionAllocations)
+                .ThenInclude(a => a.BillableParty);
         }
     }
 }

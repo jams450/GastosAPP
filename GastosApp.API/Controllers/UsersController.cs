@@ -59,11 +59,6 @@ public class UsersController : ControllerBase
     {
         try
         {
-            if (string.IsNullOrWhiteSpace(request.Email) || string.IsNullOrWhiteSpace(request.Password))
-            {
-                return BadRequest(new { Message = "Email and password are required" });
-            }
-
             var existingUser = await _userService.GetByEmailAsync(request.Email);
             if (existingUser != null)
             {
@@ -75,6 +70,10 @@ public class UsersController : ControllerBase
             _logger.LogInformation("User created successfully: {Email}", createdUser.Email);
 
             return CreatedAtAction(nameof(GetById), new { id = createdUser.UserId }, createdUser.Adapt<UserResponse>());
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { Message = ex.Message });
         }
         catch (Exception ex)
         {
@@ -95,9 +94,30 @@ public class UsersController : ControllerBase
             var user = request.Adapt<User>();
             user.UserId = id;
             var updatedUser = await _userService.UpdateAsync(id, user);
+            if (updatedUser == null)
+            {
+                return NotFound(new { Message = $"User with ID {id} not found" });
+            }
+
+            if (existingUser.Active != request.Active)
+            {
+                await _userService.UpdateActiveStatusAsync(id, request.Active);
+                updatedUser.Active = request.Active;
+            }
+
+            if (existingUser.Admin != request.Admin)
+            {
+                await _userService.UpdateAdminStatusAsync(id, request.Admin);
+                updatedUser.Admin = request.Admin;
+            }
+
             _logger.LogInformation("User updated successfully: {Email}", updatedUser?.Email);
 
-            return Ok(updatedUser!.Adapt<UserResponse>());
+            return Ok(updatedUser.Adapt<UserResponse>());
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { Message = ex.Message });
         }
         catch (Exception ex)
         {
@@ -122,10 +142,45 @@ public class UsersController : ControllerBase
             _logger.LogInformation("User {Id} active status updated to {Active}", id, active);
             return Ok(new { Message = $"User active status updated to {active}" });
         }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { Message = ex.Message });
+        }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error updating active status for user with ID {Id}", id);
             return StatusCode(500, new { Message = "An error occurred while updating the user status" });
+        }
+    }
+
+    [HttpPatch("{id}/admin")]
+    public async Task<IActionResult> UpdateAdminStatus(int id, [FromBody] UserUpdateAdminRequest request)
+    {
+        try
+        {
+            var existingUser = await _userService.GetByIdAsync(id);
+            if (existingUser == null)
+            {
+                return NotFound(new { Message = $"User with ID {id} not found" });
+            }
+
+            var result = await _userService.UpdateAdminStatusAsync(id, request.Admin);
+            if (!result)
+            {
+                return StatusCode(500, new { Message = "Failed to update admin status" });
+            }
+
+            _logger.LogInformation("User {Id} admin status updated to {Admin}", id, request.Admin);
+            return Ok(new { Message = $"User admin status updated to {request.Admin}" });
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { Message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error updating admin status for user with ID {Id}", id);
+            return StatusCode(500, new { Message = "An error occurred while updating the admin status" });
         }
     }
 

@@ -29,9 +29,9 @@ namespace GastosApp.BusinessLogic.Services
 
         public async Task<Transaction> CreateIncomeAsync(Transaction transaction)
         {
-            transaction.Type = "income";
+            transaction.Type = TransactionDomainConstants.TransactionType.Income;
             transaction.BalanceImpact = transaction.Amount;
-            transaction.Direction = "credit";
+            transaction.Direction = TransactionDomainConstants.Direction.Credit;
             transaction.CounterpartyAccountId = null;
 
             var result = await _repository.Save(transaction);
@@ -41,9 +41,9 @@ namespace GastosApp.BusinessLogic.Services
 
         public async Task<Transaction> CreateExpenseAsync(Transaction transaction, int userId, IEnumerable<ExpenseAllocationInput>? allocations = null)
         {
-            transaction.Type = "expense";
+            transaction.Type = TransactionDomainConstants.TransactionType.Expense;
             transaction.BalanceImpact = transaction.Amount * -1;
-            transaction.Direction = "debit";
+            transaction.Direction = TransactionDomainConstants.Direction.Debit;
             transaction.CounterpartyAccountId = null;
 
             var result = await _repository.Save(transaction);
@@ -57,7 +57,7 @@ namespace GastosApp.BusinessLogic.Services
             var account = await _accountService.GetByIdAsync(transaction.AccountId);
             if (account?.IsCredit == true)
             {
-                await _creditLifecycleService.CreateCreditChargeWithPlanAsync(result, 1, "Revolving");
+                await _creditLifecycleService.CreateCreditChargeWithPlanAsync(result, 1, TransactionDomainConstants.CreditPlanType.Revolving);
             }
 
             return result;
@@ -68,6 +68,36 @@ namespace GastosApp.BusinessLogic.Services
             var existing = await _repository.GetByIdAsync<Transaction>(id);
             if (existing == null) return null;
 
+            return await UpdateInternalAsync(id, transaction, existing);
+        }
+
+        public async Task<Transaction?> UpdateForUserAsync(int id, int userId, Transaction transaction)
+        {
+            var existing = await _repository.Get<Transaction>(t => t.TransactionId == id && t.Account.UserId == userId).FirstOrDefaultAsync();
+            if (existing == null) return null;
+
+            return await UpdateInternalAsync(id, transaction, existing);
+        }
+
+        public async Task<bool> DeleteAsync(int id)
+        {
+            var transaction = await _repository.GetByIdAsync<Transaction>(id);
+            if (transaction == null) return false;
+
+            return await DeleteInternalAsync(id, transaction);
+        }
+
+        public async Task<bool> DeleteForUserAsync(int id, int userId)
+        {
+            var transaction = await _repository.Get<Transaction>(t => t.TransactionId == id && t.Account.UserId == userId).FirstOrDefaultAsync();
+            if (transaction == null) return false;
+
+            return await DeleteInternalAsync(id, transaction);
+        }
+
+        private async Task<Transaction?> UpdateInternalAsync(int id, Transaction transaction, Transaction existing)
+        {
+
             var previousImpact = existing.BalanceImpact;
             if (previousImpact == 0)
             {
@@ -76,7 +106,7 @@ namespace GastosApp.BusinessLogic.Services
 
             transaction.BalanceImpact = _validation.ResolveUpdatedBalanceImpact(transaction, previousImpact);
             transaction.Direction = _validation.ResolveDirection(transaction.BalanceImpact);
-            if (transaction.Type != "transfer")
+            if (transaction.Type != TransactionDomainConstants.TransactionType.Transfer)
             {
                 transaction.CounterpartyAccountId = null;
             }
@@ -90,7 +120,7 @@ namespace GastosApp.BusinessLogic.Services
                 await UpdateAccountBalanceAsync(existing.AccountId, adjustment);
             }
 
-            if (transaction.Type == "expense")
+            if (transaction.Type == TransactionDomainConstants.TransactionType.Expense)
             {
                 await _creditLifecycleService.SynchronizeCreditChargePlanAsync(id, transaction.Amount, transaction.TransactionDate);
             }
@@ -98,11 +128,8 @@ namespace GastosApp.BusinessLogic.Services
             return result;
         }
 
-        public async Task<bool> DeleteAsync(int id)
+        private async Task<bool> DeleteInternalAsync(int id, Transaction transaction)
         {
-            var transaction = await _repository.GetByIdAsync<Transaction>(id);
-            if (transaction == null) return false;
-
             var balanceImpact = transaction.BalanceImpact;
             if (balanceImpact == 0)
             {

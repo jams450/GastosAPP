@@ -1,4 +1,5 @@
 using GastosApp.BusinessLogic.Interfaces;
+using GastosApp.BusinessLogic.Models.Transactions;
 using GastosApp.Models.Entities;
 using Microsoft.EntityFrameworkCore;
 
@@ -19,7 +20,7 @@ namespace GastosApp.BusinessLogic.Services
             _validation = validation;
         }
 
-        public async Task<(bool Success, string? ErrorMessage)> CreateTransferAsync(int sourceAccountId, int destinationAccountId, decimal amount, string? description = null, DateTime? transactionDate = null, int? categoryId = null, int? subcategoryId = null, int? merchantId = null, IEnumerable<string>? tags = null)
+        public async Task<(bool Success, string? ErrorMessage)> CreateTransferAsync(int userId, int sourceAccountId, int destinationAccountId, decimal amount, string? description = null, DateTime? transactionDate = null, int? categoryId = null, int? subcategoryId = null, int? merchantId = null, IEnumerable<string>? tags = null)
         {
             if (amount <= 0) return (false, "El monto debe ser mayor a cero");
             if (sourceAccountId == destinationAccountId) return (false, "Las cuentas de origen y destino deben ser diferentes");
@@ -28,6 +29,7 @@ namespace GastosApp.BusinessLogic.Services
             if (sourceAccount == null) return (false, "Cuenta de origen no encontrada");
             var destinationAccount = await _accountService.GetByIdAsync(destinationAccountId);
             if (destinationAccount == null) return (false, "Cuenta de destino no encontrada");
+            if (sourceAccount.UserId != userId || destinationAccount.UserId != userId) return (false, "Transfer not found");
             if (sourceAccount.CurrentBalance < amount) return (false, "Saldo insuficiente en la cuenta de origen");
 
             var transferGroupId = Guid.NewGuid();
@@ -39,11 +41,11 @@ namespace GastosApp.BusinessLogic.Services
                 CategoryId = categoryId,
                 SubcategoryId = subcategoryId,
                 MerchantId = merchantId,
-                Type = "transfer",
+                Type = TransactionDomainConstants.TransactionType.Transfer,
                 TransferGroupId = transferGroupId,
                 Amount = amount,
                 BalanceImpact = amount * -1,
-                Direction = "debit",
+                Direction = TransactionDomainConstants.Direction.Debit,
                 CounterpartyAccountId = destinationAccountId,
                 Description = description ?? $"Transferencia a {destinationAccount.Name}",
                 TransactionDate = date
@@ -55,11 +57,11 @@ namespace GastosApp.BusinessLogic.Services
                 CategoryId = categoryId,
                 SubcategoryId = subcategoryId,
                 MerchantId = merchantId,
-                Type = "transfer",
+                Type = TransactionDomainConstants.TransactionType.Transfer,
                 TransferGroupId = transferGroupId,
                 Amount = amount,
                 BalanceImpact = amount,
-                Direction = "credit",
+                Direction = TransactionDomainConstants.Direction.Credit,
                 CounterpartyAccountId = sourceAccountId,
                 Description = description ?? $"Transferencia desde {sourceAccount.Name}",
                 TransactionDate = date
@@ -76,9 +78,9 @@ namespace GastosApp.BusinessLogic.Services
             return (true, null);
         }
 
-        public async Task<bool> DeleteTransferAsync(Guid transferGroupId)
+        public async Task<bool> DeleteTransferAsync(Guid transferGroupId, int userId)
         {
-            var transactions = await _repository.Get<Transaction>(t => t.TransferGroupId == transferGroupId).ToListAsync();
+            var transactions = await _repository.Get<Transaction>(t => t.TransferGroupId == transferGroupId && t.Account.UserId == userId).ToListAsync();
             if (transactions.Count != 2) return false;
 
             foreach (var transaction in transactions)

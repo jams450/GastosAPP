@@ -1,4 +1,5 @@
 using GastosApp.BusinessLogic.Interfaces;
+using GastosApp.BusinessLogic.Models.Transactions;
 using GastosApp.Models.Entities;
 using GastosApp.API.Models.Transactions;
 using Microsoft.AspNetCore.Authorization;
@@ -33,7 +34,8 @@ namespace GastosApp.API.Controllers
         {
             try
             {
-                var transactions = await _transactionService.GetAllByAccountIdAsync(accountId);
+                var userId = GetCurrentUserId();
+                var transactions = await _transactionService.GetAllByAccountIdForUserAsync(accountId, userId);
                 return Ok(transactions.Select(MapTransaction));
             }
             catch (Exception ex)
@@ -51,7 +53,8 @@ namespace GastosApp.API.Controllers
         {
             try
             {
-                var transactions = await _transactionService.GetByDateRangeAsync(accountId, startDate, endDate);
+                var userId = GetCurrentUserId();
+                var transactions = await _transactionService.GetByDateRangeForUserAsync(accountId, userId, startDate, endDate);
                 return Ok(transactions.Select(MapTransaction));
             }
             catch (Exception ex)
@@ -66,7 +69,8 @@ namespace GastosApp.API.Controllers
         {
             try
             {
-                var transactions = await _transactionService.GetByCategoryAsync(categoryId);
+                var userId = GetCurrentUserId();
+                var transactions = await _transactionService.GetByCategoryForUserAsync(categoryId, userId);
                 return Ok(transactions.Select(MapTransaction));
             }
             catch (Exception ex)
@@ -81,7 +85,8 @@ namespace GastosApp.API.Controllers
         {
             try
             {
-                var transaction = await _transactionService.GetByIdAsync(id);
+                var userId = GetCurrentUserId();
+                var transaction = await _transactionService.GetByIdForUserAsync(id, userId);
                 if (transaction == null)
                     return NotFound(new { Message = $"Transaction with ID {id} not found" });
 
@@ -155,7 +160,7 @@ namespace GastosApp.API.Controllers
 
                 _logger.LogInformation("Income transaction created: {TransactionId}", createdTransaction.TransactionId);
 
-                var created = await _transactionService.GetByIdAsync(createdTransaction.TransactionId);
+                var created = await _transactionService.GetByIdForUserAsync(createdTransaction.TransactionId, userId);
                 return CreatedAtAction(nameof(GetById), new { id = createdTransaction.TransactionId }, MapTransaction(created ?? createdTransaction));
             }
             catch (Exception ex)
@@ -227,7 +232,7 @@ namespace GastosApp.API.Controllers
 
                 _logger.LogInformation("Expense transaction created: {TransactionId}", createdTransaction.TransactionId);
 
-                var created = await _transactionService.GetByIdAsync(createdTransaction.TransactionId);
+                var created = await _transactionService.GetByIdForUserAsync(createdTransaction.TransactionId, userId);
                 return CreatedAtAction(nameof(GetById), new { id = createdTransaction.TransactionId }, MapTransaction(created ?? createdTransaction));
             }
             catch (Exception ex)
@@ -255,6 +260,7 @@ namespace GastosApp.API.Controllers
                 }
 
                 var result = await _transactionService.CreateTransferAsync(
+                    userId,
                     request.SourceAccountId,
                     request.DestinationAccountId,
                     request.Amount,
@@ -271,9 +277,9 @@ namespace GastosApp.API.Controllers
                 var destinationAccount = await _accountService.GetByIdAsync(request.DestinationAccountId);
                 if (destinationAccount?.IsCredit == true)
                 {
-                    var destinationTransactions = await _transactionService.GetAllByAccountIdAsync(request.DestinationAccountId);
+                    var destinationTransactions = await _transactionService.GetAllByAccountIdForUserAsync(request.DestinationAccountId, userId);
                     var destinationTx = destinationTransactions
-                        .Where(t => t.Type == "transfer" && t.Direction == "credit" && t.CounterpartyAccountId == request.SourceAccountId)
+                        .Where(t => t.Type == TransactionDomainConstants.TransactionType.Transfer && t.Direction == TransactionDomainConstants.Direction.Credit && t.CounterpartyAccountId == request.SourceAccountId)
                         .OrderByDescending(t => t.TransactionId)
                         .FirstOrDefault();
 
@@ -315,17 +321,13 @@ namespace GastosApp.API.Controllers
         {
             try
             {
-                var existingTransaction = await _transactionService.GetByIdAsync(id);
+                var userId = GetCurrentUserId();
+                var existingTransaction = await _transactionService.GetByIdForUserAsync(id, userId);
                 if (existingTransaction == null)
                     return NotFound(new { Message = $"Transaction with ID {id} not found" });
 
-                var account = await _accountService.GetByIdAsync(existingTransaction.AccountId);
-                var userId = GetCurrentUserId();
-                if (account == null || account.UserId != userId)
-                    return Forbid();
-
                 var amountChanged = request.Amount.HasValue && request.Amount.Value != existingTransaction.Amount;
-                if (amountChanged && string.Equals(existingTransaction.Type, "expense", StringComparison.OrdinalIgnoreCase) && !request.ReplaceAllocations)
+                if (amountChanged && string.Equals(existingTransaction.Type, TransactionDomainConstants.TransactionType.Expense, StringComparison.OrdinalIgnoreCase) && !request.ReplaceAllocations)
                 {
                     return BadRequest(new { Message = "When changing expense amount you must set ReplaceAllocations=true and send allocations." });
                 }
@@ -350,7 +352,7 @@ namespace GastosApp.API.Controllers
                     return BadRequest(new { Message = dimensionsValidation.ErrorMessage });
                 }
 
-                var updatedTransaction = await _transactionService.UpdateAsync(id, existingTransaction);
+                var updatedTransaction = await _transactionService.UpdateForUserAsync(id, userId, existingTransaction);
                 await _transactionService.SyncTransactionTagsAsync(id, userId, request.Tags);
 
                 if (request.ReplaceAllocations)
@@ -377,7 +379,7 @@ namespace GastosApp.API.Controllers
 
                 _logger.LogInformation("Transaction updated: {TransactionId}", id);
 
-                var updated = await _transactionService.GetByIdAsync(id);
+                var updated = await _transactionService.GetByIdForUserAsync(id, userId);
                 return Ok(MapTransaction(updated ?? updatedTransaction!));
             }
             catch (Exception ex)
@@ -392,11 +394,12 @@ namespace GastosApp.API.Controllers
         {
             try
             {
-                var existingTransaction = await _transactionService.GetByIdAsync(id);
+                var userId = GetCurrentUserId();
+                var existingTransaction = await _transactionService.GetByIdForUserAsync(id, userId);
                 if (existingTransaction == null)
                     return NotFound(new { Message = $"Transaction with ID {id} not found" });
 
-                var result = await _transactionService.DeleteAsync(id);
+                var result = await _transactionService.DeleteForUserAsync(id, userId);
                 if (!result)
                     return StatusCode(500, new { Message = "Failed to delete transaction" });
 
@@ -415,7 +418,8 @@ namespace GastosApp.API.Controllers
         {
             try
             {
-                var result = await _transactionService.DeleteTransferAsync(transferGroupId);
+                var userId = GetCurrentUserId();
+                var result = await _transactionService.DeleteTransferAsync(transferGroupId, userId);
                 if (!result)
                     return NotFound(new { Message = "Transfer not found" });
 
@@ -551,7 +555,7 @@ namespace GastosApp.API.Controllers
                     return BadRequest(new { Message = "La cuenta destino no es de crédito" });
                 }
 
-                var source = await _transactionService.GetByIdAsync(request.SourceTransactionId);
+                var source = await _transactionService.GetByIdForUserAsync(request.SourceTransactionId, GetCurrentUserId());
                 if (source == null)
                 {
                     return NotFound(new { Message = "Transacción origen no encontrada" });
@@ -562,7 +566,7 @@ namespace GastosApp.API.Controllers
                     return BadRequest(new { Message = "La transacción origen no pertenece a la cuenta crédito indicada" });
                 }
 
-                if (!(source.Type == "income" || source.Type == "transfer"))
+                if (!(source.Type == TransactionDomainConstants.TransactionType.Income || source.Type == TransactionDomainConstants.TransactionType.Transfer))
                 {
                     return BadRequest(new { Message = "Solo ingresos o transferencias pueden aplicarse como pago" });
                 }

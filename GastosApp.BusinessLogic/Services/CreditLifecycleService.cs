@@ -66,7 +66,7 @@ namespace GastosApp.BusinessLogic.Services
                     SourceTransactionId = sourceTransactionId,
                     PaidAt = _validation.EnsureUtc(paidAt),
                     Amount = amount,
-                    Status = "Posted"
+                    Status = TransactionDomainConstants.CreditStatus.Posted
                 });
             }
             else
@@ -110,7 +110,7 @@ namespace GastosApp.BusinessLogic.Services
                 _repository.GetTrack<CreditInstallment>().RemoveRange(oldInstallments);
             }
 
-            plan.PlanType = "MSI";
+            plan.PlanType = TransactionDomainConstants.CreditPlanType.Msi;
             plan.Months = months;
             plan.MonthlyAmountBase = Math.Round(charge.PrincipalAmount / months, 2, MidpointRounding.AwayFromZero);
             plan.RoundingResidual = charge.PrincipalAmount - (plan.MonthlyAmountBase * months);
@@ -131,7 +131,7 @@ namespace GastosApp.BusinessLogic.Services
                     InterestDue = 0m,
                     FeeDue = 0m,
                     TotalDue = totalDue,
-                    Status = "Open"
+                    Status = TransactionDomainConstants.CreditStatus.Open
                 });
             }
 
@@ -164,15 +164,15 @@ namespace GastosApp.BusinessLogic.Services
                 {
                     AccountId = creditAccountId,
                     CategoryId = input.CategoryId,
-                    Type = "opening_credit",
+                    Type = TransactionDomainConstants.TransactionType.OpeningCredit,
                     Amount = input.Amount,
                     BalanceImpact = 0m,
-                    Direction = "credit",
+                    Direction = TransactionDomainConstants.Direction.Credit,
                     Description = input.Description,
                     TransactionDate = occurredAt
                 });
 
-                await CreateCreditChargeWithPlanAsync(syntheticTransaction, input.Months, input.Months > 1 ? "MSI" : "Revolving");
+                await CreateCreditChargeWithPlanAsync(syntheticTransaction, input.Months, input.Months > 1 ? TransactionDomainConstants.CreditPlanType.Msi : TransactionDomainConstants.CreditPlanType.Revolving);
             }
 
             return (true, null, normalized.Count);
@@ -186,7 +186,7 @@ namespace GastosApp.BusinessLogic.Services
                 SourceTransactionId = transaction.TransactionId,
                 OccurredAt = transaction.TransactionDate,
                 PrincipalAmount = transaction.Amount,
-                Status = "Open"
+                Status = TransactionDomainConstants.CreditStatus.Open
             });
 
             var monthlyAmountBase = Math.Round(transaction.Amount / months, 2, MidpointRounding.AwayFromZero);
@@ -201,7 +201,7 @@ namespace GastosApp.BusinessLogic.Services
                 PrincipalAmount = transaction.Amount,
                 MonthlyAmountBase = monthlyAmountBase,
                 RoundingResidual = roundingResidual,
-                Status = "Active"
+                Status = TransactionDomainConstants.CreditStatus.Active
             });
 
             var installments = new List<CreditInstallment>();
@@ -218,7 +218,7 @@ namespace GastosApp.BusinessLogic.Services
                     InterestDue = 0m,
                     FeeDue = 0m,
                     TotalDue = totalDue,
-                    Status = "Open"
+                    Status = TransactionDomainConstants.CreditStatus.Open
                 });
             }
 
@@ -282,9 +282,9 @@ namespace GastosApp.BusinessLogic.Services
                 var paid = paidByInstallment.TryGetValue(installment.InstallmentId, out var value) ? value : 0m;
                 installment.Status = paid switch
                 {
-                    <= 0m => "Open",
-                    _ when paid >= installment.TotalDue => "Paid",
-                    _ => "PartiallyPaid"
+                    <= 0m => TransactionDomainConstants.CreditStatus.Open,
+                    _ when paid >= installment.TotalDue => TransactionDomainConstants.CreditStatus.Paid,
+                    _ => TransactionDomainConstants.CreditStatus.PartiallyPaid
                 };
             }
 
@@ -299,13 +299,17 @@ namespace GastosApp.BusinessLogic.Services
 
             foreach (var plan in plans)
             {
-                var allPaid = plan.Installments.All(i => i.Status == "Paid");
-                var anyPaid = plan.Installments.Any(i => i.Status == "Paid" || i.Status == "PartiallyPaid");
-                plan.Status = allPaid ? "Completed" : anyPaid ? "Active" : "Active";
+                var allPaid = plan.Installments.All(i => i.Status == TransactionDomainConstants.CreditStatus.Paid);
+                var anyPaid = plan.Installments.Any(i => i.Status == TransactionDomainConstants.CreditStatus.Paid || i.Status == TransactionDomainConstants.CreditStatus.PartiallyPaid);
+                plan.Status = allPaid ? TransactionDomainConstants.CreditStatus.Completed : TransactionDomainConstants.CreditStatus.Active;
 
                 if (plan.SourceCharge != null)
                 {
-                    plan.SourceCharge.Status = allPaid ? "Paid" : anyPaid ? "PartiallyPaid" : "Open";
+                    plan.SourceCharge.Status = allPaid
+                        ? TransactionDomainConstants.CreditStatus.Paid
+                        : anyPaid
+                            ? TransactionDomainConstants.CreditStatus.PartiallyPaid
+                            : TransactionDomainConstants.CreditStatus.Open;
                 }
             }
 

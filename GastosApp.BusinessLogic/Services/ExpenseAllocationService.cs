@@ -20,7 +20,7 @@ namespace GastosApp.BusinessLogic.Services
         {
             var transaction = await _repository.GetByIdAsync<Transaction>(transactionId);
             if (transaction == null) return (false, "Transaction not found");
-            if (!string.Equals(transaction.Type, "expense", StringComparison.OrdinalIgnoreCase)) return (true, null);
+            if (!string.Equals(transaction.Type, TransactionDomainConstants.TransactionType.Expense, StringComparison.OrdinalIgnoreCase)) return (true, null);
 
             var normalizedInputs = (allocations ?? [])
                 .Where(a => a != null && a.BillablePartyId > 0 && a.Value > 0)
@@ -36,7 +36,7 @@ namespace GastosApp.BusinessLogic.Services
             {
                 if (!fallbackToSelfWhenEmpty) return (true, null);
                 var selfParty = await _billablePartyService.EnsureSelfPartyAsync(userId);
-                normalizedInputs = [new ExpenseAllocationInput { BillablePartyId = selfParty.BillablePartyId, Type = "percentage", Value = 100m }];
+                normalizedInputs = [new ExpenseAllocationInput { BillablePartyId = selfParty.BillablePartyId, Type = TransactionDomainConstants.AllocationMode.Percentage, Value = 100m }];
             }
 
             var duplicateBillablePartyId = normalizedInputs.GroupBy(a => a.BillablePartyId).Where(g => g.Count() > 1).Select(g => (int?)g.Key).FirstOrDefault();
@@ -46,8 +46,8 @@ namespace GastosApp.BusinessLogic.Services
             var billableParties = await _repository.Get<BillableParty>(p => billablePartyIds.Contains(p.BillablePartyId) && p.OwnerUserId == userId && p.Active).ToListAsync();
             if (billableParties.Count != billablePartyIds.Count) return (false, "One or more billable parties are invalid for this user");
 
-            var hasPercentage = normalizedInputs.Any(a => a.Type == "percentage");
-            var hasAmount = normalizedInputs.Any(a => a.Type == "amount");
+            var hasPercentage = normalizedInputs.Any(a => a.Type == TransactionDomainConstants.AllocationMode.Percentage);
+            var hasAmount = normalizedInputs.Any(a => a.Type == TransactionDomainConstants.AllocationMode.Amount);
             if (hasPercentage && hasAmount) return (false, "Allocations cannot mix percentage and amount modes");
             if (!hasPercentage && !hasAmount) return (false, "Allocation type must be percentage or amount");
 
@@ -90,7 +90,7 @@ namespace GastosApp.BusinessLogic.Services
                 {
                     TransactionId = transactionId,
                     BillablePartyId = input.BillablePartyId,
-                    AllocationMode = hasPercentage ? "percentage" : "amount",
+                    AllocationMode = hasPercentage ? TransactionDomainConstants.AllocationMode.Percentage : TransactionDomainConstants.AllocationMode.Amount,
                     AllocationValue = input.Value,
                     CalculatedAmount = computedAmounts[i],
                     BillablePartySnapshotName = party.DisplayName
