@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getApiBaseUrl } from "@/lib/api/config";
 import { attachSessionCookie, fetchApiWithAutoRefresh } from "@/lib/auth/api-session";
 import { getServerSession } from "@/lib/auth/session";
+import { badRequest, unauthorized, upstreamError } from "@/lib/bff/http";
 
 type Payload = {
   sourceTransactionId?: unknown;
@@ -16,7 +17,7 @@ function parsePositiveInt(value: unknown): number | null {
 export async function POST(request: Request) {
   const session = await getServerSession();
   if (!session) {
-    return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+    return unauthorized(request);
   }
   let authSession = session;
 
@@ -25,7 +26,7 @@ export async function POST(request: Request) {
   const months = parsePositiveInt(body?.months);
 
   if (!sourceTransactionId || !months || months < 2 || months > 60) {
-    return NextResponse.json({ message: "sourceTransactionId and months(2..60) are required" }, { status: 400 });
+    return badRequest(request, "sourceTransactionId and months(2..60) are required");
   }
 
   const call = await fetchApiWithAutoRefresh(authSession, `${getApiBaseUrl()}/api/transactions/credit/convert-charge-msi`, {
@@ -39,10 +40,7 @@ export async function POST(request: Request) {
 
   if (!response.ok) {
     const errorBody = (await response.json().catch(() => null)) as { message?: string; Message?: string } | null;
-    return NextResponse.json(
-      { message: errorBody?.message ?? errorBody?.Message ?? "Failed to convert charge to MSI" },
-      { status: response.status }
-    );
+    return upstreamError(request, response.status, errorBody?.message ?? errorBody?.Message ?? "Failed to convert charge to MSI");
   }
 
   const result = await response.json().catch(() => ({}));

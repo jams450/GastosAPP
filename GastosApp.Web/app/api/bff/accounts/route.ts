@@ -2,13 +2,14 @@ import { NextResponse } from "next/server";
 import { getApiBaseUrl } from "@/lib/api/config";
 import { attachSessionCookie, fetchApiWithAutoRefresh } from "@/lib/auth/api-session";
 import { getServerSession } from "@/lib/auth/session";
+import { unauthorized, upstreamError } from "@/lib/bff/http";
 import { normalizeAccounts } from "@/lib/contracts/accounts";
 
 export async function GET() {
   const session = await getServerSession();
 
   if (!session) {
-    return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+    return unauthorized();
   }
 
   const { response, session: updatedSession } = await fetchApiWithAutoRefresh(session, `${getApiBaseUrl()}/api/accounts`, {
@@ -18,7 +19,7 @@ export async function GET() {
 
   if (!response.ok) {
     const message = response.status === 401 ? "Session expired" : "Failed to fetch accounts";
-    return NextResponse.json({ message }, { status: response.status });
+    return upstreamError(undefined, response.status, message);
   }
 
   const rawAccounts = await response.json();
@@ -33,7 +34,7 @@ export async function POST(request: Request) {
   const session = await getServerSession();
 
   if (!session) {
-    return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+    return unauthorized(request);
   }
 
   const body = await request.json();

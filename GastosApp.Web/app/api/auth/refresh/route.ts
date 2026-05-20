@@ -18,12 +18,12 @@ export async function POST() {
   const cookieStore = await cookies();
   const encrypted = cookieStore.get(SESSION_COOKIE_NAME)?.value;
   if (!encrypted) {
-    return unauthorized(undefined, "No active session");
+    return unauthorized(traceId, "No active session");
   }
 
   const session = await decryptSession(encrypted);
   if (!session?.refreshToken) {
-    return unauthorized(undefined, "Session has no refresh token");
+    return unauthorized(traceId, "Session has no refresh token");
   }
 
   console.info("[bff.auth.manual_refresh_attempt]", { traceId });
@@ -36,7 +36,7 @@ export async function POST() {
   });
 
   if (!apiResponse.ok) {
-    return sessionExpired(undefined, "Unable to refresh session");
+    return sessionExpired(traceId, "Unable to refresh session");
   }
 
   const refreshData = (await apiResponse.json()) as ApiRefreshResponse;
@@ -44,7 +44,7 @@ export async function POST() {
   const idRaw = claims.sub ?? claims["http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier"];
   const userId = Number(idRaw);
   if (!idRaw || Number.isNaN(userId)) {
-    return unauthorized(undefined, "Token does not include a valid user id claim");
+    return unauthorized(traceId, "Token does not include a valid user id claim");
   }
 
   const role = String(claims["http://schemas.microsoft.com/ws/2008/06/identity/claims/role"]);

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getApiBaseUrl } from "@/lib/api/config";
 import { attachSessionCookie, fetchApiWithAutoRefresh } from "@/lib/auth/api-session";
 import { getServerSession } from "@/lib/auth/session";
+import { badRequest, unauthorized, upstreamError } from "@/lib/bff/http";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -14,19 +15,19 @@ export async function PATCH(request: Request, { params }: Params) {
   const { id } = await params;
   const categoryId = parseId(id);
   if (!categoryId) {
-    return NextResponse.json({ message: "Invalid category id" }, { status: 400 });
+    return badRequest(request, "Invalid category id");
   }
 
   const session = await getServerSession();
   if (!session) {
-    return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+    return unauthorized(request);
   }
   let authSession = session;
 
   const input = (await request.json().catch(() => null)) as { active?: unknown } | null;
   const active = typeof input?.active === "boolean" ? input.active : null;
   if (active === null) {
-    return NextResponse.json({ message: "active must be boolean" }, { status: 400 });
+    return badRequest(request, "active must be boolean");
   }
 
   const call = await fetchApiWithAutoRefresh(authSession, `${getApiBaseUrl()}/api/categories/${categoryId}/active`, {
@@ -39,10 +40,7 @@ export async function PATCH(request: Request, { params }: Params) {
 
   if (!response.ok) {
     const body = (await response.json().catch(() => null)) as { message?: string; Message?: string } | null;
-    return NextResponse.json(
-      { message: body?.message ?? body?.Message ?? "Failed to update category status" },
-      { status: response.status }
-    );
+    return upstreamError(request, response.status, body?.message ?? body?.Message ?? "Failed to update category status");
   }
 
   const result = await response.json();

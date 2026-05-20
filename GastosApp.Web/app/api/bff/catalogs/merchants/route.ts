@@ -2,13 +2,14 @@ import { NextResponse } from "next/server";
 import { getApiBaseUrl } from "@/lib/api/config";
 import { attachSessionCookie, fetchApiWithAutoRefresh } from "@/lib/auth/api-session";
 import { getServerSession } from "@/lib/auth/session";
+import { badRequest, unauthorized, upstreamError } from "@/lib/bff/http";
 import { validateMerchantPayload } from "@/lib/contracts/catalogs";
 import { normalizeMerchants } from "@/lib/contracts/merchants";
 
 export async function GET() {
   const session = await getServerSession();
   if (!session) {
-    return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+    return unauthorized();
   }
 
   let authSession = session;
@@ -21,7 +22,7 @@ export async function GET() {
 
   if (!response.ok) {
     const message = response.status === 401 ? "Session expired" : "Failed to fetch merchants";
-    return NextResponse.json({ message }, { status: response.status });
+    return upstreamError(undefined, response.status, message);
   }
 
   const payload = await response.json();
@@ -33,13 +34,14 @@ export async function GET() {
 export async function POST(request: Request) {
   const session = await getServerSession();
   if (!session) {
-    return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+    return unauthorized(request);
   }
+  let authSession = session;
 
   const input = await request.json();
   const validation = validateMerchantPayload(input);
   if (!validation.ok) {
-    return NextResponse.json({ message: validation.message }, { status: 400 });
+    return badRequest(request, validation.message);
   }
 
   const call = await fetchApiWithAutoRefresh(authSession, `${getApiBaseUrl()}/api/merchants`, {
@@ -52,10 +54,7 @@ export async function POST(request: Request) {
 
   if (!response.ok) {
     const body = (await response.json().catch(() => null)) as { message?: string; Message?: string } | null;
-    return NextResponse.json(
-      { message: body?.message ?? body?.Message ?? "Failed to create merchant" },
-      { status: response.status }
-    );
+    return upstreamError(request, response.status, body?.message ?? body?.Message ?? "Failed to create merchant");
   }
 
   const result = await response.json();
@@ -63,4 +62,3 @@ export async function POST(request: Request) {
   await attachSessionCookie(out, authSession, session);
   return out;
 }
-  let authSession = session;

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getApiBaseUrl } from "@/lib/api/config";
 import { attachSessionCookie, fetchApiWithAutoRefresh } from "@/lib/auth/api-session";
 import { getServerSession } from "@/lib/auth/session";
+import { unauthorized, upstreamError } from "@/lib/bff/http";
 import { normalizeAccounts } from "@/lib/contracts/accounts";
 import { normalizeCategories } from "@/lib/contracts/categories";
 import { normalizeSubcategories } from "@/lib/contracts/subcategories";
@@ -12,32 +13,32 @@ import { normalizeBillableParties } from "@/lib/contracts/billable-parties";
 export async function GET() {
   const session = await getServerSession();
   if (!session) {
-    return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+    return unauthorized();
   }
   let authSession = session;
   const accountsCall = await fetchApiWithAutoRefresh(authSession, `${getApiBaseUrl()}/api/accounts/active`, { method: "GET", cache: "no-store" });
   authSession = accountsCall.session;
-  if (!accountsCall.response.ok) return NextResponse.json({ message: accountsCall.response.status === 401 ? "Session expired" : "Failed to fetch catalogs" }, { status: accountsCall.response.status });
+  if (!accountsCall.response.ok) return upstreamError(undefined, accountsCall.response.status, accountsCall.response.status === 401 ? "Session expired" : "Failed to fetch catalogs");
 
   const categoriesCall = await fetchApiWithAutoRefresh(authSession, `${getApiBaseUrl()}/api/categories/active`, { method: "GET", cache: "no-store" });
   authSession = categoriesCall.session;
-  if (!categoriesCall.response.ok) return NextResponse.json({ message: categoriesCall.response.status === 401 ? "Session expired" : "Failed to fetch catalogs" }, { status: categoriesCall.response.status });
+  if (!categoriesCall.response.ok) return upstreamError(undefined, categoriesCall.response.status, categoriesCall.response.status === 401 ? "Session expired" : "Failed to fetch catalogs");
 
   const subcategoriesCall = await fetchApiWithAutoRefresh(authSession, `${getApiBaseUrl()}/api/subcategories?onlyActive=true`, { method: "GET", cache: "no-store" });
   authSession = subcategoriesCall.session;
-  if (!subcategoriesCall.response.ok) return NextResponse.json({ message: subcategoriesCall.response.status === 401 ? "Session expired" : "Failed to fetch catalogs" }, { status: subcategoriesCall.response.status });
+  if (!subcategoriesCall.response.ok) return upstreamError(undefined, subcategoriesCall.response.status, subcategoriesCall.response.status === 401 ? "Session expired" : "Failed to fetch catalogs");
 
   const merchantsCall = await fetchApiWithAutoRefresh(authSession, `${getApiBaseUrl()}/api/merchants?onlyActive=true`, { method: "GET", cache: "no-store" });
   authSession = merchantsCall.session;
-  if (!merchantsCall.response.ok) return NextResponse.json({ message: merchantsCall.response.status === 401 ? "Session expired" : "Failed to fetch catalogs" }, { status: merchantsCall.response.status });
+  if (!merchantsCall.response.ok) return upstreamError(undefined, merchantsCall.response.status, merchantsCall.response.status === 401 ? "Session expired" : "Failed to fetch catalogs");
 
   const tagsCall = await fetchApiWithAutoRefresh(authSession, `${getApiBaseUrl()}/api/tags?onlyActive=true`, { method: "GET", cache: "no-store" });
   authSession = tagsCall.session;
-  if (!tagsCall.response.ok) return NextResponse.json({ message: tagsCall.response.status === 401 ? "Session expired" : "Failed to fetch catalogs" }, { status: tagsCall.response.status });
+  if (!tagsCall.response.ok) return upstreamError(undefined, tagsCall.response.status, tagsCall.response.status === 401 ? "Session expired" : "Failed to fetch catalogs");
 
   const billablePartiesCall = await fetchApiWithAutoRefresh(authSession, `${getApiBaseUrl()}/api/BillableParties?onlyActive=true`, { method: "GET", cache: "no-store" });
   authSession = billablePartiesCall.session;
-  if (!billablePartiesCall.response.ok) return NextResponse.json({ message: billablePartiesCall.response.status === 401 ? "Session expired" : "Failed to fetch catalogs" }, { status: billablePartiesCall.response.status });
+  if (!billablePartiesCall.response.ok) return upstreamError(undefined, billablePartiesCall.response.status, billablePartiesCall.response.status === 401 ? "Session expired" : "Failed to fetch catalogs");
 
   const rawAccounts = await accountsCall.response.json();
   const rawCategories = await categoriesCall.response.json();

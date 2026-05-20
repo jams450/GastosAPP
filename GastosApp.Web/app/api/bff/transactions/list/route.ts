@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getApiBaseUrl } from "@/lib/api/config";
 import { attachSessionCookie, fetchApiWithAutoRefresh } from "@/lib/auth/api-session";
 import { getServerSession } from "@/lib/auth/session";
+import { badRequest, unauthorized, upstreamError } from "@/lib/bff/http";
 
 type UnknownRecord = Record<string, unknown>;
 const TRANSACTIONS_TIMEZONE = "America/Mexico_City";
@@ -183,14 +184,14 @@ function getMonthRangeUtc(month: string): { startIso: string; endIso: string } {
 export async function GET(request: Request) {
   const session = await getServerSession();
   if (!session) {
-    return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+    return unauthorized(request);
   }
   let authSession = session;
 
   const { searchParams } = new URL(request.url);
   const month = (searchParams.get("month") ?? currentMonth()).trim();
   if (!/^\d{4}-\d{2}$/.test(month)) {
-    return NextResponse.json({ message: "month must use YYYY-MM format" }, { status: 400 });
+    return badRequest(request, "month must use YYYY-MM format");
   }
 
   const accountsCall = await fetchApiWithAutoRefresh(authSession, `${getApiBaseUrl()}/api/accounts`, {
@@ -202,10 +203,7 @@ export async function GET(request: Request) {
 
   if (!accountsResponse.ok) {
     const body = (await accountsResponse.json().catch(() => null)) as { message?: string; Message?: string } | null;
-    return NextResponse.json(
-      { message: body?.message ?? body?.Message ?? "Failed to load accounts" },
-      { status: accountsResponse.status }
-    );
+    return upstreamError(request, accountsResponse.status, body?.message ?? body?.Message ?? "Failed to load accounts");
   }
 
   const accountsRaw = (await accountsResponse.json().catch(() => [])) as unknown;
@@ -241,10 +239,7 @@ export async function GET(request: Request) {
     authSession = call.session;
     if (!call.response.ok) {
       const body = (await call.response.json().catch(() => null)) as { message?: string; Message?: string } | null;
-      return NextResponse.json(
-        { message: body?.message ?? body?.Message ?? "Failed to load transactions" },
-        { status: call.response.status }
-      );
+      return upstreamError(request, call.response.status, body?.message ?? body?.Message ?? "Failed to load transactions");
     }
 
     transactionsByAccount.push(await call.response.json().catch(() => []));

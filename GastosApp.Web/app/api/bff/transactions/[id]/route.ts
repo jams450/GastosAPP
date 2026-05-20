@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getApiBaseUrl } from "@/lib/api/config";
 import { attachSessionCookie, fetchApiWithAutoRefresh } from "@/lib/auth/api-session";
 import { getServerSession } from "@/lib/auth/session";
+import { badRequest, unauthorized, upstreamError } from "@/lib/bff/http";
 import { validateIncomeExpensePayload } from "@/lib/contracts/transactions";
 
 type Params = { params: Promise<{ id: string }> };
@@ -24,18 +25,18 @@ export async function PUT(request: Request, { params }: Params) {
   const { id } = await params;
   const transactionId = parseId(id);
   if (!transactionId) {
-    return NextResponse.json({ message: "Invalid transaction id" }, { status: 400 });
+    return badRequest(request, "Invalid transaction id");
   }
 
   const session = await getServerSession();
   if (!session) {
-    return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+    return unauthorized(request);
   }
 
   const body = await request.json().catch(() => null);
   const validation = validateIncomeExpensePayload(body);
   if (!validation.ok) {
-    return NextResponse.json({ message: validation.message }, { status: 400 });
+    return badRequest(request, validation.message);
   }
 
   const { response, session: updatedSession } = await fetchApiWithAutoRefresh(session, `${getApiBaseUrl()}/api/transactions/${transactionId}`, {
@@ -46,10 +47,7 @@ export async function PUT(request: Request, { params }: Params) {
 
   if (!response.ok) {
     const errorBody = await response.json().catch(() => null);
-    const result = NextResponse.json(
-      { message: mapErrorMessage(errorBody, "Failed to update transaction") },
-      { status: response.status }
-    );
+    const result = upstreamError(request, response.status, mapErrorMessage(errorBody, "Failed to update transaction"));
     await attachSessionCookie(result, updatedSession, session);
     return result;
   }
@@ -64,12 +62,12 @@ export async function DELETE(_request: Request, { params }: Params) {
   const { id } = await params;
   const transactionId = parseId(id);
   if (!transactionId) {
-    return NextResponse.json({ message: "Invalid transaction id" }, { status: 400 });
+    return badRequest(_request, "Invalid transaction id");
   }
 
   const session = await getServerSession();
   if (!session) {
-    return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+    return unauthorized(_request);
   }
 
   const { response, session: updatedSession } = await fetchApiWithAutoRefresh(session, `${getApiBaseUrl()}/api/transactions/${transactionId}`, {
@@ -79,10 +77,7 @@ export async function DELETE(_request: Request, { params }: Params) {
 
   if (!response.ok) {
     const errorBody = await response.json().catch(() => null);
-    const result = NextResponse.json(
-      { message: mapErrorMessage(errorBody, "Failed to delete transaction") },
-      { status: response.status }
-    );
+    const result = upstreamError(_request, response.status, mapErrorMessage(errorBody, "Failed to delete transaction"));
     await attachSessionCookie(result, updatedSession, session);
     return result;
   }

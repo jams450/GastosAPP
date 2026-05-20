@@ -122,22 +122,36 @@ credit_bounds AS (
 credit_spent AS (
     SELECT
         cb.account_id,
-        coalesce(sum(CASE WHEN lower(t.type) = 'expense' THEN t.amount ELSE 0 END), 0) AS period_spent,
-        GREATEST(coalesce(sum(ti.impact), 0) * -1, 0) AS estimated_cutoff_payment
+        coalesce(exp.period_spent, 0) AS period_spent,
+        GREATEST(coalesce(exp.period_spent, 0) - coalesce(pay.period_payments, 0), 0) AS estimated_cutoff_payment
     FROM credit_bounds cb
-    LEFT JOIN transactions t
-        ON t.account_id = cb.account_id
-        AND cb.period_start IS NOT NULL
-        AND cb.period_end IS NOT NULL
-        AND t.transaction_date >= cb.period_start
-        AND t.transaction_date < (cb.period_end + INTERVAL '1 day')
-    LEFT JOIN tx_with_impact ti
-        ON ti.account_id = cb.account_id
-        AND cb.period_start IS NOT NULL
-        AND cb.period_end IS NOT NULL
-        AND ti.transaction_date >= cb.period_start
-        AND ti.transaction_date < (cb.period_end + INTERVAL '1 day')
-    GROUP BY cb.account_id
+    LEFT JOIN (
+        SELECT
+            cb2.account_id,
+            coalesce(sum(t.amount), 0) AS period_spent
+        FROM credit_bounds cb2
+        LEFT JOIN transactions t
+            ON t.account_id = cb2.account_id
+            AND cb2.period_start IS NOT NULL
+            AND cb2.period_end IS NOT NULL
+            AND t.transaction_date >= cb2.period_start
+            AND t.transaction_date < (cb2.period_end + INTERVAL '1 day')
+            AND lower(t.type) = 'expense'
+        GROUP BY cb2.account_id
+    ) exp ON exp.account_id = cb.account_id
+    LEFT JOIN (
+        SELECT
+            cb3.account_id,
+            coalesce(sum(CASE WHEN ti.impact > 0 THEN ti.impact ELSE 0 END), 0) AS period_payments
+        FROM credit_bounds cb3
+        LEFT JOIN tx_with_impact ti
+            ON ti.account_id = cb3.account_id
+            AND cb3.period_start IS NOT NULL
+            AND cb3.period_end IS NOT NULL
+            AND ti.transaction_date >= cb3.period_start
+            AND ti.transaction_date < (cb3.period_end + INTERVAL '1 day')
+        GROUP BY cb3.account_id
+    ) pay ON pay.account_id = cb.account_id
 ),
 installment_paid AS (
     SELECT

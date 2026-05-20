@@ -2,13 +2,15 @@ import { NextResponse } from "next/server";
 import { getApiBaseUrl } from "@/lib/api/config";
 import { attachSessionCookie, fetchApiWithAutoRefresh } from "@/lib/auth/api-session";
 import { getServerSession } from "@/lib/auth/session";
+import { unauthorized, upstreamError } from "@/lib/bff/http";
 import { normalizeTags } from "@/lib/contracts/tags";
 
 export async function GET(request: Request) {
   const session = await getServerSession();
   if (!session) {
-    return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+    return unauthorized(request);
   }
+  let authSession = session;
 
   const { searchParams } = new URL(request.url);
   const query = searchParams.get("q") ?? "";
@@ -21,7 +23,7 @@ export async function GET(request: Request) {
 
   if (!response.ok) {
     const message = response.status === 401 ? "Session expired" : "Failed to search tags";
-    return NextResponse.json({ message }, { status: response.status });
+    return upstreamError(request, response.status, message);
   }
 
   const payload = await response.json();
@@ -29,4 +31,3 @@ export async function GET(request: Request) {
   await attachSessionCookie(out, authSession, session);
   return out;
 }
-  let authSession = session;

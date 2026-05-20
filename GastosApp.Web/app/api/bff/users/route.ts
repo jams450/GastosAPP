@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getApiBaseUrl } from "@/lib/api/config";
 import { attachSessionCookie, fetchApiWithAutoRefresh } from "@/lib/auth/api-session";
 import { getServerSession } from "@/lib/auth/session";
+import { forbidden, unauthorized, upstreamError } from "@/lib/bff/http";
 import { normalizeUsers } from "@/lib/contracts/users-admin";
 
 function isAdmin(role?: string) {
@@ -10,8 +11,8 @@ function isAdmin(role?: string) {
 
 export async function GET() {
   const session = await getServerSession();
-  if (!session) return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
-  if (!isAdmin(session.user.role)) return NextResponse.json({ message: "Forbidden" }, { status: 403 });
+  if (!session) return unauthorized();
+  if (!isAdmin(session.user.role)) return forbidden();
 
   const { response, session: updatedSession } = await fetchApiWithAutoRefresh(session, `${getApiBaseUrl()}/api/users`, {
     method: "GET",
@@ -20,7 +21,7 @@ export async function GET() {
 
   if (!response.ok) {
     const body = (await response.json().catch(() => null)) as { message?: string; Message?: string } | null;
-    return NextResponse.json({ message: body?.message ?? body?.Message ?? "Failed to load users" }, { status: response.status });
+    return upstreamError(undefined, response.status, body?.message ?? body?.Message ?? "Failed to load users");
   }
 
   const raw = await response.json();
@@ -31,8 +32,8 @@ export async function GET() {
 
 export async function POST(request: Request) {
   const session = await getServerSession();
-  if (!session) return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
-  if (!isAdmin(session.user.role)) return NextResponse.json({ message: "Forbidden" }, { status: 403 });
+  if (!session) return unauthorized();
+  if (!isAdmin(session.user.role)) return forbidden();
 
   const body = await request.json();
   const { response, session: updatedSession } = await fetchApiWithAutoRefresh(session, `${getApiBaseUrl()}/api/users`, {

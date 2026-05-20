@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getApiBaseUrl } from "@/lib/api/config";
 import { attachSessionCookie, fetchApiWithAutoRefresh } from "@/lib/auth/api-session";
 import { getServerSession } from "@/lib/auth/session";
+import { badRequest, unauthorized, upstreamError } from "@/lib/bff/http";
 import { validateMerchantPayload } from "@/lib/contracts/catalogs";
 
 type Params = { params: Promise<{ id: string }> };
@@ -15,19 +16,19 @@ export async function PUT(request: Request, { params }: Params) {
   const { id } = await params;
   const merchantId = parseId(id);
   if (!merchantId) {
-    return NextResponse.json({ message: "Invalid merchant id" }, { status: 400 });
+    return badRequest(request, "Invalid merchant id");
   }
 
   const session = await getServerSession();
   if (!session) {
-    return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+    return unauthorized(request);
   }
   let authSession = session;
 
   const input = await request.json();
   const validation = validateMerchantPayload(input);
   if (!validation.ok) {
-    return NextResponse.json({ message: validation.message }, { status: 400 });
+    return badRequest(request, validation.message);
   }
 
   const call = await fetchApiWithAutoRefresh(authSession, `${getApiBaseUrl()}/api/merchants/${merchantId}`, {
@@ -40,10 +41,7 @@ export async function PUT(request: Request, { params }: Params) {
 
   if (!response.ok) {
     const body = (await response.json().catch(() => null)) as { message?: string; Message?: string } | null;
-    return NextResponse.json(
-      { message: body?.message ?? body?.Message ?? "Failed to update merchant" },
-      { status: response.status }
-    );
+    return upstreamError(request, response.status, body?.message ?? body?.Message ?? "Failed to update merchant");
   }
 
   const result = await response.json();

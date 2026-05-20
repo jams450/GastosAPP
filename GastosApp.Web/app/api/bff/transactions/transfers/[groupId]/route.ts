@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getApiBaseUrl } from "@/lib/api/config";
 import { attachSessionCookie, fetchApiWithAutoRefresh } from "@/lib/auth/api-session";
 import { getServerSession } from "@/lib/auth/session";
+import { badRequest, unauthorized, upstreamError } from "@/lib/bff/http";
 
 type Params = { params: Promise<{ groupId: string }> };
 
@@ -21,17 +22,17 @@ function isValidGuid(value: string): boolean {
 export async function PUT(request: Request, { params }: Params) {
   const { groupId } = await params;
   if (!isValidGuid(groupId)) {
-    return NextResponse.json({ message: "Invalid transfer group id" }, { status: 400 });
+    return badRequest(request, "Invalid transfer group id");
   }
 
   const session = await getServerSession();
   if (!session) {
-    return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+    return unauthorized(request);
   }
 
   const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
   if (!body || typeof body !== "object") {
-    return NextResponse.json({ message: "Invalid request body" }, { status: 400 });
+    return badRequest(request, "Invalid request body");
   }
 
   const { response, session: updatedSession } = await fetchApiWithAutoRefresh(session, `${getApiBaseUrl()}/api/transactions/transfer/${groupId}`, {
@@ -42,10 +43,7 @@ export async function PUT(request: Request, { params }: Params) {
 
   if (!response.ok) {
     const errorBody = await response.json().catch(() => null);
-    const result = NextResponse.json(
-      { message: mapErrorMessage(errorBody, "Failed to update transfer") },
-      { status: response.status }
-    );
+    const result = upstreamError(request, response.status, mapErrorMessage(errorBody, "Failed to update transfer"));
     await attachSessionCookie(result, updatedSession, session);
     return result;
   }
@@ -59,12 +57,12 @@ export async function PUT(request: Request, { params }: Params) {
 export async function DELETE(_request: Request, { params }: Params) {
   const { groupId } = await params;
   if (!isValidGuid(groupId)) {
-    return NextResponse.json({ message: "Invalid transfer group id" }, { status: 400 });
+    return badRequest(_request, "Invalid transfer group id");
   }
 
   const session = await getServerSession();
   if (!session) {
-    return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+    return unauthorized(_request);
   }
 
   const { response, session: updatedSession } = await fetchApiWithAutoRefresh(session, `${getApiBaseUrl()}/api/transactions/transfer/${groupId}`, {
@@ -74,10 +72,7 @@ export async function DELETE(_request: Request, { params }: Params) {
 
   if (!response.ok) {
     const errorBody = await response.json().catch(() => null);
-    const result = NextResponse.json(
-      { message: mapErrorMessage(errorBody, "Failed to delete transfer") },
-      { status: response.status }
-    );
+    const result = upstreamError(_request, response.status, mapErrorMessage(errorBody, "Failed to delete transfer"));
     await attachSessionCookie(result, updatedSession, session);
     return result;
   }

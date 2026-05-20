@@ -157,6 +157,13 @@ static void RegisterServices(IServiceCollection services)
     services.AddScoped<IMerchantService, MerchantService>();
     services.AddScoped<ITagService, TagService>();
     services.AddScoped<IBillablePartyService, BillablePartyService>();
+    services.AddScoped<ITransactionQueryService, TransactionQueryService>();
+    services.AddScoped<ITransactionCommandService, TransactionCommandService>();
+    services.AddScoped<ITransferService, TransferService>();
+    services.AddScoped<ITransactionValidationService, TransactionValidationService>();
+    services.AddScoped<ITransactionTagService, TransactionTagService>();
+    services.AddScoped<IExpenseAllocationService, ExpenseAllocationService>();
+    services.AddScoped<ICreditLifecycleService, CreditLifecycleService>();
     services.AddScoped<ITransactionService, TransactionService>();
     services.AddScoped<IDashboardService, DashboardService>();
 }

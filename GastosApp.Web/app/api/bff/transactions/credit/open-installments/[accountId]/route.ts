@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getApiBaseUrl } from "@/lib/api/config";
 import { attachSessionCookie, fetchApiWithAutoRefresh } from "@/lib/auth/api-session";
 import { getServerSession } from "@/lib/auth/session";
+import { badRequest, unauthorized, upstreamError } from "@/lib/bff/http";
 import { normalizeCreditOpenInstallments } from "@/lib/contracts/transactions";
 
 type Params = { params: Promise<{ accountId: string }> };
@@ -15,12 +16,12 @@ export async function GET(_request: Request, { params }: Params) {
   const { accountId } = await params;
   const parsedAccountId = parsePositiveId(accountId);
   if (!parsedAccountId) {
-    return NextResponse.json({ message: "Invalid account id" }, { status: 400 });
+    return badRequest(_request, "Invalid account id");
   }
 
   const session = await getServerSession();
   if (!session) {
-    return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+    return unauthorized(_request);
   }
   let authSession = session;
 
@@ -35,7 +36,7 @@ export async function GET(_request: Request, { params }: Params) {
 
   if (!response.ok) {
     const body = (await response.json().catch(() => null)) as { message?: string; Message?: string } | null;
-    return NextResponse.json({ message: body?.message ?? body?.Message ?? "Failed to load open installments" }, { status: response.status });
+    return upstreamError(_request, response.status, body?.message ?? body?.Message ?? "Failed to load open installments");
   }
 
   const data = await response.json();

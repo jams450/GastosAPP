@@ -2,13 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { getApiBaseUrl } from "@/lib/api/config";
 import { attachSessionCookie, fetchApiWithAutoRefresh } from "@/lib/auth/api-session";
 import { getServerSession } from "@/lib/auth/session";
+import { unauthorized, upstreamError } from "@/lib/bff/http";
 import { normalizeDashboardCreditOverview } from "@/lib/contracts/dashboard";
 
 export async function GET(request: NextRequest) {
   const session = await getServerSession();
 
   if (!session) {
-    return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+    return unauthorized(request);
   }
 
   const month = request.nextUrl.searchParams.get("month");
@@ -21,7 +22,7 @@ export async function GET(request: NextRequest) {
 
   if (!response.ok) {
     const message = response.status === 401 ? "Session expired" : "Failed to fetch dashboard data";
-    const out = NextResponse.json({ message }, { status: response.status });
+    const out = upstreamError(request, response.status, message);
     await attachSessionCookie(out, updatedSession, session);
     return out;
   }

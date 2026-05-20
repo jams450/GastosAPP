@@ -2,13 +2,14 @@ import { NextResponse } from "next/server";
 import { getApiBaseUrl } from "@/lib/api/config";
 import { attachSessionCookie, fetchApiWithAutoRefresh } from "@/lib/auth/api-session";
 import { getServerSession } from "@/lib/auth/session";
+import { badRequest, unauthorized } from "@/lib/bff/http";
 
 type Params = { params: Promise<{ id: string }> };
 
 export async function PATCH(request: Request, { params }: Params) {
   const session = await getServerSession();
   if (!session) {
-    return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+    return unauthorized(request);
   }
   let authSession = session;
 
@@ -16,7 +17,7 @@ export async function PATCH(request: Request, { params }: Params) {
   const input = (await request.json().catch(() => null)) as { active?: unknown } | null;
   const active = typeof input?.active === "boolean" ? input.active : null;
   if (active === null) {
-    return NextResponse.json({ message: "active must be boolean" }, { status: 400 });
+    return badRequest(request, "active must be boolean");
   }
 
   const call = await fetchApiWithAutoRefresh(authSession, `${getApiBaseUrl()}/api/BillableParties/${encodeURIComponent(id)}/active`, {
