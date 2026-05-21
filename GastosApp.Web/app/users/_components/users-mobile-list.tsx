@@ -11,11 +11,25 @@ type Props = {
 
 export function UsersMobileList({ rows, loading, onEdit, onToggleActive, onDelete }: Props) {
   if (loading) {
-    return <p className="px-1 py-4 text-sm text-slate-500 dark:text-slate-400">Cargando usuarios...</p>;
+    return (
+      <div className="space-y-2.5 md:hidden">
+        {Array.from({ length: 3 }).map((_, index) => (
+          <div key={index} className="animate-pulse rounded-2xl border border-slate-200/80 bg-white/95 p-3 dark:border-slate-800 dark:bg-slate-950/95">
+            <div className="h-3 w-28 rounded bg-slate-200 dark:bg-slate-800" />
+            <div className="mt-2 h-2.5 w-44 rounded bg-slate-200 dark:bg-slate-800" />
+            <div className="mt-3 h-8 rounded-lg bg-slate-200 dark:bg-slate-800" />
+          </div>
+        ))}
+      </div>
+    );
   }
 
   if (rows.length === 0) {
-    return <p className="px-1 py-4 text-sm text-slate-500 dark:text-slate-400">No hay usuarios</p>;
+    return (
+      <div className="rounded-2xl border border-dashed border-slate-300/80 bg-slate-50/80 px-3 py-5 text-center text-sm text-slate-600 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-400">
+        No hay usuarios con filtros actuales.
+      </div>
+    );
   }
 
   return (

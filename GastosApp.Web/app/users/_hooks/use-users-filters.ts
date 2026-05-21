@@ -23,6 +23,14 @@ export function useUsersFilters(users: AdminUser[]) {
     });
   }, [role, search, status, users]);
 
+  const hasActiveFilters = search.trim().length > 0 || status !== "all" || role !== "all";
+
+  function resetFilters() {
+    setSearch("");
+    setStatus("all");
+    setRole("all");
+  }
+
   return {
     search,
     status,
@@ -30,6 +38,8 @@ export function useUsersFilters(users: AdminUser[]) {
     setSearch,
     setStatus,
     setRole,
-    filteredUsers
+    filteredUsers,
+    hasActiveFilters,
+    resetFilters
   };
 }

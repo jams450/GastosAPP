@@ -24,6 +24,7 @@ export function UserActionsMenu({ user, mobile = false, onEdit, onToggleActive, 
           "border border-slate-300 bg-slate-100 font-semibold text-slate-700 hover:bg-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
         )}
         onClick={() => onEdit(user)}
+        aria-label={`Editar usuario ${user.email}`}
       >
         <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
         <span>Editar</span>
@@ -39,6 +40,7 @@ export function UserActionsMenu({ user, mobile = false, onEdit, onToggleActive, 
             : "border border-emerald-300 bg-emerald-50 font-semibold text-emerald-800 hover:bg-emerald-100 dark:border-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 dark:hover:bg-emerald-900/40"
         )}
         onClick={() => onToggleActive(user)}
+        aria-label={`${user.active ? "Desactivar" : "Activar"} usuario ${user.email}`}
       >
         <Power className="h-3.5 w-3.5" aria-hidden="true" />
         <span>{user.active ? "Desactivar" : "Activar"}</span>
@@ -52,6 +54,7 @@ export function UserActionsMenu({ user, mobile = false, onEdit, onToggleActive, 
           "border border-rose-400 bg-rose-500 font-semibold text-white hover:bg-rose-600 dark:border-rose-700 dark:bg-rose-700 dark:hover:bg-rose-600"
         )}
         onClick={() => onDelete(user)}
+        aria-label={`Borrar usuario ${user.email}`}
       >
         <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
         <span>Borrar</span>

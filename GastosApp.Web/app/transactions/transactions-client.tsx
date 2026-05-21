@@ -25,6 +25,7 @@ import { type CatalogsResponse, type EditFormState, type ExpenseAllocationFormSt
 import type { Account } from "@/lib/contracts/accounts";
 import type { Category } from "@/lib/contracts/categories";
 import type { Subcategory } from "@/lib/contracts/subcategories";
+import { parseApiError } from "@/lib/bff/client-session";
 
 type Props = {
   username: string;
@@ -138,7 +139,7 @@ export function TransactionsClient({ username }: Props) {
     try {
       const response = await fetch("/api/bff/transactions/catalogs", { cache: "no-store" });
       if (!response.ok) {
-        throw new Error("No fue posible cargar catálogos");
+        throw await parseApiError(response, "No fue posible cargar catálogos");
       }
 
       const data = (await response.json()) as CatalogsResponse;

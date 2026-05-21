@@ -1,5 +1,58 @@
 # GastosApp API Documentation
 
+## Estructura modular de arranque (Program.cs + Extensions)
+
+El arranque de la API se organiza en `Program.cs` como orquestador, delegando configuración por responsabilidad en `GastosApp.API/Extensions`.
+
+### Program.cs
+- Crea el `WebApplicationBuilder`.
+- Encadena el registro de servicios vía extensiones:
+  - `AddApiMvc()`
+  - `AddApiOpenApi()`
+  - `AddApiHttpContext()`
+  - `AddApiCors(configuration)`
+  - `AddApiDatabase(configuration)`
+  - `AddApiAuthentication(configuration)`
+  - `AddApiAuthorization()`
+  - `AddApiApplicationServices()`
+- Construye la app y configura pipeline:
+  - `UseApiOpenApiIfDevelopment()`
+  - `UseCors("Production")`
+  - `UseAuthentication()`
+  - `UseAuthorization()`
+  - `MapControllers()`
+
+### Responsabilidades por archivo (`GastosApp.API/Extensions`)
+- `MvcExtensions.cs`
+  - Registro de controladores y opciones JSON (`IgnoreCycles`, ignorar nulls).
+  - Registro de OpenAPI (`AddOpenApi`).
+  - Registro de `HttpContextAccessor`.
+
+- `CorsExtensions.cs`
+  - Lee `Cors:AllowedOrigins` (array o CSV fallback).
+  - Define política CORS `Production` con `AllowAnyHeader`, `AllowAnyMethod`, `AllowCredentials`.
+  - Falla explícitamente si no hay orígenes configurados.
+
+- `DatabaseExtensions.cs`
+  - Resuelve `ConnectionStrings:DefaultConnection`.
+  - Configura `ContextSqlGastos` con `UseNpgsql`.
+
+- `AuthenticationExtensions.cs`
+  - Configura `JwtBearer` y validación de token.
+  - Requiere `Jwt:Key` y valida issuer/audience/lifetime/signature.
+
+- `AuthorizationExtensions.cs`
+  - Define políticas `UserWithId` y `AdminWithId`.
+  - Valida claim de usuario (`NameIdentifier` o `sub`) con parseo entero.
+
+- `ServiceCollectionExtensions.cs`
+  - Registra servicios de aplicación y negocio en DI (scoped), incluyendo auth, usuarios, cuentas, transacciones, dashboard y repositorio.
+
+- `EndpointExtensions.cs`
+  - Expone OpenAPI solo en entorno `Development` (`MapOpenApi`).
+
+> Nota operativa: esta modularización conserva la secuencia de arranque en un punto único (`Program.cs`) y reduce acoplamiento de configuración.
+
 ## Base URL
 
 ```
@@ -10,6 +63,40 @@ Docker Network: http://api:8080 (desde contenedores)
 ## Autenticación
 
 La API utiliza **JWT Bearer Token** para autenticación.
+
+### Notas técnicas del refactor de servicios auth (mayo 2026)
+
+- **Claims centralizados:** se creó `GastosApp.API/Security/ClaimNames.cs` para unificar nombres de claims JWT (`sub`, `NameIdentifier`, `Name`, `sessionVersion`, `sid`, `role`).
+- **`JwtService` actualizado:** ahora emite de forma consistente claims de identidad y sesión:
+  - `sub` + `NameIdentifier` con `userId`
+  - `Name` con `username`
+  - `sessionVersion`
+  - `sid` cuando existe sesión de refresh
+  - `role=Admin` solo para usuarios admin
+- **`CurrentUserService` ampliado:** el contrato `ICurrentUserService` agrega:
+  - `GetRequiredUserId()`
+  - `GetSessionVersion()`
+  - `GetSessionId()`
+  - Mantiene `GetUserId()`, `GetName()`, `GetEmail()`, `IsAdmin()`
+- **Rotación de refresh token atómica:** `AuthService.RefreshAsync()` revoca la sesión actual, crea nueva sesión y enlaza `ReplacedBySessionId` dentro de transacción (`RotateRefreshTokenAtomicAsync`).
+- **Contratos API preservados:** se mantienen rutas y forma de respuesta en `POST /api/auth/login`, `POST /api/auth/refresh` y `POST /api/auth/logout`.
+
+#### Validación manual mínima
+
+1. `POST /api/auth/login` devuelve `token` (y `refreshToken` para usuario no admin).
+2. `POST /api/auth/refresh` con token válido devuelve nuevo `token` + nuevo `refreshToken`.
+3. Reutilizar el refresh token anterior debe responder `401 Invalid refresh token`.
+4. `POST /api/auth/logout` invalida el refresh token enviado.
+
+#### Rollback (si se requiere)
+
+- Revertir cambios en:
+  - `GastosApp.API/Services/AuthService.cs`
+  - `GastosApp.API/Services/JwtService.cs`
+  - `GastosApp.API/Services/CurrentUserService.cs`
+  - `GastosApp.BusinessLogic/Interfaces/ICurrentUserService.cs`
+  - `GastosApp.API/Security/ClaimNames.cs`
+- Luego recompilar (`dotnet build code.sln`) y revalidar login/refresh/logout.
 
 ### Header Requerido
 ```
@@ -410,6 +497,111 @@ Crea una transferencia entre cuentas.
 }
 ```
 
+#### POST /api/transactions/import/bancoppel/preview
+Genera una vista previa de movimientos desde un PDF de estado de cuenta BanCoppel.
+
+**Content-Type:** `multipart/form-data`
+
+**Request Form Data:**
+- `file` (IFormFile, requerido): archivo `.pdf`.
+
+**Reglas clave:**
+- Solo acepta archivos PDF (`.pdf`).
+- Tamaño máximo de request: ~10 MB.
+- Solo parsea la sección: `CARGOS, ABONOS Y COMPRAS REGULARES (NO A MESES)`.
+- Normalización de signo:
+  - monto positivo (`+`) => `type: "expense"`
+  - monto negativo (`-`) => `type: "income"`
+
+**Response (200 OK):**
+```json
+{
+  "rows": [
+    {
+      "rowNumber": 1,
+      "transactionDate": "2026-05-10T00:00:00Z",
+      "amount": 350.00,
+      "type": "expense",
+      "description": "COMPRA COMERCIO"
+    }
+  ],
+  "warnings": [],
+  "errors": []
+}
+```
+
+**Response (400 Bad Request):**
+```json
+{
+  "message": "Archivo PDF requerido."
+}
+```
+
+```json
+{
+  "message": "El archivo debe ser PDF."
+}
+```
+
+#### POST /api/transactions/import/bancoppel/commit
+Confirma e inserta en lote filas previamente revisadas.
+
+**Request Body:**
+```json
+{
+  "accountId": 1,
+  "rows": [
+    {
+      "transactionDate": "2026-05-10T00:00:00Z",
+      "amount": 350.00,
+      "type": "expense",
+      "description": "COMPRA COMERCIO",
+      "categoryId": 2,
+      "subcategoryId": 8,
+      "merchantId": 15,
+      "tags": ["banCoppel", "import"]
+    }
+  ]
+}
+```
+
+**Contrato de filas (`rows[]`):**
+- `transactionDate` (DateTimeOffset, requerido)
+- `amount` (decimal > 0, requerido)
+- `type` (string, requerido): `expense` o `income`
+- `description` (string, requerido)
+- `categoryId`, `subcategoryId`, `merchantId` (opcionales)
+- `tags` (string[], opcional)
+
+**Comportamiento clave:**
+- Requiere cuenta existente y perteneciente al usuario autenticado.
+- Deduplicación en el mismo lote (`date + description + amount + type + account`).
+- Detección de posibles duplicados existentes en ventana +/- 7 días (se omiten con warning).
+- Valida dimensiones analíticas (`category/subcategory/merchant`) antes de crear.
+
+**Response (200 OK):**
+```json
+{
+  "createdCount": 1,
+  "skippedCount": 0,
+  "warnings": [],
+  "errors": []
+}
+```
+
+**Response (400 Bad Request):**
+Retorna el mismo contrato con `errors` cuando hay errores de negocio.
+```json
+{
+  "createdCount": 0,
+  "skippedCount": 0,
+  "warnings": [],
+  "errors": [
+    "No se recibieron filas para importar."
+  ]
+}
+```
+
 #### PUT /api/transactions/{id}
 Actualiza una transacción.
 
@@ -773,3 +965,6 @@ API_URL=http://localhost:5000
 
 *Documentación generada para Next.js Frontend Integration*
 *Última actualización: Febrero 2025*
+
+
+124lc6KHSM6Q/J1Wik7FdJJ7DkN3325l963QRFYHeTE=

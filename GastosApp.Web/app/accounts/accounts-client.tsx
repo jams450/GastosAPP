@@ -8,6 +8,7 @@ import type { Account } from "@/lib/contracts/accounts";
 import { normalizeAccounts } from "@/lib/contracts/accounts";
 import { toAccountUpsertPayload, type AccountFormErrors, type AccountUpsertPayload, validateAccountPayload } from "@/lib/contracts/accounts-admin";
 import { csrfFetch } from "@/lib/security/csrf-client";
+import { parseApiError } from "@/lib/bff/client-session";
 import { AccountsTable } from "./_components/accounts-table";
 import { AccountsToolbar } from "./_components/accounts-toolbar";
 import { AccountFormDrawer } from "./_components/account-form-drawer";
@@ -38,7 +39,7 @@ export function AccountsClient({ username }: Props) {
     try {
       const response = await fetch("/api/bff/accounts", { cache: "no-store" });
       if (!response.ok) {
-        throw new Error("No se pudieron cargar cuentas");
+        throw await parseApiError(response, "No se pudieron cargar cuentas");
       }
 
       const payload = await response.json();
@@ -132,8 +133,7 @@ export function AccountsClient({ username }: Props) {
       });
 
       if (!response.ok) {
-        const body = await response.json().catch(() => null) as { message?: string } | null;
-        throw new Error(body?.message ?? "No se pudo guardar cuenta");
+        throw await parseApiError(response, "No se pudo guardar cuenta");
       }
 
       setOpenForm(false);
@@ -156,7 +156,7 @@ export function AccountsClient({ username }: Props) {
       });
 
       if (!response.ok) {
-        throw new Error("No se pudo actualizar estado");
+        throw await parseApiError(response, "No se pudo actualizar estado");
       }
 
       setSuccess(account.active ? "Cuenta desactivada" : "Cuenta activada");

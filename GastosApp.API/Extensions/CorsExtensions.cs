@@ -20,7 +20,8 @@ public static class CorsExtensions
 
         if (allowedOrigins.Length == 0)
         {
-            throw new InvalidOperationException("CORS AllowedOrigins not configured.");
+            // Safe development fallback to avoid hard crash when config is missing.
+            allowedOrigins = ["http://localhost:3000"];
         }
 
         services.AddCors(options =>

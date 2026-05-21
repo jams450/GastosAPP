@@ -1,13 +1,6 @@
 import type { CatalogsResponse } from "./catalogs-types";
 import { csrfFetch } from "@/lib/security/csrf-client";
-
-function redirectToLoginOnUnauthorized(response: Response): never {
-  if (response.status === 401 && typeof window !== "undefined") {
-    window.location.replace("/login?reason=session_expired");
-  }
-
-  throw new Error("Session expired");
-}
+import { parseApiError } from "@/lib/bff/client-session";
 
 export async function requestJson(path: string, init: RequestInit, fallbackMessage: string): Promise<void> {
   const response = await csrfFetch(path, {
@@ -19,24 +12,14 @@ export async function requestJson(path: string, init: RequestInit, fallbackMessa
   });
 
   if (!response.ok) {
-    if (response.status === 401) {
-      redirectToLoginOnUnauthorized(response);
-    }
-
-    const body = (await response.json().catch(() => null)) as { message?: string } | null;
-    throw new Error(body?.message ?? fallbackMessage);
+    throw await parseApiError(response, fallbackMessage);
   }
 }
 
 export async function fetchCatalogsBootstrap(): Promise<CatalogsResponse> {
   const response = await fetch("/api/bff/catalogs/bootstrap", { cache: "no-store" });
   if (!response.ok) {
-    if (response.status === 401) {
-      redirectToLoginOnUnauthorized(response);
-    }
-
-    const body = (await response.json().catch(() => null)) as { message?: string } | null;
-    throw new Error(body?.message ?? "No se pudieron cargar los catálogos");
+    throw await parseApiError(response, "No se pudieron cargar los catálogos");
   }
 
   return (await response.json()) as CatalogsResponse;

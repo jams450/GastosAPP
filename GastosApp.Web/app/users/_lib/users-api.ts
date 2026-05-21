@@ -1,16 +1,10 @@
 import { csrfFetch } from "@/lib/security/csrf-client";
 import { normalizeUsers, type AdminUser, type UserCreatePayload, type UserUpdatePayload } from "@/lib/contracts/users-admin";
-
-type ApiErrorBody = { message?: string; Message?: string } | null;
-
-async function parseError(response: Response, fallback: string): Promise<Error> {
-  const body = (await response.json().catch(() => null)) as ApiErrorBody;
-  return new Error(body?.message ?? body?.Message ?? fallback);
-}
+import { parseApiError } from "@/lib/bff/client-session";
 
 export async function listUsers(): Promise<AdminUser[]> {
   const response = await fetch("/api/bff/users", { cache: "no-store" });
-  if (!response.ok) throw await parseError(response, "No se pudieron cargar usuarios");
+  if (!response.ok) throw await parseApiError(response, "No se pudieron cargar usuarios");
   const payload = await response.json();
   return normalizeUsers(payload);
 }
@@ -22,7 +16,7 @@ export async function createUser(payload: UserCreatePayload): Promise<void> {
     body: JSON.stringify(payload)
   });
 
-  if (!response.ok) throw await parseError(response, "No se pudo guardar usuario");
+  if (!response.ok) throw await parseApiError(response, "No se pudo guardar usuario");
 }
 
 export async function updateUser(userId: number, payload: UserUpdatePayload): Promise<void> {
@@ -32,7 +26,7 @@ export async function updateUser(userId: number, payload: UserUpdatePayload): Pr
     body: JSON.stringify(payload)
   });
 
-  if (!response.ok) throw await parseError(response, "No se pudo guardar usuario");
+  if (!response.ok) throw await parseApiError(response, "No se pudo guardar usuario");
 }
 
 export async function patchUserActive(userId: number, active: boolean): Promise<void> {
@@ -42,10 +36,10 @@ export async function patchUserActive(userId: number, active: boolean): Promise<
     body: JSON.stringify({ active })
   });
 
-  if (!response.ok) throw await parseError(response, "No se pudo actualizar estado");
+  if (!response.ok) throw await parseApiError(response, "No se pudo actualizar estado");
 }
 
 export async function deleteUser(userId: number): Promise<void> {
   const response = await csrfFetch(`/api/bff/users/${userId}`, { method: "DELETE" });
-  if (!response.ok) throw await parseError(response, "No se pudo borrar usuario");
+  if (!response.ok) throw await parseApiError(response, "No se pudo borrar usuario");
 }

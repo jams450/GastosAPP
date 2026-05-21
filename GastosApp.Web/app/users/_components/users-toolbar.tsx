@@ -3,18 +3,49 @@ import { Input } from "@/components/ui/input";
 import { Plus } from "lucide-react";
 
 type Props = {
+  total: number;
+  filtered: number;
   search: string;
   status: "all" | "active" | "inactive";
   role: "all" | "admin" | "user";
+  hasActiveFilters: boolean;
   onSearchChange: (value: string) => void;
   onStatusChange: (value: "all" | "active" | "inactive") => void;
   onRoleChange: (value: "all" | "admin" | "user") => void;
+  onResetFilters: () => void;
   onCreate: () => void;
 };
 
-export function UsersToolbar({ search, status, role, onSearchChange, onStatusChange, onRoleChange, onCreate }: Props) {
+export function UsersToolbar({
+  total,
+  filtered,
+  search,
+  status,
+  role,
+  hasActiveFilters,
+  onSearchChange,
+  onStatusChange,
+  onRoleChange,
+  onResetFilters,
+  onCreate
+}: Props) {
   return (
     <section className="rounded-3xl border border-slate-200/80 bg-white/95 p-4 shadow-sm backdrop-blur dark:border-slate-800 dark:bg-slate-950/95">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <p className="text-xs font-medium text-slate-600 dark:text-slate-400">
+          Mostrando <span className="font-semibold text-slate-900 dark:text-slate-100">{filtered}</span> de {total} usuarios
+        </p>
+        {hasActiveFilters ? (
+          <button
+            type="button"
+            className="text-xs font-semibold text-sky-700 underline-offset-4 transition hover:underline dark:text-sky-300"
+            onClick={onResetFilters}
+          >
+            Limpiar filtros
+          </button>
+        ) : null}
+      </div>
+
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div className="grid flex-1 gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_180px_180px]">
           <Input

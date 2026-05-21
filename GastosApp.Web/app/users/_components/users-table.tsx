@@ -58,8 +58,12 @@ export function UsersTable({ rows, loading, onEdit, onToggleActive, onDelete }: 
       rows={rows}
       mode="client"
       density="compact"
+      allowDensityToggle
+      densityStorageKey="users-grid-density"
       loading={loading}
       emptyMessage="No hay usuarios"
+      pageSizeOptions={[10, 20, 50]}
+      initialSorting={[{ id: "name", desc: false }]}
     />
   );
 }

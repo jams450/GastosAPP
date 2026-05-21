@@ -4,6 +4,7 @@ using GastosApp.Models.Entities;
 using GastosApp.API.Models.Transactions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using UglyToad.PdfPig.Core;
 
 namespace GastosApp.API.Controllers
 {
@@ -15,17 +16,20 @@ namespace GastosApp.API.Controllers
         private readonly ITransactionService _transactionService;
         private readonly IAccountService _accountService;
         private readonly ICurrentUserService _currentUserService;
+        private readonly IBancoppelImportService _bancoppelImportService;
         private readonly ILogger<TransactionsController> _logger;
 
         public TransactionsController(
             ITransactionService transactionService,
             IAccountService accountService,
             ICurrentUserService currentUserService,
+            IBancoppelImportService bancoppelImportService,
             ILogger<TransactionsController> logger)
         {
             _transactionService = transactionService;
             _accountService = accountService;
             _currentUserService = currentUserService;
+            _bancoppelImportService = bancoppelImportService;
             _logger = logger;
         }
 
@@ -96,6 +100,112 @@ namespace GastosApp.API.Controllers
             {
                 _logger.LogError(ex, "Error retrieving transaction with ID {Id}", id);
                 return StatusCode(500, new { Message = "An error occurred while retrieving the transaction" });
+            }
+        }
+
+        [HttpPost("import/bancoppel/preview")]
+        [RequestSizeLimit(10_000_000)]
+        public async Task<IActionResult> PreviewBancoppelImport([FromForm] IFormFile file, CancellationToken cancellationToken)
+        {
+            try
+            {
+                if (file == null || file.Length == 0)
+                {
+                    return BadRequest(new { Message = "Archivo PDF requerido." });
+                }
+
+                if (!string.Equals(Path.GetExtension(file.FileName), ".pdf", StringComparison.OrdinalIgnoreCase))
+                {
+                    return BadRequest(new { Message = "El archivo debe ser PDF." });
+                }
+
+                if (!string.Equals(file.ContentType, "application/pdf", StringComparison.OrdinalIgnoreCase))
+                {
+                    return BadRequest(new { Message = "Tipo de contenido inválido. Se espera application/pdf." });
+                }
+
+                await using var stream = file.OpenReadStream();
+                if (!await HasPdfSignatureAsync(stream, cancellationToken))
+                {
+                    return BadRequest(new { Message = "Archivo PDF inválido." });
+                }
+
+                var preview = await _bancoppelImportService.PreviewAsync(stream, cancellationToken);
+
+                return Ok(new BancoppelImportPreviewResponse
+                {
+                    Rows = preview.Rows.Select(r => new BancoppelImportPreviewRowResponse
+                    {
+                        RowNumber = r.RowNumber,
+                        TransactionDate = r.TransactionDate,
+                        Amount = r.Amount,
+                        Type = r.Type,
+                        Description = r.Description
+                    }).ToList(),
+                    Warnings = preview.Warnings,
+                    Errors = preview.Errors
+                });
+            }
+            catch (PdfDocumentFormatException)
+            {
+                return BadRequest(new { Message = "El archivo no tiene un formato PDF válido." });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error generating BanCoppel import preview");
+                return StatusCode(500, new { Message = "An error occurred while generating import preview" });
+            }
+        }
+
+        [HttpPost("import/bancoppel/commit")]
+        public async Task<IActionResult> CommitBancoppelImport([FromBody] BancoppelImportCommitRequest request, CancellationToken cancellationToken)
+        {
+            try
+            {
+                var userId = GetCurrentUserId();
+                var result = await _bancoppelImportService.CommitAsync(
+                    userId,
+                    request.AccountId,
+                    request.Rows.Select(r => new BancoppelImportCommitRow
+                    {
+                        TransactionDate = r.TransactionDate.UtcDateTime,
+                        Amount = r.Amount,
+                        Type = r.Type,
+                        Description = r.Description,
+                        CategoryId = r.CategoryId,
+                        SubcategoryId = r.SubcategoryId,
+                        MerchantId = r.MerchantId,
+                        Tags = r.Tags
+                    }),
+                    cancellationToken);
+
+                if (result.Errors.Count > 0)
+                {
+                    return BadRequest(new BancoppelImportCommitResponse
+                    {
+                        CreatedCount = result.CreatedCount,
+                        SkippedCount = result.SkippedCount,
+                        Warnings = result.Warnings,
+                        Errors = result.Errors
+                    });
+                }
+
+                return Ok(new BancoppelImportCommitResponse
+                {
+                    CreatedCount = result.CreatedCount,
+                    SkippedCount = result.SkippedCount,
+                    Warnings = result.Warnings,
+                    Errors = result.Errors
+                });
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return Unauthorized(new { Message = "Missing or invalid user identity claim" });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error committing BanCoppel import");
+                return StatusCode(500, new { Message = "An error occurred while committing import" });
             }
         }
 
@@ -746,6 +856,26 @@ namespace GastosApp.API.Controllers
         {
             return _currentUserService.GetUserId()
                 ?? throw new UnauthorizedAccessException("Missing or invalid user identity claim");
+        }
+
+        private static async Task<bool> HasPdfSignatureAsync(Stream stream, CancellationToken cancellationToken)
+        {
+            if (!stream.CanSeek)
+            {
+                return false;
+            }
+
+            stream.Position = 0;
+            var signatureBuffer = new byte[5];
+            var bytesRead = await stream.ReadAsync(signatureBuffer, cancellationToken);
+            stream.Position = 0;
+
+            if (bytesRead < 5)
+            {
+                return false;
+            }
+
+            return signatureBuffer[0] == '%' && signatureBuffer[1] == 'P' && signatureBuffer[2] == 'D' && signatureBuffer[3] == 'F' && signatureBuffer[4] == '-';
         }
 
         private static TransactionResponse MapTransaction(Transaction transaction)
