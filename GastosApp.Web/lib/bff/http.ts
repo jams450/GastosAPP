@@ -14,8 +14,9 @@ export function getTraceId(request?: Request): string {
 }
 
 function resolveTraceId(requestOrTraceId?: Request | string): string {
-  if (typeof requestOrTraceId === "string" && requestOrTraceId.trim().length > 0) {
-    return requestOrTraceId;
+  if (typeof requestOrTraceId === "string") {
+    const traceId = requestOrTraceId.trim();
+    return traceId.length > 0 ? traceId : crypto.randomUUID();
   }
 
   return getTraceId(requestOrTraceId);

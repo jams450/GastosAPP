@@ -30,7 +30,7 @@ namespace GastosApp.Models.Entities
         public bool Active { get; set; } = true;
 
         [Column("admin")]
-        public bool Admin { get; set; } = true;
+        public bool Admin { get; set; } = false;
 
         [Column("session_version")]
         public int SessionVersion { get; set; } = 1;

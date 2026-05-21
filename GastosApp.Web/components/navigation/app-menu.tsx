@@ -70,7 +70,7 @@ export function AppMenu({ username, compact = false }: AppMenuProps) {
   const shortName = username?.slice(0, 2).toUpperCase() ?? "NA";
 
   return (
-    <div className="relative">
+    <div className="relative z-40">
       <div className="hidden items-center gap-3 md:flex">
         <nav className="flex items-center gap-1.5 rounded-2xl border border-slate-200/80 bg-white/85 p-1.5 shadow-sm backdrop-blur dark:border-slate-700/80 dark:bg-slate-950/65">
           {navItems.map((item) => {
@@ -124,7 +124,7 @@ export function AppMenu({ username, compact = false }: AppMenuProps) {
           {userMenuOpen ? (
             <div
               role="menu"
-              className="absolute right-0 top-[calc(100%+0.6rem)] z-40 w-64 rounded-2xl border border-slate-200 bg-white p-3 shadow-xl shadow-slate-300/30 dark:border-slate-700 dark:bg-slate-950 dark:shadow-black/40"
+               className="absolute right-0 top-[calc(100%+0.6rem)] z-[90] w-64 rounded-2xl border border-slate-200 bg-white p-3 shadow-xl shadow-slate-300/30 dark:border-slate-700 dark:bg-slate-950 dark:shadow-black/40"
             >
               <div className="mb-3 rounded-xl border border-slate-200/80 bg-slate-50/80 px-3 py-2.5 dark:border-slate-700/80 dark:bg-slate-900/70">
                 <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Sesión activa</p>
@@ -168,7 +168,7 @@ export function AppMenu({ username, compact = false }: AppMenuProps) {
       {mobileOpen ? (
         <div
           id="mobile-nav-menu"
-          className="absolute right-0 top-11 z-30 w-72 rounded-2xl border border-slate-200 bg-white p-3 shadow-xl shadow-slate-300/30 dark:border-slate-700 dark:bg-slate-900 dark:shadow-black/40"
+          className="absolute right-0 top-11 z-[90] w-72 rounded-2xl border border-slate-200 bg-white p-3 shadow-xl shadow-slate-300/30 dark:border-slate-700 dark:bg-slate-900 dark:shadow-black/40"
         >
           <div className="mb-3 rounded-xl border border-slate-200/80 bg-slate-50 px-3 py-2 dark:border-slate-700/80 dark:bg-slate-950/70">
             <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Usuario</p>

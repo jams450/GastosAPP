@@ -18,5 +18,5 @@ public class UserCreateRequest
     public string Password { get; set; } = string.Empty;
 
     public bool Active { get; set; } = true;
-    public bool Admin { get; set; } = true;
+    public bool Admin { get; set; } = false;
 }

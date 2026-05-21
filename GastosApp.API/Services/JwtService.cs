@@ -2,6 +2,7 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
 using GastosApp.API.Interfaces;
+using GastosApp.API.Security;
 using Microsoft.IdentityModel.Tokens;
 
 namespace GastosApp.API.Services;
@@ -24,22 +25,22 @@ public class JwtService : IJwtService
 
         var claims = new List<Claim>
         {
-            new(JwtRegisteredClaimNames.Sub, userId.ToString()),
-            new(ClaimTypes.NameIdentifier, userId.ToString()),
-            new Claim(ClaimTypes.Name, username),
-            new("sessionVersion", sessionVersion.ToString()),
+            new(ClaimNames.Subject, userId.ToString()),
+            new(ClaimNames.NameIdentifier, userId.ToString()),
+            new(ClaimNames.Name, username),
+            new(ClaimNames.SessionVersion, sessionVersion.ToString()),
             new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
         };
 
         if (sessionId.HasValue)
         {
-            claims.Add(new Claim("sid", sessionId.Value.ToString()));
+            claims.Add(new Claim(ClaimNames.SessionId, sessionId.Value.ToString()));
         }
 
         // Agregar claim de Admin si corresponde
         if (isAdmin)
         {
-            claims.Add(new Claim(ClaimTypes.Role, "Admin"));
+            claims.Add(new Claim(ClaimNames.Role, ClaimNames.AdminRole));
         }
 
         var token = new JwtSecurityToken(

@@ -180,11 +180,14 @@ namespace GastosApp.API.Controllers
                 if (account == null)
                     return NotFound(new { Message = $"Account with ID {request.AccountId} not found" });
 
+                var userId = GetCurrentUserId();
+                if (account.UserId != userId)
+                    return Forbid();
+
                 // Validar saldo suficiente
                 if (account.CurrentBalance < request.Amount)
                     return BadRequest(new { Message = "Insufficient balance" });
 
-                var userId = GetCurrentUserId();
                 var dimensionsValidation = await _transactionService.ValidateAnalyticsDimensionsAsync(
                     userId,
                     request.CategoryId,
@@ -235,6 +238,10 @@ namespace GastosApp.API.Controllers
                 var created = await _transactionService.GetByIdForUserAsync(createdTransaction.TransactionId, userId);
                 return CreatedAtAction(nameof(GetById), new { id = createdTransaction.TransactionId }, MapTransaction(created ?? createdTransaction));
             }
+            catch (UnauthorizedAccessException)
+            {
+                return Unauthorized(new { Message = "Missing or invalid user identity claim" });
+            }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error creating expense transaction");
@@ -274,7 +281,7 @@ namespace GastosApp.API.Controllers
                 if (!result.Success)
                     return BadRequest(new { Message = result.ErrorMessage });
 
-                var destinationAccount = await _accountService.GetByIdAsync(request.DestinationAccountId);
+                var destinationAccount = await _accountService.GetByIdForUserAsync(request.DestinationAccountId, userId);
                 if (destinationAccount?.IsCredit == true)
                 {
                     var destinationTransactions = await _transactionService.GetAllByAccountIdForUserAsync(request.DestinationAccountId, userId);
@@ -468,9 +475,18 @@ namespace GastosApp.API.Controllers
         {
             try
             {
+                var userId = GetCurrentUserId();
+                var account = await _accountService.GetByIdForUserAsync(accountId, userId);
+                if (account == null)
+                    return NotFound(new { Message = $"Account with ID {accountId} not found" });
+
                 var balance = await _transactionService.CalculateAccountBalanceAsync(accountId);
                 _logger.LogInformation("Balance recalculated for account {AccountId}: {Balance}", accountId, balance);
                 return Ok(new { Balance = balance });
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return Unauthorized(new { Message = "Missing or invalid user identity claim" });
             }
             catch (Exception ex)
             {
@@ -484,8 +500,17 @@ namespace GastosApp.API.Controllers
         {
             try
             {
+                var userId = GetCurrentUserId();
+                var account = await _accountService.GetByIdForUserAsync(accountId, userId);
+                if (account == null)
+                    return NotFound(new { Message = $"Account with ID {accountId} not found" });
+
                 var installments = await _transactionService.GetOpenCreditInstallmentsAsync(accountId);
                 return Ok(installments);
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return Unauthorized(new { Message = "Missing or invalid user identity claim" });
             }
             catch (Exception ex)
             {
@@ -499,6 +524,13 @@ namespace GastosApp.API.Controllers
         {
             try
             {
+                var userId = GetCurrentUserId();
+                var sourceTransaction = await _transactionService.GetByIdForUserAsync(request.SourceTransactionId, userId);
+                if (sourceTransaction == null)
+                {
+                    return NotFound(new { Message = "No existe transacción origen para convertir a MSI" });
+                }
+
                 var result = await _transactionService.ConvertChargeToMsiAsync(request.SourceTransactionId, request.Months);
                 if (!result.Success)
                 {
@@ -506,6 +538,10 @@ namespace GastosApp.API.Controllers
                 }
 
                 return Ok(new { Message = "Cargo convertido a MSI correctamente" });
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return Unauthorized(new { Message = "Missing or invalid user identity claim" });
             }
             catch (Exception ex)
             {
@@ -519,6 +555,7 @@ namespace GastosApp.API.Controllers
         {
             try
             {
+                var userId = GetCurrentUserId();
                 var sourceIds = request.SourceTransactionIds
                     .Where(id => id > 0)
                     .Distinct()
@@ -529,8 +566,21 @@ namespace GastosApp.API.Controllers
                     return Ok(Array.Empty<object>());
                 }
 
+                foreach (var sourceId in sourceIds)
+                {
+                    var sourceTransaction = await _transactionService.GetByIdForUserAsync(sourceId, userId);
+                    if (sourceTransaction == null)
+                    {
+                        return NotFound(new { Message = "Una o más transacciones no existen" });
+                    }
+                }
+
                 var summaries = await _transactionService.GetCreditChargeSummariesAsync(sourceIds);
                 return Ok(summaries);
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return Unauthorized(new { Message = "Missing or invalid user identity claim" });
             }
             catch (Exception ex)
             {
@@ -544,18 +594,25 @@ namespace GastosApp.API.Controllers
         {
             try
             {
+                var userId = GetCurrentUserId();
+
                 if (request.SourceTransactionId <= 0 || request.CreditAccountId <= 0)
                 {
                     return BadRequest(new { Message = "Parámetros inválidos" });
                 }
 
-                var account = await _accountService.GetByIdAsync(request.CreditAccountId);
-                if (account == null || !account.IsCredit)
+                var account = await _accountService.GetByIdForUserAsync(request.CreditAccountId, userId);
+                if (account == null)
+                {
+                    return NotFound(new { Message = "Cuenta de crédito no encontrada" });
+                }
+
+                if (!account.IsCredit)
                 {
                     return BadRequest(new { Message = "La cuenta destino no es de crédito" });
                 }
 
-                var source = await _transactionService.GetByIdForUserAsync(request.SourceTransactionId, GetCurrentUserId());
+                var source = await _transactionService.GetByIdForUserAsync(request.SourceTransactionId, userId);
                 if (source == null)
                 {
                     return NotFound(new { Message = "Transacción origen no encontrada" });
@@ -622,6 +679,10 @@ namespace GastosApp.API.Controllers
 
                 return Ok(new { Message = "Pago aplicado a mensualidades correctamente", AppliedAmount = amountToApply });
             }
+            catch (UnauthorizedAccessException)
+            {
+                return Unauthorized(new { Message = "Missing or invalid user identity claim" });
+            }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error applying existing payment transaction {TransactionId}", request.SourceTransactionId);
@@ -634,13 +695,20 @@ namespace GastosApp.API.Controllers
         {
             try
             {
+                var userId = GetCurrentUserId();
+
                 if (request.CreditAccountId <= 0 || request.Items == null || request.Items.Count == 0)
                 {
                     return BadRequest(new { Message = "Debes enviar cuenta crédito e items válidos" });
                 }
 
-                var account = await _accountService.GetByIdAsync(request.CreditAccountId);
-                if (account == null || !account.IsCredit)
+                var account = await _accountService.GetByIdForUserAsync(request.CreditAccountId, userId);
+                if (account == null)
+                {
+                    return NotFound(new { Message = "La cuenta indicada no existe" });
+                }
+
+                if (!account.IsCredit)
                 {
                     return BadRequest(new { Message = "La cuenta indicada no es de crédito" });
                 }
@@ -662,6 +730,10 @@ namespace GastosApp.API.Controllers
                 }
 
                 return Ok(new { Message = "Cargos de apertura creados correctamente", CreatedCount = result.CreatedCount });
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return Unauthorized(new { Message = "Missing or invalid user identity claim" });
             }
             catch (Exception ex)
             {

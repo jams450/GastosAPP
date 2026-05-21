@@ -1,5 +1,6 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
+using GastosApp.API.Security;
 using Microsoft.AspNetCore.Authorization;
 
 namespace GastosApp.API.Extensions;
@@ -16,7 +17,7 @@ public static class AuthorizationExtensions
 
             options.AddPolicy("AdminWithId", policy =>
                 policy.RequireAuthenticatedUser()
-                    .RequireRole("Admin")
+                    .RequireRole(ClaimNames.AdminRole)
                     .RequireAssertion(HasValidUserId));
         });
 
@@ -25,7 +26,8 @@ public static class AuthorizationExtensions
 
     private static bool HasValidUserId(AuthorizationHandlerContext context)
     {
-        var userIdClaim = context.User.FindFirst(ClaimTypes.NameIdentifier)?.Value
+        var userIdClaim = context.User.FindFirst(ClaimNames.NameIdentifier)?.Value
+            ?? context.User.FindFirst(ClaimNames.Subject)?.Value
             ?? context.User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
 
         return int.TryParse(userIdClaim, out var userId) && userId >= 0;

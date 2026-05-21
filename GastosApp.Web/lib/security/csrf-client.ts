@@ -1,4 +1,4 @@
-import { CSRF_COOKIE_NAME, CSRF_HEADER_NAME } from "@/lib/security/csrf";
+import { CSRF_COOKIE_NAME, CSRF_HEADER_NAME } from "@/lib/security/csrf-config";
 
 function readCookie(name: string): string | null {
   if (typeof document === "undefined") return null;

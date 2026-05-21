@@ -1,6 +1,6 @@
 using System.Security.Claims;
-using System.IdentityModel.Tokens.Jwt;
 using GastosApp.BusinessLogic.Interfaces;
+using GastosApp.API.Security;
 
 namespace GastosApp.API.Services
 {
@@ -15,34 +15,82 @@ namespace GastosApp.API.Services
 
         public int? GetUserId()
         {
-            var claims = GetClaimsIdentity();
-            var userIdClaim = claims?.FindFirst(ClaimTypes.NameIdentifier)?.Value
-                ?? claims?.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
+            return TryGetIntClaim(ClaimNames.NameIdentifier, ClaimNames.Subject);
+        }
 
-            return int.TryParse(userIdClaim, out var userId) ? userId : null;
+        public int GetRequiredUserId()
+        {
+            var userId = GetUserId();
+            if (!userId.HasValue)
+            {
+                throw new InvalidOperationException("Authenticated user id claim is missing or invalid.");
+            }
+
+            return userId.Value;
+        }
+
+        public int? GetSessionVersion()
+        {
+            return TryGetIntClaim(ClaimNames.SessionVersion);
+        }
+
+        public Guid? GetSessionId()
+        {
+            return TryGetGuidClaim(ClaimNames.SessionId);
         }
 
         public string GetEmail()
         {
-            var claims = GetClaimsIdentity();
-            return claims?.FindFirst(ClaimTypes.Name)?.Value
-                ?? claims?.FindFirst(ClaimTypes.Email)?.Value
-                ?? claims?.FindFirst("preferred_username")?.Value
+            return GetClaimValue(ClaimNames.Name, ClaimTypes.Email, "preferred_username")
                 ?? "System";
         }
 
         public string GetName()
         {
-            var claims = GetClaimsIdentity();
-            return claims?.FindFirst(ClaimTypes.Name)?.Value
-                ?? claims?.FindFirst("name")?.Value
+            return GetClaimValue(ClaimNames.Name, "name")
                 ?? "System";
         }
 
         public bool IsAdmin()
         {
+            return string.Equals(GetClaimValue(ClaimNames.Role), ClaimNames.AdminRole, StringComparison.OrdinalIgnoreCase);
+        }
+
+        private string? GetClaimValue(params string[] claimTypes)
+        {
             var claims = GetClaimsIdentity();
-            return string.Equals(claims?.FindFirst(ClaimTypes.Role)?.Value, "Admin", StringComparison.OrdinalIgnoreCase);
+            if (claims == null)
+            {
+                return null;
+            }
+
+            foreach (var claimType in claimTypes)
+            {
+                if (string.IsNullOrWhiteSpace(claimType))
+                {
+                    continue;
+                }
+
+                var value = claims.FindFirst(claimType)?.Value;
+                if (!string.IsNullOrWhiteSpace(value))
+                {
+                    return value;
+                }
+            }
+
+            return null;
+        }
+
+        private int? TryGetIntClaim(params string[] claimTypes)
+        {
+            var value = GetClaimValue(claimTypes);
+            return int.TryParse(value, out var parsed) ? parsed : null;
+        }
+
+        private Guid? TryGetGuidClaim(params string[] claimTypes)
+        {
+            var value = GetClaimValue(claimTypes);
+            return Guid.TryParse(value, out var parsed) ? parsed : null;
         }
 
         private ClaimsIdentity? GetClaimsIdentity()

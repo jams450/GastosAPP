@@ -1,8 +1,14 @@
 import { NextResponse } from "next/server";
-import { SESSION_COOKIE_SECURE } from "@/lib/auth/session";
+import { CSRF_COOKIE_NAME, CSRF_SECURE, CSRF_HEADER_NAME } from "@/lib/security/csrf-config";
 
-export const CSRF_HEADER_NAME = "x-csrf-token";
-export const CSRF_COOKIE_NAME = SESSION_COOKIE_SECURE ? "__Host-gastos_csrf" : "gastos_csrf_dev";
+export { CSRF_COOKIE_NAME, CSRF_HEADER_NAME };
+
+export function isCsrfEnforced(): boolean {
+  const configured = process.env.CSRF_ENFORCE?.trim().toLowerCase();
+  if (configured === "true") return true;
+  if (configured === "false") return false;
+  return process.env.NODE_ENV === "production";
+}
 
 export function issueCsrfToken(response: NextResponse, expiresAt: string) {
   const token = crypto.randomUUID().replace(/-/g, "") + crypto.randomUUID().replace(/-/g, "");
@@ -10,7 +16,7 @@ export function issueCsrfToken(response: NextResponse, expiresAt: string) {
     name: CSRF_COOKIE_NAME,
     value: token,
     httpOnly: false,
-    secure: SESSION_COOKIE_SECURE,
+    secure: CSRF_SECURE,
     sameSite: "lax",
     path: "/",
     expires: new Date(expiresAt)
@@ -22,7 +28,7 @@ export function clearCsrfToken(response: NextResponse) {
     name: CSRF_COOKIE_NAME,
     value: "",
     httpOnly: false,
-    secure: SESSION_COOKIE_SECURE,
+    secure: CSRF_SECURE,
     sameSite: "lax",
     path: "/",
     expires: new Date(0)

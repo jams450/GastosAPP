@@ -17,5 +17,5 @@ public class UserUpdateRequest
     public string? Password { get; set; }
 
     public bool Active { get; set; } = true;
-    public bool Admin { get; set; } = true;
+    public bool Admin { get; set; } = false;
 }

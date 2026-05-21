@@ -2,7 +2,7 @@ import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { decryptSession, isSessionUsable, SESSION_COOKIE_NAME } from "@/lib/auth/session";
 import { getTraceId } from "@/lib/bff/http";
-import { CSRF_COOKIE_NAME, CSRF_HEADER_NAME, isMutatingMethod, isTrustedOrigin } from "@/lib/security/csrf";
+import { CSRF_COOKIE_NAME, CSRF_HEADER_NAME, isCsrfEnforced, isMutatingMethod, isTrustedOrigin } from "@/lib/security/csrf";
 
 const privateRoutes = ["/dashboard", "/accounts", "/transactions", "/catalogs", "/users"];
 
@@ -16,7 +16,7 @@ function redirectToLogin(request: NextRequest) {
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  if ((pathname.startsWith("/api/bff/") || pathname === "/api/auth/logout") && isMutatingMethod(request.method)) {
+  if (isCsrfEnforced() && (pathname.startsWith("/api/bff/") || pathname === "/api/auth/logout") && isMutatingMethod(request.method)) {
     const traceId = getTraceId(request);
     const cookieToken = request.cookies.get(CSRF_COOKIE_NAME)?.value;
     const headerToken = request.headers.get(CSRF_HEADER_NAME);
