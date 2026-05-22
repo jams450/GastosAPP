@@ -41,16 +41,47 @@ export function isMutatingMethod(method: string) {
 
 export function isTrustedOrigin(request: Request): boolean {
   const origin = request.headers.get("origin");
-  if (!origin) return false;
+  const requestUrl = new URL(request.url);
 
   const trusted = (process.env.CSRF_TRUSTED_ORIGINS ?? "")
     .split(",")
-    .map((value) => value.trim())
+    .map((value) => value.trim().replace(/^['\"]|['\"]$/g, ""))
     .filter(Boolean);
 
-  if (trusted.length > 0) {
-    return trusted.includes(origin);
+  if (!origin) {
+    const referer = request.headers.get("referer");
+    if (referer) {
+      try {
+        return new URL(referer).origin === requestUrl.origin;
+      } catch {
+        return false;
+      }
+    }
+
+    const fetchSite = request.headers.get("sec-fetch-site")?.toLowerCase();
+    return fetchSite === "same-origin" || fetchSite === "same-site";
   }
 
-  return origin === new URL(request.url).origin;
+  if (trusted.length > 0) {
+    const normalizedOrigin = normalizeOrigin(origin);
+    const normalizedRequestOrigin = normalizeOrigin(requestUrl.origin);
+
+    if (normalizedOrigin === normalizedRequestOrigin) {
+      return true;
+    }
+
+    return trusted
+      .map((value) => normalizeOrigin(value))
+      .includes(normalizedOrigin);
+  }
+
+  return origin === requestUrl.origin;
+}
+
+function normalizeOrigin(value: string): string {
+  try {
+    return new URL(value).origin.toLowerCase();
+  } catch {
+    return value.replace(/\/$/, "").toLowerCase();
+  }
 }

@@ -8,8 +8,10 @@ const privateRoutes = ["/dashboard", "/accounts", "/transactions", "/catalogs", 
 
 function redirectToLogin(request: NextRequest) {
   const url = new URL("/login", request.url);
+  url.searchParams.set("reason", "session_expired");
   const response = NextResponse.redirect(url);
   response.cookies.delete(SESSION_COOKIE_NAME);
+  response.cookies.delete(CSRF_COOKIE_NAME);
   return response;
 }
 
@@ -42,6 +44,14 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
+  const reason = request.nextUrl.searchParams.get("reason");
+  if (pathname.startsWith("/login") && reason === "session_expired") {
+    const response = NextResponse.next();
+    response.cookies.delete(SESSION_COOKIE_NAME);
+    response.cookies.delete(CSRF_COOKIE_NAME);
+    return response;
+  }
+
   if (pathname.startsWith("/login") && hasSessionCookie && hasUsableSession) {
     const url = new URL("/dashboard", request.url);
     return NextResponse.redirect(url);
@@ -50,6 +60,7 @@ export async function middleware(request: NextRequest) {
   if (pathname.startsWith("/login") && hasSessionCookie && !hasUsableSession) {
     const response = NextResponse.next();
     response.cookies.delete(SESSION_COOKIE_NAME);
+    response.cookies.delete(CSRF_COOKIE_NAME);
     return response;
   }
 
