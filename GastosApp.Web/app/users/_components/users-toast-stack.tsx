@@ -13,7 +13,7 @@ type Props = {
 
 export function UsersToastStack({ toasts, onDismiss }: Props) {
   return (
-    <div className="pointer-events-none fixed right-3 top-3 z-[120] flex w-[min(92vw,360px)] flex-col gap-2 md:right-6 md:top-5">
+    <div className="pointer-events-none fixed right-3 top-3 z-[120] flex w-[min(92vw,360px)] flex-col gap-2 md:right-6 md:top-5" aria-live="polite">
       {toasts.map((toast) => {
         const isSuccess = toast.variant === "success";
         return (
@@ -21,8 +21,8 @@ export function UsersToastStack({ toasts, onDismiss }: Props) {
             key={toast.id}
             role="status"
             className={isSuccess
-              ? "pointer-events-auto flex items-start gap-2.5 rounded-2xl border border-emerald-200 bg-white/95 px-3 py-2.5 text-emerald-800 shadow-lg shadow-emerald-200/40 backdrop-blur dark:border-emerald-900 dark:bg-slate-950/95 dark:text-emerald-300"
-              : "pointer-events-auto flex items-start gap-2.5 rounded-2xl border border-rose-200 bg-white/95 px-3 py-2.5 text-rose-800 shadow-lg shadow-rose-200/30 backdrop-blur dark:border-rose-900 dark:bg-slate-950/95 dark:text-rose-300"}
+              ? "tabler-panel pointer-events-auto flex items-start gap-2.5 border-emerald-200 bg-white/95 px-3 py-2.5 text-emerald-800 shadow-lg shadow-emerald-200/40 dark:border-emerald-900 dark:bg-slate-950/95 dark:text-emerald-300"
+              : "tabler-panel pointer-events-auto flex items-start gap-2.5 border-rose-200 bg-white/95 px-3 py-2.5 text-rose-800 shadow-lg shadow-rose-200/30 dark:border-rose-900 dark:bg-slate-950/95 dark:text-rose-300"}
           >
             {isSuccess ? <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" /> : <CircleAlert className="mt-0.5 h-4 w-4 shrink-0" />}
             <p className="min-w-0 flex-1 text-sm font-medium">{toast.message}</p>
@@ -32,7 +32,7 @@ export function UsersToastStack({ toasts, onDismiss }: Props) {
               onClick={() => onDismiss(toast.id)}
               aria-label="Cerrar notificación"
             >
-              <X className="h-3.5 w-3.5" />
+              <X className="h-3.5 w-3.5" aria-hidden="true" />
             </button>
           </div>
         );

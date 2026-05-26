@@ -5,8 +5,7 @@ const themeInitScript = `
 (() => {
   try {
     const saved = localStorage.getItem("theme");
-    const systemDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-    const shouldUseDark = saved ? saved === "dark" : systemDark;
+    const shouldUseDark = saved ? saved === "dark" : true;
     document.documentElement.classList.toggle("dark", shouldUseDark);
   } catch {}
 })();

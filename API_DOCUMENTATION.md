@@ -1,5 +1,58 @@
 # GastosApp API Documentation
 
+## Estado actual del frontend (Hard replace UI Users con base Tabler)
+
+### Actualización específica: módulo Users
+
+> Se ejecutó hard replace visual del módulo `Users` sobre layout base tipo Tabler, **sin cambios en lógica de negocio ni contratos API/BFF**.
+
+#### Alcance implementado
+
+- Reemplazo de composición visual en `Users` (toolbar, tabla/lista desktop+mobile, menús de acción, drawer de formulario, confirmación de borrado, toasts).
+- Integración de layout/base visual compartida para panel admin (shell + navegación + estilos globales/componentes UI).
+- Mantenimiento explícito de hooks, handlers, tipos y llamadas existentes (solo cambio de capa UI).
+
+#### Archivos clave modificados
+
+- Base layout y navegación:
+  - `GastosApp.Web/components/navigation/admin-shell.tsx`
+  - `GastosApp.Web/components/navigation/app-menu.tsx`
+- Base visual/UI:
+  - `GastosApp.Web/app/globals.css`
+  - `GastosApp.Web/components/ui/alert.tsx`
+  - `GastosApp.Web/components/ui/button.tsx`
+  - `GastosApp.Web/components/ui/card.tsx`
+  - `GastosApp.Web/components/ui/input.tsx`
+- Módulo `Users`:
+  - `GastosApp.Web/app/users/users-client.tsx`
+  - `GastosApp.Web/app/users/_components/users-toolbar.tsx`
+  - `GastosApp.Web/app/users/_components/users-results.tsx`
+  - `GastosApp.Web/app/users/_components/users-table.tsx`
+  - `GastosApp.Web/app/users/_components/users-mobile-list.tsx`
+  - `GastosApp.Web/app/users/_components/user-actions-menu.tsx`
+  - `GastosApp.Web/app/users/_components/user-form-drawer.tsx`
+  - `GastosApp.Web/app/users/_components/user-delete-confirm-dialog.tsx`
+  - `GastosApp.Web/app/users/_components/users-toast-stack.tsx`
+
+#### Validación ejecutada
+
+Desde `GastosApp.Web/`:
+
+1. `npm run lint`
+2. `npm run build`
+
+Resultado esperado/documentado para este cambio:
+- Lint y build en verde para habilitar handoff a siguiente módulo.
+
+#### Pendientes mínimos antes de pasar a `Catalogs`
+
+1. Smoke manual de `Users` con datos reales:
+   - listar, buscar, crear, editar, eliminar,
+   - revisar estados `loading / empty / error`.
+2. Verificar responsive (`users-table` vs `users-mobile-list`) y consistencia de acciones.
+3. Confirmar accesibilidad básica (focus visible, navegación teclado en toolbar/menús/dialog).
+4. Cerrar ajuste visual menor pendiente en `Users` (si aparece en QA) antes de replicar patrón en `Catalogs`.
+
 ## Estructura modular de arranque (Program.cs + Extensions)
 
 El arranque de la API se organiza en `Program.cs` como orquestador, delegando configuración por responsabilidad en `GastosApp.API/Extensions`.

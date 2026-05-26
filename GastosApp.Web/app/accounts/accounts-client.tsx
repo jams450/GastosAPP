@@ -167,16 +167,16 @@ export function AccountsClient({ username }: Props) {
   }
 
   return (
-    <main className="relative min-h-dvh overflow-x-clip bg-slate-100 px-4 py-8 dark:bg-slate-900 md:px-8">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_0%_0%,rgba(14,165,233,0.18),transparent_30%),radial-gradient(circle_at_100%_0%,rgba(59,130,246,0.14),transparent_32%)] dark:bg-[radial-gradient(circle_at_0%_0%,rgba(14,165,233,0.14),transparent_30%),radial-gradient(circle_at_100%_0%,rgba(37,99,235,0.2),transparent_34%)]" />
+    <main className="tabler-page px-4 py-8 md:px-8">
+      <div className="tabler-page-gradient" />
 
       <section className="relative mx-auto w-full max-w-7xl space-y-4">
-        <Card className="border-slate-300/70 bg-white/90 p-4 backdrop-blur dark:border-slate-800 dark:bg-slate-950/95">
+        <Card className="border-[var(--tabler-border)]/80 bg-[var(--tabler-surface-1)]/92 p-4 backdrop-blur">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="space-y-1">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-sky-700 dark:text-sky-400">Cuentas</p>
-              <h1 className="text-xl font-semibold tracking-tight text-slate-900 dark:text-slate-100 md:text-2xl">Gestión de cuentas</h1>
-              <p className="text-xs text-slate-600 dark:text-slate-400">Hola {username}. Modifica todas propiedades desde página dedicada modular.</p>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--tabler-primary)]">Cuentas</p>
+              <h1 className="text-xl font-semibold tracking-tight text-[var(--tabler-text)] md:text-2xl">Gestión de cuentas</h1>
+              <p className="text-xs text-[var(--tabler-text-soft)]">Hola {username}. Modifica todas propiedades desde página dedicada modular.</p>
             </div>
 
             <AppMenu username={username} compact />

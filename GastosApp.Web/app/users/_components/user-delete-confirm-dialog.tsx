@@ -15,10 +15,19 @@ export function UserDeleteConfirmDialog({ user, open, loading, onCancel, onConfi
   }
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/45 p-4 backdrop-blur-sm">
-      <section className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-4 shadow-xl dark:border-slate-800 dark:bg-slate-950">
-        <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">¿Borrar usuario?</p>
-        <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-sm" role="presentation" onClick={onCancel}>
+      <section
+        className="tabler-card w-full max-w-md p-4"
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby="delete-user-title"
+        aria-describedby="delete-user-desc"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <p id="delete-user-title" className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+          ¿Borrar usuario?
+        </p>
+        <p id="delete-user-desc" className="mt-1 text-sm text-slate-600 dark:text-slate-400">
           Esta acción desactiva el usuario <span className="font-semibold">{user.email}</span> y no se puede revertir desde esta vista.
         </p>
 

@@ -4,12 +4,166 @@
 
 :root {
   color-scheme: light;
+  --tabler-page-bg: #f4f6fb;
+  --tabler-surface-1: #ffffff;
+  --tabler-surface-2: #f8fafc;
+  --tabler-surface-3: #f1f5f9;
+  --tabler-border: #d9e1ec;
+  --tabler-border-strong: #c9d4e3;
+  --tabler-text: #1f2937;
+  --tabler-text-soft: #64748b;
+  --tabler-primary: #206bc4;
+  --tabler-primary-hover: #1c5da9;
+  --tabler-danger: #d63939;
+  --tabler-success: #2fb344;
+  --tabler-radius-sm: 0.5rem;
+  --tabler-radius-md: 0.75rem;
+  --tabler-radius-lg: 1rem;
+  --tabler-shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.06);
+  --tabler-shadow-md: 0 8px 24px rgba(15, 23, 42, 0.08);
 }
 
 .dark {
   color-scheme: dark;
+  --tabler-page-bg: #020202;
+  --tabler-surface-1: #090909;
+  --tabler-surface-2: #111111;
+  --tabler-surface-3: #171717;
+  --tabler-border: #262626;
+  --tabler-border-strong: #3f3f46;
+  --tabler-text: #f5f5f5;
+  --tabler-text-soft: #a1a1aa;
+  --tabler-primary: #2563eb;
+  --tabler-primary-hover: #3b82f6;
+  --tabler-danger: #fb7185;
+  --tabler-success: #4ade80;
+  --tabler-shadow-sm: 0 2px 5px rgba(0, 0, 0, 0.55);
+  --tabler-shadow-md: 0 18px 44px rgba(0, 0, 0, 0.7);
 }
 
 body {
-  @apply min-h-dvh bg-slate-50 text-slate-900 antialiased transition-colors dark:bg-slate-950 dark:text-slate-100;
+  @apply min-h-dvh antialiased transition-colors;
+  background: var(--tabler-page-bg);
+  color: var(--tabler-text);
+  font-feature-settings: "cv11", "ss01";
+}
+
+@layer base {
+  * {
+    border-color: var(--tabler-border);
+  }
+}
+
+@layer components {
+  .tabler-shell {
+    @apply w-full px-0 py-0;
+  }
+
+  .tabler-card {
+    border: 1px solid var(--tabler-border);
+    border-radius: var(--tabler-radius-lg);
+    background: var(--tabler-surface-1);
+    box-shadow: var(--tabler-shadow-sm);
+  }
+
+  .tabler-panel {
+    border: 1px solid var(--tabler-border);
+    border-radius: var(--tabler-radius-md);
+    background: var(--tabler-surface-2);
+  }
+
+  .tabler-badge {
+    @apply inline-flex items-center gap-1 border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide;
+    border-radius: var(--tabler-radius-sm);
+    border-color: var(--tabler-border-strong);
+    background: var(--tabler-surface-3);
+    color: var(--tabler-text-soft);
+  }
+
+  .tabler-badge-solid {
+    @apply border-transparent text-white;
+  }
+
+  .tabler-badge-primary.tabler-badge-solid {
+    background: #2563eb;
+  }
+
+  .tabler-badge-success.tabler-badge-solid {
+    background: #16a34a;
+  }
+
+  .tabler-badge-danger.tabler-badge-solid {
+    background: #dc2626;
+  }
+
+  .tabler-badge-muted.tabler-badge-solid {
+    background: #475569;
+  }
+
+  .users-desktop-table table thead {
+    @apply bg-zinc-900;
+  }
+
+  .users-desktop-table table thead th {
+    @apply border-b border-zinc-700 py-3 text-[11px] font-bold uppercase tracking-[0.08em] text-zinc-300;
+  }
+
+  .users-desktop-table table tbody tr:nth-child(odd) {
+    @apply bg-zinc-950;
+  }
+
+  .users-desktop-table table tbody tr:nth-child(even) {
+    @apply bg-zinc-900/60;
+  }
+
+  .users-desktop-table table tbody tr:hover {
+    @apply bg-zinc-800;
+  }
+
+  .users-desktop-table table tbody td {
+    @apply border-zinc-800 text-zinc-200;
+  }
+
+  .users-desktop-table table tbody td p {
+    @apply text-zinc-200;
+  }
+
+  .users-desktop-table table tbody td .text-slate-500,
+  .users-desktop-table table tbody td .text-slate-600,
+  .users-desktop-table table tbody td .dark\:text-slate-400 {
+    @apply text-zinc-400;
+  }
+
+  .tabler-table {
+    @apply w-full text-sm;
+  }
+
+  .tabler-table thead th {
+    @apply px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wide;
+    color: var(--tabler-text-soft);
+    background: color-mix(in srgb, var(--tabler-surface-2) 88%, transparent);
+  }
+
+  .tabler-table tbody td {
+    @apply px-3 py-2.5 align-middle;
+    border-top: 1px solid var(--tabler-border);
+  }
+
+  .tabler-page {
+    @apply relative min-h-dvh overflow-x-clip;
+    background: var(--tabler-page-bg);
+  }
+
+  .tabler-page-gradient {
+    @apply pointer-events-none absolute inset-0;
+    background:
+      radial-gradient(circle at 0% 0%, rgb(32 107 196 / 0.2), transparent 32%),
+      radial-gradient(circle at 100% 0%, rgb(59 130 246 / 0.16), transparent 34%);
+  }
+
+  .dark .tabler-page-gradient {
+    background:
+      radial-gradient(circle at 0% 0%, rgb(59 130 246 / 0.16), transparent 30%),
+      radial-gradient(circle at 100% 0%, rgb(37 99 235 / 0.24), transparent 34%);
+  }
 }

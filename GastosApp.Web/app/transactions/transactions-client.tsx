@@ -470,23 +470,23 @@ export function TransactionsClient({ username }: Props) {
   }, [applyPaymentForm, onApplyExistingPayment]);
 
   return (
-    <main className="relative min-h-dvh w-full overflow-x-clip bg-slate-100 px-4 py-8 dark:bg-slate-900 md:px-6 xl:px-8">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_0%_0%,rgba(14,165,233,0.18),transparent_30%),radial-gradient(circle_at_100%_0%,rgba(59,130,246,0.14),transparent_32%)] dark:bg-[radial-gradient(circle_at_0%_0%,rgba(14,165,233,0.14),transparent_30%),radial-gradient(circle_at_100%_0%,rgba(37,99,235,0.2),transparent_34%)]" />
+    <main className="tabler-page w-full">
+      <div className="tabler-page-gradient" />
 
-      <section className="relative w-full space-y-6">
+      <section className="tabler-shell relative space-y-4 md:space-y-5">
         <Card className="p-6">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="space-y-1">
-              <p className="text-xs font-semibold uppercase tracking-wide text-sky-700 dark:text-sky-400">Movimientos</p>
-              <h1 className="text-2xl font-semibold tracking-tight text-slate-900 dark:text-slate-100 md:text-3xl">Nueva transacción</h1>
-              <p className="text-sm text-slate-600 dark:text-slate-400">Hola {username}, registra ingresos, gastos o transferencias en segundos.</p>
+              <p className="text-xs font-semibold uppercase tracking-wide text-[var(--tabler-primary)]">Movimientos</p>
+              <h1 className="text-2xl font-semibold tracking-tight text-[var(--tabler-text)] md:text-3xl">Nueva transacción</h1>
+              <p className="text-sm text-[var(--tabler-text-soft)]">Hola {username}, registra ingresos, gastos o transferencias en segundos.</p>
             </div>
 
             <AppMenu username={username} />
           </div>
         </Card>
 
-        <Card className="space-y-5 p-6">
+        <Card className="space-y-5 p-5 md:p-6">
           <div className="grid grid-cols-2 gap-2 sm:w-[360px]">
             <Button type="button" variant={viewMode === "create" ? "primary" : "secondary"} className="h-9" onClick={() => setViewMode("create")}>
               Nueva

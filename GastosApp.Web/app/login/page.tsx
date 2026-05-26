@@ -43,20 +43,20 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="relative flex min-h-dvh items-center justify-center overflow-x-clip bg-slate-100 px-4 py-12 dark:bg-slate-900">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_0%_0%,rgba(14,165,233,0.18),transparent_30%),radial-gradient(circle_at_100%_0%,rgba(59,130,246,0.14),transparent_32%)] dark:bg-[radial-gradient(circle_at_0%_0%,rgba(14,165,233,0.14),transparent_30%),radial-gradient(circle_at_100%_0%,rgba(37,99,235,0.2),transparent_34%)]" />
+    <main className="tabler-page flex items-center justify-center px-4 py-12">
+      <div className="tabler-page-gradient" />
 
       <div className="absolute right-4 top-4 z-10">
         <ThemeToggle />
       </div>
 
-      <Card className="relative z-10 w-full max-w-md space-y-6 border-slate-200/70 bg-white/90 shadow-xl shadow-slate-300/40 backdrop-blur dark:border-slate-800/80 dark:bg-slate-950/85 dark:shadow-slate-950/60">
+      <Card className="relative z-10 w-full max-w-md space-y-6 border-[var(--tabler-border-strong)]/70 bg-[var(--tabler-surface-1)]/95 shadow-[var(--tabler-shadow-md)] backdrop-blur">
         <header className="space-y-2 text-center">
-          <p className="inline-flex rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-sky-700 dark:border-sky-900 dark:bg-sky-950/60 dark:text-sky-300">
+          <p className="tabler-badge mx-auto rounded-full px-3 py-1 text-xs">
             GastosApp
           </p>
-          <h1 className="text-2xl font-semibold tracking-tight text-slate-900 dark:text-slate-100">Inicia sesión</h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400">Ingresa con tus credenciales para continuar al dashboard.</p>
+          <h1 className="text-2xl font-semibold tracking-tight text-[var(--tabler-text)]">Inicia sesión</h1>
+          <p className="text-sm text-[var(--tabler-text-soft)]">Ingresa con tus credenciales para continuar al dashboard.</p>
         </header>
 
         <form onSubmit={onSubmit} className="space-y-4">
