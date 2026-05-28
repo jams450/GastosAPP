@@ -1,12 +1,13 @@
 import { redirect } from "next/navigation";
 import { getServerSession } from "@/lib/auth/session";
+import { TagsClient } from "./tags-client";
 
-export default async function CatalogsPage() {
+export default async function TagsCatalogPage() {
   const session = await getServerSession();
 
   if (!session) {
     redirect("/login");
   }
 
-  redirect("/catalogs/categories");
+  return <TagsClient username={session.user.username} />;
 }

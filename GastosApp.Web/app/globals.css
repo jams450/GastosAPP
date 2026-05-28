@@ -134,6 +134,71 @@ body {
     @apply text-zinc-400;
   }
 
+  /* NextUI-like table skin for Users */
+  .users-nextui-table .overflow-x-auto {
+    @apply overflow-hidden rounded-2xl border border-zinc-700/60 bg-zinc-950/75 shadow-[0_16px_40px_rgba(0,0,0,0.45)];
+  }
+
+  .users-nextui-table table thead {
+    background: linear-gradient(180deg, rgba(39, 39, 42, 0.95) 0%, rgba(24, 24, 27, 0.95) 100%);
+  }
+
+  .users-nextui-table table thead th {
+    @apply border-b border-zinc-700/80 px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.08em] text-zinc-300;
+  }
+
+  .users-nextui-table table tbody tr {
+    @apply border-t border-zinc-800/70;
+  }
+
+  .users-nextui-table table tbody tr:nth-child(odd) {
+    background: rgba(24, 24, 27, 0.78);
+  }
+
+  .users-nextui-table table tbody tr:nth-child(even) {
+    background: rgba(39, 39, 42, 0.38);
+  }
+
+  .users-nextui-table table tbody tr:hover {
+    background: rgba(82, 82, 91, 0.58) !important;
+  }
+
+  .users-nextui-table table tbody td {
+    @apply px-4 py-3 text-zinc-100;
+  }
+
+  .users-nextui-table table tbody tr:first-child td:first-child {
+    border-top-left-radius: 0.85rem;
+  }
+
+  .users-nextui-table table tbody tr:first-child td:last-child {
+    border-top-right-radius: 0.85rem;
+  }
+
+  .users-nextui-table table tbody tr:last-child td:first-child {
+    border-bottom-left-radius: 0.85rem;
+  }
+
+  .users-nextui-table table tbody tr:last-child td:last-child {
+    border-bottom-right-radius: 0.85rem;
+  }
+
+  .users-nextui-table .tabler-badge {
+    @apply border-zinc-600 bg-zinc-800 text-zinc-100;
+  }
+
+  .users-nextui-table .tabler-badge.tabler-badge-primary {
+    @apply border-blue-400/50 bg-blue-500/20 text-blue-200;
+  }
+
+  .users-nextui-table .tabler-badge.tabler-badge-success {
+    @apply border-emerald-400/50 bg-emerald-500/20 text-emerald-200;
+  }
+
+  .users-nextui-table .tabler-badge.tabler-badge-danger {
+    @apply border-rose-400/50 bg-rose-500/20 text-rose-200;
+  }
+
   .tabler-table {
     @apply w-full text-sm;
   }

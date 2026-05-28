@@ -9,7 +9,7 @@ import { normalizeAccounts } from "@/lib/contracts/accounts";
 import { toAccountUpsertPayload, type AccountFormErrors, type AccountUpsertPayload, validateAccountPayload } from "@/lib/contracts/accounts-admin";
 import { csrfFetch } from "@/lib/security/csrf-client";
 import { parseApiError } from "@/lib/bff/client-session";
-import { AccountsTable } from "./_components/accounts-table";
+import { AccountsResults } from "./_components/accounts-results";
 import { AccountsToolbar } from "./_components/accounts-toolbar";
 import { AccountFormDrawer } from "./_components/account-form-drawer";
 
@@ -71,6 +71,14 @@ export function AccountsClient({ username }: Props) {
       return true;
     });
   }, [accounts, search, status, type]);
+
+  const hasActiveFilters = status !== "all" || type !== "all" || search.trim().length > 0;
+
+  function resetFilters() {
+    setSearch("");
+    setStatus("all");
+    setType("all");
+  }
 
   function openCreate() {
     setEditing(null);
@@ -186,19 +194,27 @@ export function AccountsClient({ username }: Props) {
         {error ? <Alert variant="danger">{error}</Alert> : null}
         {success ? <Alert>{success}</Alert> : null}
 
-        <AccountsToolbar
-          search={search}
-          status={status}
-          type={type}
-          onSearchChange={setSearch}
-          onStatusChange={setStatus}
-          onTypeChange={setType}
-          onCreate={openCreate}
-        />
+        <section className="space-y-2 md:space-y-2">
+          <section className="overflow-hidden px-4 py-3 sm:px-5">
+            <AccountsToolbar
+              total={accounts.length}
+              filtered={filtered.length}
+              search={search}
+              status={status}
+              type={type}
+              hasActiveFilters={hasActiveFilters}
+              onSearchChange={setSearch}
+              onStatusChange={setStatus}
+              onTypeChange={setType}
+              onResetFilters={resetFilters}
+              onCreate={openCreate}
+            />
+          </section>
 
-        <Card className="p-3">
-          <AccountsTable rows={filtered} loading={loading} onEdit={openEdit} onToggleActive={(account) => void toggleActive(account)} />
-        </Card>
+          <Card className="p-0">
+            <AccountsResults rows={filtered} loading={loading} onEdit={openEdit} onToggleActive={(account) => void toggleActive(account)} />
+          </Card>
+        </section>
 
         <AccountFormDrawer
           open={openForm}

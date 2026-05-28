@@ -13,7 +13,7 @@ type Props = {
 
 export function UsersResults({ rows, loading, errorMessage, onEdit, onToggleActive, onDelete }: Props) {
   return (
-    <section className="tabler-panel border-zinc-700/90 bg-zinc-950 p-3 sm:p-4">
+    <section className="p-3 sm:p-4">
       <UsersMobileList rows={rows} loading={loading} errorMessage={errorMessage} onEdit={onEdit} onToggleActive={onToggleActive} onDelete={onDelete} />
       <div className="hidden md:block">
         <UsersTable rows={rows} loading={loading} errorMessage={errorMessage} onEdit={onEdit} onToggleActive={onToggleActive} onDelete={onDelete} />

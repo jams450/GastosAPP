@@ -1,33 +1,82 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Plus, RotateCcw, Search, SlidersHorizontal } from "lucide-react";
 
 type Props = {
+  total: number;
+  filtered: number;
   search: string;
   status: "all" | "active" | "inactive";
   type: "all" | "credit" | "cash";
+  hasActiveFilters: boolean;
   onSearchChange: (value: string) => void;
   onStatusChange: (value: "all" | "active" | "inactive") => void;
   onTypeChange: (value: "all" | "credit" | "cash") => void;
+  onResetFilters: () => void;
   onCreate: () => void;
 };
 
-export function AccountsToolbar({ search, status, type, onSearchChange, onStatusChange, onTypeChange, onCreate }: Props) {
+export function AccountsToolbar({
+  total,
+  filtered,
+  search,
+  status,
+  type,
+  hasActiveFilters,
+  onSearchChange,
+  onStatusChange,
+  onTypeChange,
+  onResetFilters,
+  onCreate
+}: Props) {
   return (
-    <div className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-950">
-      <div className="flex items-center justify-between gap-3">
-        <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Filtros de cuentas</h2>
-        <Button type="button" onClick={onCreate}>Nueva cuenta</Button>
+    <section className="p-0">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <span className="inline-flex h-7 w-7 items-center justify-center rounded-none bg-zinc-800 text-zinc-200">
+            <SlidersHorizontal className="h-4 w-4" aria-hidden="true" />
+          </span>
+          <div>
+            <p className="text-xs font-bold uppercase tracking-wide text-zinc-200">Filtros</p>
+            <p className="text-[11px] font-medium text-zinc-400">
+              Mostrando <span className="font-semibold text-zinc-100">{filtered}</span> de <span className="font-semibold text-zinc-100">{total}</span> cuentas
+            </p>
+          </div>
+        </div>
+        {hasActiveFilters ? (
+          <Button
+            type="button"
+            variant="ghost"
+            className="h-8 border border-zinc-700 bg-zinc-900 px-2.5 text-[11px] font-bold text-zinc-200 hover:bg-zinc-800"
+            onClick={onResetFilters}
+          >
+            <RotateCcw className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
+            Limpiar filtros
+          </Button>
+        ) : null}
       </div>
 
-      <div className="grid gap-3 md:grid-cols-3">
-        <Input label="Buscar" value={search} onChange={(event) => onSearchChange(event.target.value)} placeholder="Nombre de cuenta" />
+      <div className="mt-3 grid gap-2 lg:grid-cols-[minmax(0,1.25fr)_minmax(0,0.9fr)_minmax(0,0.9fr)_auto]">
+        <label className="space-y-1">
+          <span className="text-[11px] font-bold uppercase tracking-wide text-zinc-400">Buscar</span>
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-zinc-500" aria-hidden="true" />
+            <Input
+              label="Buscar"
+              value={search}
+              onChange={(event) => onSearchChange(event.target.value)}
+              placeholder="Nombre de cuenta"
+              className="h-9 rounded-none border-zinc-700 bg-zinc-900 pl-8 text-xs text-zinc-100 placeholder:text-zinc-500"
+            />
+          </div>
+        </label>
 
-        <label className="grid gap-1.5 text-sm font-medium text-slate-700 dark:text-slate-300">
-          Estado
+        <label className="space-y-1">
+          <span className="text-[11px] font-bold uppercase tracking-wide text-zinc-400">Estado</span>
           <select
             value={status}
             onChange={(event) => onStatusChange(event.target.value as "all" | "active" | "inactive")}
-            className="h-11 rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-200 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+            className="h-9 rounded-none border border-zinc-700 bg-zinc-900 px-2.5 text-xs text-zinc-100 outline-none focus:border-zinc-500"
           >
             <option value="all">Todas</option>
             <option value="active">Activas</option>
@@ -35,19 +84,26 @@ export function AccountsToolbar({ search, status, type, onSearchChange, onStatus
           </select>
         </label>
 
-        <label className="grid gap-1.5 text-sm font-medium text-slate-700 dark:text-slate-300">
-          Tipo
+        <label className="space-y-1">
+          <span className="text-[11px] font-bold uppercase tracking-wide text-zinc-400">Tipo</span>
           <select
             value={type}
             onChange={(event) => onTypeChange(event.target.value as "all" | "credit" | "cash")}
-            className="h-11 rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-200 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+            className="h-9 rounded-none border border-zinc-700 bg-zinc-900 px-2.5 text-xs text-zinc-100 outline-none focus:border-zinc-500"
           >
             <option value="all">Todos</option>
             <option value="credit">Crédito</option>
             <option value="cash">Efectivo</option>
           </select>
         </label>
+
+        <div className="flex items-end justify-end">
+          <Button type="button" className="h-9 rounded-none px-3 text-xs font-bold" onClick={onCreate}>
+            <Plus className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
+            Nueva cuenta
+          </Button>
+        </div>
       </div>
-    </div>
+    </section>
   );
 }

@@ -17,7 +17,7 @@ export function UserDeleteConfirmDialog({ user, open, loading, onCancel, onConfi
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-sm" role="presentation" onClick={onCancel}>
       <section
-        className="tabler-card w-full max-w-md p-4"
+        className="w-full max-w-md p-4"
         role="alertdialog"
         aria-modal="true"
         aria-labelledby="delete-user-title"

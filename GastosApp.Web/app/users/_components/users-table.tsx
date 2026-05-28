@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { DataGrid } from "@/components/data-grid/data-grid";
 import type { AdminUser } from "@/lib/contracts/users-admin";
+import { getUserRoleBadgeClass, getUserRoleLabel, getUserStatusBadgeClass, getUserStatusLabel } from "../_lib/users-ui";
 import { UserActionsMenu } from "./user-actions-menu";
 
 type Props = {
@@ -21,8 +22,8 @@ export function UsersTable({ rows, loading, errorMessage, onEdit, onToggleActive
         header: "Nombre",
         cell: ({ row }) => (
           <div className="space-y-0.5">
-            <p className="text-sm font-bold text-slate-900 dark:text-slate-100">{row.original.name}</p>
-            <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400">ID #{row.original.userId}</p>
+            <p className="text-sm font-bold text-zinc-100">{row.original.name}</p>
+            <p className="text-[11px] font-medium text-zinc-400">ID #{row.original.userId}</p>
           </div>
         )
       },
@@ -30,18 +31,16 @@ export function UsersTable({ rows, loading, errorMessage, onEdit, onToggleActive
       {
         accessorKey: "admin",
         header: "Rol",
-        cell: ({ row }) => <span className="tabler-badge tabler-badge-muted tabler-badge-solid">{row.original.admin ? "Admin" : "Usuario"}</span>
+        cell: ({ row }) => <span className={getUserRoleBadgeClass(row.original)}>{getUserRoleLabel(row.original)}</span>
       },
       {
         accessorKey: "active",
         header: "Estado",
-        cell: ({ row }) => (
-          <span className={row.original.active ? "tabler-badge tabler-badge-success tabler-badge-solid" : "tabler-badge tabler-badge-danger tabler-badge-solid"}>{row.original.active ? "Activo" : "Inactivo"}</span>
-        )
+        cell: ({ row }) => <span className={getUserStatusBadgeClass(row.original)}>{getUserStatusLabel(row.original)}</span>
       },
       {
         id: "actions",
-        header: "Acciones",
+        header: "",
         enableSorting: false,
         cell: ({ row }) => <UserActionsMenu user={row.original} onEdit={onEdit} onToggleActive={onToggleActive} onDelete={onDelete} />
       }
@@ -50,10 +49,7 @@ export function UsersTable({ rows, loading, errorMessage, onEdit, onToggleActive
   );
 
   return (
-    <div className="users-desktop-table tabler-card overflow-hidden border-zinc-700/80 bg-zinc-950 p-0">
-      <div className="border-b border-zinc-800 bg-zinc-900/90 px-4 py-3">
-        <p className="text-xs font-bold uppercase tracking-[0.08em] text-zinc-400">Listado administrativo</p>
-      </div>
+    <div className="users-desktop-table users-nextui-table overflow-hidden rounded-none p-0">
       <DataGrid
         columns={columns}
         rows={rows}
