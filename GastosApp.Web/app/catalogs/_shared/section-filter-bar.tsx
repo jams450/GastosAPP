@@ -25,24 +25,25 @@ export function SectionFilterBar({
   const hasActiveFilters = Boolean(searchValue.trim()) || activeFilter !== "all" || Boolean(chips?.length);
 
   return (
-    <div className="space-y-2 rounded-xl border border-slate-200 bg-slate-50/70 p-2 dark:border-slate-800 dark:bg-slate-900/30">
+    <div className="space-y-2 border border-zinc-800 bg-zinc-950 p-2.5">
+      <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-zinc-300">Filtros</p>
       <div className="grid gap-2 lg:grid-cols-[minmax(220px,2fr)_minmax(140px,1fr)]">
-        <label className="grid gap-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+        <label className="grid gap-1 text-[10px] font-semibold uppercase tracking-wide text-zinc-400">
           Buscar
           <input
             value={searchValue}
             onChange={(event) => onSearchChange(event.target.value)}
-            className="h-9 rounded-lg border border-slate-300 bg-white px-2.5 text-xs text-slate-900 outline-none transition focus:border-sky-500 focus:ring-2 focus:ring-sky-200 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+            className="h-8 rounded-none border border-zinc-700 bg-zinc-900 px-2.5 text-xs text-zinc-100 outline-none transition focus:border-zinc-500 focus:ring-1 focus:ring-zinc-600"
             placeholder={searchPlaceholder}
           />
         </label>
 
-        <label className="grid gap-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+        <label className="grid gap-1 text-[10px] font-semibold uppercase tracking-wide text-zinc-400">
           Estado
           <select
             value={activeFilter}
             onChange={(event) => onActiveFilterChange(event.target.value as ActiveFilterValue)}
-            className="h-9 rounded-lg border border-slate-300 bg-white px-2 text-xs text-slate-900 outline-none transition focus:border-sky-500 focus:ring-2 focus:ring-sky-200 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+            className="h-8 rounded-none border border-zinc-700 bg-zinc-900 px-2 text-xs text-zinc-100 outline-none transition focus:border-zinc-500 focus:ring-1 focus:ring-zinc-600"
           >
             <option value="all">Todos</option>
             <option value="active">Activos</option>
@@ -51,7 +52,7 @@ export function SectionFilterBar({
         </label>
 
         {extraFilters?.map((filter) => (
-          <label key={filter.label} className="grid gap-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+          <label key={filter.label} className="grid gap-1 text-[10px] font-semibold uppercase tracking-wide text-zinc-400">
             {filter.label}
             {filter.content}
           </label>
@@ -63,7 +64,7 @@ export function SectionFilterBar({
           {searchValue.trim() ? (
             <button
               type="button"
-              className="rounded-full border border-slate-300 bg-white px-2 py-0.5 text-[11px] text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+              className="rounded-none border border-zinc-700 bg-zinc-900 px-2 py-0.5 text-[11px] text-zinc-200"
               onClick={() => onSearchChange("")}
             >
               Búsqueda: {searchValue.trim()} ×
@@ -73,7 +74,7 @@ export function SectionFilterBar({
           {activeFilter !== "all" ? (
             <button
               type="button"
-              className="rounded-full border border-slate-300 bg-white px-2 py-0.5 text-[11px] text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+              className="rounded-none border border-zinc-700 bg-zinc-900 px-2 py-0.5 text-[11px] text-zinc-200"
               onClick={() => onActiveFilterChange("all")}
             >
               Estado: {activeFilter === "active" ? "Activos" : "Inactivos"} ×
@@ -84,14 +85,19 @@ export function SectionFilterBar({
             <button
               key={chip.id}
               type="button"
-              className="rounded-full border border-slate-300 bg-white px-2 py-0.5 text-[11px] text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+              className="rounded-none border border-zinc-700 bg-zinc-900 px-2 py-0.5 text-[11px] text-zinc-200"
               onClick={chip.onClear}
             >
               {chip.label} ×
             </button>
           ))}
 
-          <Button type="button" variant="ghost" className="h-7 px-2 text-[11px]" onClick={onClearFilters}>
+          <Button
+            type="button"
+            variant="secondary"
+            className="h-8 rounded-none border-zinc-700 bg-zinc-900 px-2 text-[11px] text-zinc-100 hover:border-zinc-600 hover:bg-zinc-800"
+            onClick={onClearFilters}
+          >
             Limpiar filtros
           </Button>
         </div>

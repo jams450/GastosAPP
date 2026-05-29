@@ -78,9 +78,6 @@ export function CategoriesSection({ categories, expanded, onToggle, onCatalogCha
     extraFilterPredicate: (row) => (typeFilter === "all" ? true : row.type === typeFilter)
   });
 
-  const activeCount = useMemo(() => categories.filter((category) => category.active).length, [categories]);
-  const inactiveCount = categories.length - activeCount;
-
   function clearAllFilters() {
     clearFilters();
     setTypeFilter("all");
@@ -214,8 +211,6 @@ export function CategoriesSection({ categories, expanded, onToggle, onCatalogCha
         id="catalog-section-categories"
         title="Categorías"
         count={categories.length}
-        activeCount={activeCount}
-        inactiveCount={inactiveCount}
         expanded={expanded}
         onToggle={onToggle}
         onCreate={openCreateCategoryModal}
@@ -227,8 +222,6 @@ export function CategoriesSection({ categories, expanded, onToggle, onCatalogCha
           sorting={sorting}
           onSortingChange={setSorting}
           emptyMessage="Sin categorías"
-          allowDensityToggle
-          densityStorageKey="catalogs-grid-density"
           toolbar={
             <div className="space-y-2">
               <SectionFilterBar
@@ -242,11 +235,11 @@ export function CategoriesSection({ categories, expanded, onToggle, onCatalogCha
                   {
                     label: "Tipo",
                     content: (
-                      <select
-                        value={typeFilter}
-                        onChange={(event) => setTypeFilter(event.target.value as CategoryType | "all")}
-                        className="h-9 rounded-lg border border-slate-300 bg-white px-2 text-xs text-slate-900 outline-none transition focus:border-sky-500 focus:ring-2 focus:ring-sky-200 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
-                      >
+                        <select
+                          value={typeFilter}
+                          onChange={(event) => setTypeFilter(event.target.value as CategoryType | "all")}
+                          className="h-8 rounded-md border border-zinc-700 bg-zinc-950 px-2 text-xs text-zinc-100 outline-none transition focus:border-zinc-500 focus:ring-1 focus:ring-zinc-600"
+                        >
                         <option value="all">Todos</option>
                         <option value="income">Ingreso</option>
                         <option value="expense">Gasto</option>
@@ -284,18 +277,22 @@ export function CategoriesSection({ categories, expanded, onToggle, onCatalogCha
       </SectionCard>
 
       {categoryModalOpen ? (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-slate-900/50 p-4">
-          <Card className="w-full max-w-lg p-1">
-            <form className="space-y-4" onSubmit={(event) => void submitCategory(event)}>
-              <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">{categoryForm.id ? "Editar categoría" : "Nueva categoría"}</h3>
+        <div className="fixed inset-0 z-[70] flex items-end justify-end bg-black/70 p-0 backdrop-blur-sm sm:items-stretch">
+          <Card className="relative flex h-[100dvh] w-full flex-col rounded-none border-l border-blue-500/40 bg-zinc-950 p-0 shadow-[0_0_40px_rgba(37,99,235,0.15)] sm:h-full sm:max-w-xl">
+            <form className="flex h-full flex-col" onSubmit={(event) => void submitCategory(event)}>
+              <div className="sticky top-0 z-10 border-b border-blue-500/30 bg-zinc-950/95 px-4 py-3 sm:px-5 sm:py-4">
+                <div className="mb-1 h-1 w-12 bg-blue-500/80 sm:hidden" aria-hidden="true" />
+                <h3 className="text-base font-semibold tracking-wide text-zinc-100 sm:text-lg">{categoryForm.id ? "Editar categoría" : "Nueva categoría"}</h3>
+              </div>
+              <div className="flex-1 space-y-4 overflow-y-auto px-4 py-4 sm:px-5 sm:py-5">
               <Input label="Nombre" value={categoryForm.name} onChange={(event) => setCategoryForm((current) => ({ ...current, name: event.target.value }))} required />
               <Input label="Color" type="color" value={categoryForm.color} onChange={(event) => setCategoryForm((current) => ({ ...current, color: event.target.value }))} />
-              <label className="grid gap-1.5 text-sm font-medium text-slate-700 dark:text-slate-300">
+              <label className="grid gap-1.5 text-sm font-medium text-zinc-300">
                 Tipo
                 <select
                   value={categoryForm.type}
                   onChange={(event) => setCategoryForm((current) => ({ ...current, type: event.target.value as CategoryType }))}
-                  className="h-11 rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-200 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                  className="h-11 rounded-md border border-zinc-700 bg-zinc-900 px-3 text-sm text-zinc-100 outline-none focus:border-zinc-500 focus:ring-1 focus:ring-zinc-600"
                 >
                   <option value="income">Ingreso</option>
                   <option value="expense">Gasto</option>
@@ -308,7 +305,7 @@ export function CategoriesSection({ categories, expanded, onToggle, onCatalogCha
                 onChange={(event) => setCategoryForm((current) => ({ ...current, tagsText: event.target.value }))}
                 placeholder="steam, fanatical, oferta"
               />
-              <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
+              <label className="flex items-center gap-2 text-sm text-zinc-300">
                 <input
                   type="checkbox"
                   checked={categoryForm.active}
@@ -316,13 +313,16 @@ export function CategoriesSection({ categories, expanded, onToggle, onCatalogCha
                 />
                 Activa
               </label>
-              <div className="flex justify-end gap-2">
-                <Button type="button" variant="secondary" onClick={() => setCategoryModalOpen(false)}>
+              </div>
+              <div className="border-t border-blue-500/30 bg-zinc-950/95 px-4 py-3 sm:px-5 sm:py-4">
+                <div className="flex justify-end gap-2">
+                <Button type="button" variant="secondary" className="h-9 rounded-md border-zinc-700 bg-zinc-900 text-zinc-100 hover:border-zinc-600 hover:bg-zinc-800" onClick={() => setCategoryModalOpen(false)}>
                   Cancelar
                 </Button>
-                <Button type="submit" loading={saving} loadingText="Guardando...">
+                <Button type="submit" loading={saving} loadingText="Guardando..." className="h-9 rounded-md border-amber-500/70 bg-amber-600 text-zinc-950 hover:border-amber-400 hover:bg-amber-500">
                   Guardar
                 </Button>
+                </div>
               </div>
             </form>
           </Card>

@@ -3,6 +3,27 @@
 ## [Unreleased]
 
 ### Documentation
+- Se actualizó `API_DOCUMENTATION.md` para registrar la **homologación visual de Subcategorías** al estilo de `Cuentas` en `GastosApp.Web`:
+  - ajustes de tabla, filtros y botones de acción,
+  - reemplazo de modal centrado por drawer lateral,
+  - alcance explícito: **solo UI/composición** (sin cambios en lógica, BFF, auth ni backend),
+  - pasos de validación manual y rollback rápido documentados.
+- Se actualizó `API_DOCUMENTATION.md` para registrar la **Fase D de Accounts** en `GastosApp.Web`:
+  - migración de layout de `Accounts` a `AdminShell` con paridad visual/estructural respecto a `Users`,
+  - mejora de accesibilidad en drawer con **focus trap** para navegación `Tab` / `Shift+Tab`,
+  - validación ejecutada con `npm run lint` y `npm run build` en estado OK,
+  - alcance explícito: **solo UI/composición** (sin cambios en BFF, auth ni backend).
+- Se actualizó `API_DOCUMENTATION.md` para registrar la **Fase C de Accounts** en `GastosApp.Web`:
+  - mejoras de accesibilidad en drawer (`role`, atributos `aria`, cierre con `Escape` y manejo de foco),
+  - homologación de estados UX en vista desktop/mobile (`loading`, vacío, error y resultados),
+  - ocultamiento de `accountId` en lista mobile para reducir exposición visual de identificadores,
+  - alcance explícito: **solo UI/composición** (sin cambios en lógica, BFF, auth ni backend).
+- Se actualizó `API_DOCUMENTATION.md` para registrar la **Fase B de Accounts** en `GastosApp.Web`:
+  - nuevos componentes `account-actions-menu.tsx` y `accounts-mobile-list.tsx`,
+  - nuevo helper UI `accounts-ui.ts` para etiquetas/clases de tipo/estado,
+  - ajustes en `accounts-table.tsx`, `accounts-results.tsx` y `accounts-client.tsx` para composición desktop/mobile,
+  - alcance explícito: **solo UI/composición** (sin cambios en BFF/auth/backend),
+  - validación objetivo (`npm run lint`, `npm run build`) y riesgos pendientes documentados.
 - Ajuste menor de consistencia en `API_DOCUMENTATION.md` (Catálogos):
   - se explicita que **no hay flujo legacy activo en runtime**,
   - se deja listado explícito de pantallas vigentes del flujo final (`/catalogs/categories`, `/catalogs/subcategories`, `/catalogs/merchants`, `/catalogs/tags`, `/catalogs/billable-parties`).

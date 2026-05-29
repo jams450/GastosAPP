@@ -23,7 +23,6 @@ export function SubcategoriesClient({ username }: Props) {
     <CatalogSingleScreenClient
       username={username}
       title="Catálogos · Subcategorías"
-      subtitle="Gestión individual de subcategorías."
       entityLabel="subcategorías"
       loadData={loadSubcategoriesScreenData}
       countFromData={(data) => data.subcategories.length}

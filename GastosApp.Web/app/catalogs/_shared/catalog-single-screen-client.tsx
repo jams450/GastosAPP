@@ -9,7 +9,7 @@ import { Card } from "@/components/ui/card";
 type ScreenProps<TData> = {
   username: string;
   title: string;
-  subtitle: string;
+  subtitle?: string;
   entityLabel: string;
   loadData: () => Promise<TData>;
   countFromData: (data: TData) => number;
@@ -68,18 +68,8 @@ export function CatalogSingleScreenClient<TData>({
       section="Catálogos"
       title={title}
       subtitle={subtitle}
-      meta={
-        <div className="flex flex-wrap items-center gap-1.5">
-          <span className="rounded-md border border-slate-300 bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
-            {itemCount} {entityLabel}
-          </span>
-          <span className="rounded-md border border-slate-300 bg-slate-100 px-2 py-0.5 text-[10px] text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
-            Vista individual
-          </span>
-        </div>
-      }
     >
-      <section className="space-y-4">
+      <section className="space-y-2 md:space-y-2">
         {error ? <Alert variant="danger">{error}</Alert> : null}
         {success ? <Alert>{success}</Alert> : null}
 

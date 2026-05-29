@@ -2,17 +2,18 @@ import { ComponentProps, ReactNode } from "react";
 import { cn } from "@/lib/ui/cn";
 
 type InputProps = ComponentProps<"input"> & {
-  label: string;
+  label?: string;
   error?: string;
   rightSlot?: ReactNode;
 };
 
 export function Input({ label, className, error, rightSlot, id, ...props }: InputProps) {
-  const inputId = id ?? props.name ?? label.toLowerCase().replace(/\s+/g, "-");
+  const fallbackId = label ? label.toLowerCase().replace(/\s+/g, "-") : undefined;
+  const inputId = id ?? props.name ?? fallbackId ?? "input";
 
-    return (
-    <label htmlFor={inputId} className="grid gap-1.5 text-sm font-medium text-[var(--tabler-text)]">
-      {label}
+  return (
+    <div className="grid gap-1.5 text-sm font-medium text-[var(--tabler-text)]">
+      {label ? <label htmlFor={inputId}>{label}</label> : null}
       <div className="relative">
         <input
           id={inputId}
@@ -30,6 +31,6 @@ export function Input({ label, className, error, rightSlot, id, ...props }: Inpu
       </div>
 
       {error ? <span className="text-xs text-[var(--tabler-danger)]">{error}</span> : null}
-    </label>
+    </div>
   );
 }

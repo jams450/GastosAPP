@@ -5,6 +5,7 @@ import { DataGrid } from "@/components/data-grid/data-grid";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { RotateCcw, Search, SlidersHorizontal } from "lucide-react";
 import type { Category } from "@/lib/contracts/categories";
 import type { Subcategory } from "@/lib/contracts/subcategories";
 import { requestJson } from "../_shared/catalogs-api";
@@ -78,6 +79,7 @@ export function SubcategoriesSection({ categories, subcategories, expanded, onTo
 
   const activeCount = useMemo(() => subcategories.filter((subcategory) => subcategory.active).length, [subcategories]);
   const inactiveCount = subcategories.length - activeCount;
+  const hasActiveFilters = Boolean(searchQuery.trim()) || activeFilter !== "all" || Boolean(categoryFilterId);
 
   function clearAllFilters() {
     clearFilters();
@@ -176,13 +178,18 @@ export function SubcategoriesSection({ categories, subcategories, expanded, onTo
     },
     {
       id: "actions",
-      header: "Acciones",
+      header: "",
       enableSorting: false,
       cell: ({ row }) => {
         const subcategory = row.original;
         return (
           <div className="flex items-center gap-1.5">
-            <CatalogActionButton type="button" action="edit" label="Editar" onClick={() => openEditSubcategoryModal(subcategory)} />
+            <CatalogActionButton
+              type="button"
+              action="edit"
+              label="Editar"
+              onClick={() => openEditSubcategoryModal(subcategory)}
+            />
             <CatalogActionButton
               type="button"
               action={subcategory.active ? "deactivate" : "activate"}
@@ -209,116 +216,133 @@ export function SubcategoriesSection({ categories, subcategories, expanded, onTo
         onCreate={openCreateSubcategoryModal}
         createLabel="Nueva"
       >
-        <DataGrid
-          columns={subcategoryColumns}
-          rows={filteredRows}
-          sorting={sorting}
-          onSortingChange={setSorting}
-          emptyMessage="Sin subcategorías"
-          allowDensityToggle
-          densityStorageKey="catalogs-grid-density"
-          toolbar={
-            <div className="space-y-2">
-              <SectionFilterBar
-                searchPlaceholder="Buscar por subcategoría o categoría"
-                searchValue={searchQuery}
-                onSearchChange={setSearchQuery}
-                activeFilter={activeFilter}
-                onActiveFilterChange={setActiveFilter}
-                onClearFilters={clearAllFilters}
-                extraFilters={[
-                  {
-                    label: "Categoría",
-                    content: (
-                      <select
-                        value={categoryFilterId ?? ""}
-                        onChange={(event) => {
-                          const value = Number(event.target.value);
-                          setCategoryFilterId(Number.isFinite(value) && value > 0 ? value : null);
-                        }}
-                        className="h-9 rounded-lg border border-slate-300 bg-white px-2 text-xs text-slate-900 outline-none transition focus:border-sky-500 focus:ring-2 focus:ring-sky-200 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
-                      >
-                        <option value="">Todas</option>
-                        {categories.map((category) => (
-                          <option key={category.categoryId} value={category.categoryId}>
-                            {category.name}
-                          </option>
-                        ))}
-                      </select>
-                    )
+        <div className="users-desktop-table users-nextui-table overflow-hidden rounded-none p-0">
+          <DataGrid
+            columns={subcategoryColumns}
+            rows={filteredRows}
+            sorting={sorting}
+            onSortingChange={setSorting}
+            emptyMessage="Sin subcategorías"
+            allowDensityToggle
+            densityStorageKey="catalogs-grid-density"
+            toolbar={
+              <div className="space-y-2">
+                <SectionFilterBar
+                  searchPlaceholder="Nombre o categoría"
+                  searchValue={searchQuery}
+                  onSearchChange={setSearchQuery}
+                  activeFilter={activeFilter}
+                  onActiveFilterChange={setActiveFilter}
+                  extraFilters={[
+                    {
+                      label: "Categoría",
+                      content: (
+                        <select
+                          value={categoryFilterId ?? ""}
+                          onChange={(event) => {
+                            const value = Number(event.target.value);
+                            setCategoryFilterId(Number.isFinite(value) && value > 0 ? value : null);
+                          }}
+                          className="h-8 rounded-none border border-zinc-700 bg-zinc-900 px-2 text-xs font-semibold text-zinc-100 transition focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500"
+                        >
+                          <option className="bg-zinc-900 text-zinc-100" value="">Todas</option>
+                          {categories.map((category) => (
+                            <option key={category.categoryId} value={category.categoryId} className="bg-zinc-900 text-zinc-100">
+                              {category.name}
+                            </option>
+                          ))}
+                        </select>
+                      )
+                    }
+                  ]}
+                  chips={
+                    categoryFilterId
+                      ? [{ id: "category", label: `Categoría: ${categoryNameById.get(categoryFilterId) ?? "Seleccionada"}`, onClear: () => setCategoryFilterId(null) }]
+                      : undefined
                   }
-                ]}
-                chips={
-                  categoryFilterId
-                    ? [
-                        {
-                          id: "category",
-                          label: `Categoría: ${categoryNameById.get(categoryFilterId) ?? "N/A"}`,
-                          onClear: () => setCategoryFilterId(null)
-                        }
-                      ]
-                    : undefined
-                }
-              />
-              <SortSummary
-                sorting={sorting}
-                onClearSorting={clearSorting}
-                labelsByColumnId={{
-                  name: "Nombre",
-                  categoryName: "Categoría",
-                  active: "Estado"
-                }}
-              />
-            </div>
-          }
-        />
+                  onClearFilters={() => {
+                    clearFilters();
+                    setCategoryFilterId(null);
+                  }}
+                />
+                <SortSummary
+                  sorting={sorting}
+                  onClearSorting={clearSorting}
+                  labelsByColumnId={{
+                    name: "Nombre",
+                    categoryName: "Categoría",
+                    active: "Estado"
+                  }}
+                />
+              </div>
+            }
+          />
+        </div>
       </SectionCard>
 
       {subcategoryModalOpen ? (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-slate-900/50 p-4">
-          <Card className="w-full max-w-lg p-1">
-            <form className="space-y-4" onSubmit={(event) => void submitSubcategory(event)}>
-              <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">{subcategoryForm.id ? "Editar subcategoría" : "Nueva subcategoría"}</h3>
-              <label className="grid gap-1.5 text-sm font-medium text-slate-700 dark:text-slate-300">
-                Categoría
-                <select
-                  value={subcategoryForm.categoryId ?? ""}
-                  onChange={(event) =>
-                    setSubcategoryForm((current) => ({
-                      ...current,
-                      categoryId: Number.isFinite(Number(event.target.value)) ? Number(event.target.value) : null
-                    }))
-                  }
-                  className="h-11 rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-200 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
-                >
-                  {activeCategories.map((category) => (
-                    <option key={category.categoryId} value={category.categoryId}>
-                      {category.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <Input
-                label="Nombre"
-                value={subcategoryForm.name}
-                onChange={(event) => setSubcategoryForm((current) => ({ ...current, name: event.target.value }))}
-                required
-              />
-              <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
-                <input
-                  type="checkbox"
-                  checked={subcategoryForm.active}
-                  onChange={(event) => setSubcategoryForm((current) => ({ ...current, active: event.target.checked }))}
-                />
-                Activa
-              </label>
-              <div className="flex justify-end gap-2">
-                <Button type="button" variant="secondary" onClick={() => setSubcategoryModalOpen(false)}>
-                  Cancelar
+        <div className="fixed inset-0 z-[70] flex items-end justify-end bg-black/70 backdrop-blur-sm sm:items-stretch" role="presentation" onClick={() => setSubcategoryModalOpen(false)}>
+          <Card className="relative flex h-[100dvh] w-full max-w-none flex-col border-l border-blue-500/40 bg-zinc-950 p-0 shadow-[0_0_40px_rgba(37,99,235,0.15)] sm:h-full sm:max-w-xl" onClick={(event) => event.stopPropagation()}>
+            <div className="sticky top-0 z-10 border-b border-blue-500/30 bg-zinc-950/95 px-4 py-3 backdrop-blur sm:px-5 sm:py-4">
+              <div className="mb-1 h-1 w-12 bg-blue-500/80 sm:hidden" />
+              <div className="flex items-start justify-between gap-3">
+                <h3 className="text-lg font-semibold text-zinc-100">{subcategoryForm.id ? "Editar subcategoría" : "Nueva subcategoría"}</h3>
+                <Button type="button" variant="ghost" className="h-8 rounded-md border border-zinc-700 bg-zinc-900 px-2.5 text-zinc-200 hover:bg-zinc-800" onClick={() => setSubcategoryModalOpen(false)}>
+                  Cerrar
                 </Button>
-                <Button type="submit" loading={saving} loadingText="Guardando...">
-                  Guardar
-                </Button>
+              </div>
+            </div>
+
+            <form className="flex h-full flex-col" onSubmit={(event) => void submitSubcategory(event)}>
+              <div className="flex-1 space-y-4 overflow-y-auto px-4 py-4 sm:px-5">
+                <section className="space-y-2 border border-zinc-800 p-3">
+                  <h4 className="text-xs font-semibold uppercase tracking-wide text-zinc-400">General</h4>
+                  <label className="grid gap-1.5 text-sm font-medium text-zinc-300">
+                    Categoría
+                    <select
+                      value={subcategoryForm.categoryId ?? ""}
+                      onChange={(event) =>
+                        setSubcategoryForm((current) => ({
+                          ...current,
+                          categoryId: Number.isFinite(Number(event.target.value)) ? Number(event.target.value) : null
+                        }))
+                      }
+                      className="h-10 rounded-none border border-zinc-700 bg-zinc-900 px-3 text-sm text-zinc-100 outline-none transition focus:border-zinc-500 focus:ring-1 focus:ring-zinc-500"
+                    >
+                      {activeCategories.map((category) => (
+                        <option key={category.categoryId} value={category.categoryId} className="bg-zinc-900 text-zinc-100">
+                          {category.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <Input
+                    label="Nombre"
+                    value={subcategoryForm.name}
+                    onChange={(event) => setSubcategoryForm((current) => ({ ...current, name: event.target.value }))}
+                    required
+                    className="rounded-none border-zinc-700 bg-zinc-900 text-zinc-100 placeholder:text-zinc-500"
+                  />
+                  <label className="flex items-center gap-2 text-sm text-zinc-300">
+                    <input
+                      type="checkbox"
+                      checked={subcategoryForm.active}
+                      onChange={(event) => setSubcategoryForm((current) => ({ ...current, active: event.target.checked }))}
+                    />
+                    Activa
+                  </label>
+                </section>
+              </div>
+
+              <div className="border-t border-blue-500/30 bg-zinc-950/95 px-4 py-3 sm:px-5 sm:py-4">
+                <div className="flex justify-end gap-2">
+                  <Button type="button" variant="secondary" className="h-8 rounded-md border-zinc-700 bg-zinc-900 px-3 text-xs font-bold" onClick={() => setSubcategoryModalOpen(false)}>
+                    Cancelar
+                  </Button>
+                  <Button type="submit" loading={saving} loadingText="Guardando..." className="h-8 rounded-md !border-[#0F3158] !bg-[#0F3158] px-3 text-xs font-bold text-white hover:!border-[#144277] hover:!bg-[#144277]">
+                    {subcategoryForm.id ? "Guardar cambios" : "Crear subcategoría"}
+                  </Button>
+                </div>
               </div>
             </form>
           </Card>

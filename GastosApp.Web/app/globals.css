@@ -199,6 +199,24 @@ body {
     @apply border-rose-400/50 bg-rose-500/20 text-rose-200;
   }
 
+  .subcategories-flat-table > .space-y-2 {
+    @apply space-y-0;
+  }
+
+  .subcategories-flat-table .overflow-x-auto {
+    @apply border-0 bg-transparent shadow-none;
+  }
+
+  .subcategories-flat-table table thead,
+  .subcategories-flat-table table thead th,
+  .subcategories-flat-table table tbody tr,
+  .subcategories-flat-table table tbody tr:nth-child(odd),
+  .subcategories-flat-table table tbody tr:nth-child(even),
+  .subcategories-flat-table table tbody tr:hover,
+  .subcategories-flat-table table tbody td {
+    background: transparent !important;
+  }
+
   .tabler-table {
     @apply w-full text-sm;
   }

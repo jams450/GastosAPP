@@ -1,9 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { AppMenu } from "@/components/navigation/app-menu";
+import { AdminShell } from "@/components/navigation/admin-shell";
 import { Alert } from "@/components/ui/alert";
-import { Card } from "@/components/ui/card";
 import type { Account } from "@/lib/contracts/accounts";
 import { normalizeAccounts } from "@/lib/contracts/accounts";
 import { toAccountUpsertPayload, type AccountFormErrors, type AccountUpsertPayload, validateAccountPayload } from "@/lib/contracts/accounts-admin";
@@ -175,46 +174,32 @@ export function AccountsClient({ username }: Props) {
   }
 
   return (
-    <main className="tabler-page px-4 py-8 md:px-8">
-      <div className="tabler-page-gradient" />
-
-      <section className="relative mx-auto w-full max-w-7xl space-y-4">
-        <Card className="border-[var(--tabler-border)]/80 bg-[var(--tabler-surface-1)]/92 p-4 backdrop-blur">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="space-y-1">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--tabler-primary)]">Cuentas</p>
-              <h1 className="text-xl font-semibold tracking-tight text-[var(--tabler-text)] md:text-2xl">Gestión de cuentas</h1>
-              <p className="text-xs text-[var(--tabler-text-soft)]">Hola {username}. Modifica todas propiedades desde página dedicada modular.</p>
-            </div>
-
-            <AppMenu username={username} compact />
-          </div>
-        </Card>
-
+    <AdminShell
+      username={username}
+      section="Administración"
+      title="Cuentas"
+    >
+      <section className="space-y-2 md:space-y-2">
         {error ? <Alert variant="danger">{error}</Alert> : null}
         {success ? <Alert>{success}</Alert> : null}
 
-        <section className="space-y-2 md:space-y-2">
-          <section className="overflow-hidden px-4 py-3 sm:px-5">
-            <AccountsToolbar
-              total={accounts.length}
-              filtered={filtered.length}
-              search={search}
-              status={status}
-              type={type}
-              hasActiveFilters={hasActiveFilters}
-              onSearchChange={setSearch}
-              onStatusChange={setStatus}
-              onTypeChange={setType}
-              onResetFilters={resetFilters}
-              onCreate={openCreate}
-            />
-          </section>
-
-          <Card className="p-0">
-            <AccountsResults rows={filtered} loading={loading} onEdit={openEdit} onToggleActive={(account) => void toggleActive(account)} />
-          </Card>
+        <section className="overflow-hidden px-4 py-3 sm:px-5">
+          <AccountsToolbar
+            total={accounts.length}
+            filtered={filtered.length}
+            search={search}
+            status={status}
+            type={type}
+            hasActiveFilters={hasActiveFilters}
+            onSearchChange={setSearch}
+            onStatusChange={setStatus}
+            onTypeChange={setType}
+            onResetFilters={resetFilters}
+            onCreate={openCreate}
+          />
         </section>
+
+        <AccountsResults rows={filtered} loading={loading} errorMessage={error} onEdit={openEdit} onToggleActive={(account) => void toggleActive(account)} />
 
         <AccountFormDrawer
           open={openForm}
@@ -228,6 +213,6 @@ export function AccountsClient({ username }: Props) {
           onSubmit={() => void saveAccount()}
         />
       </section>
-    </main>
+    </AdminShell>
   );
 }

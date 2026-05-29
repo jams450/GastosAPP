@@ -115,19 +115,14 @@ export function AdminShell({ username, section, title, subtitle, meta, actions, 
         </aside>
 
         <div className="min-w-0 flex-1 space-y-4 md:space-y-5">
-          <Card className="mt-3 mr-2 p-0 sm:p-0">
+          <Card className="mr-2 p-0 sm:p-0">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
                 <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-400">{section}</p>
-                <h1 className="mt-1 pt-3 text-xl font-semibold tracking-tight text-zinc-100 md:text-2xl">{title}</h1>
+                <h1 className="mt-1 text-xl font-semibold tracking-tight text-zinc-100 md:text-2xl">{title}</h1>
                 {subtitle ? <p className="mt-1 text-sm text-zinc-400">{subtitle}</p> : null}
               </div>
-              <div className="flex items-center gap-2">
-                {meta ? <div className="hidden sm:block">{meta}</div> : null}
-                <Button type="button" variant="secondary" className="h-10 px-3 lg:hidden" onClick={() => setMobileOpen((p) => !p)} aria-expanded={mobileOpen} aria-controls="admin-mobile-nav">
-                  Menú
-                </Button>
-              </div>
+              {meta ? <div className="hidden sm:block">{meta}</div> : null}
             </div>
 
             {mobileOpen ? (

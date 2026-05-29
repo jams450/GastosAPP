@@ -39,7 +39,7 @@ export function AccountsToolbar({
           <div>
             <p className="text-xs font-bold uppercase tracking-wide text-zinc-200">Filtros</p>
             <p className="text-[11px] font-medium text-zinc-400">
-              Mostrando <span className="font-semibold text-zinc-100">{filtered}</span> de <span className="font-semibold text-zinc-100">{total}</span> cuentas
+              Mostrando <span className="font-semibold text-zinc-100">{filtered}</span> de <span className="font-semibold text-zinc-100">{total}</span> registros
             </p>
           </div>
         </div>
@@ -56,49 +56,53 @@ export function AccountsToolbar({
         ) : null}
       </div>
 
-      <div className="mt-3 grid gap-2 lg:grid-cols-[minmax(0,1.25fr)_minmax(0,0.9fr)_minmax(0,0.9fr)_auto]">
-        <label className="space-y-1">
-          <span className="text-[11px] font-bold uppercase tracking-wide text-zinc-400">Buscar</span>
+      <div className="grid gap-2 p-2 lg:grid-cols-[1fr_150px_150px_auto] lg:items-end">
+        <label className="grid gap-1 text-xs font-medium uppercase tracking-wide text-zinc-300">
+          <span>Buscar</span>
           <div className="relative">
             <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-zinc-500" aria-hidden="true" />
             <Input
-              label="Buscar"
               value={search}
               onChange={(event) => onSearchChange(event.target.value)}
               placeholder="Nombre de cuenta"
-              className="h-9 rounded-none border-zinc-700 bg-zinc-900 pl-8 text-xs text-zinc-100 placeholder:text-zinc-500"
+              className="h-8 rounded-none border-zinc-700 bg-zinc-900 pl-8 text-xs text-zinc-100 placeholder:text-zinc-500"
             />
           </div>
         </label>
 
-        <label className="space-y-1">
-          <span className="text-[11px] font-bold uppercase tracking-wide text-zinc-400">Estado</span>
+        <label className="grid gap-1 text-xs font-medium uppercase tracking-wide text-zinc-300">
+          <span>Estado</span>
           <select
             value={status}
             onChange={(event) => onStatusChange(event.target.value as "all" | "active" | "inactive")}
-            className="h-9 rounded-none border border-zinc-700 bg-zinc-900 px-2.5 text-xs text-zinc-100 outline-none focus:border-zinc-500"
+            className="h-8 rounded-none border border-zinc-700 bg-zinc-900 px-2 text-xs font-semibold text-zinc-100 transition focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500"
           >
-            <option value="all">Todas</option>
-            <option value="active">Activas</option>
-            <option value="inactive">Inactivas</option>
+            <option className="bg-zinc-900 text-zinc-100" value="all">Todas</option>
+            <option className="bg-zinc-900 text-zinc-100" value="active">Activas</option>
+            <option className="bg-zinc-900 text-zinc-100" value="inactive">Inactivas</option>
           </select>
         </label>
 
-        <label className="space-y-1">
-          <span className="text-[11px] font-bold uppercase tracking-wide text-zinc-400">Tipo</span>
+        <label className="grid gap-1 text-xs font-medium uppercase tracking-wide text-zinc-300">
+          <span>Tipo</span>
           <select
             value={type}
             onChange={(event) => onTypeChange(event.target.value as "all" | "credit" | "cash")}
-            className="h-9 rounded-none border border-zinc-700 bg-zinc-900 px-2.5 text-xs text-zinc-100 outline-none focus:border-zinc-500"
+            className="h-8 rounded-none border border-zinc-700 bg-zinc-900 px-2 text-xs font-semibold text-zinc-100 transition focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500"
           >
-            <option value="all">Todos</option>
-            <option value="credit">Crédito</option>
-            <option value="cash">Efectivo</option>
+            <option className="bg-zinc-900 text-zinc-100" value="all">Todos</option>
+            <option className="bg-zinc-900 text-zinc-100" value="credit">Crédito</option>
+            <option className="bg-zinc-900 text-zinc-100" value="cash">Efectivo</option>
           </select>
         </label>
 
         <div className="flex items-end justify-end">
-          <Button type="button" className="h-9 rounded-none px-3 text-xs font-bold" onClick={onCreate}>
+          <Button
+            type="button"
+            variant="primary"
+            className="h-8 !rounded-md !border-[#0F3158] !bg-[#0F3158] px-3 text-xs font-bold text-white hover:!border-[#144277] hover:!bg-[#144277]"
+            onClick={onCreate}
+          >
             <Plus className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
             Nueva cuenta
           </Button>

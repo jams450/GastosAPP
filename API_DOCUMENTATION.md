@@ -1,5 +1,159 @@
 # GastosApp API Documentation
 
+## Frontend Catálogos · Homologación visual de Subcategorías (estilo Cuentas)
+
+> Se homologó únicamente la UI de `Subcategorías` en `GastosApp.Web` para alinearla con el estilo visual de `Cuentas`.
+
+### Alcance implementado
+
+- Ajuste de composición visual de `Subcategorías` para paridad con patrón de `Cuentas`.
+- Tabla en modo compacto y ajuste de estructura de resultados.
+- Ajustes en barra de filtros y botones de acción para mantener consistencia visual.
+- Reemplazo del modal centrado por drawer lateral para alta/edición.
+
+### Archivos tocados
+
+- `GastosApp.Web/app/catalogs/subcategories/subcategories-section.tsx`
+
+### Restricciones respetadas
+
+- Sin cambios en lógica de negocio de catálogos.
+- Sin cambios en BFF/API contracts.
+- Sin cambios en auth.
+- Sin cambios backend (`GastosApp.API`, `GastosApp.BusinessLogic`, `GastosApp.Models`).
+
+### Validación manual mínima sugerida
+
+1. Abrir `/catalogs/subcategories` y confirmar nueva estructura visual (tabla/filtros/botones) alineada a `Cuentas`.
+2. Verificar alta/edición desde drawer lateral y confirmar que se mantienen validaciones existentes.
+3. Ejecutar eliminación y refresh para confirmar que el comportamiento funcional permanece sin cambios.
+4. Confirmar que no hay cambios en tráfico BFF ni contratos de endpoints usados por la pantalla.
+
+### Rollback rápido (si se requiere)
+
+- Revertir cambios en `GastosApp.Web/app/catalogs/subcategories/subcategories-section.tsx`.
+- Validar que la pantalla vuelve al layout previo sin impacto funcional.
+
+## Frontend Accounts · Fase D (migración a AdminShell + a11y focus trap)
+
+> Se aplicó Fase D únicamente al módulo `Accounts` en `GastosApp.Web`, manteniendo alcance de UI/composición.
+
+### Alcance implementado
+
+- Migración de layout de `Accounts` a `AdminShell` para paridad con `Users`.
+- Ajustes visuales/compositivos para homologar patrón de navegación y estructura con `Users`.
+- Mejora de accesibilidad en drawer con **focus trap** para navegación por teclado (`Tab` / `Shift+Tab`).
+
+### Restricciones respetadas
+
+- Cambios acotados a UI/composición de `Accounts`.
+- Sin cambios en BFF/API contracts.
+- Sin cambios en auth.
+- Sin cambios backend (`GastosApp.API`, `GastosApp.BusinessLogic`, `GastosApp.Models`).
+
+### Validación
+
+- `npm run lint` ✅
+- `npm run build` ✅
+
+### Validación manual mínima sugerida
+
+1. Abrir `Accounts` y confirmar render dentro de `AdminShell` con patrón equivalente a `Users`.
+2. Abrir drawer (alta/edición) y validar ciclo de foco:
+   - `Tab` mantiene foco dentro del drawer,
+   - `Shift+Tab` recorre elementos en sentido inverso sin escapar del drawer,
+   - cierre y retorno de foco al trigger.
+3. Confirmar que no hay cambios funcionales en flujos BFF/auth/backend.
+
+### Rollback rápido (si se requiere)
+
+- Revertir cambios de Fase D en `accounts-client.tsx` y `account-form-drawer.tsx`.
+- Mantener Fases A/B/C sin alteración funcional.
+
+## Frontend Accounts · Fase C (accesibilidad drawer + estados UX + privacidad mobile)
+
+> Se aplicó Fase C únicamente al módulo `Accounts` en `GastosApp.Web`, manteniendo alcance de UI/composición.
+
+### Alcance implementado
+
+- Mejora de accesibilidad en drawer de cuenta:
+  - atributos y semántica de modal (`role`/`aria`),
+  - cierre por teclado con `Escape`,
+  - manejo de foco para apertura/cierre y navegación básica.
+- Homologación de estados UX entre desktop y mobile:
+  - `loading`,
+  - estado vacío,
+  - estado de error,
+  - render de resultados consistente.
+- Ajuste de privacidad visual en mobile:
+  - se oculta `accountId` en el listado móvil.
+
+### Restricciones respetadas
+
+- Cambios acotados a UI/composición de `Accounts`.
+- Sin cambios en lógica de negocio de `Accounts`.
+- Sin cambios en BFF/API contracts.
+- Sin cambios en auth.
+- Sin cambios backend (`GastosApp.API`, `GastosApp.BusinessLogic`, `GastosApp.Models`).
+
+### Validación manual mínima sugerida
+
+1. Abrir Accounts en desktop y mobile; confirmar estados `loading`, vacío, error y resultados.
+2. Abrir drawer de creación/edición y validar:
+   - foco inicial dentro del drawer,
+   - cierre con `Escape`,
+   - retorno de foco al trigger al cerrar.
+3. Revisar lista mobile y confirmar que no se muestra `accountId`.
+
+### Rollback rápido (si se requiere)
+
+- Revertir cambios de Fase C en componentes de Accounts (drawer/resultados/lista mobile).
+- Mantener Fases A/B sin alteración funcional.
+
+## Frontend Accounts · Fase B (UI/composición: acciones, mobile list y helpers UI)
+
+> Se aplicó Fase B únicamente al módulo `Accounts` en `GastosApp.Web`, extendiendo el patrón visual/compositivo ya iniciado en Fase A.
+
+### Alcance implementado
+
+- Incorporación de menú de acciones reutilizable para cuentas (`AccountActionsMenu`) con variantes desktop/mobile.
+- Incorporación de listado mobile de cuentas (`AccountsMobileList`) para paridad funcional con la vista de tabla.
+- Incorporación de helpers UI (`accounts-ui.ts`) para centralizar etiquetas/clases de badges (tipo y estado).
+- Ajustes de composición en:
+  - `accounts-table.tsx` (usa `AccountActionsMenu` y helpers UI),
+  - `accounts-results.tsx` (orquesta mobile + desktop),
+  - `accounts-client.tsx` (mantiene wiring de handlers/estado con nueva composición).
+
+### Archivos tocados (Fase B)
+
+- `GastosApp.Web/app/accounts/_components/account-actions-menu.tsx` (nuevo)
+- `GastosApp.Web/app/accounts/_components/accounts-mobile-list.tsx` (nuevo)
+- `GastosApp.Web/app/accounts/_lib/accounts-ui.ts` (nuevo)
+- `GastosApp.Web/app/accounts/_components/accounts-table.tsx`
+- `GastosApp.Web/app/accounts/_components/accounts-results.tsx`
+- `GastosApp.Web/app/accounts/accounts-client.tsx`
+
+### Restricciones respetadas
+
+- Cambios acotados a UI/composición de `Accounts`.
+- Sin cambios en lógica de negocio de `Accounts`.
+- Sin cambios en BFF/API contracts.
+- Sin cambios en auth.
+- Sin cambios backend (`GastosApp.API`, `GastosApp.BusinessLogic`, `GastosApp.Models`).
+
+### Validación
+
+- Validación objetivo de la fase:
+  - `npm run lint`
+  - `npm run build`
+- Resultado de ejecución: **pendiente adjuntar evidencia/salida en este documento**.
+
+### Riesgos pendientes
+
+- Posible drift visual residual con módulos que aún no migran completamente al mismo patrón.
+- Riesgo de diferencias de comportamiento desktop/mobile ante futuros cambios si no se mantiene la paridad entre `AccountsTable` y `AccountsMobileList`.
+- Deuda de consolidación adicional en componentes compartidos si se replica este patrón en más módulos.
+
 ## Frontend Accounts · Fase A (estructura patrón Users: header + toolbar + results)
 
 > Se aplicó Fase A únicamente al módulo `Accounts` en `GastosApp.Web`, alineando estructura visual con patrón `Users`.
