@@ -15,7 +15,17 @@ type NavItem = {
 export const appNavItems: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: Home },
   { href: "/accounts", label: "Cuentas", icon: Wallet },
-  { href: "/transactions", label: "Transacciones", icon: ArrowLeftRight },
+  {
+    href: "/transactions",
+    label: "Transacciones",
+    icon: ArrowLeftRight,
+    children: [
+      { href: "/transactions?view=create&kind=income", label: "Ingreso" },
+      { href: "/transactions?view=create&kind=expense", label: "Gasto" },
+      { href: "/transactions?view=create&kind=transfer", label: "Transferencia" },
+      { href: "/transactions?view=history", label: "Historial" }
+    ]
+  },
   {
     href: "/catalogs",
     label: "Catálogos",

@@ -46,11 +46,14 @@ const actionStyleMap: Record<
 export function CatalogActionButton({ action, label, iconOnly, className, ...props }: Props) {
   const config = actionStyleMap[action];
   const Icon = config.icon;
+  const baseByAction = action === "create"
+    ? "h-8 rounded-md px-3 text-xs font-bold"
+    : "h-8 rounded-md px-2.5 text-[11px] font-semibold";
 
   return (
     <Button
       variant={config.variant}
-      className={cn("h-8 rounded-md px-2.5 text-[11px] font-semibold", iconOnly && "w-8 px-0", config.className, className)}
+      className={cn(baseByAction, iconOnly && "w-8 px-0", config.className, className)}
       aria-label={props["aria-label"] ?? label}
       {...props}
     >

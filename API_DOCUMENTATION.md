@@ -1,5 +1,47 @@
 # GastosApp API Documentation
 
+## Frontend Catálogos · Cleanup de componentes shared (CTA + filtros)
+
+> Se aplicó un cleanup de UI en `GastosApp.Web` para reducir overrides locales en pantallas de Catálogos y centralizar estilos/composición en componentes compartidos.
+
+### Alcance implementado
+
+- Centralización del estilo de CTA **Nueva** en `CatalogActionButton` (variante `create` con base visual propia).
+- Extensión de `SectionFilterBar` con props de composición (`title`, `subtitle`, `actions`, `hideChips`, `hideFeedback`) para desacoplar feedback/chips cuando la pantalla lo requiere.
+- Ajustes en secciones de Catálogos para usar `actions` del `SectionFilterBar` y reducir personalizaciones locales repetidas.
+- Limpieza de wrappers/elementos locales en secciones (`SectionCard`/`SortSummary` en estos casos) para homogeneizar layout y estilos de tabla/filtros.
+
+### Archivos tocados
+
+- `GastosApp.Web/app/catalogs/_shared/catalog-action-button.tsx`
+- `GastosApp.Web/app/catalogs/_shared/section-filter-bar.tsx`
+- `GastosApp.Web/app/catalogs/categories/categories-section.tsx`
+- `GastosApp.Web/app/catalogs/subcategories/subcategories-section.tsx`
+- `GastosApp.Web/app/catalogs/merchants/merchants-section.tsx`
+- `GastosApp.Web/app/catalogs/tags/tags-section.tsx`
+- `GastosApp.Web/app/catalogs/billable-parties/billable-parties-section.tsx`
+
+### Restricciones respetadas
+
+- Sin cambios en contratos BFF/API.
+- Sin cambios en auth.
+- Sin cambios backend (`GastosApp.API`, `GastosApp.BusinessLogic`, `GastosApp.Models`).
+
+### Validación manual mínima sugerida
+
+1. Abrir cada pantalla de Catálogos (`categories`, `subcategories`, `merchants`, `tags`, `billable-parties`) y confirmar que el botón **Nueva** conserva comportamiento/ubicación esperada.
+2. Probar búsqueda, filtro de estado y limpieza de filtros; validar que `hideFeedback` no rompe el flujo de filtros aplicado por pantalla.
+3. Validar acciones de fila (editar/activar/desactivar) y ordenamiento de tabla en cada sección.
+4. Confirmar paridad visual general (filtros + tabla) sin regresión funcional en alta/edición/eliminación.
+
+### Rollback rápido (si se requiere)
+
+- Revertir cambios en:
+  - `GastosApp.Web/app/catalogs/_shared/catalog-action-button.tsx`
+  - `GastosApp.Web/app/catalogs/_shared/section-filter-bar.tsx`
+  - secciones de Catálogos listadas arriba.
+- Revalidar flujo de Catálogos por pantalla para confirmar retorno a la composición previa.
+
 ## Frontend Catálogos · Homologación visual de Subcategorías (estilo Cuentas)
 
 > Se homologó únicamente la UI de `Subcategorías` en `GastosApp.Web` para alinearla con el estilo visual de `Cuentas`.

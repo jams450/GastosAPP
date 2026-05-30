@@ -8,9 +8,7 @@ import { Input } from "@/components/ui/input";
 import type { Tag } from "@/lib/contracts/tags";
 import { requestJson } from "../_shared/catalogs-api";
 import { SectionFilterBar } from "../_shared/section-filter-bar";
-import { SortSummary } from "../_shared/sort-summary";
 import { CatalogActionButton } from "../_shared/catalog-action-button";
-import { SectionCard } from "../_shared/section-card";
 import { StatusBadge } from "../_shared/status-badge";
 import { useCatalogSectionState } from "../_shared/use-catalog-section-state";
 
@@ -47,17 +45,13 @@ export function TagsSection({ tags, expanded, onToggle, onCatalogChanged, onErro
     setActiveFilter,
     sorting,
     setSorting,
-    clearFilters,
-    clearSorting
+    clearFilters
   } = useCatalogSectionState({
     rows: tags,
     initialSorting,
     searchPredicate: (row, normalizedQuery) => row.name.toLowerCase().includes(normalizedQuery),
     activePredicate: (row) => row.active
   });
-
-  const activeCount = useMemo(() => tags.filter((tag) => tag.active).length, [tags]);
-  const inactiveCount = tags.length - activeCount;
 
   function openCreateTagModal() {
     setTagForm(emptyTagForm());
@@ -126,7 +120,7 @@ export function TagsSection({ tags, expanded, onToggle, onCatalogChanged, onErro
     },
     {
       id: "actions",
-      header: "Acciones",
+      header: "",
       enableSorting: false,
       cell: ({ row }) => {
         const tag = row.original;
@@ -148,39 +142,43 @@ export function TagsSection({ tags, expanded, onToggle, onCatalogChanged, onErro
 
   return (
     <>
-      <SectionCard
-        id="catalog-section-tags"
-        title="Tags"
-        count={tags.length}
-        activeCount={activeCount}
-        inactiveCount={inactiveCount}
-        expanded={expanded}
-        onToggle={onToggle}
-        onCreate={openCreateTagModal}
-      >
-        <DataGrid
-          columns={tagColumns}
-          rows={filteredRows}
-          sorting={sorting}
-          onSortingChange={setSorting}
-          emptyMessage="Sin tags"
-          allowDensityToggle
-          densityStorageKey="catalogs-grid-density"
-          toolbar={
-            <div className="space-y-2">
-              <SectionFilterBar
-                searchPlaceholder="Buscar tag"
-                searchValue={searchQuery}
-                onSearchChange={setSearchQuery}
-                activeFilter={activeFilter}
-                onActiveFilterChange={setActiveFilter}
-                onClearFilters={clearFilters}
+      {expanded ? (
+        <>
+          <section className="overflow-hidden px-4 py-3 sm:px-5">
+            <SectionFilterBar
+              searchPlaceholder="Buscar tag"
+              searchValue={searchQuery}
+              onSearchChange={setSearchQuery}
+              activeFilter={activeFilter}
+              onActiveFilterChange={setActiveFilter}
+              onClearFilters={clearFilters}
+              hideFeedback
+              actions={
+                <CatalogActionButton
+                  type="button"
+                  action="create"
+                  label="Nueva"
+                  onClick={openCreateTagModal}
+                />
+              }
+            />
+          </section>
+
+          <section className="p-3 sm:p-4">
+            <div className="users-desktop-table users-nextui-table overflow-hidden rounded-none p-0">
+              <DataGrid
+                columns={tagColumns}
+                rows={filteredRows}
+                sorting={sorting}
+                onSortingChange={setSorting}
+                emptyMessage="Sin tags"
+                allowDensityToggle
+                densityStorageKey="catalogs-grid-density"
               />
-              <SortSummary sorting={sorting} onClearSorting={clearSorting} labelsByColumnId={{ name: "Nombre", active: "Estado" }} />
             </div>
-          }
-        />
-      </SectionCard>
+          </section>
+        </>
+      ) : null}
 
       {tagModalOpen ? (
         <div className="fixed inset-0 z-50 grid place-items-center bg-slate-900/50 p-4">

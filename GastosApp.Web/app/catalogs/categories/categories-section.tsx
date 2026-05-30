@@ -2,15 +2,12 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import { DataGrid } from "@/components/data-grid/data-grid";
-import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import type { Category, CategoryType } from "@/lib/contracts/categories";
 import { requestJson } from "../_shared/catalogs-api";
 import { SectionFilterBar } from "../_shared/section-filter-bar";
-import { SortSummary } from "../_shared/sort-summary";
 import { CatalogActionButton } from "../_shared/catalog-action-button";
-import { SectionCard } from "../_shared/section-card";
 import { StatusBadge } from "../_shared/status-badge";
 import { useCatalogSectionState } from "../_shared/use-catalog-section-state";
 
@@ -68,8 +65,7 @@ export function CategoriesSection({ categories, expanded, onToggle, onCatalogCha
     setActiveFilter,
     sorting,
     setSorting,
-    clearFilters,
-    clearSorting
+    clearFilters
   } = useCatalogSectionState({
     rows: categories,
     initialSorting,
@@ -185,7 +181,7 @@ export function CategoriesSection({ categories, expanded, onToggle, onCatalogCha
     },
     {
       id: "actions",
-      header: "Acciones",
+      header: "",
       enableSorting: false,
       cell: ({ row }) => {
         const category = row.original;
@@ -207,74 +203,69 @@ export function CategoriesSection({ categories, expanded, onToggle, onCatalogCha
 
   return (
     <>
-      <SectionCard
-        id="catalog-section-categories"
-        title="Categorías"
-        count={categories.length}
-        expanded={expanded}
-        onToggle={onToggle}
-        onCreate={openCreateCategoryModal}
-        createLabel="Nueva"
-      >
-        <DataGrid
-          columns={categoryColumns}
-          rows={filteredRows}
-          sorting={sorting}
-          onSortingChange={setSorting}
-          emptyMessage="Sin categorías"
-          toolbar={
-            <div className="space-y-2">
-              <SectionFilterBar
-                searchPlaceholder="Buscar por nombre o tag"
-                searchValue={searchQuery}
-                onSearchChange={setSearchQuery}
-                activeFilter={activeFilter}
-                onActiveFilterChange={setActiveFilter}
-                onClearFilters={clearAllFilters}
-                extraFilters={[
-                  {
-                    label: "Tipo",
-                    content: (
-                        <select
-                          value={typeFilter}
-                          onChange={(event) => setTypeFilter(event.target.value as CategoryType | "all")}
-                          className="h-8 rounded-md border border-zinc-700 bg-zinc-950 px-2 text-xs text-zinc-100 outline-none transition focus:border-zinc-500 focus:ring-1 focus:ring-zinc-600"
-                        >
-                        <option value="all">Todos</option>
-                        <option value="income">Ingreso</option>
-                        <option value="expense">Gasto</option>
-                        <option value="transfer">Transferencia</option>
-                      </select>
-                    )
-                  }
-                ]}
-                chips={
-                  typeFilter !== "all"
-                    ? [
-                        {
-                          id: "type",
-                          label: `Tipo: ${categoryTypeLabel[typeFilter]}`,
-                          onClear: () => setTypeFilter("all")
-                        }
-                      ]
-                    : undefined
+      {expanded ? (
+        <>
+          <section className="overflow-hidden px-4 py-3 sm:px-5">
+            <SectionFilterBar
+              searchPlaceholder="Buscar por nombre o tag"
+              searchValue={searchQuery}
+              onSearchChange={setSearchQuery}
+              activeFilter={activeFilter}
+              onActiveFilterChange={setActiveFilter}
+              onClearFilters={clearAllFilters}
+              extraFilters={[
+                {
+                  label: "Tipo",
+                  content: (
+                    <select
+                      value={typeFilter}
+                      onChange={(event) => setTypeFilter(event.target.value as CategoryType | "all")}
+                      className="h-8 rounded-none border border-zinc-700 bg-zinc-900 px-2 text-xs text-zinc-100 outline-none transition focus:border-zinc-500 focus:ring-1 focus:ring-zinc-600"
+                    >
+                      <option value="all">Todos</option>
+                      <option value="income">Ingreso</option>
+                      <option value="expense">Gasto</option>
+                      <option value="transfer">Transferencia</option>
+                    </select>
+                  )
                 }
-              />
-              <SortSummary
+              ]}
+              chips={
+                typeFilter !== "all"
+                  ? [
+                      {
+                        id: "type",
+                        label: `Tipo: ${categoryTypeLabel[typeFilter]}`,
+                        onClear: () => setTypeFilter("all")
+                      }
+                    ]
+                  : undefined
+              }
+              hideFeedback
+              actions={
+                <CatalogActionButton
+                  type="button"
+                  action="create"
+                  label="Nueva"
+                  onClick={openCreateCategoryModal}
+                />
+              }
+            />
+          </section>
+
+          <section className="p-3 sm:p-4">
+            <div className="users-desktop-table users-nextui-table overflow-hidden rounded-none p-0">
+              <DataGrid
+                columns={categoryColumns}
+                rows={filteredRows}
                 sorting={sorting}
-                onClearSorting={clearSorting}
-                labelsByColumnId={{
-                  name: "Nombre",
-                  type: "Tipo",
-                  color: "Color",
-                  tags: "Tags",
-                  active: "Estado"
-                }}
+                onSortingChange={setSorting}
+                emptyMessage="Sin categorías"
               />
             </div>
-          }
-        />
-      </SectionCard>
+          </section>
+        </>
+      ) : null}
 
       {categoryModalOpen ? (
         <div className="fixed inset-0 z-[70] flex items-end justify-end bg-black/70 p-0 backdrop-blur-sm sm:items-stretch">

@@ -5,14 +5,11 @@ import { DataGrid } from "@/components/data-grid/data-grid";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { RotateCcw, Search, SlidersHorizontal } from "lucide-react";
 import type { Category } from "@/lib/contracts/categories";
 import type { Subcategory } from "@/lib/contracts/subcategories";
 import { requestJson } from "../_shared/catalogs-api";
 import { SectionFilterBar } from "../_shared/section-filter-bar";
-import { SortSummary } from "../_shared/sort-summary";
 import { CatalogActionButton } from "../_shared/catalog-action-button";
-import { SectionCard } from "../_shared/section-card";
 import { StatusBadge } from "../_shared/status-badge";
 import { useCatalogSectionState } from "../_shared/use-catalog-section-state";
 
@@ -42,7 +39,7 @@ function emptySubcategoryForm(categories: Category[]): SubcategoryFormState {
   };
 }
 
-export function SubcategoriesSection({ categories, subcategories, expanded, onToggle, onCatalogChanged, onError, onSuccess }: Props) {
+export function SubcategoriesSection({ categories, subcategories, onCatalogChanged, onError, onSuccess }: Props) {
   const [saving, setSaving] = useState(false);
   const [subcategoryModalOpen, setSubcategoryModalOpen] = useState(false);
   const [subcategoryForm, setSubcategoryForm] = useState<SubcategoryFormState>(emptySubcategoryForm(categories));
@@ -64,8 +61,7 @@ export function SubcategoriesSection({ categories, subcategories, expanded, onTo
     setActiveFilter,
     sorting,
     setSorting,
-    clearFilters,
-    clearSorting
+    clearFilters
   } = useCatalogSectionState({
     rows: subcategories,
     initialSorting,
@@ -76,15 +72,6 @@ export function SubcategoriesSection({ categories, subcategories, expanded, onTo
     activePredicate: (row) => row.active,
     extraFilterPredicate: (row) => (categoryFilterId ? row.categoryId === categoryFilterId : true)
   });
-
-  const activeCount = useMemo(() => subcategories.filter((subcategory) => subcategory.active).length, [subcategories]);
-  const inactiveCount = subcategories.length - activeCount;
-  const hasActiveFilters = Boolean(searchQuery.trim()) || activeFilter !== "all" || Boolean(categoryFilterId);
-
-  function clearAllFilters() {
-    clearFilters();
-    setCategoryFilterId(null);
-  }
 
   function openCreateSubcategoryModal() {
     setSubcategoryForm(emptySubcategoryForm(categories));
@@ -205,17 +192,59 @@ export function SubcategoriesSection({ categories, subcategories, expanded, onTo
 
   return (
     <>
-      <SectionCard
-        id="catalog-section-subcategories"
-        title="Subcategorías"
-        count={subcategories.length}
-        activeCount={activeCount}
-        inactiveCount={inactiveCount}
-        expanded={expanded}
-        onToggle={onToggle}
-        onCreate={openCreateSubcategoryModal}
-        createLabel="Nueva"
-      >
+      <section className="overflow-hidden px-4 py-3 sm:px-5">
+        <SectionFilterBar
+          title="Filtros"
+          subtitle={`Mostrando ${filteredRows.length} de ${subcategories.length} registros`}
+          searchPlaceholder="Nombre o categoría"
+          searchValue={searchQuery}
+          onSearchChange={setSearchQuery}
+          activeFilter={activeFilter}
+          onActiveFilterChange={setActiveFilter}
+          extraFilters={[
+            {
+              label: "Categoría",
+              content: (
+                <select
+                  value={categoryFilterId ?? ""}
+                  onChange={(event) => {
+                    const value = Number(event.target.value);
+                    setCategoryFilterId(Number.isFinite(value) && value > 0 ? value : null);
+                  }}
+                  className="h-8 rounded-none border border-zinc-700 bg-zinc-900 px-2 text-xs font-semibold text-zinc-100 transition focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500"
+                >
+                  <option className="bg-zinc-900 text-zinc-100" value="">Todas</option>
+                  {categories.map((category) => (
+                    <option key={category.categoryId} value={category.categoryId} className="bg-zinc-900 text-zinc-100">
+                      {category.name}
+                    </option>
+                  ))}
+                </select>
+              )
+            }
+          ]}
+          chips={
+            categoryFilterId
+              ? [{ id: "category", label: `Categoría: ${categoryNameById.get(categoryFilterId) ?? "Seleccionada"}`, onClear: () => setCategoryFilterId(null) }]
+              : undefined
+          }
+          hideFeedback
+          onClearFilters={() => {
+            clearFilters();
+            setCategoryFilterId(null);
+          }}
+          actions={
+            <CatalogActionButton
+              type="button"
+              action="create"
+              label="Nueva"
+              onClick={openCreateSubcategoryModal}
+            />
+          }
+        />
+      </section>
+
+      <section className="p-3 sm:p-4">
         <div className="users-desktop-table users-nextui-table overflow-hidden rounded-none p-0">
           <DataGrid
             columns={subcategoryColumns}
@@ -223,62 +252,9 @@ export function SubcategoriesSection({ categories, subcategories, expanded, onTo
             sorting={sorting}
             onSortingChange={setSorting}
             emptyMessage="Sin subcategorías"
-            allowDensityToggle
-            densityStorageKey="catalogs-grid-density"
-            toolbar={
-              <div className="space-y-2">
-                <SectionFilterBar
-                  searchPlaceholder="Nombre o categoría"
-                  searchValue={searchQuery}
-                  onSearchChange={setSearchQuery}
-                  activeFilter={activeFilter}
-                  onActiveFilterChange={setActiveFilter}
-                  extraFilters={[
-                    {
-                      label: "Categoría",
-                      content: (
-                        <select
-                          value={categoryFilterId ?? ""}
-                          onChange={(event) => {
-                            const value = Number(event.target.value);
-                            setCategoryFilterId(Number.isFinite(value) && value > 0 ? value : null);
-                          }}
-                          className="h-8 rounded-none border border-zinc-700 bg-zinc-900 px-2 text-xs font-semibold text-zinc-100 transition focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500"
-                        >
-                          <option className="bg-zinc-900 text-zinc-100" value="">Todas</option>
-                          {categories.map((category) => (
-                            <option key={category.categoryId} value={category.categoryId} className="bg-zinc-900 text-zinc-100">
-                              {category.name}
-                            </option>
-                          ))}
-                        </select>
-                      )
-                    }
-                  ]}
-                  chips={
-                    categoryFilterId
-                      ? [{ id: "category", label: `Categoría: ${categoryNameById.get(categoryFilterId) ?? "Seleccionada"}`, onClear: () => setCategoryFilterId(null) }]
-                      : undefined
-                  }
-                  onClearFilters={() => {
-                    clearFilters();
-                    setCategoryFilterId(null);
-                  }}
-                />
-                <SortSummary
-                  sorting={sorting}
-                  onClearSorting={clearSorting}
-                  labelsByColumnId={{
-                    name: "Nombre",
-                    categoryName: "Categoría",
-                    active: "Estado"
-                  }}
-                />
-              </div>
-            }
           />
         </div>
-      </SectionCard>
+      </section>
 
       {subcategoryModalOpen ? (
         <div className="fixed inset-0 z-[70] flex items-end justify-end bg-black/70 backdrop-blur-sm sm:items-stretch" role="presentation" onClick={() => setSubcategoryModalOpen(false)}>

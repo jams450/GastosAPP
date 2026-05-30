@@ -1,7 +1,11 @@
 import { Button } from "@/components/ui/button";
+import { RotateCcw, SlidersHorizontal } from "lucide-react";
+import type { ReactNode } from "react";
 import type { ActiveFilterValue, FilterChip, FilterSlot } from "./catalog-section-types";
 
 type Props = {
+  title?: string;
+  subtitle?: string;
   searchPlaceholder: string;
   searchValue: string;
   onSearchChange: (value: string) => void;
@@ -10,9 +14,14 @@ type Props = {
   extraFilters?: FilterSlot[];
   chips?: FilterChip[];
   onClearFilters: () => void;
+  actions?: ReactNode;
+  hideChips?: boolean;
+  hideFeedback?: boolean;
 };
 
 export function SectionFilterBar({
+  title,
+  subtitle,
   searchPlaceholder,
   searchValue,
   onSearchChange,
@@ -20,14 +29,40 @@ export function SectionFilterBar({
   onActiveFilterChange,
   extraFilters,
   chips,
-  onClearFilters
+  onClearFilters,
+  actions,
+  hideChips = false,
+  hideFeedback = false
 }: Props) {
   const hasActiveFilters = Boolean(searchValue.trim()) || activeFilter !== "all" || Boolean(chips?.length);
 
   return (
-    <div className="space-y-2 border border-zinc-800 bg-zinc-950 p-2.5">
-      <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-zinc-300">Filtros</p>
-      <div className="grid gap-2 lg:grid-cols-[minmax(220px,2fr)_minmax(140px,1fr)]">
+    <div className="space-y-2 p-0">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <span className="inline-flex h-7 w-7 items-center justify-center rounded-none bg-zinc-800 text-zinc-200">
+            <SlidersHorizontal className="h-4 w-4" aria-hidden="true" />
+          </span>
+          <div>
+            <p className="text-xs font-bold uppercase tracking-wide text-zinc-200">{title ?? "Buscar y filtrar"}</p>
+            {subtitle ? <p className="text-[11px] font-medium text-zinc-400">{subtitle}</p> : null}
+          </div>
+        </div>
+
+        {hasActiveFilters && !hideFeedback ? (
+          <Button
+            type="button"
+            variant="ghost"
+            className="h-8 border border-zinc-700 bg-zinc-900 px-2.5 text-[11px] font-bold text-zinc-200 hover:bg-zinc-800"
+            onClick={onClearFilters}
+          >
+            <RotateCcw className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
+            Limpiar filtros
+          </Button>
+        ) : null}
+      </div>
+
+      <div className="grid gap-2 p-2 lg:grid-cols-[minmax(220px,2fr)_minmax(140px,1fr)_minmax(160px,1fr)_auto] lg:items-end">
         <label className="grid gap-1 text-[10px] font-semibold uppercase tracking-wide text-zinc-400">
           Buscar
           <input
@@ -57,9 +92,11 @@ export function SectionFilterBar({
             {filter.content}
           </label>
         ))}
+
+        {actions ? <div className="flex items-end justify-end">{actions}</div> : null}
       </div>
 
-      {hasActiveFilters ? (
+      {hasActiveFilters && !hideChips && !hideFeedback ? (
         <div className="flex flex-wrap items-center gap-1.5">
           {searchValue.trim() ? (
             <button
@@ -92,14 +129,6 @@ export function SectionFilterBar({
             </button>
           ))}
 
-          <Button
-            type="button"
-            variant="secondary"
-            className="h-8 rounded-none border-zinc-700 bg-zinc-900 px-2 text-[11px] text-zinc-100 hover:border-zinc-600 hover:bg-zinc-800"
-            onClick={onClearFilters}
-          >
-            Limpiar filtros
-          </Button>
         </div>
       ) : null}
     </div>

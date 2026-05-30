@@ -8,9 +8,7 @@ import { Input } from "@/components/ui/input";
 import type { Merchant } from "@/lib/contracts/merchants";
 import { requestJson } from "../_shared/catalogs-api";
 import { SectionFilterBar } from "../_shared/section-filter-bar";
-import { SortSummary } from "../_shared/sort-summary";
 import { CatalogActionButton } from "../_shared/catalog-action-button";
-import { SectionCard } from "../_shared/section-card";
 import { StatusBadge } from "../_shared/status-badge";
 import { useCatalogSectionState } from "../_shared/use-catalog-section-state";
 
@@ -47,17 +45,13 @@ export function MerchantsSection({ merchants, expanded, onToggle, onCatalogChang
     setActiveFilter,
     sorting,
     setSorting,
-    clearFilters,
-    clearSorting
+    clearFilters
   } = useCatalogSectionState({
     rows: merchants,
     initialSorting,
     searchPredicate: (row, normalizedQuery) => row.name.toLowerCase().includes(normalizedQuery),
     activePredicate: (row) => row.active
   });
-
-  const activeCount = useMemo(() => merchants.filter((merchant) => merchant.active).length, [merchants]);
-  const inactiveCount = merchants.length - activeCount;
 
   function openCreateMerchantModal() {
     setMerchantForm(emptyMerchantForm());
@@ -130,7 +124,7 @@ export function MerchantsSection({ merchants, expanded, onToggle, onCatalogChang
     },
     {
       id: "actions",
-      header: "Acciones",
+      header: "",
       enableSorting: false,
       cell: ({ row }) => {
         const merchant = row.original;
@@ -152,39 +146,43 @@ export function MerchantsSection({ merchants, expanded, onToggle, onCatalogChang
 
   return (
     <>
-      <SectionCard
-        id="catalog-section-merchants"
-        title="Comercios"
-        count={merchants.length}
-        activeCount={activeCount}
-        inactiveCount={inactiveCount}
-        expanded={expanded}
-        onToggle={onToggle}
-        onCreate={openCreateMerchantModal}
-      >
-        <DataGrid
-          columns={merchantColumns}
-          rows={filteredRows}
-          sorting={sorting}
-          onSortingChange={setSorting}
-          emptyMessage="Sin comercios"
-          allowDensityToggle
-          densityStorageKey="catalogs-grid-density"
-          toolbar={
-            <div className="space-y-2">
-              <SectionFilterBar
-                searchPlaceholder="Buscar comercio"
-                searchValue={searchQuery}
-                onSearchChange={setSearchQuery}
-                activeFilter={activeFilter}
-                onActiveFilterChange={setActiveFilter}
-                onClearFilters={clearFilters}
+      {expanded ? (
+        <>
+          <section className="overflow-hidden px-4 py-3 sm:px-5">
+            <SectionFilterBar
+              searchPlaceholder="Buscar comercio"
+              searchValue={searchQuery}
+              onSearchChange={setSearchQuery}
+              activeFilter={activeFilter}
+              onActiveFilterChange={setActiveFilter}
+              onClearFilters={clearFilters}
+              hideFeedback
+              actions={
+                <CatalogActionButton
+                  type="button"
+                  action="create"
+                  label="Nueva"
+                  onClick={openCreateMerchantModal}
+                />
+              }
+            />
+          </section>
+
+          <section className="p-3 sm:p-4">
+            <div className="users-desktop-table users-nextui-table overflow-hidden rounded-none p-0">
+              <DataGrid
+                columns={merchantColumns}
+                rows={filteredRows}
+                sorting={sorting}
+                onSortingChange={setSorting}
+                emptyMessage="Sin comercios"
+                allowDensityToggle
+                densityStorageKey="catalogs-grid-density"
               />
-              <SortSummary sorting={sorting} onClearSorting={clearSorting} labelsByColumnId={{ name: "Nombre", active: "Estado" }} />
             </div>
-          }
-        />
-      </SectionCard>
+          </section>
+        </>
+      ) : null}
 
       {merchantModalOpen ? (
         <div className="fixed inset-0 z-50 grid place-items-center bg-slate-900/50 p-4">

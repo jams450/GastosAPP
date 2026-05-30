@@ -3,6 +3,11 @@
 ## [Unreleased]
 
 ### Documentation
+- Se actualizó `API_DOCUMENTATION.md` para registrar el **cleanup de componentes shared de Catálogos** en `GastosApp.Web`:
+  - centralización de CTA `Nueva` en `CatalogActionButton`,
+  - incorporación de `hideFeedback` (y props de composición relacionadas) en `SectionFilterBar`,
+  - reducción de overrides locales en secciones de `categories`, `subcategories`, `merchants`, `tags` y `billable-parties`,
+  - validación manual mínima y rollback rápido documentados.
 - Se actualizó `API_DOCUMENTATION.md` para registrar la **homologación visual de Subcategorías** al estilo de `Cuentas` en `GastosApp.Web`:
   - ajustes de tabla, filtros y botones de acción,
   - reemplazo de modal centrado por drawer lateral,
