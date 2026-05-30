@@ -17,6 +17,23 @@ export type AccountUpsertPayload = {
 
 export type AccountFormErrors = Partial<Record<keyof AccountUpsertPayload, string>>;
 
+export function toAccountRequestPayload(form: AccountUpsertPayload): AccountUpsertPayload {
+  return {
+    name: form.name.trim(),
+    color: form.color,
+    active: form.active,
+    startDate: form.startDate,
+    isCredit: form.isCredit,
+    dueDay: form.isCredit ? form.dueDay : null,
+    paymentDueDay: form.isCredit ? form.paymentDueDay : null,
+    earnsInterest: form.earnsInterest,
+    annualInterestRate: form.earnsInterest ? form.annualInterestRate : 0,
+    initialBalance: form.initialBalance,
+    currentBalance: form.currentBalance,
+    creditLimit: form.isCredit ? form.creditLimit : null
+  };
+}
+
 export function toAccountUpsertPayload(account?: Account): AccountUpsertPayload {
   const now = new Date();
   const date = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;

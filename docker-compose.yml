@@ -30,14 +30,12 @@ services:
     environment:
       - ASPNETCORE_ENVIRONMENT=Production
       - ASPNETCORE_URLS=http://+:8080
-      - ConnectionStrings__DefaultConnection=${CONNECTION_STR}
+      - ConnectionStrings__DefaultConnection=${ConnectionStrings__DefaultConnection}
       - Jwt__Key=${Jwt__Key}
       - Jwt__Issuer=${Jwt__Issuer}
       - Jwt__Audience=${Jwt__Audience}
       - Auth__Username=${Auth__Username}
       - Auth__Password=${Auth__Password}
-      - Encryption__Key=${Encryption__Key}
-      - Encryption__IV=${Encryption__IV}
       - Cors__AllowedOrigins=${Cors__AllowedOrigins}
     depends_on:
       - postgres

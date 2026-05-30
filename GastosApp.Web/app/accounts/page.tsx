@@ -9,5 +9,9 @@ export default async function AccountsPage() {
     redirect("/login");
   }
 
+  if ((session.user.role ?? "").toLowerCase() !== "admin") {
+    redirect("/dashboard");
+  }
+
   return <AccountsClient username={session.user.username} />;
 }

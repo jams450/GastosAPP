@@ -33,6 +33,12 @@ function toOptionalFiniteNumber(value: unknown): number | null {
   return toFiniteNumber(value);
 }
 
+function toBool(value: unknown, fallback = false): boolean {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "string") return value.toLowerCase() === "true";
+  return fallback;
+}
+
 function toOptionalDateString(value: unknown): string | null {
   if (typeof value !== "string" || value.trim().length === 0) {
     return null;
@@ -71,25 +77,27 @@ export function normalizeAccount(input: unknown): Account | null {
     return null;
   }
 
-  const accountId = toFiniteNumber(input.accountId);
+  const accountId = toFiniteNumber(input.accountId ?? input.AccountId);
   if (accountId === null) {
     return null;
   }
 
+  const nameRaw = input.name ?? input.Name;
+
   return {
     accountId,
-    name: typeof input.name === "string" && input.name.trim().length > 0 ? input.name.trim() : "Sin nombre",
-    color: toColor(input.color),
-    startDate: toOptionalDateString(input.startDate),
-    isCredit: Boolean(input.isCredit),
-    dueDay: toOptionalFiniteNumber(input.dueDay),
-    paymentDueDay: toOptionalFiniteNumber(input.paymentDueDay),
-    earnsInterest: Boolean(input.earnsInterest),
-    annualInterestRate: toFiniteNumber(input.annualInterestRate) ?? 0,
-    initialBalance: toFiniteNumber(input.initialBalance) ?? 0,
-    currentBalance: toFiniteNumber(input.currentBalance) ?? 0,
-    active: Boolean(input.active),
-    creditLimit: toOptionalFiniteNumber(input.creditLimit)
+    name: typeof nameRaw === "string" && nameRaw.trim().length > 0 ? nameRaw.trim() : "Sin nombre",
+    color: toColor(input.color ?? input.Color),
+    startDate: toOptionalDateString(input.startDate ?? input.StartDate),
+    isCredit: toBool(input.isCredit ?? input.IsCredit),
+    dueDay: toOptionalFiniteNumber(input.dueDay ?? input.DueDay),
+    paymentDueDay: toOptionalFiniteNumber(input.paymentDueDay ?? input.PaymentDueDay),
+    earnsInterest: toBool(input.earnsInterest ?? input.EarnsInterest),
+    annualInterestRate: toFiniteNumber(input.annualInterestRate ?? input.AnnualInterestRate) ?? 0,
+    initialBalance: toFiniteNumber(input.initialBalance ?? input.InitialBalance) ?? 0,
+    currentBalance: toFiniteNumber(input.currentBalance ?? input.CurrentBalance) ?? 0,
+    active: toBool(input.active ?? input.Active, true),
+    creditLimit: toOptionalFiniteNumber(input.creditLimit ?? input.CreditLimit)
   };
 }
 
