@@ -33,18 +33,18 @@ export function UsersToolbar({
     <section className="p-0">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
-          <span className="inline-flex h-7 w-7 items-center justify-center rounded-none bg-zinc-800 text-zinc-200">
+          <span className="inline-flex h-7 w-7 items-center justify-center rounded-none border border-strong bg-[var(--color-surface-3)] text-primary">
             <SlidersHorizontal className="h-4 w-4" aria-hidden="true" />
           </span>
           <div>
-            <p className="text-xs font-bold uppercase tracking-wide text-zinc-200">Filtros</p>
-            <p className="text-[11px] font-medium text-zinc-400">
-              Mostrando <span className="font-semibold text-zinc-100">{filtered}</span> de <span className="font-semibold text-zinc-100">{total}</span> usuarios
+            <p className="text-primary text-xs font-bold uppercase tracking-wide">Filtros</p>
+            <p className="text-muted text-[11px] font-medium">
+              Mostrando <span className="text-primary font-semibold">{filtered}</span> de <span className="text-primary font-semibold">{total}</span> usuarios
             </p>
           </div>
         </div>
         {hasActiveFilters ? (
-          <Button type="button" variant="ghost" className="h-8 border border-zinc-700 bg-zinc-900 px-2.5 text-[11px] font-bold text-zinc-200 hover:bg-zinc-800" onClick={onResetFilters}>
+          <Button type="button" variant="ghost" className="btn-secondary-semantic h-8 px-2.5 text-[11px] font-bold" onClick={onResetFilters}>
             <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
             Limpiar (filtros activos)
           </Button>
@@ -57,39 +57,39 @@ export function UsersToolbar({
           value={search}
           onChange={(event) => onSearchChange(event.target.value)}
           placeholder="Nombre o correo"
-          rightSlot={<Search className="h-3.5 w-3.5 text-zinc-500" aria-hidden="true" />}
+          rightSlot={<Search className="text-muted h-3.5 w-3.5" aria-hidden="true" />}
         />
 
-        <label className="grid gap-1 text-xs font-medium uppercase tracking-wide text-zinc-300">
+        <label className="text-secondary grid gap-1 text-xs font-medium uppercase tracking-wide">
           Estado
           <select
             value={status}
             onChange={(event) => onStatusChange(event.target.value as "all" | "active" | "inactive")}
-            className="h-8 rounded-none border border-zinc-700 bg-zinc-900 px-2.5 text-xs font-semibold text-zinc-100 outline-none transition focus:border-zinc-500 focus:ring-1 focus:ring-zinc-500"
+            className="input-semantic h-8 rounded-none px-2.5 text-xs font-semibold"
           >
-            <option value="all" className="bg-zinc-900 text-zinc-100">Todos</option>
-            <option value="active" className="bg-zinc-900 text-zinc-100">Activos</option>
-            <option value="inactive" className="bg-zinc-900 text-zinc-100">Inactivos</option>
+            <option value="all">Todos</option>
+            <option value="active">Activos</option>
+            <option value="inactive">Inactivos</option>
           </select>
         </label>
 
-        <label className="grid gap-1 text-xs font-medium uppercase tracking-wide text-zinc-300">
+        <label className="text-secondary grid gap-1 text-xs font-medium uppercase tracking-wide">
           Rol
           <select
             value={role}
             onChange={(event) => onRoleChange(event.target.value as "all" | "admin" | "user")}
-            className="h-8 rounded-none border border-zinc-700 bg-zinc-900 px-2.5 text-xs font-semibold text-zinc-100 outline-none transition focus:border-zinc-500 focus:ring-1 focus:ring-zinc-500"
+            className="input-semantic h-8 rounded-none px-2.5 text-xs font-semibold"
           >
-            <option value="all" className="bg-zinc-900 text-zinc-100">Todos</option>
-            <option value="admin" className="bg-zinc-900 text-zinc-100">Admin</option>
-            <option value="user" className="bg-zinc-900 text-zinc-100">Usuario</option>
+            <option value="all">Todos</option>
+            <option value="admin">Admin</option>
+            <option value="user">Usuario</option>
           </select>
         </label>
 
         <Button
           type="button"
           variant="primary"
-          className="h-8 !border-[#0F3158] !bg-[#0F3158] px-3 text-xs font-bold text-white hover:!border-[#144277] hover:!bg-[#144277]"
+          className="h-8 px-3 text-xs font-bold"
           onClick={onCreate}
         >
           <Plus className="h-4 w-4" aria-hidden="true" />

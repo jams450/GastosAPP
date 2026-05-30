@@ -2,6 +2,7 @@ import { CheckCircle2, Pencil, Plus, Power } from "lucide-react";
 import type { ComponentProps } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/ui/cn";
+import { tableActionStyles } from "@/lib/ui/table-action-styles";
 
 export type CatalogActionType = "create" | "edit" | "deactivate" | "activate";
 
@@ -23,22 +24,22 @@ const actionStyleMap: Record<
   create: {
     variant: "primary",
     icon: Plus,
-    className: "border-[#0F3158] bg-[#0F3158] text-white hover:border-[#144277] hover:bg-[#144277]"
+    className: ""
   },
   edit: {
     variant: "ghost",
     icon: Pencil,
-    className: "border-blue-400/45 bg-blue-500/12 text-blue-200 hover:border-blue-300/60 hover:bg-blue-500/22"
+    className: tableActionStyles.edit
   },
   deactivate: {
     variant: "ghost",
     icon: Power,
-    className: "border-amber-400/45 bg-amber-500/12 text-amber-200 hover:border-amber-300/60 hover:bg-amber-500/22"
+    className: tableActionStyles.deactivate
   },
   activate: {
     variant: "ghost",
     icon: CheckCircle2,
-    className: "border-emerald-400/45 bg-emerald-500/12 text-emerald-200 hover:border-emerald-300/60 hover:bg-emerald-500/22",
+    className: tableActionStyles.activate,
     iconClassName: "text-emerald-300"
   }
 };

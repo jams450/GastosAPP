@@ -22,8 +22,8 @@ export function UsersTable({ rows, loading, errorMessage, onEdit, onToggleActive
         header: "Nombre",
         cell: ({ row }) => (
           <div className="space-y-0.5">
-            <p className="text-sm font-bold text-zinc-100">{row.original.name}</p>
-            <p className="text-[11px] font-medium text-zinc-400">ID #{row.original.userId}</p>
+            <p className="text-primary text-sm font-bold">{row.original.name}</p>
+            <p className="text-muted text-[11px] font-medium">ID #{row.original.userId}</p>
           </div>
         )
       },

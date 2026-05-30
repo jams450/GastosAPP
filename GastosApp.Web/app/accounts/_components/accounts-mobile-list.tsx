@@ -18,9 +18,9 @@ export function AccountsMobileList({ rows, loading, errorMessage, onEdit, onTogg
       <div className="space-y-2.5 md:hidden" role="status" aria-live="polite" aria-label="Cargando cuentas">
         {Array.from({ length: 3 }).map((_, index) => (
           <div key={index} className="animate-pulse p-3">
-            <div className="h-3 w-28 rounded-none bg-zinc-800" />
-            <div className="mt-2 h-2.5 w-44 rounded-none bg-zinc-800" />
-            <div className="mt-3 h-8 rounded-none bg-zinc-800" />
+            <div className="h-3 w-28 rounded-none bg-[var(--color-surface-3)]" />
+            <div className="mt-2 h-2.5 w-44 rounded-none bg-[var(--color-surface-3)]" />
+            <div className="mt-3 h-8 rounded-none bg-[var(--color-surface-3)]" />
           </div>
         ))}
       </div>
@@ -29,7 +29,7 @@ export function AccountsMobileList({ rows, loading, errorMessage, onEdit, onTogg
 
   if (errorMessage) {
     return (
-      <div className="border-rose-300 bg-rose-50 p-4 text-rose-800 dark:border-rose-900/60 dark:bg-rose-950/30 dark:text-rose-300 md:hidden" role="alert" aria-live="assertive">
+      <div className="border-[var(--color-danger)]/35 bg-[var(--color-danger)]/12 p-4 text-[var(--color-danger)] md:hidden" role="alert" aria-live="assertive">
         <div className="flex items-start gap-2">
           <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
           <div>
@@ -43,10 +43,10 @@ export function AccountsMobileList({ rows, loading, errorMessage, onEdit, onTogg
 
   if (rows.length === 0) {
     return (
-      <div className="border-dashed border-zinc-700 bg-zinc-900 px-3 py-8 text-center md:hidden" role="status" aria-live="polite">
-        <Inbox className="mx-auto h-6 w-6 text-zinc-400" aria-hidden="true" />
-        <p className="mt-2 text-sm font-bold text-zinc-200">Sin resultados</p>
-        <p className="mt-1 text-xs text-zinc-400">No hay cuentas con filtros actuales.</p>
+      <div className="border-default bg-[var(--color-surface-2)] px-3 py-8 text-center md:hidden" role="status" aria-live="polite">
+        <Inbox className="text-muted mx-auto h-6 w-6" aria-hidden="true" />
+        <p className="text-primary mt-2 text-sm font-bold">Sin resultados</p>
+        <p className="text-muted mt-1 text-xs">No hay cuentas con filtros actuales.</p>
       </div>
     );
   }
@@ -57,8 +57,8 @@ export function AccountsMobileList({ rows, loading, errorMessage, onEdit, onTogg
         <article key={account.accountId} className="p-3">
           <header className="flex items-start justify-between gap-2 pb-2">
             <div>
-              <p className="text-sm font-extrabold text-zinc-100">{account.name}</p>
-              <p className="text-xs text-zinc-400">Saldo: {formatCurrency(account.currentBalance)}</p>
+              <p className="text-primary text-sm font-extrabold">{account.name}</p>
+              <p className="text-muted text-xs">Saldo: {formatCurrency(account.currentBalance)}</p>
             </div>
             <span className="sr-only">Cuenta activa para acciones rápidas</span>
           </header>

@@ -12,15 +12,15 @@ export function Input({ label, className, error, rightSlot, id, ...props }: Inpu
   const inputId = id ?? props.name ?? fallbackId ?? "input";
 
   return (
-    <div className="grid gap-1.5 text-sm font-medium text-[var(--tabler-text)]">
+    <div className="grid gap-1.5 text-sm font-medium text-[var(--color-text-primary)]">
       {label ? <label htmlFor={inputId}>{label}</label> : null}
       <div className="relative">
         <input
           id={inputId}
           className={cn(
-            "h-10 w-full rounded-[var(--tabler-radius-sm)] border bg-[var(--tabler-surface-1)] px-3 text-sm text-[var(--tabler-text)] outline-none transition placeholder:text-[var(--tabler-text-soft)] focus:border-[var(--tabler-primary)] focus:ring-2 focus:ring-sky-200 dark:focus:ring-sky-900",
+            "input-semantic h-10 w-full px-3 text-sm",
             rightSlot && "pr-24",
-            error && "border-rose-400 focus:border-rose-500 focus:ring-rose-200 dark:border-rose-600 dark:focus:ring-rose-900",
+            error && "border-[var(--color-danger)] focus:border-[var(--color-danger)] focus:ring-2 focus:ring-[color:var(--color-danger)]",
             className
           )}
           aria-invalid={Boolean(error)}
@@ -30,7 +30,7 @@ export function Input({ label, className, error, rightSlot, id, ...props }: Inpu
         {rightSlot ? <div className="absolute right-2 top-1/2 -translate-y-1/2">{rightSlot}</div> : null}
       </div>
 
-      {error ? <span className="text-xs text-[var(--tabler-danger)]">{error}</span> : null}
+      {error ? <span className="text-xs text-[var(--color-danger)]">{error}</span> : null}
     </div>
   );
 }

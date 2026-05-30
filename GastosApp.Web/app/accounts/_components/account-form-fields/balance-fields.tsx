@@ -29,7 +29,7 @@ export function BalanceFields({ form, errors, onChange }: Props) {
         />
       </div>
 
-      <label className="flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-300">
+      <label className="text-secondary flex items-center gap-2 text-sm font-medium">
         <input type="checkbox" checked={form.earnsInterest} onChange={(event) => onChange("earnsInterest", event.target.checked)} />
         Genera interés
       </label>

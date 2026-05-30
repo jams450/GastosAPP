@@ -40,12 +40,12 @@ export function SectionFilterBar({
     <div className="space-y-2 p-0">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
-          <span className="inline-flex h-7 w-7 items-center justify-center rounded-none bg-zinc-800 text-zinc-200">
+          <span className="inline-flex h-7 w-7 items-center justify-center rounded-none border border-strong bg-[var(--color-surface-3)] text-primary">
             <SlidersHorizontal className="h-4 w-4" aria-hidden="true" />
           </span>
           <div>
-            <p className="text-xs font-bold uppercase tracking-wide text-zinc-200">{title ?? "Buscar y filtrar"}</p>
-            {subtitle ? <p className="text-[11px] font-medium text-zinc-400">{subtitle}</p> : null}
+            <p className="text-primary text-xs font-bold uppercase tracking-wide">{title ?? "Buscar y filtrar"}</p>
+            {subtitle ? <p className="text-muted text-[11px] font-medium">{subtitle}</p> : null}
           </div>
         </div>
 
@@ -53,7 +53,7 @@ export function SectionFilterBar({
           <Button
             type="button"
             variant="ghost"
-            className="h-8 border border-zinc-700 bg-zinc-900 px-2.5 text-[11px] font-bold text-zinc-200 hover:bg-zinc-800"
+            className="btn-secondary-semantic h-8 px-2.5 text-[11px] font-bold"
             onClick={onClearFilters}
           >
             <RotateCcw className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
@@ -63,22 +63,22 @@ export function SectionFilterBar({
       </div>
 
       <div className="grid gap-2 p-2 lg:grid-cols-[minmax(220px,2fr)_minmax(140px,1fr)_minmax(160px,1fr)_auto] lg:items-end">
-        <label className="grid gap-1 text-[10px] font-semibold uppercase tracking-wide text-zinc-400">
+        <label className="text-muted grid gap-1 text-[10px] font-semibold uppercase tracking-wide">
           Buscar
           <input
             value={searchValue}
             onChange={(event) => onSearchChange(event.target.value)}
-            className="h-8 rounded-none border border-zinc-700 bg-zinc-900 px-2.5 text-xs text-zinc-100 outline-none transition focus:border-zinc-500 focus:ring-1 focus:ring-zinc-600"
+            className="input-semantic h-8 rounded-none px-2.5 text-xs"
             placeholder={searchPlaceholder}
           />
         </label>
 
-        <label className="grid gap-1 text-[10px] font-semibold uppercase tracking-wide text-zinc-400">
+        <label className="text-muted grid gap-1 text-[10px] font-semibold uppercase tracking-wide">
           Estado
           <select
             value={activeFilter}
             onChange={(event) => onActiveFilterChange(event.target.value as ActiveFilterValue)}
-            className="h-8 rounded-none border border-zinc-700 bg-zinc-900 px-2 text-xs text-zinc-100 outline-none transition focus:border-zinc-500 focus:ring-1 focus:ring-zinc-600"
+            className="input-semantic h-8 rounded-none px-2 text-xs"
           >
             <option value="all">Todos</option>
             <option value="active">Activos</option>
@@ -87,7 +87,7 @@ export function SectionFilterBar({
         </label>
 
         {extraFilters?.map((filter) => (
-          <label key={filter.label} className="grid gap-1 text-[10px] font-semibold uppercase tracking-wide text-zinc-400">
+          <label key={filter.label} className="text-muted grid gap-1 text-[10px] font-semibold uppercase tracking-wide">
             {filter.label}
             {filter.content}
           </label>
@@ -101,7 +101,7 @@ export function SectionFilterBar({
           {searchValue.trim() ? (
             <button
               type="button"
-              className="rounded-none border border-zinc-700 bg-zinc-900 px-2 py-0.5 text-[11px] text-zinc-200"
+              className="border-strong rounded-none border bg-[var(--color-surface-2)] px-2 py-0.5 text-[11px] text-secondary"
               onClick={() => onSearchChange("")}
             >
               Búsqueda: {searchValue.trim()} ×
@@ -111,7 +111,7 @@ export function SectionFilterBar({
           {activeFilter !== "all" ? (
             <button
               type="button"
-              className="rounded-none border border-zinc-700 bg-zinc-900 px-2 py-0.5 text-[11px] text-zinc-200"
+              className="border-strong rounded-none border bg-[var(--color-surface-2)] px-2 py-0.5 text-[11px] text-secondary"
               onClick={() => onActiveFilterChange("all")}
             >
               Estado: {activeFilter === "active" ? "Activos" : "Inactivos"} ×
@@ -122,7 +122,7 @@ export function SectionFilterBar({
             <button
               key={chip.id}
               type="button"
-              className="rounded-none border border-zinc-700 bg-zinc-900 px-2 py-0.5 text-[11px] text-zinc-200"
+              className="border-strong rounded-none border bg-[var(--color-surface-2)] px-2 py-0.5 text-[11px] text-secondary"
               onClick={chip.onClear}
             >
               {chip.label} ×

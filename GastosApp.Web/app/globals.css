@@ -22,6 +22,71 @@
   --tabler-radius-lg: 1rem;
   --tabler-shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.06);
   --tabler-shadow-md: 0 8px 24px rgba(15, 23, 42, 0.08);
+
+  /* Semantic tokens - light */
+  --color-page-bg: var(--tabler-page-bg);
+  --color-page-grad-a: oklch(12.9% 0.042 264.695 / 0.58);
+  --color-page-grad-b: oklch(12.9% 0.042 264.695 / 0.42);
+  --color-sidebar-bg: var(--tabler-sidebar-bg);
+  --color-overlay: rgb(2 6 23 / 0.62);
+
+  --color-surface-1: var(--tabler-surface-1);
+  --color-surface-2: var(--tabler-surface-2);
+  --color-surface-3: var(--tabler-surface-3);
+
+  --color-text-primary: var(--tabler-text);
+  --color-text-secondary: color-mix(in srgb, var(--tabler-text) 78%, white);
+  --color-text-muted: var(--tabler-text-soft);
+  --color-text-inverse: #ffffff;
+
+  --color-border: var(--tabler-border);
+  --color-border-strong: var(--tabler-border-strong);
+  --color-border-accent: color-mix(in srgb, var(--tabler-primary) 42%, transparent);
+  --color-border-focus: color-mix(in srgb, var(--tabler-primary) 55%, white);
+
+  --color-accent: var(--tabler-primary);
+  --color-accent-hover: var(--tabler-primary-hover);
+  --color-accent-soft: color-mix(in srgb, var(--tabler-primary) 16%, transparent);
+  --color-accent-contrast: #ffffff;
+
+  --color-success: var(--tabler-success);
+  --color-warning: #f59e0b;
+  --color-danger: var(--tabler-danger);
+  --color-info: #0ea5e9;
+
+  --radius-sm: var(--tabler-radius-sm);
+  --radius-md: var(--tabler-radius-md);
+  --radius-lg: var(--tabler-radius-lg);
+  --shadow-sm: var(--tabler-shadow-sm);
+  --shadow-md: var(--tabler-shadow-md);
+}
+
+:root:not(.dark)[data-theme="blue"] {
+  --tabler-page-bg: #f4f6fb;
+  --tabler-sidebar-bg: linear-gradient(180deg, #eef4fb 0%, #e3edf9 100%);
+  --tabler-surface-1: #ffffff;
+  --tabler-surface-2: #f8fafc;
+  --tabler-surface-3: #f1f5f9;
+  --tabler-border: #d9e1ec;
+  --tabler-border-strong: #c9d4e3;
+  --tabler-text: #1f2937;
+  --tabler-text-soft: #64748b;
+  --tabler-primary: #206bc4;
+  --tabler-primary-hover: #1c5da9;
+}
+
+:root:not(.dark)[data-theme="light-blue"] {
+  --tabler-page-bg: #f6faff;
+  --tabler-sidebar-bg: linear-gradient(180deg, #e9f3ff 0%, #dcecff 100%);
+  --tabler-surface-1: #ffffff;
+  --tabler-surface-2: #f8fbff;
+  --tabler-surface-3: #eef6ff;
+  --tabler-border: #cfe0f5;
+  --tabler-border-strong: #b8d0ee;
+  --tabler-text: #1e3a5f;
+  --tabler-text-soft: #5f7fa6;
+  --tabler-primary: #3b82f6;
+  --tabler-primary-hover: #2563eb;
 }
 
 .dark {
@@ -41,23 +106,60 @@
   --tabler-success: #4ade80;
   --tabler-shadow-sm: 0 2px 5px rgba(0, 0, 0, 0.55);
   --tabler-shadow-md: 0 18px 44px rgba(0, 0, 0, 0.7);
+
+  /* Semantic tokens - dark */
+  --color-page-bg: var(--tabler-page-bg);
+  --color-page-grad-a: oklch(12.9% 0.042 264.695 / 0.62);
+  --color-page-grad-b: oklch(12.9% 0.042 264.695 / 0.5);
+  --color-sidebar-bg: var(--tabler-sidebar-bg);
+  --color-overlay: rgb(1 4 10 / 0.74);
+
+  --color-surface-1: var(--tabler-surface-1);
+  --color-surface-2: var(--tabler-surface-2);
+  --color-surface-3: var(--tabler-surface-3);
+
+  --color-text-primary: var(--tabler-text);
+  --color-text-secondary: color-mix(in srgb, var(--tabler-text) 84%, black);
+  --color-text-muted: var(--tabler-text-soft);
+  --color-text-inverse: #ffffff;
+
+  --color-border: var(--tabler-border);
+  --color-border-strong: var(--tabler-border-strong);
+  --color-border-accent: color-mix(in srgb, var(--tabler-primary) 52%, transparent);
+  --color-border-focus: color-mix(in srgb, var(--tabler-primary) 62%, white);
+
+  --color-accent: var(--tabler-primary);
+  --color-accent-hover: var(--tabler-primary-hover);
+  --color-accent-soft: color-mix(in srgb, var(--tabler-primary) 24%, transparent);
+  --color-accent-contrast: #ffffff;
+
+  --color-success: var(--tabler-success);
+  --color-warning: #f59e0b;
+  --color-danger: var(--tabler-danger);
+  --color-info: #38bdf8;
+
+  --radius-sm: var(--tabler-radius-sm);
+  --radius-md: var(--tabler-radius-md);
+  --radius-lg: var(--tabler-radius-lg);
+  --shadow-sm: var(--tabler-shadow-sm);
+  --shadow-md: var(--tabler-shadow-md);
 }
 
 body {
   @apply min-h-dvh antialiased transition-colors;
   background:
-    radial-gradient(circle at 0% 0%, oklch(12.9% 0.042 264.695 / 0.58), transparent 44%),
-    radial-gradient(circle at 100% 0%, oklch(12.9% 0.042 264.695 / 0.42), transparent 46%),
-    var(--tabler-page-bg);
-  color: var(--tabler-text);
+    radial-gradient(circle at 0% 0%, var(--color-page-grad-a), transparent 44%),
+    radial-gradient(circle at 100% 0%, var(--color-page-grad-b), transparent 46%),
+    var(--color-page-bg);
+  color: var(--color-text-primary);
   font-feature-settings: "cv11", "ss01";
 }
 
 .dark body {
   background:
-    radial-gradient(circle at 0% 0%, oklch(12.9% 0.042 264.695 / 0.62), transparent 44%),
-    radial-gradient(circle at 100% 0%, oklch(12.9% 0.042 264.695 / 0.5), transparent 46%),
-    var(--tabler-page-bg);
+    radial-gradient(circle at 0% 0%, var(--color-page-grad-a), transparent 44%),
+    radial-gradient(circle at 100% 0%, var(--color-page-grad-b), transparent 46%),
+    var(--color-page-bg);
 }
 
 @layer base {
@@ -69,6 +171,150 @@ body {
 @layer components {
   .tabler-shell {
     @apply w-full px-0 py-0;
+  }
+
+  /* Semantic utility classes */
+  .app-page {
+    @apply relative min-h-dvh overflow-x-clip;
+    background: transparent;
+    color: var(--color-text-primary);
+  }
+
+  .app-sidebar {
+    background: var(--color-sidebar-bg);
+    border-color: var(--color-border-strong);
+    box-shadow: var(--shadow-md);
+  }
+
+  .app-card {
+    background: var(--color-surface-1);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+  }
+
+  .app-panel {
+    background: var(--color-surface-2);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+  }
+
+  .text-primary {
+    color: var(--color-text-primary);
+  }
+
+  .text-secondary {
+    color: var(--color-text-secondary);
+  }
+
+  .text-muted {
+    color: var(--color-text-muted);
+  }
+
+  .border-default {
+    border-color: var(--color-border);
+  }
+
+  .border-strong {
+    border-color: var(--color-border-strong);
+  }
+
+  .border-accent {
+    border-color: var(--color-border-accent);
+  }
+
+  .focus-ring {
+    outline: none;
+    border-color: var(--color-border-focus);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-accent) 30%, transparent);
+  }
+
+  .btn-primary-semantic {
+    background: var(--color-accent);
+    color: var(--color-accent-contrast);
+    border: 1px solid var(--color-accent);
+    border-radius: var(--radius-sm);
+  }
+
+  .btn-primary-semantic:hover {
+    background: var(--color-accent-hover);
+    border-color: var(--color-accent-hover);
+  }
+
+  .btn-secondary-semantic {
+    background: var(--color-surface-2);
+    color: var(--color-text-primary);
+    border: 1px solid var(--color-border-strong);
+    border-radius: var(--radius-sm);
+  }
+
+  .btn-secondary-semantic:hover {
+    background: color-mix(in srgb, var(--color-surface-3) 88%, transparent);
+  }
+
+  .btn-danger-semantic {
+    background: var(--color-danger);
+    color: var(--color-accent-contrast);
+    border: 1px solid var(--color-danger);
+    border-radius: var(--radius-sm);
+  }
+
+  .btn-ghost-semantic {
+    background: transparent;
+    color: var(--color-text-secondary);
+    border: 1px solid transparent;
+    border-radius: var(--radius-sm);
+  }
+
+  .btn-ghost-semantic:hover {
+    background: var(--color-accent-soft);
+    color: var(--color-text-primary);
+    border-color: var(--color-border-accent);
+  }
+
+  .input-semantic {
+    background: var(--color-surface-1);
+    color: var(--color-text-primary);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+  }
+
+  .input-semantic::placeholder {
+    color: var(--color-text-muted);
+  }
+
+  .input-semantic:focus {
+    border-color: var(--color-border-focus);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-accent) 28%, transparent);
+    outline: none;
+  }
+
+  .table-shell {
+    border: 1px solid var(--color-border-strong);
+    background: color-mix(in srgb, var(--color-surface-2) 92%, transparent);
+    border-radius: var(--radius-md);
+  }
+
+  .table-head {
+    background: color-mix(in srgb, var(--color-surface-3) 90%, transparent);
+  }
+
+  .table-head th {
+    color: var(--color-text-muted);
+    border-bottom: 1px solid var(--color-border-strong);
+  }
+
+  .table-row {
+    border-top: 1px solid var(--color-border);
+  }
+
+  .table-row:hover {
+    background: color-mix(in srgb, var(--color-accent) 10%, transparent);
+  }
+
+  .table-cell {
+    color: var(--color-text-primary);
+    border-top: 1px solid var(--color-border);
   }
 
   .tabler-card {
@@ -113,70 +359,83 @@ body {
   }
 
   .users-desktop-table table thead {
-    @apply bg-zinc-900;
+    background: color-mix(in srgb, var(--color-surface-3) 92%, transparent);
   }
 
   .users-desktop-table table thead th {
-    @apply border-b border-zinc-700 py-3 text-[11px] font-bold uppercase tracking-[0.08em] text-zinc-300;
+    @apply py-3 text-[11px] font-bold uppercase tracking-[0.08em];
+    border-bottom: 1px solid var(--color-border-strong);
+    color: var(--color-text-muted);
   }
 
   .users-desktop-table table tbody tr:nth-child(odd) {
-    @apply bg-zinc-950;
+    background: color-mix(in srgb, var(--color-surface-2) 86%, transparent);
   }
 
   .users-desktop-table table tbody tr:nth-child(even) {
-    @apply bg-zinc-900/60;
+    background: color-mix(in srgb, var(--color-surface-3) 64%, transparent);
   }
 
   .users-desktop-table table tbody tr:hover {
-    @apply bg-zinc-800;
+    background: color-mix(in srgb, var(--color-accent) 10%, transparent);
   }
 
   .users-desktop-table table tbody td {
-    @apply border-zinc-800 text-zinc-200;
+    border-color: var(--color-border);
+    color: var(--color-text-primary);
   }
 
   .users-desktop-table table tbody td p {
-    @apply text-zinc-200;
+    color: var(--color-text-primary);
   }
 
   .users-desktop-table table tbody td .text-slate-500,
   .users-desktop-table table tbody td .text-slate-600,
   .users-desktop-table table tbody td .dark\:text-slate-400 {
-    @apply text-zinc-400;
+    color: var(--color-text-muted);
   }
 
   /* NextUI-like table skin for Users */
   .users-nextui-table .overflow-x-auto {
-    @apply overflow-hidden rounded-2xl border border-zinc-700/60 bg-zinc-950/75 shadow-[0_16px_40px_rgba(0,0,0,0.45)];
+    @apply overflow-hidden rounded-2xl;
+    border: 1px solid color-mix(in srgb, var(--color-border-strong) 85%, transparent);
+    background: color-mix(in srgb, var(--color-surface-2) 88%, transparent);
+    box-shadow: var(--shadow-md);
   }
 
   .users-nextui-table table thead {
-    background: linear-gradient(180deg, rgba(39, 39, 42, 0.95) 0%, rgba(24, 24, 27, 0.95) 100%);
+    background: linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--color-surface-3) 96%, transparent) 0%,
+      color-mix(in srgb, var(--color-surface-2) 92%, transparent) 100%
+    );
   }
 
   .users-nextui-table table thead th {
-    @apply border-b border-zinc-700/80 px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.08em] text-zinc-300;
+    @apply px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.08em];
+    border-bottom: 1px solid color-mix(in srgb, var(--color-border-strong) 82%, transparent);
+    color: var(--color-text-muted);
   }
 
   .users-nextui-table table tbody tr {
-    @apply border-t border-zinc-800/70;
+    border-top: 1px solid color-mix(in srgb, var(--color-border) 80%, transparent);
   }
 
   .users-nextui-table table tbody tr:nth-child(odd) {
-    background: rgba(24, 24, 27, 0.78);
+    background: color-mix(in srgb, var(--color-surface-2) 84%, transparent);
   }
 
   .users-nextui-table table tbody tr:nth-child(even) {
-    background: rgba(39, 39, 42, 0.38);
+    background: color-mix(in srgb, var(--color-surface-3) 58%, transparent);
   }
 
   .users-nextui-table table tbody tr:hover {
-    background: rgba(82, 82, 91, 0.58) !important;
+    background: color-mix(in srgb, var(--color-accent) 12%, transparent) !important;
   }
 
   .users-nextui-table table tbody td {
-    @apply px-4 py-3 text-zinc-100;
+    @apply px-4 py-3;
+    color: var(--color-text-primary);
   }
 
   .users-nextui-table table tbody tr:first-child td:first-child {

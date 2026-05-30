@@ -33,13 +33,13 @@ export function AccountsToolbar({
     <section className="p-0">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
-          <span className="inline-flex h-7 w-7 items-center justify-center rounded-none bg-zinc-800 text-zinc-200">
+          <span className="inline-flex h-7 w-7 items-center justify-center rounded-none border border-strong bg-[var(--color-surface-3)] text-primary">
             <SlidersHorizontal className="h-4 w-4" aria-hidden="true" />
           </span>
           <div>
-            <p className="text-xs font-bold uppercase tracking-wide text-zinc-200">Filtros</p>
-            <p className="text-[11px] font-medium text-zinc-400">
-              Mostrando <span className="font-semibold text-zinc-100">{filtered}</span> de <span className="font-semibold text-zinc-100">{total}</span> registros
+            <p className="text-primary text-xs font-bold uppercase tracking-wide">Filtros</p>
+            <p className="text-muted text-[11px] font-medium">
+              Mostrando <span className="text-primary font-semibold">{filtered}</span> de <span className="text-primary font-semibold">{total}</span> registros
             </p>
           </div>
         </div>
@@ -47,7 +47,7 @@ export function AccountsToolbar({
           <Button
             type="button"
             variant="ghost"
-            className="h-8 border border-zinc-700 bg-zinc-900 px-2.5 text-[11px] font-bold text-zinc-200 hover:bg-zinc-800"
+            className="btn-secondary-semantic h-8 px-2.5 text-[11px] font-bold"
             onClick={onResetFilters}
           >
             <RotateCcw className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
@@ -57,42 +57,42 @@ export function AccountsToolbar({
       </div>
 
       <div className="grid gap-2 p-2 lg:grid-cols-[1fr_150px_150px_auto] lg:items-end">
-        <label className="grid gap-1 text-xs font-medium uppercase tracking-wide text-zinc-300">
+        <label className="text-secondary grid gap-1 text-xs font-medium uppercase tracking-wide">
           <span>Buscar</span>
           <div className="relative">
-            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-zinc-500" aria-hidden="true" />
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted" aria-hidden="true" />
             <Input
               value={search}
               onChange={(event) => onSearchChange(event.target.value)}
               placeholder="Nombre de cuenta"
-              className="h-8 rounded-none border-zinc-700 bg-zinc-900 pl-8 text-xs text-zinc-100 placeholder:text-zinc-500"
+              className="input-semantic h-8 rounded-none pl-8 text-xs"
             />
           </div>
         </label>
 
-        <label className="grid gap-1 text-xs font-medium uppercase tracking-wide text-zinc-300">
+        <label className="text-secondary grid gap-1 text-xs font-medium uppercase tracking-wide">
           <span>Estado</span>
           <select
             value={status}
             onChange={(event) => onStatusChange(event.target.value as "all" | "active" | "inactive")}
-            className="h-8 rounded-none border border-zinc-700 bg-zinc-900 px-2 text-xs font-semibold text-zinc-100 transition focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500"
+            className="input-semantic h-8 rounded-none px-2 text-xs font-semibold"
           >
-            <option className="bg-zinc-900 text-zinc-100" value="all">Todas</option>
-            <option className="bg-zinc-900 text-zinc-100" value="active">Activas</option>
-            <option className="bg-zinc-900 text-zinc-100" value="inactive">Inactivas</option>
+            <option value="all">Todas</option>
+            <option value="active">Activas</option>
+            <option value="inactive">Inactivas</option>
           </select>
         </label>
 
-        <label className="grid gap-1 text-xs font-medium uppercase tracking-wide text-zinc-300">
+        <label className="text-secondary grid gap-1 text-xs font-medium uppercase tracking-wide">
           <span>Tipo</span>
           <select
             value={type}
             onChange={(event) => onTypeChange(event.target.value as "all" | "credit" | "cash")}
-            className="h-8 rounded-none border border-zinc-700 bg-zinc-900 px-2 text-xs font-semibold text-zinc-100 transition focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500"
+            className="input-semantic h-8 rounded-none px-2 text-xs font-semibold"
           >
-            <option className="bg-zinc-900 text-zinc-100" value="all">Todos</option>
-            <option className="bg-zinc-900 text-zinc-100" value="credit">Crédito</option>
-            <option className="bg-zinc-900 text-zinc-100" value="cash">Efectivo</option>
+            <option value="all">Todos</option>
+            <option value="credit">Crédito</option>
+            <option value="cash">Efectivo</option>
           </select>
         </label>
 
@@ -100,7 +100,7 @@ export function AccountsToolbar({
           <Button
             type="button"
             variant="primary"
-            className="h-8 !rounded-md !border-[#0F3158] !bg-[#0F3158] px-3 text-xs font-bold text-white hover:!border-[#144277] hover:!bg-[#144277]"
+            className="h-8 rounded-md px-3 text-xs font-bold"
             onClick={onCreate}
           >
             <Plus className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />

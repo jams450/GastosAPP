@@ -70,7 +70,7 @@ export function CatalogSingleScreenClient<TData>({
       <section className="space-y-2 md:space-y-2">
         {loading || !data ? (
           <Card className="p-4">
-            <p className="text-xs text-slate-600 dark:text-slate-400">Cargando catálogo...</p>
+            <p className="text-muted text-xs">Cargando catálogo...</p>
           </Card>
         ) : (
           renderSection({

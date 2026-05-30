@@ -7,6 +7,10 @@ const themeInitScript = `
     const saved = localStorage.getItem("theme");
     const shouldUseDark = saved ? saved === "dark" : true;
     document.documentElement.classList.toggle("dark", shouldUseDark);
+
+    const savedPalette = localStorage.getItem("paletteTheme");
+    const palette = savedPalette === "blue" || savedPalette === "light-blue" ? savedPalette : "light-blue";
+    document.documentElement.setAttribute("data-theme", palette);
   } catch {}
 })();
 `;

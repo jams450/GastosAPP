@@ -10,7 +10,7 @@ type Props = {
 export function CreditFields({ form, errors, onChange }: Props) {
   return (
     <div className="space-y-3">
-      <label className="flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-300">
+      <label className="text-secondary flex items-center gap-2 text-sm font-medium">
         <input type="checkbox" checked={form.isCredit} onChange={(event) => onChange("isCredit", event.target.checked)} />
         Es cuenta de crédito
       </label>

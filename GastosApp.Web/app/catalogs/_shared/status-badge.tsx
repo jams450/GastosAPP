@@ -3,8 +3,8 @@ export function StatusBadge({ active }: { active: boolean }) {
     <span
       className={
         active
-          ? "rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300"
-          : "rounded-full bg-slate-200 px-2 py-0.5 text-[10px] font-semibold text-slate-700 dark:bg-slate-800 dark:text-slate-300"
+          ? "rounded-full border border-[var(--color-success)]/35 bg-[var(--color-success)]/14 px-2 py-0.5 text-[10px] font-semibold text-[var(--color-success)]"
+          : "rounded-full border border-[var(--color-border-strong)] bg-[var(--color-surface-3)] px-2 py-0.5 text-[10px] font-semibold text-muted"
       }
     >
       {active ? "Activo" : "Inactivo"}

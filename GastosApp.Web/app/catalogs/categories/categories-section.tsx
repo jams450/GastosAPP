@@ -177,8 +177,8 @@ export function CategoriesSection({ categories, onCatalogChanged, onError, onSuc
       accessorKey: "color",
       header: "Color",
       cell: ({ row }) => (
-        <span className="inline-flex items-center gap-1.5 text-xs text-slate-700 dark:text-slate-300">
-          <span className="h-2.5 w-2.5 rounded-full border border-slate-300" style={{ backgroundColor: row.original.color }} />
+        <span className="text-secondary inline-flex items-center gap-1.5 text-xs">
+          <span className="border-default h-2.5 w-2.5 rounded-full border" style={{ backgroundColor: row.original.color }} />
           {row.original.color}
         </span>
       )
@@ -233,7 +233,7 @@ export function CategoriesSection({ categories, onCatalogChanged, onError, onSuc
                 <select
                   value={typeFilter}
                   onChange={(event) => setTypeFilter(event.target.value as CategoryType | "all")}
-                  className="h-8 rounded-none border border-zinc-700 bg-zinc-900 px-2 text-xs text-zinc-100 outline-none transition focus:border-zinc-500 focus:ring-1 focus:ring-zinc-600"
+                  className="input-semantic h-8 rounded-none px-2 text-xs"
                 >
                   <option value="all">Todos</option>
                   <option value="income">Ingreso</option>
@@ -279,22 +279,22 @@ export function CategoriesSection({ categories, onCatalogChanged, onError, onSuc
       </section>
 
       {categoryModalOpen ? (
-        <div className="fixed inset-0 z-[70] flex items-end justify-end bg-black/70 p-0 backdrop-blur-sm sm:items-stretch">
-          <Card className="relative flex h-[100dvh] w-full flex-col rounded-none border-l border-blue-500/40 bg-zinc-950 p-0 shadow-[0_0_40px_rgba(37,99,235,0.15)] sm:h-full sm:max-w-xl">
+        <div className="fixed inset-0 z-[70] flex items-end justify-end bg-[var(--color-overlay)] p-0 backdrop-blur-sm sm:items-stretch">
+          <Card className="relative flex h-[100dvh] w-full flex-col app-sidebar rounded-none border-l p-0 sm:h-full sm:max-w-xl">
             <form className="flex h-full flex-col" onSubmit={(event) => void submitCategory(event)}>
-              <div className="sticky top-0 z-10 border-b border-blue-500/30 bg-zinc-950/95 px-4 py-3 sm:px-5 sm:py-4">
-                <div className="mb-1 h-1 w-12 bg-blue-500/80 sm:hidden" aria-hidden="true" />
-                <h3 className="text-base font-semibold tracking-wide text-zinc-100 sm:text-lg">{categoryForm.id ? "Editar categoría" : "Nueva categoría"}</h3>
+              <div className="sticky top-0 z-10 border-b border-strong bg-[color-mix(in_srgb,var(--color-surface-1)_95%,transparent)] px-4 py-3 sm:px-5 sm:py-4">
+                <div className="mb-1 h-1 w-12 bg-[var(--color-accent)]/70 sm:hidden" aria-hidden="true" />
+                <h3 className="text-base font-semibold tracking-wide text-primary sm:text-lg">{categoryForm.id ? "Editar categoría" : "Nueva categoría"}</h3>
               </div>
               <div className="flex-1 space-y-4 overflow-y-auto px-4 py-4 sm:px-5 sm:py-5">
               <Input label="Nombre" value={categoryForm.name} onChange={(event) => setCategoryForm((current) => ({ ...current, name: event.target.value }))} required />
               <Input label="Color" type="color" value={categoryForm.color} onChange={(event) => setCategoryForm((current) => ({ ...current, color: event.target.value }))} />
-              <label className="grid gap-1.5 text-sm font-medium text-zinc-300">
+              <label className="grid gap-1.5 text-sm font-medium text-secondary">
                 Tipo
                 <select
                   value={categoryForm.type}
                   onChange={(event) => setCategoryForm((current) => ({ ...current, type: event.target.value as CategoryType }))}
-                  className="h-11 rounded-md border border-zinc-700 bg-zinc-900 px-3 text-sm text-zinc-100 outline-none focus:border-zinc-500 focus:ring-1 focus:ring-zinc-600"
+                  className="input-semantic h-11 rounded-md px-3 text-sm"
                 >
                   <option value="income">Ingreso</option>
                   <option value="expense">Gasto</option>
@@ -307,7 +307,7 @@ export function CategoriesSection({ categories, onCatalogChanged, onError, onSuc
                 onChange={(event) => setCategoryForm((current) => ({ ...current, tagsText: event.target.value }))}
                 placeholder="steam, fanatical, oferta"
               />
-              <label className="flex items-center gap-2 text-sm text-zinc-300">
+              <label className="text-secondary flex items-center gap-2 text-sm">
                 <input
                   type="checkbox"
                   checked={categoryForm.active}
@@ -316,12 +316,12 @@ export function CategoriesSection({ categories, onCatalogChanged, onError, onSuc
                 Activa
               </label>
               </div>
-              <div className="border-t border-blue-500/30 bg-zinc-950/95 px-4 py-3 sm:px-5 sm:py-4">
+              <div className="border-t border-strong bg-[color-mix(in_srgb,var(--color-surface-1)_95%,transparent)] px-4 py-3 sm:px-5 sm:py-4">
                 <div className="flex justify-end gap-2">
-                <Button type="button" variant="secondary" className="h-9 rounded-md border-zinc-700 bg-zinc-900 text-zinc-100 hover:border-zinc-600 hover:bg-zinc-800" onClick={() => setCategoryModalOpen(false)}>
+                <Button type="button" variant="secondary" className="btn-secondary-semantic h-9 rounded-md" onClick={() => setCategoryModalOpen(false)}>
                   Cancelar
                 </Button>
-                <Button type="submit" loading={saving} loadingText="Guardando..." className="h-9 rounded-md !border-[#0F3158] !bg-[#0F3158] text-white hover:!border-[#144277] hover:!bg-[#144277]">
+                <Button type="submit" loading={saving} loadingText="Guardando..." className="h-9 rounded-md">
                   Guardar
                 </Button>
                 </div>

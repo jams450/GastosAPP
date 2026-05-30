@@ -1,5 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/ui/cn";
+import { tableActionBaseClass, tableActionStyles } from "@/lib/ui/table-action-styles";
 import type { AdminUser } from "@/lib/contracts/users-admin";
 import { Pencil, Power, Trash2 } from "lucide-react";
 
@@ -12,7 +13,7 @@ type Props = {
 };
 
 export function UserActionsMenu({ user, mobile = false, onEdit, onToggleActive, onDelete }: Props) {
-  const baseClass = "h-8 border px-2 text-[11px] font-semibold";
+  const baseClass = tableActionBaseClass;
 
   return (
     <div className={cn("flex justify-end gap-1.5", mobile && "grid grid-cols-3 gap-1.5")} role="group" aria-label={`Acciones para ${user.email}`}>
@@ -21,7 +22,7 @@ export function UserActionsMenu({ user, mobile = false, onEdit, onToggleActive, 
         variant="ghost"
         className={cn(
           baseClass,
-          "border-[#0F3158] bg-[#0F3158]/20 text-blue-200 hover:border-[#144277] hover:bg-[#144277]/25"
+          tableActionStyles.edit
         )}
         onClick={() => onEdit(user)}
         aria-label={`Editar usuario ${user.email}`}
@@ -36,8 +37,8 @@ export function UserActionsMenu({ user, mobile = false, onEdit, onToggleActive, 
         className={cn(
           baseClass,
           user.active
-            ? "border-amber-400/50 bg-amber-500/15 text-amber-200 hover:border-amber-300/70 hover:bg-amber-500/25"
-            : "border-emerald-400/50 bg-emerald-500/15 text-emerald-200 hover:border-emerald-300/70 hover:bg-emerald-500/25"
+            ? tableActionStyles.deactivate
+            : tableActionStyles.activate
         )}
         onClick={() => onToggleActive(user)}
         aria-label={`${user.active ? "Desactivar" : "Activar"} usuario ${user.email}`}
@@ -51,7 +52,7 @@ export function UserActionsMenu({ user, mobile = false, onEdit, onToggleActive, 
         variant="ghost"
         className={cn(
           baseClass,
-          "border-rose-400/50 bg-rose-500/15 text-rose-200 hover:border-rose-300/70 hover:bg-rose-500/25"
+          tableActionStyles.delete
         )}
         onClick={() => onDelete(user)}
         aria-label={`Borrar usuario ${user.email}`}

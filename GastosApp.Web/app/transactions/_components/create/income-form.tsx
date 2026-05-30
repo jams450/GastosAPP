@@ -122,8 +122,8 @@ export function IncomeForm({
   return (
     <form onSubmit={onSubmit} className="space-y-5">
       <header className="space-y-1">
-        <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">Nuevo ingreso</h3>
-        <p className="text-xs text-slate-600 dark:text-slate-400">Completa obligatorios primero. Detalles opcionales después.</p>
+        <h3 className="text-base font-semibold text-primary">Nuevo ingreso</h3>
+        <p className="text-xs text-muted">Completa obligatorios primero. Detalles opcionales después.</p>
       </header>
 
       <div className="grid gap-4 lg:grid-cols-2 lg:items-start">
@@ -131,12 +131,12 @@ export function IncomeForm({
         <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">Datos obligatorios</p>
 
         <div className="grid gap-4 md:grid-cols-2">
-          <label className="grid gap-1.5 text-sm font-medium text-slate-700 dark:text-slate-300">
+          <label className="grid gap-1.5 text-sm font-medium text-secondary">
             Cuenta *
             <select
               value={accountId ?? ""}
               onChange={(event) => onAccountIdChange(parseSelectedNumber(event.target.value))}
-              className="h-11 rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+              className="input-semantic h-11 rounded-xl px-3 text-sm"
               required
             >
               <option value="">Selecciona una cuenta</option>
@@ -148,12 +148,12 @@ export function IncomeForm({
             </select>
           </label>
 
-          <label className="grid gap-1.5 text-sm font-medium text-slate-700 dark:text-slate-300">
+          <label className="grid gap-1.5 text-sm font-medium text-secondary">
             Categoría *
             <select
               value={categoryId ?? ""}
               onChange={(event) => onCategoryIdChange(parseSelectedNumber(event.target.value))}
-              className="h-11 rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+              className="input-semantic h-11 rounded-xl px-3 text-sm"
               required
             >
               <option value="">Selecciona una categoría</option>
@@ -180,7 +180,7 @@ export function IncomeForm({
               rightSlot={<span className="text-xs font-semibold text-emerald-700 dark:text-emerald-300">MXN</span>}
               required
             />
-            <p className="px-1 text-xs text-slate-600 dark:text-slate-400">
+            <p className="px-1 text-xs text-muted">
               {amountIsValid ? `Vista previa: ${formatCurrency(amountNumber)}` : "Ingresa monto mayor a 0"}
             </p>
           </div>
@@ -195,10 +195,10 @@ export function IncomeForm({
               required
             />
             <div className="flex flex-wrap gap-2 px-1">
-              <Button type="button" variant="secondary" className="h-8 rounded-lg border-slate-300 px-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800" onClick={setNowDateTime}>
+              <Button type="button" variant="secondary" className="btn-secondary-semantic h-8 rounded-lg px-2.5 text-xs font-semibold" onClick={setNowDateTime}>
                 Ahora
               </Button>
-              <Button type="button" variant="secondary" className="h-8 rounded-lg border-slate-300 px-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800" onClick={setYesterdayNight}>
+              <Button type="button" variant="secondary" className="btn-secondary-semantic h-8 rounded-lg px-2.5 text-xs font-semibold" onClick={setYesterdayNight}>
                 Ayer 21:00
               </Button>
             </div>
@@ -217,26 +217,26 @@ export function IncomeForm({
         <p className="-mt-3 px-1 text-right text-xs text-slate-500 dark:text-slate-400">{description.trim().length}/120</p>
       </section>
 
-      <section className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-950">
+      <section className="app-panel space-y-3 rounded-2xl border p-4">
         <button
           type="button"
           className="flex w-full items-center justify-between rounded-lg px-1 text-left"
           onClick={() => setShowOptional((value) => !value)}
           aria-expanded={showOptional}
         >
-          <span className="text-sm font-semibold text-slate-800 dark:text-slate-200">Más detalles (opcional)</span>
-          <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">{showOptional ? "Ocultar" : "Mostrar"}</span>
+          <span className="text-primary text-sm font-semibold">Más detalles (opcional)</span>
+          <span className="text-muted text-xs font-semibold">{showOptional ? "Ocultar" : "Mostrar"}</span>
         </button>
 
         {showOptional ? (
           <div className="space-y-4">
             <div className="grid gap-4 md:grid-cols-2">
-              <label className="grid gap-1.5 text-sm font-medium text-slate-700 dark:text-slate-300">
+              <label className="grid gap-1.5 text-sm font-medium text-secondary">
                 Subcategoría
                 <select
                   value={subcategoryId ?? ""}
                   onChange={(event) => onSubcategoryIdChange(parseSelectedNumber(event.target.value))}
-                  className="h-11 rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 disabled:cursor-not-allowed disabled:opacity-70 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                  className="input-semantic h-11 rounded-xl px-3 text-sm disabled:cursor-not-allowed disabled:opacity-70"
                   disabled={!categoryId}
                 >
                   <option value="">Sin subcategoría</option>
@@ -249,12 +249,12 @@ export function IncomeForm({
                 {!categoryId ? <span className="text-xs text-slate-500 dark:text-slate-400">Primero selecciona categoría</span> : null}
               </label>
 
-              <label className="grid gap-1.5 text-sm font-medium text-slate-700 dark:text-slate-300">
+              <label className="grid gap-1.5 text-sm font-medium text-secondary">
                 Comercio
                 <select
                   value={merchantId ?? ""}
                   onChange={(event) => onMerchantIdChange(parseSelectedNumber(event.target.value))}
-                  className="h-11 rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                  className="input-semantic h-11 rounded-xl px-3 text-sm"
                 >
                   <option value="">Sin comercio</option>
                   {merchants.map((merchant) => (
@@ -302,9 +302,9 @@ export function IncomeForm({
       {submitError ? <Alert variant="danger">{submitError}</Alert> : null}
       {successMessage ? <Alert variant="info">{successMessage}</Alert> : null}
 
-      <div className="sticky bottom-0 rounded-2xl border border-slate-200 bg-white/95 p-3 backdrop-blur dark:border-slate-800 dark:bg-slate-950/95">
+      <div className="app-panel sticky bottom-0 rounded-2xl border bg-[color-mix(in_srgb,var(--color-surface-1)_92%,transparent)] p-3 backdrop-blur">
         <div className="flex flex-col items-stretch justify-between gap-2 sm:flex-row sm:items-center">
-          <p className="text-xs text-slate-600 dark:text-slate-400">Completa obligatorios para habilitar guardado.</p>
+          <p className="text-xs text-muted">Completa obligatorios para habilitar guardado.</p>
           <Button
             type="submit"
             loading={submitLoading}

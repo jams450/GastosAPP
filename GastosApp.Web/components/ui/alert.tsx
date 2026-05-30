@@ -8,8 +8,8 @@ type AlertProps = ComponentProps<"div"> & {
 };
 
 const variants: Record<AlertVariant, string> = {
-  danger: "border-[var(--tabler-danger)]/35 bg-[var(--tabler-danger)]/10 text-[var(--tabler-danger)]",
-  info: "border-[var(--tabler-primary)]/35 bg-[var(--tabler-primary)]/10 text-[var(--tabler-primary)]"
+  danger: "border-[var(--color-danger)]/35 bg-[var(--color-danger)]/10 text-[var(--color-danger)]",
+  info: "border-[var(--color-accent)]/35 bg-[var(--color-accent)]/10 text-[var(--color-accent)]"
 };
 
 export function Alert({ className, variant = "info", ...props }: AlertProps) {

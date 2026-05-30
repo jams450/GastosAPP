@@ -11,14 +11,10 @@ type ButtonProps = ComponentProps<"button"> & {
 };
 
 const variantClass: Record<ButtonVariant, string> = {
-  primary:
-    "border border-[var(--tabler-primary)] bg-[var(--tabler-primary)] text-white shadow-sm hover:border-[var(--tabler-primary-hover)] hover:bg-[var(--tabler-primary-hover)] disabled:border-slate-400 disabled:bg-slate-400",
-  secondary:
-    "border bg-[var(--tabler-surface-1)] text-[var(--tabler-text)] hover:bg-[var(--tabler-surface-2)]",
-  ghost:
-    "border border-transparent bg-transparent text-[var(--tabler-text)] hover:bg-[var(--tabler-surface-2)]",
-  danger:
-    "border border-[var(--tabler-danger)] bg-[var(--tabler-danger)] text-white hover:brightness-95"
+  primary: "btn-primary-semantic disabled:border-[var(--color-border-strong)] disabled:bg-[var(--color-border-strong)]",
+  secondary: "btn-secondary-semantic",
+  ghost: "btn-ghost-semantic",
+  danger: "btn-danger-semantic hover:brightness-95"
 };
 
 export function Button({
@@ -34,8 +30,8 @@ export function Button({
   return (
     <button
       className={cn(
-        "inline-flex h-10 items-center justify-center gap-2 rounded-lg px-4 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-500 disabled:cursor-not-allowed disabled:opacity-80 dark:focus-visible:ring-zinc-700",
-        "rounded-[var(--tabler-radius-sm)]",
+        "inline-flex h-10 items-center justify-center gap-2 rounded-lg px-4 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-border-focus)] disabled:cursor-not-allowed disabled:opacity-80",
+        "rounded-[var(--radius-sm)]",
         fullWidth && "w-full",
         variantClass[variant],
         className

@@ -40,13 +40,13 @@ export function AdminShell({ username, section, title, subtitle, meta, actions, 
   }
 
   return (
-    <main className="tabler-page">
+    <main className="app-page">
       <div className="tabler-shell flex gap-0 lg:gap-5">
         <aside className="sticky top-0 hidden h-dvh w-72 shrink-0 lg:block">
-          <Card className="flex h-full flex-col rounded-none border-zinc-800/90 bg-[var(--tabler-sidebar-bg)] p-0 shadow-[0_16px_50px_rgba(0,0,0,0.7)]">
-            <div className="border-b border-zinc-800 px-5 py-5">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-zinc-400">GastosApp</p>
-              <h2 className="mt-1 text-lg font-semibold text-zinc-100">Control Center</h2>
+          <Card className="app-sidebar flex h-full flex-col rounded-none border p-0">
+            <div className="border-b border-strong px-5 py-5">
+              <p className="text-muted text-[11px] font-semibold uppercase tracking-[0.2em]">GastosApp</p>
+              <h2 className="text-primary mt-1 text-lg font-semibold">Control Center</h2>
             </div>
 
             <nav className="flex-1 space-y-1.5 p-3" aria-label="Navegación administrativa">
@@ -60,8 +60,8 @@ export function AdminShell({ username, section, title, subtitle, meta, actions, 
                       className={cn(
                         "flex h-11 items-center rounded-md border border-transparent px-3.5 text-sm font-semibold transition",
                         isActive
-                          ? "border-[#0F3158] bg-[#0F3158] text-white shadow-[0_0_0_1px_rgba(15,49,88,0.45)]"
-                          : "text-zinc-300 hover:border-blue-300/60 hover:bg-blue-400/20 hover:text-blue-100"
+                          ? "tabler-badge tabler-badge-solid tabler-badge-primary border-blue-300/60 bg-blue-500/30 text-[11px] font-semibold uppercase tracking-wide text-blue-700 dark:text-blue-300 shadow-[0_0_0_1px_rgba(59,130,246,0.45)]"
+                          : "text-secondary hover:tabler-badge hover:tabler-badge-solid hover:tabler-badge-primary hover:border-blue-300/60 hover:bg-blue-500/25 hover:text-blue-50"
                       )}
                     >
                       <Icon className="mr-2.5 h-4 w-4 shrink-0" aria-hidden="true" />
@@ -79,8 +79,8 @@ export function AdminShell({ username, section, title, subtitle, meta, actions, 
                               className={cn(
                                 "flex h-9 items-center rounded-md border border-transparent px-3 text-xs font-semibold transition",
                                 childActive
-                                  ? "border-[#0F3158] bg-[#0F3158] text-white"
-                                  : "text-zinc-400 hover:border-blue-300/60 hover:bg-blue-400/20 hover:text-blue-100"
+                                  ? "tabler-badge tabler-badge-solid tabler-badge-primary border-blue-300/60 bg-blue-500/30 text-[11px] font-semibold uppercase tracking-wide text-blue-700 dark:text-blue-300"
+                                  : "text-muted hover:tabler-badge hover:tabler-badge-solid hover:tabler-badge-primary hover:border-blue-300/60 hover:bg-blue-500/25 hover:text-blue-50"
                               )}
                             >
                               {child.label}
@@ -94,23 +94,23 @@ export function AdminShell({ username, section, title, subtitle, meta, actions, 
               })}
             </nav>
 
-            <div className="m-3 mt-auto border border-zinc-800 bg-zinc-950 p-3">
-              <div className="mb-3 flex items-center gap-3">
-                <span className="inline-flex h-8 w-8 items-center justify-center bg-zinc-800 text-xs font-semibold text-zinc-100">
+            <section className="m-3 mt-auto space-y-3 rounded-2xl border border-blue-200/50 bg-blue-50/30 p-3 dark:border-blue-900/40 dark:bg-blue-950/20">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-blue-700 dark:text-blue-300">Sesión activa</p>
+              <div className="flex items-center gap-3 rounded-xl border border-blue-200/40 bg-blue-50/35 px-3 py-2 dark:border-blue-900/40 dark:bg-blue-950/30">
+                <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-blue-300/50 bg-blue-500/20 text-xs font-semibold text-blue-800 dark:border-blue-700/60 dark:bg-blue-500/30 dark:text-blue-100">
                   {shortName}
                 </span>
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold text-zinc-100">{username}</p>
-                  <p className="text-[11px] text-zinc-400">Administrador</p>
+                  <p className="text-primary truncate text-sm font-semibold">{username}</p>
+                  <p className="text-[11px] text-blue-700/80 dark:text-blue-200/90">Administrador</p>
                 </div>
               </div>
-              <div className="mb-2">
-                <ThemeToggle className="w-full" />
-              </div>
-              <Button type="button" variant="secondary" loading={loggingOut} loadingText="Saliendo..." className="h-9 w-full" onClick={() => void onLogout()}>
+                  <ThemeToggle className="w-full rounded-xl border-blue-300/50 bg-blue-500/15 text-blue-800 hover:border-blue-400/70 hover:bg-blue-500/30 hover:text-blue-900 dark:border-blue-700/60 dark:bg-blue-500/25 dark:text-blue-100 dark:hover:border-blue-500/70 dark:hover:bg-blue-500/35 dark:hover:text-blue-50" />
+
+              <Button type="button" variant="secondary" loading={loggingOut} loadingText="Saliendo..." className="h-9 w-full rounded-xl border-blue-300/50 bg-blue-500/15 text-blue-800 hover:border-blue-400/70 hover:bg-blue-500/30 hover:text-blue-900 dark:border-blue-700/60 dark:bg-blue-500/25 dark:text-blue-100 dark:hover:border-blue-500/70 dark:hover:bg-blue-500/35 dark:hover:text-blue-50" onClick={() => void onLogout()}>
                 Cerrar sesión
               </Button>
-            </div>
+            </section>
           </Card>
         </aside>
 
@@ -118,15 +118,15 @@ export function AdminShell({ username, section, title, subtitle, meta, actions, 
           <Card className="mr-2 p-0 sm:p-0">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-400">{section}</p>
-                <h1 className="mt-1 text-xl font-semibold tracking-tight text-zinc-100 md:text-2xl">{title}</h1>
-                {subtitle ? <p className="mt-1 text-sm text-zinc-400">{subtitle}</p> : null}
+                <p className="text-muted text-[11px] font-semibold uppercase tracking-[0.16em]">{section}</p>
+                <h1 className="text-primary mt-1 text-xl font-semibold tracking-tight md:text-2xl">{title}</h1>
+                {subtitle ? <p className="text-muted mt-1 text-sm">{subtitle}</p> : null}
               </div>
               {meta ? <div className="hidden sm:block">{meta}</div> : null}
             </div>
 
             {mobileOpen ? (
-              <div id="admin-mobile-nav" className="mt-4 space-y-3 border border-zinc-800 bg-black p-3 lg:hidden">
+              <div id="admin-mobile-nav" className="app-sidebar mt-4 space-y-3 border p-3 lg:hidden">
                 <nav className="grid gap-2 sm:grid-cols-2" aria-label="Navegación móvil administrativa">
                   {appNavItems.map((item) => {
                     const isActive = isRouteActive(pathname, item.href);
@@ -137,10 +137,10 @@ export function AdminShell({ username, section, title, subtitle, meta, actions, 
                           href={item.href}
                           onClick={() => setMobileOpen(false)}
                           className={cn(
-                            "flex h-10 items-center border px-3 text-sm font-semibold transition",
+                            "flex h-10 items-center rounded-md border px-3 text-sm font-semibold transition",
                             isActive
-                              ? "rounded-md border-[#0F3158] bg-[#0F3158] text-white"
-                              : "border-zinc-700 bg-zinc-900 text-zinc-200 hover:bg-zinc-800"
+                              ? "border-accent bg-[var(--color-accent)] text-[var(--color-accent-contrast)]"
+                              : "border-default bg-[var(--color-surface-2)] text-secondary hover:border-accent hover:bg-[var(--color-accent-soft)] hover:text-primary"
                           )}
                         >
                           <Icon className="mr-2.5 h-4 w-4 shrink-0" aria-hidden="true" />
@@ -157,10 +157,10 @@ export function AdminShell({ username, section, title, subtitle, meta, actions, 
                                   href={child.href}
                                   onClick={() => setMobileOpen(false)}
                                   className={cn(
-                                    "flex h-9 items-center border px-3 text-xs font-semibold transition",
+                                    "flex h-9 items-center rounded-md border px-3 text-xs font-semibold transition",
                                     childActive
-                                      ? "rounded-md border-[#0F3158] bg-[#0F3158] text-white"
-                                      : "border-zinc-700 bg-zinc-900 text-zinc-300 hover:bg-zinc-800"
+                                      ? "border-accent bg-[var(--color-accent)] text-[var(--color-accent-contrast)]"
+                                      : "border-default bg-[var(--color-surface-2)] text-muted hover:border-accent hover:bg-[var(--color-accent-soft)] hover:text-primary"
                                   )}
                                 >
                                   {child.label}
@@ -173,10 +173,14 @@ export function AdminShell({ username, section, title, subtitle, meta, actions, 
                     );
                   })}
                 </nav>
-                <ThemeToggle className="w-full" />
-                <Button type="button" variant="secondary" loading={loggingOut} loadingText="Saliendo..." className="h-10 w-full justify-start" onClick={() => void onLogout()}>
-                  Cerrar sesión
-                </Button>
+                <section className="space-y-2 rounded-2xl border border-blue-200/50 bg-blue-50/30 p-2 dark:border-blue-900/40 dark:bg-blue-950/20">
+                  <ThemeToggle className="w-full rounded-xl border-blue-300/50 bg-blue-500/15 text-blue-800 hover:border-blue-400/70 hover:bg-blue-500/30 hover:text-blue-900 dark:border-blue-700/60 dark:bg-blue-500/25 dark:text-blue-100 dark:hover:border-blue-500/70 dark:hover:bg-blue-500/35 dark:hover:text-blue-50" />
+
+
+                  <Button type="button" variant="secondary" loading={loggingOut} loadingText="Saliendo..." className="h-10 w-full justify-start rounded-xl border-blue-300/50 bg-blue-500/15 text-blue-800 hover:border-blue-400/70 hover:bg-blue-500/30 hover:text-blue-900 dark:border-blue-700/60 dark:bg-blue-500/25 dark:text-blue-100 dark:hover:border-blue-500/70 dark:hover:bg-blue-500/35 dark:hover:text-blue-50" onClick={() => void onLogout()}>
+                    Cerrar sesión
+                  </Button>
+                </section>
               </div>
             ) : null}
 

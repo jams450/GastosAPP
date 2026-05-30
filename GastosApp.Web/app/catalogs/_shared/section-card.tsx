@@ -37,9 +37,9 @@ export function SectionCard({
   const showHeader = !hideHeaderBar;
 
   return (
-    <Card className={cn("overflow-hidden rounded-none border-zinc-800 bg-zinc-950 p-2.5", transparentBody && "border-transparent bg-transparent p-0")}>
+    <Card className={cn("app-panel overflow-hidden rounded-none border p-2.5", transparentBody && "border-transparent bg-transparent p-0")}>
       {showHeader ? (
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-zinc-800 pb-2">
+        <div className="border-default flex flex-wrap items-center justify-between gap-2 border-b pb-2">
           <button
             type="button"
             className="flex min-w-0 flex-1 items-center gap-2 px-0.5 py-1 text-left"
@@ -48,15 +48,15 @@ export function SectionCard({
             aria-controls={id}
           >
             <div className="min-w-0">
-              <h2 className="truncate text-sm font-semibold text-zinc-100">{title}</h2>
+              <h2 className="text-primary truncate text-sm font-semibold">{title}</h2>
               {typeof count === "number" ? (
-                <div className="mt-0.5 flex flex-wrap items-center gap-2 text-[11px] text-zinc-400">
-                  <span>Total: <span className="font-semibold text-zinc-200">{count}</span></span>
+                <div className="text-muted mt-0.5 flex flex-wrap items-center gap-2 text-[11px]">
+                  <span>Total: <span className="text-primary font-semibold">{count}</span></span>
                   {typeof activeCount === "number" ? (
-                    <span>Activos: <span className="font-semibold text-zinc-200">{activeCount}</span></span>
+                    <span>Activos: <span className="text-primary font-semibold">{activeCount}</span></span>
                   ) : null}
                   {typeof inactiveCount === "number" ? (
-                    <span>Inactivos: <span className="font-semibold text-zinc-200">{inactiveCount}</span></span>
+                    <span>Inactivos: <span className="text-primary font-semibold">{inactiveCount}</span></span>
                   ) : null}
                 </div>
               ) : null}
