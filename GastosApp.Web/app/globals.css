@@ -4,7 +4,8 @@
 
 :root {
   color-scheme: light;
-  --tabler-page-bg: #f4f6fb;
+  --tabler-page-bg: #0b1220;
+  --tabler-sidebar-bg: oklch(12.9% 0.042 264.695);
   --tabler-surface-1: #ffffff;
   --tabler-surface-2: #f8fafc;
   --tabler-surface-3: #f1f5f9;
@@ -25,7 +26,8 @@
 
 .dark {
   color-scheme: dark;
-  --tabler-page-bg: #020202;
+  --tabler-page-bg: #060b16;
+  --tabler-sidebar-bg: oklch(12.9% 0.042 264.695);
   --tabler-surface-1: #090909;
   --tabler-surface-2: #111111;
   --tabler-surface-3: #171717;
@@ -43,9 +45,19 @@
 
 body {
   @apply min-h-dvh antialiased transition-colors;
-  background: var(--tabler-page-bg);
+  background:
+    radial-gradient(circle at 0% 0%, oklch(12.9% 0.042 264.695 / 0.58), transparent 44%),
+    radial-gradient(circle at 100% 0%, oklch(12.9% 0.042 264.695 / 0.42), transparent 46%),
+    var(--tabler-page-bg);
   color: var(--tabler-text);
   font-feature-settings: "cv11", "ss01";
+}
+
+.dark body {
+  background:
+    radial-gradient(circle at 0% 0%, oklch(12.9% 0.042 264.695 / 0.62), transparent 44%),
+    radial-gradient(circle at 100% 0%, oklch(12.9% 0.042 264.695 / 0.5), transparent 46%),
+    var(--tabler-page-bg);
 }
 
 @layer base {
@@ -234,7 +246,7 @@ body {
 
   .tabler-page {
     @apply relative min-h-dvh overflow-x-clip;
-    background: var(--tabler-page-bg);
+    background: transparent;
   }
 
   .tabler-page-gradient {

@@ -9,5 +9,9 @@ export default async function BillablePartiesCatalogPage() {
     redirect("/login");
   }
 
+  if ((session.user.role ?? "").toLowerCase() !== "admin") {
+    redirect("/dashboard");
+  }
+
   return <BillablePartiesClient username={session.user.username} />;
 }

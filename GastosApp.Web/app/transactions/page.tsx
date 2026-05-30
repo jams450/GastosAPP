@@ -1,13 +1,7 @@
 import { redirect } from "next/navigation";
-import { getServerSession } from "@/lib/auth/session";
-import { TransactionsClient } from "./transactions-client";
+import { requireTransactionsSession } from "./_lib/transactions-route-guard";
 
 export default async function TransactionsPage() {
-  const session = await getServerSession();
-
-  if (!session) {
-    redirect("/login");
-  }
-
-  return <TransactionsClient username={session.user.username} />;
+  await requireTransactionsSession();
+  redirect("/transactions/expense");
 }

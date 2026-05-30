@@ -16,8 +16,6 @@ import { useCatalogSectionState } from "../_shared/use-catalog-section-state";
 type Props = {
   categories: Category[];
   subcategories: Subcategory[];
-  expanded: boolean;
-  onToggle: () => void;
   onCatalogChanged: () => Promise<void>;
   onError: (message: string | null) => void;
   onSuccess: (message: string) => void;
@@ -37,6 +35,38 @@ function emptySubcategoryForm(categories: Category[]): SubcategoryFormState {
     name: "",
     active: true
   };
+}
+
+function toSubcategoryRequestPayload(form: SubcategoryFormState) {
+  return {
+    categoryId: form.categoryId,
+    name: form.name.trim(),
+    active: form.active
+  };
+}
+
+async function createSubcategory(payload: ReturnType<typeof toSubcategoryRequestPayload>) {
+  await requestJson(
+    "/api/bff/catalogs/subcategories",
+    { method: "POST", body: JSON.stringify(payload) },
+    "No se pudo crear la subcategoría"
+  );
+}
+
+async function updateSubcategory(subcategoryId: number, payload: ReturnType<typeof toSubcategoryRequestPayload>) {
+  await requestJson(
+    `/api/bff/catalogs/subcategories/${subcategoryId}`,
+    { method: "PUT", body: JSON.stringify(payload) },
+    "No se pudo actualizar la subcategoría"
+  );
+}
+
+async function patchSubcategoryActive(subcategoryId: number, active: boolean) {
+  await requestJson(
+    `/api/bff/catalogs/subcategories/${subcategoryId}/active`,
+    { method: "PATCH", body: JSON.stringify({ active }) },
+    "No se pudo actualizar el estado de la subcategoría"
+  );
 }
 
 export function SubcategoriesSection({ categories, subcategories, onCatalogChanged, onError, onSuccess }: Props) {
@@ -101,25 +131,13 @@ export function SubcategoriesSection({ categories, subcategories, onCatalogChang
     setSaving(true);
     onError(null);
     try {
-      const payload = {
-        categoryId: subcategoryForm.categoryId,
-        name: subcategoryForm.name,
-        active: subcategoryForm.active
-      };
+      const payload = toSubcategoryRequestPayload(subcategoryForm);
 
       if (subcategoryForm.id) {
-        await requestJson(
-          `/api/bff/catalogs/subcategories/${subcategoryForm.id}`,
-          { method: "PUT", body: JSON.stringify(payload) },
-          "No se pudo actualizar la subcategoría"
-        );
+        await updateSubcategory(subcategoryForm.id, payload);
         onSuccess("Subcategoría actualizada correctamente.");
       } else {
-        await requestJson(
-          "/api/bff/catalogs/subcategories",
-          { method: "POST", body: JSON.stringify(payload) },
-          "No se pudo crear la subcategoría"
-        );
+        await createSubcategory(payload);
         onSuccess("Subcategoría creada correctamente.");
       }
 
@@ -136,11 +154,7 @@ export function SubcategoriesSection({ categories, subcategories, onCatalogChang
     setSaving(true);
     onError(null);
     try {
-      await requestJson(
-        `/api/bff/catalogs/subcategories/${subcategory.subcategoryId}/active`,
-        { method: "PATCH", body: JSON.stringify({ active: !subcategory.active }) },
-        "No se pudo actualizar el estado de la subcategoría"
-      );
+      await patchSubcategoryActive(subcategory.subcategoryId, !subcategory.active);
       onSuccess(`Subcategoría ${!subcategory.active ? "activada" : "desactivada"}.`);
       await onCatalogChanged();
     } catch (err) {

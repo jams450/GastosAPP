@@ -9,5 +9,9 @@ export default async function CategoriesCatalogPage() {
     redirect("/login");
   }
 
+  if ((session.user.role ?? "").toLowerCase() !== "admin") {
+    redirect("/dashboard");
+  }
+
   return <CategoriesClient username={session.user.username} />;
 }

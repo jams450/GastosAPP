@@ -28,28 +28,38 @@ import { parseApiError } from "@/lib/bff/client-session";
 
 type Props = {
   username: string;
+  fixedKind?: TransactionKind;
+  fixedViewMode?: ViewMode;
 };
 
-export function TransactionsClient({ username }: Props) {
+export function TransactionsClient({ username, fixedKind, fixedViewMode }: Props) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
   const urlKind = useMemo<TransactionKind>(() => {
+    if (fixedKind) {
+      return fixedKind;
+    }
+
     const value = searchParams.get("kind");
     if (value === "income" || value === "expense" || value === "transfer") {
       return value;
     }
     return "expense";
-  }, [searchParams]);
+  }, [fixedKind, searchParams]);
 
   const urlViewMode = useMemo<ViewMode>(() => {
+    if (fixedViewMode) {
+      return fixedViewMode;
+    }
+
     const value = searchParams.get("view");
     if (value === "create" || value === "history") {
       return value;
     }
     return "create";
-  }, [searchParams]);
+  }, [fixedViewMode, searchParams]);
 
   function createAllocationRow(billablePartyId: number | null = null, value = ""): ExpenseAllocationFormState {
     return {
@@ -104,20 +114,32 @@ export function TransactionsClient({ username }: Props) {
   const [applyPaymentError, setApplyPaymentError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (fixedKind) {
+      return;
+    }
+
     if (kind !== urlKind) {
       setKind(urlKind);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [urlKind]);
+  }, [fixedKind, urlKind]);
 
   useEffect(() => {
+    if (fixedViewMode) {
+      return;
+    }
+
     if (viewMode !== urlViewMode) {
       setViewMode(urlViewMode);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [urlViewMode]);
+  }, [fixedViewMode, urlViewMode]);
 
   useEffect(() => {
+    if (fixedKind || fixedViewMode) {
+      return;
+    }
+
     const params = new URLSearchParams(searchParams.toString());
     const currentView = params.get("view");
     const currentKind = params.get("kind");
@@ -129,7 +151,7 @@ export function TransactionsClient({ username }: Props) {
     params.set("kind", kind);
     const nextUrl = `${pathname}?${params.toString()}`;
     router.replace(nextUrl, { scroll: false });
-  }, [kind, pathname, router, searchParams, viewMode]);
+  }, [fixedKind, fixedViewMode, kind, pathname, router, searchParams, viewMode]);
 
   const loadCatalogs = useCallback(async () => {
     setCatalogsLoading(true);
@@ -477,35 +499,40 @@ export function TransactionsClient({ username }: Props) {
     >
       <section className="space-y-2 md:space-y-2">
         <Card className="space-y-5 p-5 md:p-6">
-          <div className="grid grid-cols-2 gap-2 sm:w-[360px]">
-            <Button type="button" variant={viewMode === "create" ? "primary" : "secondary"} className="h-9" onClick={() => setViewMode("create")}>
-              Nueva
-            </Button>
-            <Button type="button" variant={viewMode === "history" ? "primary" : "secondary"} className="h-9" onClick={() => setViewMode("history")}>
-              Historial
-            </Button>
-          </div>
+          {!fixedViewMode ? (
+            <div className="grid grid-cols-2 gap-2 sm:w-[360px]">
+              <Button type="button" variant={viewMode === "create" ? "primary" : "secondary"} className="h-9" onClick={() => setViewMode("create")}>
+                Nueva
+              </Button>
+              <Button type="button" variant={viewMode === "history" ? "primary" : "secondary"} className="h-9" onClick={() => setViewMode("history")}>
+                Historial
+              </Button>
+            </div>
+          ) : null}
 
           {viewMode === "create" ? (
             <>
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-                {(["income", "expense", "transfer"] as TransactionKind[]).map((item) => (
-                  <Button
-                    key={item}
-                    type="button"
-                    variant={kind === item ? "primary" : "secondary"}
-                    onClick={() => {
-                      setKind(item);
-                      setSubmitError(null);
-                      setSuccessMessage(null);
-                      setOpeningCreditCharge(false);
-                    }}
-                    className="h-10"
-                  >
-                    {typeLabel[item]}
-                  </Button>
-                ))}
-              </div>
+               {!fixedKind ? (
+                 <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                   {(["income", "expense", "transfer"] as TransactionKind[]).map((item) => (
+                     <Button
+                       key={item}
+                       type="button"
+                       variant={kind === item ? "primary" : "secondary"}
+                       onClick={() => {
+                         setKind(item);
+                         setSubmitError(null);
+                         setSuccessMessage(null);
+                         setOpeningCreditCharge(false);
+                       }}
+                       className="h-10"
+                     >
+                       {typeLabel[item]}
+                     </Button>
+                   ))}
+                 </div>
+               ) : null}
+
 
               {catalogsLoading ? (
                 <p className="text-sm text-slate-600 dark:text-slate-400">Cargando catálogos...</p>

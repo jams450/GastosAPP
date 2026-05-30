@@ -43,7 +43,7 @@ export function AdminShell({ username, section, title, subtitle, meta, actions, 
     <main className="tabler-page">
       <div className="tabler-shell flex gap-0 lg:gap-5">
         <aside className="sticky top-0 hidden h-dvh w-72 shrink-0 lg:block">
-          <Card className="flex h-full flex-col rounded-none border-zinc-800/90 bg-black p-0 shadow-[0_16px_50px_rgba(0,0,0,0.7)]">
+          <Card className="flex h-full flex-col rounded-none border-zinc-800/90 bg-[var(--tabler-sidebar-bg)] p-0 shadow-[0_16px_50px_rgba(0,0,0,0.7)]">
             <div className="border-b border-zinc-800 px-5 py-5">
               <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-zinc-400">GastosApp</p>
               <h2 className="mt-1 text-lg font-semibold text-zinc-100">Control Center</h2>
@@ -58,10 +58,10 @@ export function AdminShell({ username, section, title, subtitle, meta, actions, 
                     <Link
                       href={item.href}
                       className={cn(
-                        "flex h-11 items-center border border-transparent px-3.5 text-sm font-semibold transition",
+                        "flex h-11 items-center rounded-md border border-transparent px-3.5 text-sm font-semibold transition",
                         isActive
-                          ? "rounded-md border-[#0F3158] bg-[#0F3158] text-white shadow-[0_0_0_1px_rgba(15,49,88,0.45)]"
-                          : "text-zinc-300 hover:border-zinc-700 hover:bg-zinc-900 hover:text-zinc-100"
+                          ? "border-[#0F3158] bg-[#0F3158] text-white shadow-[0_0_0_1px_rgba(15,49,88,0.45)]"
+                          : "text-zinc-300 hover:border-blue-300/60 hover:bg-blue-400/20 hover:text-blue-100"
                       )}
                     >
                       <Icon className="mr-2.5 h-4 w-4 shrink-0" aria-hidden="true" />
@@ -77,10 +77,10 @@ export function AdminShell({ username, section, title, subtitle, meta, actions, 
                               key={child.href}
                               href={child.href}
                               className={cn(
-                                "flex h-9 items-center border border-transparent px-3 text-xs font-semibold transition",
+                                "flex h-9 items-center rounded-md border border-transparent px-3 text-xs font-semibold transition",
                                 childActive
-                                  ? "rounded-md border-[#0F3158] bg-[#0F3158] text-white"
-                                  : "text-zinc-400 hover:border-zinc-700 hover:bg-zinc-900 hover:text-zinc-200"
+                                  ? "border-[#0F3158] bg-[#0F3158] text-white"
+                                  : "text-zinc-400 hover:border-blue-300/60 hover:bg-blue-400/20 hover:text-blue-100"
                               )}
                             >
                               {child.label}
@@ -114,7 +114,7 @@ export function AdminShell({ username, section, title, subtitle, meta, actions, 
           </Card>
         </aside>
 
-        <div className="min-w-0 flex-1 space-y-4 md:space-y-5">
+        <div className="min-w-0 flex-1 space-y-4 p-2 md:space-y-5">
           <Card className="mr-2 p-0 sm:p-0">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>

@@ -9,5 +9,9 @@ export default async function TagsCatalogPage() {
     redirect("/login");
   }
 
+  if ((session.user.role ?? "").toLowerCase() !== "admin") {
+    redirect("/dashboard");
+  }
+
   return <TagsClient username={session.user.username} />;
 }

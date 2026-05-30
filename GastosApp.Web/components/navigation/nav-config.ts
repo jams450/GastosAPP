@@ -20,10 +20,10 @@ export const appNavItems: NavItem[] = [
     label: "Transacciones",
     icon: ArrowLeftRight,
     children: [
-      { href: "/transactions?view=create&kind=income", label: "Ingreso" },
-      { href: "/transactions?view=create&kind=expense", label: "Gasto" },
-      { href: "/transactions?view=create&kind=transfer", label: "Transferencia" },
-      { href: "/transactions?view=history", label: "Historial" }
+      { href: "/transactions/income", label: "Ingreso" },
+      { href: "/transactions/expense", label: "Gasto" },
+      { href: "/transactions/transfers", label: "Transferencia" },
+      { href: "/transactions/credit", label: "Historial" }
     ]
   },
   {

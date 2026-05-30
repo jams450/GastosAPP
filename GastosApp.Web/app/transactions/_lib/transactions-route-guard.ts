@@ -1,8 +1,7 @@
 import { redirect } from "next/navigation";
 import { getServerSession } from "@/lib/auth/session";
-import { SubcategoriesClient } from "./subcategories-client";
 
-export default async function SubcategoriesCatalogPage() {
+export async function requireTransactionsSession() {
   const session = await getServerSession();
 
   if (!session) {
@@ -13,5 +12,5 @@ export default async function SubcategoriesCatalogPage() {
     redirect("/dashboard");
   }
 
-  return <SubcategoriesClient username={session.user.username} />;
+  return session;
 }

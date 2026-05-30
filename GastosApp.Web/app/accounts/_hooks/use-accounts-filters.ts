@@ -8,7 +8,7 @@ export type AccountsStatusFilter = "all" | "active" | "inactive";
 export type AccountsTypeFilter = "all" | "credit" | "cash";
 
 export function useAccountsFilters(accounts: Account[]) {
-  const [search, setSearch] = useState(ACCOUNTS_FILTER_DEFAULTS.search);
+  const [search, setSearch] = useState<string>(ACCOUNTS_FILTER_DEFAULTS.search);
   const [status, setStatus] = useState<AccountsStatusFilter>(ACCOUNTS_FILTER_DEFAULTS.status);
   const [type, setType] = useState<AccountsTypeFilter>(ACCOUNTS_FILTER_DEFAULTS.type);
 

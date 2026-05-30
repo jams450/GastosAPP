@@ -23,15 +23,11 @@ export function SubcategoriesClient({ username }: Props) {
     <CatalogSingleScreenClient
       username={username}
       title="Catálogos · Subcategorías"
-      entityLabel="subcategorías"
       loadData={loadSubcategoriesScreenData}
-      countFromData={(data) => data.subcategories.length}
       renderSection={({ data, onDataChanged, onError, onSuccess }) => (
         <SubcategoriesSection
           categories={data.categories}
           subcategories={data.subcategories}
-          expanded
-          onToggle={() => {}}
           onCatalogChanged={onDataChanged}
           onError={onError}
           onSuccess={onSuccess}

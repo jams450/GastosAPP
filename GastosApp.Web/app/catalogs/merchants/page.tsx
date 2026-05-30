@@ -9,5 +9,9 @@ export default async function MerchantsCatalogPage() {
     redirect("/login");
   }
 
+  if ((session.user.role ?? "").toLowerCase() !== "admin") {
+    redirect("/dashboard");
+  }
+
   return <MerchantsClient username={session.user.username} />;
 }

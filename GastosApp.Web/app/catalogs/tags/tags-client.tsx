@@ -12,11 +12,9 @@ export function TagsClient({ username }: Props) {
       username={username}
       title="Catálogos · Tags"
       subtitle="Gestión individual de tags."
-      entityLabel="tags"
       loadData={fetchTags}
-      countFromData={(tags) => tags.length}
       renderSection={({ data, onDataChanged, onError, onSuccess }) => (
-        <TagsSection tags={data} expanded onToggle={() => {}} onCatalogChanged={onDataChanged} onError={onError} onSuccess={onSuccess} />
+        <TagsSection tags={data} onCatalogChanged={onDataChanged} onError={onError} onSuccess={onSuccess} />
       )}
     />
   );

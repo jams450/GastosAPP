@@ -265,6 +265,7 @@ export function ExpenseForm({
                 <option value={6}>6 MSI</option>
                 <option value={9}>9 MSI</option>
                 <option value={12}>12 MSI</option>
+                <option value={15}>15 MSI</option>
                 <option value={18}>18 MSI</option>
                 <option value={24}>24 MSI</option>
               </select>

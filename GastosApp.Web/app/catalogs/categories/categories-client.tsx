@@ -12,14 +12,10 @@ export function CategoriesClient({ username }: Props) {
       username={username}
       title="Catálogos · Categorías"
       subtitle="Gestión individual de categorías."
-      entityLabel="categorías"
       loadData={fetchCategories}
-      countFromData={(categories) => categories.length}
       renderSection={({ data, onDataChanged, onError, onSuccess }) => (
         <CategoriesSection
           categories={data}
-          expanded
-          onToggle={() => {}}
           onCatalogChanged={onDataChanged}
           onError={onError}
           onSuccess={onSuccess}

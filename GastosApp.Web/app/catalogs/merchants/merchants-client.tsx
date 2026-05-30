@@ -12,14 +12,10 @@ export function MerchantsClient({ username }: Props) {
       username={username}
       title="Catálogos · Comercios"
       subtitle="Gestión individual de comercios."
-      entityLabel="comercios"
       loadData={fetchMerchants}
-      countFromData={(merchants) => merchants.length}
       renderSection={({ data, onDataChanged, onError, onSuccess }) => (
         <MerchantsSection
           merchants={data}
-          expanded
-          onToggle={() => {}}
           onCatalogChanged={onDataChanged}
           onError={onError}
           onSuccess={onSuccess}

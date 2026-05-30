@@ -14,7 +14,7 @@ type Props = Omit<ComponentProps<typeof Button>, "variant" | "children"> & {
 const actionStyleMap: Record<
   CatalogActionType,
   {
-    variant: "primary" | "secondary" | "danger";
+    variant: "primary" | "secondary" | "ghost" | "danger";
     icon: typeof Plus;
     className?: string;
     iconClassName?: string;

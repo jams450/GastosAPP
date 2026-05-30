@@ -3,16 +3,15 @@
 import { useCallback, useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import { AdminShell } from "@/components/navigation/admin-shell";
-import { Alert } from "@/components/ui/alert";
 import { Card } from "@/components/ui/card";
+import { CatalogToastStack } from "./catalog-toast-stack";
+import { useCatalogToasts } from "./use-catalog-toasts";
 
 type ScreenProps<TData> = {
   username: string;
   title: string;
   subtitle?: string;
-  entityLabel: string;
   loadData: () => Promise<TData>;
-  countFromData: (data: TData) => number;
   renderSection: (args: {
     data: TData;
     onDataChanged: () => Promise<void>;
@@ -25,16 +24,13 @@ export function CatalogSingleScreenClient<TData>({
   username,
   title,
   subtitle,
-  entityLabel,
   loadData,
-  countFromData,
   renderSection
 }: ScreenProps<TData>) {
   const [data, setData] = useState<TData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
-  const itemCount = data ? countFromData(data) : 0;
+  const { toasts, dismissToast, success, error: errorToast } = useCatalogToasts();
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -54,13 +50,13 @@ export function CatalogSingleScreenClient<TData>({
   }, [refresh]);
 
   useEffect(() => {
-    if (!success) {
+    if (!error) {
       return;
     }
 
-    const timeout = window.setTimeout(() => setSuccess(null), 3000);
-    return () => window.clearTimeout(timeout);
-  }, [success]);
+    errorToast(error);
+    setError(null);
+  }, [error, errorToast]);
 
   return (
     <AdminShell
@@ -69,10 +65,9 @@ export function CatalogSingleScreenClient<TData>({
       title={title}
       subtitle={subtitle}
     >
-      <section className="space-y-2 md:space-y-2">
-        {error ? <Alert variant="danger">{error}</Alert> : null}
-        {success ? <Alert>{success}</Alert> : null}
+      <CatalogToastStack toasts={toasts} onDismiss={dismissToast} />
 
+      <section className="space-y-2 md:space-y-2">
         {loading || !data ? (
           <Card className="p-4">
             <p className="text-xs text-slate-600 dark:text-slate-400">Cargando catálogo...</p>
@@ -82,7 +77,7 @@ export function CatalogSingleScreenClient<TData>({
             data,
             onDataChanged: refresh,
             onError: setError,
-            onSuccess: setSuccess
+            onSuccess: success
           })
         )}
       </section>
