@@ -129,7 +129,7 @@ export function BillablePartiesSection({ billableParties, onCatalogChanged, onEr
       header: "",
       enableSorting: false,
       cell: ({ row }) => (
-        <div className="flex gap-1.5">
+        <div className="flex justify-end gap-1.5">
           <CatalogActionButton
             type="button"
             action="edit"
@@ -184,13 +184,14 @@ export function BillablePartiesSection({ billableParties, onCatalogChanged, onEr
       </section>
 
       <section className="p-3 sm:p-4">
-        <div className="users-desktop-table users-nextui-table overflow-hidden rounded-none p-0">
+        <div className="app-grid-skin overflow-hidden rounded-none p-0">
           <DataGrid
             columns={columns}
             rows={filteredRows}
             sorting={sorting}
             onSortingChange={setSorting}
             emptyMessage="Sin responsables cobrables"
+            stickyActionsColumn
           />
         </div>
       </section>
@@ -198,20 +199,21 @@ export function BillablePartiesSection({ billableParties, onCatalogChanged, onEr
       {open ? (
         <div className="fixed inset-0 z-[70] flex items-end justify-end bg-[var(--color-overlay)] backdrop-blur-sm sm:items-stretch" role="presentation" onClick={() => setOpen(false)}>
           <Card className="relative flex h-[100dvh] w-full max-w-none flex-col app-sidebar border-l p-0 sm:h-full sm:max-w-xl" onClick={(event) => event.stopPropagation()}>
-            <div className="sticky top-0 z-10 border-b border-strong bg-[color-mix(in_srgb,var(--color-surface-1)_95%,transparent)] px-4 py-3 backdrop-blur sm:px-5 sm:py-4">
+            <div className="drawer-header-semantic">
               <div className="mb-1 h-1 w-12 bg-[var(--color-accent)]/70 sm:hidden" />
               <div className="flex items-start justify-between gap-3">
-                <h3 className="text-lg font-semibold text-primary">{form.id ? "Editar responsable" : "Nuevo responsable"}</h3>
-                <Button type="button" variant="ghost" className="btn-secondary-semantic h-8 rounded-md px-2.5" onClick={() => setOpen(false)}>
-                  Cerrar
+                <h3 className="text-lg font-semibold text-blue-700 dark:text-blue-300">{form.id ? "Editar responsable" : "Nuevo responsable"}</h3>
+                <Button type="button" variant="ghost" className="btn-close-semantic" onClick={() => setOpen(false)}>
+                  <span>✕</span>
+                  <span>Cerrar</span>
                 </Button>
               </div>
             </div>
 
             <form className="flex h-full flex-col" onSubmit={(event) => void submit(event)}>
               <div className="flex-1 space-y-4 overflow-y-auto px-4 py-4 sm:px-5">
-                <section className="app-panel space-y-2 border p-3">
-                  <h4 className="text-xs font-semibold uppercase tracking-wide text-muted">General</h4>
+                <section className="space-y-2 rounded-2xl border border-blue-200/60 bg-blue-50/35 p-3 dark:border-blue-900/50 dark:bg-blue-950/20">
+                  <h4 className="text-xs font-semibold uppercase tracking-wide text-blue-700 dark:text-blue-300">General</h4>
                   <Input
                     label="Nombre"
                     value={form.displayName}
@@ -249,12 +251,12 @@ export function BillablePartiesSection({ billableParties, onCatalogChanged, onEr
                 </section>
               </div>
 
-              <div className="border-t border-strong bg-[color-mix(in_srgb,var(--color-surface-1)_95%,transparent)] px-4 py-3 sm:px-5 sm:py-4">
+              <div className="drawer-footer-semantic">
                 <div className="flex justify-end gap-2">
-                  <Button type="button" variant="secondary" className="btn-secondary-semantic h-8 rounded-md px-3 text-xs font-bold" onClick={() => setOpen(false)}>
+                  <Button type="button" variant="ghost" className="h-8 rounded-md border-[var(--color-danger)]/50 bg-[var(--color-danger)]/15 px-3 text-xs font-bold text-[var(--color-danger)] hover:border-[var(--color-danger)]/70 hover:bg-[var(--color-danger)]/25" onClick={() => setOpen(false)}>
                     Cancelar
                   </Button>
-                  <Button type="submit" loading={saving} loadingText="Guardando..." className="h-8 rounded-md px-3 text-xs font-bold">
+                  <Button type="submit" variant="ghost" loading={saving} loadingText="Guardando..." className="h-8 rounded-md border-blue-400/60 bg-blue-500/15 px-3 text-xs font-bold text-blue-700 hover:border-blue-500/70 hover:bg-blue-500/25 hover:text-blue-800 dark:border-blue-700/60 dark:bg-blue-500/25 dark:text-blue-300 dark:hover:border-blue-500/70 dark:hover:bg-blue-500/35 dark:hover:text-blue-100">
                     {form.id ? "Guardar cambios" : "Crear responsable"}
                   </Button>
                 </div>

@@ -34,11 +34,11 @@ export function CreditAllocationSelector({
   onClear
 }: Props) {
   return (
-    <section className="space-y-3 rounded-2xl border border-indigo-200/70 bg-indigo-50/40 p-4 dark:border-indigo-900/60 dark:bg-indigo-950/30">
+    <section className="space-y-3 rounded-2xl border border-indigo-300/75 bg-indigo-200/45 p-4 dark:border-indigo-800/70 dark:bg-indigo-900/45">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p className="text-xs font-semibold uppercase tracking-wide text-indigo-700 dark:text-indigo-300">Pago crédito</p>
-          <p className="text-xs text-slate-600 dark:text-slate-400">Selecciona mensualidades y monto total/parcial a cubrir.</p>
+          <p className="text-xs text-indigo-800 dark:text-indigo-200">Selecciona mensualidades y monto total/parcial a cubrir.</p>
         </div>
         <div className="grid grid-cols-2 gap-2">
           <Button

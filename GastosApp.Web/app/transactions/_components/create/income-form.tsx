@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import type { FormEvent } from "react";
+import type { FormEvent, ReactNode } from "react";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -33,10 +33,10 @@ type Props = {
   description: string;
   onDescriptionChange: (value: string) => void;
   submitError: string | null;
-  successMessage: string | null;
   submitLoading: boolean;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
   parseSelectedNumber: (value: string) => number | null;
+  creditAllocationSection?: ReactNode;
 };
 
 export function IncomeForm({
@@ -62,10 +62,10 @@ export function IncomeForm({
   description,
   onDescriptionChange,
   submitError,
-  successMessage,
   submitLoading,
   onSubmit,
-  parseSelectedNumber
+  parseSelectedNumber,
+  creditAllocationSection
 }: Props) {
   const [showOptional, setShowOptional] = useState(true);
 
@@ -123,7 +123,7 @@ export function IncomeForm({
     <form onSubmit={onSubmit} className="space-y-5">
       <header className="space-y-1">
         <h3 className="text-base font-semibold text-primary">Nuevo ingreso</h3>
-        <p className="text-xs text-muted">Completa obligatorios primero. Detalles opcionales después.</p>
+        <p className="text-xs text-blue-700 dark:text-blue-300">Completa obligatorios primero. Detalles opcionales después.</p>
       </header>
 
       <div className="grid gap-4 lg:grid-cols-2 lg:items-start">
@@ -217,14 +217,14 @@ export function IncomeForm({
         <p className="-mt-3 px-1 text-right text-xs text-slate-500 dark:text-slate-400">{description.trim().length}/120</p>
       </section>
 
-      <section className="app-panel space-y-3 rounded-2xl border p-4">
+      <section className="space-y-3 rounded-2xl border border-amber-400/50 bg-amber-500/15 p-4">
         <button
           type="button"
           className="flex w-full items-center justify-between rounded-lg px-1 text-left"
           onClick={() => setShowOptional((value) => !value)}
           aria-expanded={showOptional}
         >
-          <span className="text-primary text-sm font-semibold">Más detalles (opcional)</span>
+          <span className="text-sm font-semibold text-amber-700 dark:text-amber-300">Más detalles (opcional)</span>
           <span className="text-muted text-xs font-semibold">{showOptional ? "Ocultar" : "Mostrar"}</span>
         </button>
 
@@ -299,12 +299,14 @@ export function IncomeForm({
       </section>
       </div>
 
-      {submitError ? <Alert variant="danger">{submitError}</Alert> : null}
-      {successMessage ? <Alert variant="info">{successMessage}</Alert> : null}
+      {creditAllocationSection ? <div className="space-y-3">{creditAllocationSection}</div> : null}
 
-      <div className="app-panel sticky bottom-0 rounded-2xl border bg-[color-mix(in_srgb,var(--color-surface-1)_92%,transparent)] p-3 backdrop-blur">
+      {submitError ? <Alert variant="danger">{submitError}</Alert> : null}
+
+      <div className="sticky bottom-0 rounded-2xl border border-blue-200/60 bg-blue-50/45 p-3 backdrop-blur dark:border-blue-900/50 dark:bg-blue-950/25">
+
         <div className="flex flex-col items-stretch justify-between gap-2 sm:flex-row sm:items-center">
-          <p className="text-xs text-muted">Completa obligatorios para habilitar guardado.</p>
+          <p className="text-xs text-blue-700 dark:text-blue-300">Completa obligatorios para habilitar guardado.</p>
           <Button
             type="submit"
             loading={submitLoading}

@@ -149,43 +149,52 @@ export function useTransactionMutations(params: Params) {
             ]
           };
         } else {
-          const normalizedAllocations = expenseAllocations
-            .map((row) => ({
-              billablePartyId: row.billablePartyId,
-              type: row.type,
-              value: Number(row.value)
-            }))
-            .filter((row) => row.billablePartyId && Number.isFinite(row.value) && row.value > 0) as { billablePartyId: number; type: "percentage" | "amount"; value: number }[];
+          const shouldValidateAllocations = kind === "expense";
 
-          const uniqueIds = new Set(normalizedAllocations.map((row) => row.billablePartyId));
-          if (normalizedAllocations.length === 0) {
-            return setSubmitError("Debes asignar al menos un responsable cobrable.");
-          }
-          if (uniqueIds.size !== normalizedAllocations.length) {
-            return setSubmitError("No repitas responsables en asignaciones.");
-          }
+          const normalizedAllocations = shouldValidateAllocations
+            ? expenseAllocations
+                .map((row) => ({
+                  billablePartyId: row.billablePartyId,
+                  type: row.type,
+                  value: Number(row.value)
+                }))
+                .filter((row) => row.billablePartyId && Number.isFinite(row.value) && row.value > 0) as { billablePartyId: number; type: "percentage" | "amount"; value: number }[]
+            : [];
 
-          const percentages = normalizedAllocations.filter((row) => row.type === "percentage");
-          const amounts = normalizedAllocations.filter((row) => row.type === "amount");
-          if (percentages.length > 0 && amounts.length > 0) {
-            return setSubmitError("No mezcles asignaciones por porcentaje y por monto.");
-          }
+          if (shouldValidateAllocations) {
+            const uniqueIds = new Set(normalizedAllocations.map((row) => row.billablePartyId));
+            if (normalizedAllocations.length === 0) {
+              return setSubmitError("Debes asignar al menos un responsable cobrable.");
+            }
+            if (uniqueIds.size !== normalizedAllocations.length) {
+              return setSubmitError("No repitas responsables en asignaciones.");
+            }
 
-          if (percentages.length > 0) {
-            const total = percentages.reduce((acc, row) => acc + row.value, 0);
-            if (Math.abs(total - 100) > 0.01) {
-              return setSubmitError(`La suma de porcentajes debe ser 100%. Actual: ${total.toFixed(2)}%`);
+            const percentages = normalizedAllocations.filter((row) => row.type === "percentage");
+            const amounts = normalizedAllocations.filter((row) => row.type === "amount");
+            if (percentages.length > 0 && amounts.length > 0) {
+              return setSubmitError("No mezcles asignaciones por porcentaje y por monto.");
+            }
+
+            if (percentages.length > 0) {
+              const total = percentages.reduce((sum, row) => sum + row.value, 0);
+              if (Math.abs(total - 100) > 0.01) {
+                return setSubmitError(`La suma de porcentajes debe ser 100%. Actual: ${total.toFixed(2)}%`);
+              }
+            }
+
+            if (amounts.length > 0) {
+              const total = amounts.reduce((sum, row) => sum + row.value, 0);
+              if (Math.abs(total - amountNumber) > 0.01) {
+                return setSubmitError(`La suma de montos asignados debe ser ${amountNumber.toFixed(2)}.`);
+              }
             }
           }
 
-          if (amounts.length > 0) {
-            const total = amounts.reduce((acc, row) => acc + row.value, 0);
-            if (Math.abs(total - amountNumber) > 0.01) {
-              return setSubmitError(`La suma de montos asignados debe ser ${amountNumber.toFixed(2)}.`);
-            }
-          }
+          endpoint = kind === "income"
+            ? "/api/bff/transactions/income"
+            : "/api/bff/transactions/expense";
 
-          endpoint = kind === "income" ? "/api/bff/transactions/income" : "/api/bff/transactions/expense";
           payload = {
             accountId,
             categoryId,

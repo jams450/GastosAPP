@@ -289,14 +289,24 @@ body {
     outline: none;
   }
 
+  :root {
+    --table-surface-bg: color-mix(in srgb, var(--color-surface-2) 92%, transparent);
+    --table-head-bg: color-mix(in srgb, var(--color-surface-3) 70%, transparent);
+  }
+
+  .dark {
+    --table-surface-bg: color-mix(in srgb, var(--color-surface-2) 86%, transparent);
+    --table-head-bg: color-mix(in srgb, var(--color-surface-3) 58%, transparent);
+  }
+
   .table-shell {
     border: 1px solid var(--color-border-strong);
-    background: color-mix(in srgb, var(--color-surface-2) 92%, transparent);
+    background: var(--table-surface-bg);
     border-radius: var(--radius-md);
   }
 
   .table-head {
-    background: color-mix(in srgb, var(--color-surface-3) 90%, transparent);
+    background: transparent;
   }
 
   .table-head th {
@@ -330,6 +340,36 @@ body {
     background: var(--tabler-surface-2);
   }
 
+  .drawer-header-semantic {
+    @apply sticky top-0 z-10 border-b px-4 py-3 backdrop-blur sm:px-5 sm:py-4;
+    border-color: color-mix(in srgb, var(--color-accent) 35%, transparent);
+    background: color-mix(in srgb, var(--color-sidebar-bg) 82%, transparent);
+  }
+
+  .drawer-footer-semantic {
+    @apply border-t px-4 py-3 sm:px-5 sm:py-4;
+    border-color: color-mix(in srgb, var(--color-accent) 35%, transparent);
+    background: color-mix(in srgb, var(--color-sidebar-bg) 82%, transparent);
+  }
+
+  .drawer-section-semantic {
+    @apply space-y-2 rounded-2xl border p-3;
+    border-color: color-mix(in srgb, var(--color-accent) 45%, transparent);
+    background: color-mix(in srgb, var(--color-accent) 14%, transparent);
+  }
+
+  .btn-close-semantic {
+    @apply h-8 rounded-md px-2.5 text-[11px] font-semibold;
+    border: 1px solid color-mix(in srgb, var(--color-accent) 45%, transparent);
+    background: color-mix(in srgb, var(--color-accent) 14%, transparent);
+    color: var(--color-accent-contrast);
+  }
+
+  .btn-close-semantic:hover {
+    border-color: color-mix(in srgb, var(--color-accent) 65%, transparent);
+    background: color-mix(in srgb, var(--color-accent) 24%, transparent);
+  }
+
   .tabler-badge {
     @apply inline-flex items-center gap-1 border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide;
     border-radius: var(--tabler-radius-sm);
@@ -358,116 +398,93 @@ body {
     background: #475569;
   }
 
-  .users-desktop-table table thead {
+  .app-grid-skin table thead {
     background: color-mix(in srgb, var(--color-surface-3) 92%, transparent);
   }
 
-  .users-desktop-table table thead th {
-    @apply py-3 text-[11px] font-bold uppercase tracking-[0.08em];
-    border-bottom: 1px solid var(--color-border-strong);
+  .app-grid-skin table thead th {
+    @apply px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.08em];
+    border-bottom: 1px solid color-mix(in srgb, var(--color-border-strong) 82%, transparent);
     color: var(--color-text-muted);
   }
 
-  .users-desktop-table table tbody tr:nth-child(odd) {
-    background: color-mix(in srgb, var(--color-surface-2) 86%, transparent);
+  .app-grid-skin table tbody tr {
+    border-top: 1px solid color-mix(in srgb, var(--color-border) 80%, transparent);
   }
 
-  .users-desktop-table table tbody tr:nth-child(even) {
-    background: color-mix(in srgb, var(--color-surface-3) 64%, transparent);
+  .app-grid-skin table tbody tr:nth-child(odd) {
+    background: color-mix(in srgb, var(--color-surface-2) 84%, transparent);
   }
 
-  .users-desktop-table table tbody tr:hover {
-    background: color-mix(in srgb, var(--color-accent) 10%, transparent);
+  .app-grid-skin table tbody tr:nth-child(even) {
+    background: color-mix(in srgb, var(--color-surface-3) 58%, transparent);
   }
 
-  .users-desktop-table table tbody td {
+  .app-grid-skin table tbody tr:hover {
+    background: color-mix(in srgb, var(--color-accent) 12%, transparent) !important;
+  }
+
+  .app-grid-skin table tbody td {
+    @apply px-4 py-3;
     border-color: var(--color-border);
     color: var(--color-text-primary);
   }
 
-  .users-desktop-table table tbody td p {
+  .app-grid-skin table tbody td p {
     color: var(--color-text-primary);
   }
 
-  .users-desktop-table table tbody td .text-slate-500,
-  .users-desktop-table table tbody td .text-slate-600,
-  .users-desktop-table table tbody td .dark\:text-slate-400 {
+  .app-grid-skin table tbody td .text-slate-500,
+  .app-grid-skin table tbody td .text-slate-600,
+  .app-grid-skin table tbody td .dark\:text-slate-400 {
     color: var(--color-text-muted);
   }
 
-  /* NextUI-like table skin for Users */
-  .users-nextui-table .overflow-x-auto {
+  .app-grid-skin .overflow-x-auto {
     @apply overflow-hidden rounded-2xl;
     border: 1px solid color-mix(in srgb, var(--color-border-strong) 85%, transparent);
     background: color-mix(in srgb, var(--color-surface-2) 88%, transparent);
     box-shadow: var(--shadow-md);
   }
 
-  .users-nextui-table table thead {
-    background: linear-gradient(
-      180deg,
-      color-mix(in srgb, var(--color-surface-3) 96%, transparent) 0%,
-      color-mix(in srgb, var(--color-surface-2) 92%, transparent) 100%
-    );
-  }
-
-  .users-nextui-table table thead th {
-    @apply px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.08em];
-    border-bottom: 1px solid color-mix(in srgb, var(--color-border-strong) 82%, transparent);
-    color: var(--color-text-muted);
-  }
-
-  .users-nextui-table table tbody tr {
-    border-top: 1px solid color-mix(in srgb, var(--color-border) 80%, transparent);
-  }
-
-  .users-nextui-table table tbody tr:nth-child(odd) {
-    background: color-mix(in srgb, var(--color-surface-2) 84%, transparent);
-  }
-
-  .users-nextui-table table tbody tr:nth-child(even) {
-    background: color-mix(in srgb, var(--color-surface-3) 58%, transparent);
-  }
-
-  .users-nextui-table table tbody tr:hover {
-    background: color-mix(in srgb, var(--color-accent) 12%, transparent) !important;
-  }
-
-  .users-nextui-table table tbody td {
-    @apply px-4 py-3;
-    color: var(--color-text-primary);
-  }
-
-  .users-nextui-table table tbody tr:first-child td:first-child {
+  .app-grid-skin table tbody tr:first-child td:first-child {
     border-top-left-radius: 0.85rem;
   }
 
-  .users-nextui-table table tbody tr:first-child td:last-child {
+  .app-grid-skin table tbody tr:first-child td:last-child {
     border-top-right-radius: 0.85rem;
   }
 
-  .users-nextui-table table tbody tr:last-child td:first-child {
+  .app-grid-skin table tbody tr:last-child td:first-child {
     border-bottom-left-radius: 0.85rem;
   }
 
-  .users-nextui-table table tbody tr:last-child td:last-child {
+  .app-grid-skin table tbody tr:last-child td:last-child {
     border-bottom-right-radius: 0.85rem;
   }
 
-  .users-nextui-table .tabler-badge {
-    @apply border-zinc-600 bg-zinc-800 text-zinc-100;
+  .app-grid-skin .tabler-badge {
+    border-color: color-mix(in srgb, var(--color-border-strong) 75%, transparent);
+    background: color-mix(in srgb, var(--color-surface-3) 88%, transparent);
+    color: var(--color-text-primary);
   }
 
-  .users-nextui-table .tabler-badge.tabler-badge-primary {
-    @apply border-blue-400/50 bg-blue-500/20 text-blue-200;
+  .app-grid-skin .tabler-badge.tabler-badge-primary {
+    border-color: color-mix(in srgb, var(--color-accent) 50%, transparent);
+    background: color-mix(in srgb, var(--color-accent) 20%, transparent);
+    color: var(--color-text-primary);
   }
 
-  .users-nextui-table .tabler-badge.tabler-badge-success {
-    @apply border-emerald-400/50 bg-emerald-500/20 text-emerald-200;
+  .app-grid-skin .tabler-badge.tabler-badge-success {
+    border-color: color-mix(in srgb, var(--color-success) 50%, transparent);
+    background: color-mix(in srgb, var(--color-success) 20%, transparent);
+    color: var(--color-success);
   }
 
-  .users-nextui-table .tabler-badge.tabler-badge-danger {
-    @apply border-rose-400/50 bg-rose-500/20 text-rose-200;
+  .app-grid-skin .tabler-badge.tabler-badge-danger {
+    border-color: color-mix(in srgb, var(--color-danger) 50%, transparent);
+    background: color-mix(in srgb, var(--color-danger) 20%, transparent);
+    color: var(--color-danger);
   }
 
   .subcategories-flat-table > .space-y-2 {

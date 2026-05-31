@@ -40,7 +40,7 @@ export function UserFormDrawer({
         aria-labelledby="user-drawer-title"
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="sticky top-0 z-10 border-b border-strong bg-[color-mix(in_srgb,var(--color-surface-1)_95%,transparent)] px-4 py-3 backdrop-blur sm:px-5 sm:py-4">
+        <div className="drawer-header-semantic">
           <div className="mb-1 h-1 w-12 bg-[var(--color-accent)]/70 sm:hidden" />
           <div className="flex items-start justify-between gap-3">
             <div>
@@ -52,7 +52,7 @@ export function UserFormDrawer({
             <Button
               type="button"
               variant="ghost"
-              className="btn-secondary-semantic h-8 px-2.5 text-[11px] font-semibold"
+              className="btn-close-semantic"
               onClick={onClose}
             >
               <X className="h-3.5 w-3.5" aria-hidden="true" />
@@ -62,17 +62,19 @@ export function UserFormDrawer({
         </div>
 
         <div className="flex-1 space-y-4 overflow-y-auto px-4 py-4 sm:px-5 sm:py-5">
-          <Input label="Nombre" value={form.name} onChange={(event) => onChange("name", event.target.value)} error={errors.name} />
-          <Input label="Correo" type="email" value={form.email} onChange={(event) => onChange("email", event.target.value)} error={errors.email} />
-          <Input
-            label={isEdit ? "Nueva contraseña (opcional)" : "Contraseña"}
-            type="password"
-            value={form.password}
-            onChange={(event) => onChange("password", event.target.value)}
-            error={errors.password}
-          />
+          <section className="drawer-section-semantic space-y-3">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-blue-700 dark:text-blue-300">Datos obligatorios</p>
+            <Input label="Nombre" value={form.name} onChange={(event) => onChange("name", event.target.value)} error={errors.name} />
+            <Input label="Correo" type="email" value={form.email} onChange={(event) => onChange("email", event.target.value)} error={errors.email} />
+            <Input
+              label={isEdit ? "Nueva contraseña (opcional)" : "Contraseña"}
+              type="password"
+              value={form.password}
+              onChange={(event) => onChange("password", event.target.value)}
+              error={errors.password}
+            />
 
-          <div className="grid gap-2 sm:grid-cols-2">
+            <div className="grid gap-2 sm:grid-cols-2">
             <label className="app-panel text-secondary flex cursor-pointer items-center gap-2 border p-3 text-sm">
               <input type="checkbox" checked={form.active} onChange={(event) => onChange("active", event.target.checked)} className="h-4 w-4 border-default bg-[var(--color-surface-1)] text-[var(--color-accent)] focus:ring-[var(--color-accent)]" />
               Usuario activo
@@ -81,17 +83,18 @@ export function UserFormDrawer({
               <input type="checkbox" checked={form.admin} onChange={(event) => onChange("admin", event.target.checked)} className="h-4 w-4 border-default bg-[var(--color-surface-1)] text-[var(--color-accent)] focus:ring-[var(--color-accent)]" />
               Rol administrador
             </label>
-          </div>
+            </div>
+          </section>
 
           {submitError ? <Alert variant="danger">{submitError}</Alert> : null}
         </div>
 
-        <div className="border-t border-strong bg-[color-mix(in_srgb,var(--color-surface-1)_95%,transparent)] px-4 py-3 sm:px-5 sm:py-4">
+        <div className="drawer-footer-semantic">
           <div className="flex justify-end gap-2">
-            <Button type="button" variant="secondary" className="btn-secondary-semantic h-10" onClick={onClose}>
+            <Button type="button" variant="ghost" className="h-10 rounded-md border-[var(--color-danger)]/50 bg-[var(--color-danger)]/15 text-[var(--color-danger)] hover:border-[var(--color-danger)]/70 hover:bg-[var(--color-danger)]/25" onClick={onClose}>
               Cancelar
             </Button>
-            <Button type="button" className="h-10" loading={submitting} loadingText="Guardando..." onClick={onSubmit}>
+            <Button type="button" variant="ghost" className="h-10 rounded-md border-blue-400/60 bg-blue-500/15 text-blue-700 hover:border-blue-500/70 hover:bg-blue-500/25 hover:text-blue-800 dark:border-blue-700/60 dark:bg-blue-500/25 dark:text-blue-300 dark:hover:border-blue-500/70 dark:hover:bg-blue-500/35 dark:hover:text-blue-100" loading={submitting} loadingText="Guardando..." onClick={onSubmit}>
               {isEdit ? "Guardar cambios" : "Crear usuario"}
             </Button>
           </div>

@@ -13,6 +13,7 @@ import type { Category } from "@/lib/contracts/categories";
 import type { Subcategory } from "@/lib/contracts/subcategories";
 import { createAllocationRow, resolveDefaultSelfBillablePartyId, buildIncomeScreenDefaults } from "../_shared/transactions-screen-shared";
 import { useTransactionsCatalogs } from "../_shared/use-transactions-catalogs";
+import { TransactionsToastStack, useTransactionsToasts } from "../_shared/transactions-toasts";
 
 type Props = {
   username: string;
@@ -32,6 +33,7 @@ export function IncomeClient({ username }: Props) {
   const [submitLoading, setSubmitLoading] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const { toasts, dismissToast, success: successToast, error: errorToast } = useTransactionsToasts();
 
   const kind: TransactionKind = "income";
   const viewMode = "create" as const;
@@ -144,6 +146,18 @@ export function IncomeClient({ username }: Props) {
     setHistoryError: () => {}
   });
 
+  useEffect(() => {
+    if (!submitError) return;
+    errorToast(submitError);
+    setSubmitError(null);
+  }, [submitError, errorToast]);
+
+  useEffect(() => {
+    if (!successMessage) return;
+    successToast(successMessage);
+    setSuccessMessage(null);
+  }, [successMessage, successToast]);
+
   return (
     <AdminShell
       username={username}
@@ -151,11 +165,11 @@ export function IncomeClient({ username }: Props) {
       title="Transacciones · Ingreso"
       subtitle="Registra ingresos de forma individual."
     >
+      <TransactionsToastStack toasts={toasts} onDismiss={dismissToast} />
+
       <section className="space-y-2 md:space-y-2">
         {catalogsLoading ? <Alert>Cargando catálogos...</Alert> : null}
         {catalogsError ? <Alert variant="danger">{catalogsError}</Alert> : null}
-        {submitError ? <Alert variant="danger">{submitError}</Alert> : null}
-        {successMessage ? <Alert>{successMessage}</Alert> : null}
 
         {catalogs ? (
           <IncomeSection
@@ -179,11 +193,11 @@ export function IncomeClient({ username }: Props) {
             onAmountChange: setAmount,
             transactionDate,
             onTransactionDateChange: setTransactionDate,
-            description,
-            onDescriptionChange: setDescription,
-            submitError,
-            successMessage,
-            submitLoading,
+              description,
+              onDescriptionChange: setDescription,
+              submitError,
+              submitLoading,
+
             onSubmit,
               parseSelectedNumber
             }}

@@ -7,7 +7,7 @@ export function getAccountTypeLabel(account: Account) {
 }
 
 export function getAccountTypeBadgeClass(account: Account) {
-  return `${badgeBase} ${account.isCredit ? "tabler-badge-primary" : "tabler-badge-muted"}`;
+  return `${badgeBase} ${account.isCredit ? "tabler-badge-primary" : "tabler-badge-success"}`;
 }
 
 export function getAccountStatusLabel(account: Account) {

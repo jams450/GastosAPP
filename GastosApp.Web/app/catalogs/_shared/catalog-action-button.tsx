@@ -22,9 +22,9 @@ const actionStyleMap: Record<
   }
 > = {
   create: {
-    variant: "primary",
+    variant: "ghost",
     icon: Plus,
-    className: ""
+    className: tableActionStyles.create
   },
   edit: {
     variant: "ghost",

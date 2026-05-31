@@ -117,8 +117,8 @@ export function DataGrid<TData>({
   });
 
   const headerCellClass = cn(
-    "text-left font-medium text-muted",
-    effectiveDensity === "compact" ? "px-2 py-2 text-[11px]" : "px-3 py-2.5 text-sm"
+    "text-left font-bold text-zinc-900 dark:text-zinc-100",
+    effectiveDensity === "compact" ? "px-2 py-2 text-xs" : "px-3 py-2.5 text-base"
   );
 
   const bodyCellClass = cn(
@@ -168,9 +168,9 @@ export function DataGrid<TData>({
 
       {toolbar ? <div className="min-w-0">{toolbar}</div> : null}
 
-      <div className="table-shell overflow-x-auto">
+      <div className="table-shell overflow-x-auto rounded-xl border border-zinc-400/30 bg-[var(--table-surface-bg)]">
         <table className="min-w-full">
-          <thead className="table-head">
+          <thead className="table-head bg-[var(--table-head-bg)]">
             {table.getHeaderGroups().map((headerGroup) => (
               <tr key={headerGroup.id}>
                 {headerGroup.headers.map((header) => {
@@ -180,7 +180,7 @@ export function DataGrid<TData>({
                   const isActionsColumn = header.column.id === "actions";
                   const stickyColumnClass =
                     stickyActionsColumn && isActionsColumn
-                      ? "sticky right-0 z-10 bg-[var(--color-surface-3)]"
+                      ? "sticky right-0 z-10 bg-[var(--table-head-bg)]"
                       : undefined;
                   const stickyHeaderClass = stickyHeader ? "sticky top-0 z-20" : undefined;
                   const sortIndex = header.column.getSortIndex();
@@ -229,14 +229,14 @@ export function DataGrid<TData>({
               </tr>
               ) : (
                 table.getRowModel().rows.map((row) => (
-                <tr key={row.id} className="table-row transition">
+                <tr key={row.id} className="table-row transition hover:bg-zinc-400/10 dark:hover:bg-zinc-700/20">
                   {row.getVisibleCells().map((cell) => (
                     <td
                       key={cell.id}
                       className={cn(
                         bodyCellClass,
                         "table-cell",
-                        stickyActionsColumn && cell.column.id === "actions" ? "sticky right-0 z-10 bg-[var(--color-surface-2)]" : undefined
+                        stickyActionsColumn && cell.column.id === "actions" ? "sticky right-0 z-10 bg-[var(--table-surface-bg)]" : undefined
                       )}
                     >
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}
@@ -250,7 +250,7 @@ export function DataGrid<TData>({
       </div>
 
       {!resolvedManualPagination && table.getPageCount() > 1 ? (
-        <div className="flex flex-wrap items-center justify-between gap-2 border border-strong border-t-0 bg-[var(--color-surface-2)] px-2 py-1.5">
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-b-xl border-x border-b border-strong bg-[var(--table-surface-bg)] px-2 py-1.5">
           <div className="flex items-center gap-2">
             <span className="text-[11px] text-muted">Filas</span>
             <select

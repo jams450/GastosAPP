@@ -13,9 +13,9 @@ type Props = {
 
 export function IncomeSection({ formProps, showCreditAllocation, creditAllocationProps }: Props) {
   return (
-    <>
-      <IncomeForm {...formProps} />
-      {showCreditAllocation ? <CreditAllocationSelector {...creditAllocationProps} /> : null}
-    </>
+    <IncomeForm
+      {...formProps}
+      creditAllocationSection={showCreditAllocation ? <CreditAllocationSelector {...creditAllocationProps} /> : null}
+    />
   );
 }

@@ -55,7 +55,7 @@ export function AccountsTable({ rows, loading, errorMessage, onEdit, onToggleAct
   );
 
   return (
-    <div className="users-desktop-table users-nextui-table overflow-hidden rounded-none p-0">
+    <div className="app-grid-skin overflow-hidden rounded-none p-0">
       <DataGrid
         columns={columns}
         rows={rows}

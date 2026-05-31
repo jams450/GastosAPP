@@ -1,5 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { tableActionStyles } from "@/lib/ui/table-action-styles";
 import { Plus, RotateCcw, Search, SlidersHorizontal } from "lucide-react";
 
 type Props = {
@@ -99,8 +100,8 @@ export function AccountsToolbar({
         <div className="flex items-end justify-end">
           <Button
             type="button"
-            variant="primary"
-            className="h-8 rounded-md px-3 text-xs font-bold"
+            variant="ghost"
+            className={`h-8 rounded-md px-3 text-xs font-bold ${tableActionStyles.create}`}
             onClick={onCreate}
           >
             <Plus className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />

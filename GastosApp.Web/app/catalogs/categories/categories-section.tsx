@@ -201,7 +201,7 @@ export function CategoriesSection({ categories, onCatalogChanged, onError, onSuc
       cell: ({ row }) => {
         const category = row.original;
         return (
-          <div className="flex items-center gap-1.5">
+          <div className="flex justify-end gap-1.5">
             <CatalogActionButton type="button" action="edit" label="Editar" onClick={() => openEditCategoryModal(category)} />
             <CatalogActionButton
               type="button"
@@ -267,69 +267,85 @@ export function CategoriesSection({ categories, onCatalogChanged, onError, onSuc
       </section>
 
       <section className="p-3 sm:p-4">
-        <div className="users-desktop-table users-nextui-table overflow-hidden rounded-none p-0">
+        <div className="app-grid-skin overflow-hidden rounded-none p-0">
           <DataGrid
             columns={categoryColumns}
             rows={filteredRows}
             sorting={sorting}
             onSortingChange={setSorting}
             emptyMessage="Sin categorías"
+            stickyActionsColumn
           />
         </div>
       </section>
 
       {categoryModalOpen ? (
         <div className="fixed inset-0 z-[70] flex items-end justify-end bg-[var(--color-overlay)] p-0 backdrop-blur-sm sm:items-stretch">
-          <Card className="relative flex h-[100dvh] w-full flex-col app-sidebar rounded-none border-l p-0 sm:h-full sm:max-w-xl">
+          <Card className="app-sidebar relative flex h-[100dvh] w-full flex-col border-l p-0 sm:h-full sm:max-w-xl">
             <form className="flex h-full flex-col" onSubmit={(event) => void submitCategory(event)}>
-              <div className="sticky top-0 z-10 border-b border-strong bg-[color-mix(in_srgb,var(--color-surface-1)_95%,transparent)] px-4 py-3 sm:px-5 sm:py-4">
-                <div className="mb-1 h-1 w-12 bg-[var(--color-accent)]/70 sm:hidden" aria-hidden="true" />
-                <h3 className="text-base font-semibold tracking-wide text-primary sm:text-lg">{categoryForm.id ? "Editar categoría" : "Nueva categoría"}</h3>
+              <div className="drawer-header-semantic">
+                <h3 className="text-base font-semibold tracking-wide text-blue-700 dark:text-blue-300 sm:text-lg">{categoryForm.id ? "Editar categoría" : "Nueva categoría"}</h3>
               </div>
-              <div className="flex-1 space-y-4 overflow-y-auto px-4 py-4 sm:px-5 sm:py-5">
-              <Input label="Nombre" value={categoryForm.name} onChange={(event) => setCategoryForm((current) => ({ ...current, name: event.target.value }))} required />
-              <Input label="Color" type="color" value={categoryForm.color} onChange={(event) => setCategoryForm((current) => ({ ...current, color: event.target.value }))} />
-              <label className="grid gap-1.5 text-sm font-medium text-secondary">
-                Tipo
-                <select
-                  value={categoryForm.type}
-                  onChange={(event) => setCategoryForm((current) => ({ ...current, type: event.target.value as CategoryType }))}
-                  className="input-semantic h-11 rounded-md px-3 text-sm"
-                >
-                  <option value="income">Ingreso</option>
-                  <option value="expense">Gasto</option>
-                  <option value="transfer">Transferencia</option>
-                </select>
-              </label>
-              <Input
-                label="Tags (separados por coma)"
-                value={categoryForm.tagsText}
-                onChange={(event) => setCategoryForm((current) => ({ ...current, tagsText: event.target.value }))}
-                placeholder="steam, fanatical, oferta"
-              />
-              <label className="text-secondary flex items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  checked={categoryForm.active}
-                  onChange={(event) => setCategoryForm((current) => ({ ...current, active: event.target.checked }))}
-                />
-                Activa
-              </label>
+
+              <div className="flex-1 overflow-y-auto px-4 py-4 sm:px-5">
+                <section className="drawer-section-semantic space-y-3">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-blue-700 dark:text-blue-300">General</p>
+                  <Input
+                    label="Nombre *"
+                    value={categoryForm.name}
+                    onChange={(event) => setCategoryForm((current) => ({ ...current, name: event.target.value }))}
+                    required
+                  />
+                  <Input
+                    label="Color"
+                    value={categoryForm.color}
+                    onChange={(event) => setCategoryForm((current) => ({ ...current, color: event.target.value }))}
+                    placeholder="#4f46e5"
+                  />
+                  <label className="grid gap-1.5 text-sm font-medium text-secondary">
+                    Tipo
+                    <select
+                      value={categoryForm.type}
+                      onChange={(event) => setCategoryForm((current) => ({ ...current, type: event.target.value as CategoryType }))}
+                      className="input-semantic h-11 rounded-md px-3 text-sm"
+                    >
+                      <option value="income">Ingreso</option>
+                      <option value="expense">Gasto</option>
+                      <option value="transfer">Transferencia</option>
+                    </select>
+                  </label>
+                  <Input
+                    label="Tags (separados por coma)"
+                    value={categoryForm.tagsText}
+                    onChange={(event) => setCategoryForm((current) => ({ ...current, tagsText: event.target.value }))}
+                    placeholder="steam, fanatical, oferta"
+                  />
+                  <label className="text-secondary flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={categoryForm.active}
+                      onChange={(event) => setCategoryForm((current) => ({ ...current, active: event.target.checked }))}
+                    />
+                    Activa
+                  </label>
+                </section>
               </div>
-              <div className="border-t border-strong bg-[color-mix(in_srgb,var(--color-surface-1)_95%,transparent)] px-4 py-3 sm:px-5 sm:py-4">
+
+              <div className="drawer-footer-semantic">
                 <div className="flex justify-end gap-2">
-                <Button type="button" variant="secondary" className="btn-secondary-semantic h-9 rounded-md" onClick={() => setCategoryModalOpen(false)}>
-                  Cancelar
-                </Button>
-                <Button type="submit" loading={saving} loadingText="Guardando..." className="h-9 rounded-md">
-                  Guardar
-                </Button>
+                  <Button type="button" variant="ghost" className="h-9 rounded-md border-[var(--color-danger)]/50 bg-[var(--color-danger)]/15 text-[var(--color-danger)] hover:border-[var(--color-danger)]/70 hover:bg-[var(--color-danger)]/25" onClick={() => setCategoryModalOpen(false)}>
+                    Cancelar
+                  </Button>
+                  <Button type="submit" variant="ghost" loading={saving} loadingText="Guardando..." className="h-9 rounded-md border-blue-400/60 bg-blue-500/15 text-blue-700 hover:border-blue-500/70 hover:bg-blue-500/25 hover:text-blue-800 dark:border-blue-700/60 dark:bg-blue-500/25 dark:text-blue-300 dark:hover:border-blue-500/70 dark:hover:bg-blue-500/35 dark:hover:text-blue-100">
+                    Guardar
+                  </Button>
                 </div>
               </div>
             </form>
           </Card>
         </div>
       ) : null}
+
     </>
   );
 }
