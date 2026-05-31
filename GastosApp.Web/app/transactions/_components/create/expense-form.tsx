@@ -289,14 +289,14 @@ export function ExpenseForm({
         ) : null}
       </section>
 
-      <section className="app-panel space-y-3 rounded-2xl border p-4">
+      <section className="space-y-3 rounded-2xl border border-amber-400/50 bg-amber-500/15 p-4">
         <button
           type="button"
           className="flex w-full items-center justify-between rounded-lg px-1 text-left"
           onClick={() => setShowOptional((value) => !value)}
           aria-expanded={showOptional}
         >
-          <span className="text-primary text-sm font-semibold">Más detalles (opcional)</span>
+          <span className="text-sm font-semibold text-amber-700 dark:text-amber-300">Más detalles (opcional)</span>
           <span className="text-muted text-xs font-semibold">{showOptional ? "Ocultar" : "Mostrar"}</span>
         </button>
 
@@ -458,9 +458,9 @@ export function ExpenseForm({
       {submitError ? <Alert variant="danger">{submitError}</Alert> : null}
       {successMessage ? <Alert variant="info">{successMessage}</Alert> : null}
 
-      <div className="app-panel sticky bottom-0 rounded-2xl border bg-[color-mix(in_srgb,var(--color-surface-1)_92%,transparent)] p-3 backdrop-blur">
+      <div className="sticky bottom-0 rounded-2xl border border-blue-200/60 bg-blue-50/45 p-3 backdrop-blur dark:border-blue-900/50 dark:bg-blue-950/25">
         <div className="flex flex-col items-stretch justify-between gap-2 sm:flex-row sm:items-center">
-          <p className="text-xs text-muted">Completa obligatorios para habilitar guardado.</p>
+          <p className="text-xs text-blue-700 dark:text-blue-300">Completa obligatorios para habilitar guardado.</p>
           <Button
             type="submit"
             loading={submitLoading}

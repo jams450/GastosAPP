@@ -154,7 +154,7 @@ export function IncomeClient({ username }: Props) {
 
   useEffect(() => {
     if (!successMessage) return;
-    successToast(successMessage);
+    successToast("Ingreso registrado correctamente.");
     setSuccessMessage(null);
   }, [successMessage, successToast]);
 

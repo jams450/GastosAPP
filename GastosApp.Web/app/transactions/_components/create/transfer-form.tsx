@@ -264,14 +264,14 @@ export function TransferForm({
         <p className="-mt-3 px-1 text-right text-xs text-slate-500 dark:text-slate-400">{description.trim().length}/120</p>
       </section>
 
-      <section className="app-panel space-y-3 rounded-2xl border p-4">
+      <section className="space-y-3 rounded-2xl border border-amber-400/50 bg-amber-500/15 p-4">
         <button
           type="button"
           className="flex w-full items-center justify-between rounded-lg px-1 text-left"
           onClick={() => setShowOptional((value) => !value)}
           aria-expanded={showOptional}
         >
-          <span className="text-primary text-sm font-semibold">Más detalles (opcional)</span>
+          <span className="text-sm font-semibold text-amber-700 dark:text-amber-300">Más detalles (opcional)</span>
           <span className="text-muted text-xs font-semibold">{showOptional ? "Ocultar" : "Mostrar"}</span>
         </button>
 

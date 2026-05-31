@@ -9,6 +9,7 @@ import { parseSelectedNumber, currentLocalDateTimeInput } from "../_lib/transact
 import type { ExpenseAllocationFormState, TransactionKind } from "../_lib/transactions-types";
 import { createAllocationRow, resolveDefaultSelfBillablePartyId } from "../_shared/transactions-screen-shared";
 import { useTransactionsCatalogs } from "../_shared/use-transactions-catalogs";
+import { TransactionsToastStack, useTransactionsToasts } from "../_shared/transactions-toasts";
 
 type Props = { username: string };
 
@@ -27,6 +28,7 @@ export function ExpenseClient({ username }: Props) {
   const [submitLoading, setSubmitLoading] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const { toasts, dismissToast, success: successToast, error: errorToast } = useTransactionsToasts();
 
   const defaultSelfBillablePartyId = resolveDefaultSelfBillablePartyId(catalogs);
   const [expenseAllocations, setExpenseAllocations] = useState<ExpenseAllocationFormState[]>([
@@ -40,6 +42,25 @@ export function ExpenseClient({ username }: Props) {
     setAccountId(catalogs.accounts[0]?.accountId ?? null);
     setCategoryId(catalogs.categoriesByType.expense[0]?.categoryId ?? null);
   }, [catalogs, accountId, categoryId]);
+
+  useEffect(() => {
+    if (!defaultSelfBillablePartyId) return;
+
+    setExpenseAllocations((current) => {
+      if (current.length === 0) {
+        return [createAllocationRow(defaultSelfBillablePartyId, "100")];
+      }
+
+      const first = current[0];
+      if (first.billablePartyId) {
+        return current;
+      }
+
+      const next = [...current];
+      next[0] = { ...first, billablePartyId: defaultSelfBillablePartyId };
+      return next;
+    });
+  }, [defaultSelfBillablePartyId]);
 
   const categoriesForKind = useMemo(() => catalogs?.categoriesByType.expense ?? [], [catalogs]);
   const subcategoriesForSelectedCategory = useMemo(() => {
@@ -98,13 +119,25 @@ export function ExpenseClient({ username }: Props) {
     setHistoryError: () => {}
   });
 
+  useEffect(() => {
+    if (!submitError) return;
+    errorToast(submitError);
+    setSubmitError(null);
+  }, [submitError, errorToast]);
+
+  useEffect(() => {
+    if (!successMessage) return;
+    successToast("Gasto registrado correctamente.");
+    setSuccessMessage(null);
+  }, [successMessage, successToast]);
+
   return (
     <AdminShell username={username} section="Operación" title="Transacciones · Gasto" subtitle="Registra gastos de forma individual.">
+      <TransactionsToastStack toasts={toasts} onDismiss={dismissToast} />
+
       <section className="space-y-2 md:space-y-2">
         {catalogsLoading ? <Alert>Cargando catálogos...</Alert> : null}
         {catalogsError ? <Alert variant="danger">{catalogsError}</Alert> : null}
-        {submitError ? <Alert variant="danger">{submitError}</Alert> : null}
-        {successMessage ? <Alert>{successMessage}</Alert> : null}
 
         {catalogs ? (
           <ExpenseSection
@@ -138,7 +171,6 @@ export function ExpenseClient({ username }: Props) {
               description,
               onDescriptionChange: setDescription,
               submitError,
-              successMessage,
               submitLoading,
               onSubmit,
               parseSelectedNumber

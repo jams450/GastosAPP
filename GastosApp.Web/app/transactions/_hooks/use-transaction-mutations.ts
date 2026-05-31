@@ -220,9 +220,13 @@ export function useTransactionMutations(params: Params) {
         return setSubmitError(data?.message ?? "No se pudo registrar la transacción.");
       }
 
-      setSuccessMessage(kind === "expense" && openingCreditCharge
-        ? "Cargo de apertura registrado sin afectar totales."
-        : "Transacción registrada correctamente.");
+      setSuccessMessage(
+        kind === "expense" && openingCreditCharge
+          ? "Cargo de apertura registrado sin afectar totales."
+          : kind === "income"
+            ? "Ingreso registrado correctamente."
+            : "Transacción registrada correctamente."
+      );
       setAmount("");
       setDescription("");
       setSubcategoryId(null);
