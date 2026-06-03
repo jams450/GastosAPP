@@ -1,24 +1,5 @@
 namespace GastosApp.BusinessLogic.Models.Dashboard
 {
-    public class DashboardCreditOverview
-    {
-        public string Month { get; set; } = string.Empty;
-        public string Timezone { get; set; } = string.Empty;
-        public DashboardSummary Summary { get; set; } = new();
-        public IEnumerable<DashboardAccountOverview> Accounts { get; set; } = Enumerable.Empty<DashboardAccountOverview>();
-    }
-
-    public class DashboardSummary
-    {
-        public decimal CashTotal { get; set; }
-        public decimal CreditUsed { get; set; }
-        public decimal TotalDebt { get; set; }
-        public decimal CreditDebtMsi { get; set; }
-        public decimal CreditDebtNormal { get; set; }
-        public decimal MonthIncome { get; set; }
-        public decimal MonthExpense { get; set; }
-    }
-
     public class DashboardAccountOverview
     {
         public int AccountId { get; set; }
@@ -41,5 +22,57 @@ namespace GastosApp.BusinessLogic.Models.Dashboard
         public decimal EstimatedCutoffPayment { get; set; }
         public decimal MsiOutstanding { get; set; }
         public decimal NormalOutstanding { get; set; }
+    }
+
+    public class DashboardOverviewResponse
+    {
+        public string Month { get; set; } = string.Empty;
+        public string Timezone { get; set; } = string.Empty;
+        public DashboardGeneralSummary GeneralSummary { get; set; } = new();
+        public DashboardCharts Charts { get; set; } = new();
+        public DashboardCreditSectionSummary CreditSummary { get; set; } = new();
+        public DashboardCashSectionSummary CashSummary { get; set; } = new();
+        public IEnumerable<DashboardAccountOverview> Accounts { get; set; } = Enumerable.Empty<DashboardAccountOverview>();
+    }
+
+    public class DashboardGeneralSummary
+    {
+        public decimal MonthIncome { get; set; }
+        public decimal MonthExpense { get; set; }
+    }
+
+    public class DashboardCharts
+    {
+        public IEnumerable<DashboardBreakdownItem> ExpenseByCategory { get; set; } = Enumerable.Empty<DashboardBreakdownItem>();
+        public IEnumerable<DashboardBreakdownItem> ExpenseBySubcategory { get; set; } = Enumerable.Empty<DashboardBreakdownItem>();
+        public IEnumerable<DashboardBreakdownItem> IncomeByAccount { get; set; } = Enumerable.Empty<DashboardBreakdownItem>();
+        public IEnumerable<DashboardBreakdownItem> TransferByAccount { get; set; } = Enumerable.Empty<DashboardBreakdownItem>();
+    }
+
+    public class DashboardBreakdownItem
+    {
+        public int? Id { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public decimal Amount { get; set; }
+    }
+
+    public class DashboardCreditSectionSummary
+    {
+        public decimal TotalAvailable { get; set; }
+        public decimal MonthIncome { get; set; }
+        public decimal MonthExpense { get; set; }
+        public decimal MonthNet { get; set; }
+        public decimal MonthMsiExpense { get; set; }
+        public decimal MonthNormalExpense { get; set; }
+        public decimal PendingMsi { get; set; }
+        public decimal PendingNormal { get; set; }
+    }
+
+    public class DashboardCashSectionSummary
+    {
+        public decimal Total { get; set; }
+        public decimal MonthIncome { get; set; }
+        public decimal MonthExpense { get; set; }
+        public decimal MonthNet { get; set; }
     }
 }

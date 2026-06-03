@@ -82,7 +82,7 @@ export function CreditAllocationSelector({
             <Button type="button" variant="ghost" className="h-7 border border-red-300/50 bg-red-500/12 px-2 text-xs font-semibold text-red-700 hover:border-red-400/65 hover:bg-red-500/22 dark:border-red-700/60 dark:bg-red-500/20 dark:text-red-300 dark:hover:bg-red-500/30" onClick={onUseSelectedAsAmount}>
               Usar total seleccionado
             </Button>
-            <Button type="button" variant="ghost" className="h-7 px-2 text-xs" onClick={onClear}>
+            <Button type="button" variant="ghost" className="h-7 border border-slate-300/55 bg-slate-500/12 px-2 text-xs font-semibold text-slate-700 hover:border-slate-400/70 hover:bg-slate-500/22 dark:border-slate-700/60 dark:bg-slate-500/20 dark:text-slate-300 dark:hover:bg-slate-500/30" onClick={onClear}>
               Limpiar selección
             </Button>
           </div>

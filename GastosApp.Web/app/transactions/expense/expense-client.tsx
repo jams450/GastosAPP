@@ -171,6 +171,7 @@ export function ExpenseClient({ username }: Props) {
               description,
               onDescriptionChange: setDescription,
               submitError,
+              successMessage,
               submitLoading,
               onSubmit,
               parseSelectedNumber

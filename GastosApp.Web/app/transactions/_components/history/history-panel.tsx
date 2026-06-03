@@ -97,7 +97,7 @@ export function HistoryPanel({
           </Button>
         </div>
 
-        <div className="app-panel grid gap-3 rounded-2xl border p-4">
+        <div className="grid gap-3 rounded-2xl border border-blue-200/60 bg-blue-50/35 p-4 dark:border-blue-900/50 dark:bg-blue-950/20">
           <div className="grid gap-3 md:grid-cols-3">
             <label className="text-muted grid gap-1 text-xs font-medium">
               Tipo
@@ -165,17 +165,17 @@ export function HistoryPanel({
       {historyError ? <Alert variant="danger">{historyError}</Alert> : null}
       {successMessage ? <Alert variant="info">{successMessage}</Alert> : null}
 
-      <div className="app-panel space-y-2 rounded-2xl border p-3">
+      <div className="space-y-2 rounded-2xl border border-blue-200/60 bg-blue-50/35 p-3 dark:border-blue-900/50 dark:bg-blue-950/20">
         <button
           type="button"
           className="flex w-full items-center justify-between rounded-xl px-2 py-1.5 text-left hover:bg-[var(--color-accent-soft)]"
           aria-expanded={isRegularOpen}
           onClick={() => setIsRegularOpen((current) => !current)}
         >
-          <span className="text-primary text-sm font-semibold">
+          <span className="text-sm font-semibold text-blue-700 dark:text-blue-300">
             Transacciones normales ({regularHistoryItems.length})
           </span>
-          <span className="text-muted text-xs font-semibold">{isRegularOpen ? "Ocultar" : "Mostrar"}</span>
+          <span className="text-xs font-semibold text-blue-700 dark:text-blue-300">{isRegularOpen ? "Ocultar" : "Mostrar"}</span>
         </button>
 
         {isRegularOpen ? (
@@ -185,22 +185,23 @@ export function HistoryPanel({
             mode="client"
             density="compact"
             loading={historyLoading}
+            stickyActionsColumn
             emptyMessage={hasActiveFilters ? "Sin resultados con filtros actuales" : "No hay transacciones normales en este mes"}
           />
         ) : null}
       </div>
 
-      <div className="app-panel space-y-2 rounded-2xl border p-3">
+      <div className="space-y-2 rounded-2xl border border-blue-200/60 bg-blue-50/35 p-3 dark:border-blue-900/50 dark:bg-blue-950/20">
         <button
           type="button"
           className="flex w-full items-center justify-between rounded-xl px-2 py-1.5 text-left hover:bg-[var(--color-accent-soft)]"
           aria-expanded={isTransfersOpen}
           onClick={() => setIsTransfersOpen((current) => !current)}
         >
-          <span className="text-primary text-sm font-semibold">
+          <span className="text-sm font-semibold text-blue-700 dark:text-blue-300">
             Transferencias por grupo ({transferGroups.length})
           </span>
-          <span className="text-muted text-xs font-semibold">{isTransfersOpen ? "Ocultar" : "Mostrar"}</span>
+          <span className="text-xs font-semibold text-blue-700 dark:text-blue-300">{isTransfersOpen ? "Ocultar" : "Mostrar"}</span>
         </button>
 
         {isTransfersOpen ? (
@@ -210,6 +211,7 @@ export function HistoryPanel({
             mode="client"
             density="compact"
             loading={historyLoading}
+            stickyActionsColumn
             emptyMessage={hasActiveFilters ? "Sin resultados con filtros actuales" : "No hay transferencias en este mes"}
           />
         ) : null}

@@ -32,7 +32,7 @@ export function UserDeleteConfirmDialog({ user, open, loading, onCancel, onConfi
         </p>
 
         <div className="mt-4 flex justify-end gap-2">
-          <Button type="button" variant="secondary" className="h-9" onClick={onCancel}>
+          <Button type="button" variant="ghost" className="h-9 border-[var(--color-danger)]/50 bg-[var(--color-danger)]/15 text-[var(--color-danger)] hover:border-[var(--color-danger)]/70 hover:bg-[var(--color-danger)]/25" onClick={onCancel}>
             Cancelar
           </Button>
           <Button type="button" variant="danger" className="h-9" loading={loading} loadingText="Borrando..." onClick={onConfirm}>

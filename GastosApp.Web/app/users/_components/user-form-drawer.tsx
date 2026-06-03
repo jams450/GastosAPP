@@ -75,11 +75,11 @@ export function UserFormDrawer({
             />
 
             <div className="grid gap-2 sm:grid-cols-2">
-            <label className="app-panel text-secondary flex cursor-pointer items-center gap-2 border p-3 text-sm">
+            <label className="drawer-section-semantic text-secondary flex cursor-pointer items-center gap-2 text-sm">
               <input type="checkbox" checked={form.active} onChange={(event) => onChange("active", event.target.checked)} className="h-4 w-4 border-default bg-[var(--color-surface-1)] text-[var(--color-accent)] focus:ring-[var(--color-accent)]" />
               Usuario activo
             </label>
-            <label className="app-panel text-secondary flex cursor-pointer items-center gap-2 border p-3 text-sm">
+            <label className="drawer-section-semantic text-secondary flex cursor-pointer items-center gap-2 text-sm">
               <input type="checkbox" checked={form.admin} onChange={(event) => onChange("admin", event.target.checked)} className="h-4 w-4 border-default bg-[var(--color-surface-1)] text-[var(--color-accent)] focus:ring-[var(--color-accent)]" />
               Rol administrador
             </label>

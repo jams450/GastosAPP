@@ -227,7 +227,7 @@ function CreditDetails({ account }: { account: DashboardAccountOverview }) {
         <Kpi label="Pendiente MSI" value={account.msiOutstanding} toneClass="text-indigo-700 dark:text-indigo-400" plain />
         <Kpi label="Pendiente normal" value={account.normalOutstanding} toneClass="text-fuchsia-700 dark:text-fuchsia-400" plain />
         <div className="self-end">
-          <Button type="button" variant="secondary" className="h-9 w-full" onClick={() => void openPendingModal()}>
+          <Button type="button" variant="ghost" className="h-9 w-full border-blue-400/60 bg-blue-500/15 text-blue-700 hover:border-blue-500/70 hover:bg-blue-500/25 hover:text-blue-800 dark:border-blue-700/60 dark:bg-blue-500/25 dark:text-blue-300 dark:hover:border-blue-500/70 dark:hover:bg-blue-500/35 dark:hover:text-blue-100" onClick={() => void openPendingModal()}>
             Ver cargos pendientes
           </Button>
         </div>
@@ -272,7 +272,7 @@ function PendingGroup({
   total: number;
 }) {
   return (
-    <section className="space-y-2 rounded-xl border border-slate-200 p-3 dark:border-slate-700">
+    <section className="space-y-2 rounded-xl border border-indigo-200/55 bg-indigo-50/30 p-3 dark:border-indigo-900/40 dark:bg-indigo-950/15">
       <div className="flex items-center justify-between gap-2">
         <h4 className={`text-sm font-semibold ${toneClass}`}>{title}</h4>
         <p className="text-xs text-slate-500 dark:text-slate-400">{items.length} cargos</p>

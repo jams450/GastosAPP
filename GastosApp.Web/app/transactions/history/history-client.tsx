@@ -20,7 +20,7 @@ import { useTransactionsCatalogs } from "../_shared/use-transactions-catalogs";
 
 type Props = { username: string };
 
-export function CreditClient({ username }: Props) {
+export function HistoryClient({ username }: Props) {
   const { catalogs, catalogsLoading, catalogsError } = useTransactionsCatalogs();
 
   const [historyMonth, setHistoryMonth] = useState<string>(currentMonthInput());
@@ -257,7 +257,7 @@ export function CreditClient({ username }: Props) {
   }, [applyPaymentForm, onApplyExistingPayment]);
 
   return (
-    <AdminShell username={username} section="Operación" title="Transacciones · Crédito" subtitle="Consulta historial y aplica operaciones de crédito.">
+    <AdminShell username={username} section="Operación" title="Transacciones · Historial" subtitle="Consulta historial y aplica operaciones de crédito.">
       <section className="space-y-2 md:space-y-2">
         {catalogsLoading ? <Alert>Cargando catálogos...</Alert> : null}
         {catalogsError ? <Alert variant="danger">{catalogsError}</Alert> : null}

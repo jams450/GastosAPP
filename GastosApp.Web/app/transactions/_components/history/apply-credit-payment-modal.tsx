@@ -31,7 +31,7 @@ export function ApplyCreditPaymentModal({ open, form, saving, error, onClose, on
         <form className="space-y-4" onSubmit={onSubmit}>
           <h3 className="text-lg font-semibold text-primary">Aplicar pago a mensualidades</h3>
 
-          <div className="app-panel grid gap-2 rounded-xl border p-3 text-xs">
+          <div className="grid gap-2 rounded-2xl border border-blue-200/60 bg-blue-50/35 p-3 text-xs dark:border-blue-900/50 dark:bg-blue-950/20">
             <p className="text-muted">ID transacción origen: <span className="font-semibold">#{form.sourceTransactionId}</span></p>
             <p className="text-muted">Monto máximo aplicable: <span className="font-semibold">${form.maxAmount.toFixed(2)}</span></p>
           </div>

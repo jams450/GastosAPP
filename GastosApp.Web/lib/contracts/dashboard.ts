@@ -1,13 +1,3 @@
-export type DashboardSummary = {
-  cashTotal: number;
-  creditUsed: number;
-  totalDebt: number;
-  creditDebtMsi: number;
-  creditDebtNormal: number;
-  monthIncome: number;
-  monthExpense: number;
-};
-
 export type DashboardAccountOverview = {
   accountId: number;
   name: string;
@@ -29,13 +19,6 @@ export type DashboardAccountOverview = {
   estimatedCutoffPayment: number;
   msiOutstanding: number;
   normalOutstanding: number;
-};
-
-export type DashboardCreditOverview = {
-  month: string;
-  timezone: string;
-  summary: DashboardSummary;
-  accounts: DashboardAccountOverview[];
 };
 
 type UnknownRecord = Record<string, unknown>;
@@ -113,25 +96,109 @@ function normalizeAccount(input: unknown): DashboardAccountOverview | null {
   };
 }
 
-export function normalizeDashboardCreditOverview(input: unknown): DashboardCreditOverview {
+export type DashboardBreakdownItem = {
+  id: number | null;
+  name: string;
+  amount: number;
+};
+
+export type DashboardGeneralSummary = {
+  monthIncome: number;
+  monthExpense: number;
+};
+
+export type DashboardCharts = {
+  expenseByCategory: DashboardBreakdownItem[];
+  expenseBySubcategory: DashboardBreakdownItem[];
+  incomeByAccount: DashboardBreakdownItem[];
+  transferByAccount: DashboardBreakdownItem[];
+};
+
+export type DashboardCreditSectionSummary = {
+  totalAvailable: number;
+  monthIncome: number;
+  monthExpense: number;
+  monthNet: number;
+  monthMsiExpense: number;
+  monthNormalExpense: number;
+  pendingMsi: number;
+  pendingNormal: number;
+};
+
+export type DashboardCashSectionSummary = {
+  total: number;
+  monthIncome: number;
+  monthExpense: number;
+  monthNet: number;
+};
+
+export type DashboardOverviewResponse = {
+  month: string;
+  timezone: string;
+  generalSummary: DashboardGeneralSummary;
+  charts: DashboardCharts;
+  creditSummary: DashboardCreditSectionSummary;
+  cashSummary: DashboardCashSectionSummary;
+  accounts: DashboardAccountOverview[];
+};
+
+function normalizeBreakdownItem(input: unknown): DashboardBreakdownItem | null {
+  if (!isRecord(input)) {
+    return null;
+  }
+
+  return {
+    id: toOptionalInt(input.id),
+    name: typeof input.name === "string" && input.name.trim().length > 0 ? input.name.trim() : "Sin nombre",
+    amount: toFiniteNumber(input.amount)
+  };
+}
+
+function normalizeBreakdownCollection(input: unknown): DashboardBreakdownItem[] {
+  return Array.isArray(input)
+    ? input.map((item) => normalizeBreakdownItem(item)).filter((item): item is DashboardBreakdownItem => item !== null)
+    : [];
+}
+
+export function normalizeDashboardOverview(input: unknown): DashboardOverviewResponse {
   if (!isRecord(input)) {
     return {
       month: "",
       timezone: "America/Mexico_City",
-      summary: {
-        cashTotal: 0,
-        creditUsed: 0,
-        totalDebt: 0,
-        creditDebtMsi: 0,
-        creditDebtNormal: 0,
+      generalSummary: {
         monthIncome: 0,
         monthExpense: 0
+      },
+      charts: {
+        expenseByCategory: [],
+        expenseBySubcategory: [],
+        incomeByAccount: [],
+        transferByAccount: []
+      },
+      creditSummary: {
+        totalAvailable: 0,
+        monthIncome: 0,
+        monthExpense: 0,
+        monthNet: 0,
+        monthMsiExpense: 0,
+        monthNormalExpense: 0,
+        pendingMsi: 0,
+        pendingNormal: 0
+      },
+      cashSummary: {
+        total: 0,
+        monthIncome: 0,
+        monthExpense: 0,
+        monthNet: 0
       },
       accounts: []
     };
   }
 
-  const summaryInput = isRecord(input.summary) ? input.summary : {};
+  const generalSummaryInput = isRecord(input.generalSummary) ? input.generalSummary : {};
+  const chartsInput = isRecord(input.charts) ? input.charts : {};
+  const creditSummaryInput = isRecord(input.creditSummary) ? input.creditSummary : {};
+  const cashSummaryInput = isRecord(input.cashSummary) ? input.cashSummary : {};
   const accounts = Array.isArray(input.accounts)
     ? input.accounts.map((item) => normalizeAccount(item)).filter((item): item is DashboardAccountOverview => item !== null)
     : [];
@@ -139,14 +206,31 @@ export function normalizeDashboardCreditOverview(input: unknown): DashboardCredi
   return {
     month: typeof input.month === "string" ? input.month : "",
     timezone: typeof input.timezone === "string" ? input.timezone : "America/Mexico_City",
-    summary: {
-      cashTotal: toFiniteNumber(summaryInput.cashTotal),
-      creditUsed: toFiniteNumber(summaryInput.creditUsed),
-      totalDebt: toFiniteNumber(summaryInput.totalDebt),
-      creditDebtMsi: toFiniteNumber(summaryInput.creditDebtMsi),
-      creditDebtNormal: toFiniteNumber(summaryInput.creditDebtNormal),
-      monthIncome: toFiniteNumber(summaryInput.monthIncome),
-      monthExpense: toFiniteNumber(summaryInput.monthExpense)
+    generalSummary: {
+      monthIncome: toFiniteNumber(generalSummaryInput.monthIncome),
+      monthExpense: toFiniteNumber(generalSummaryInput.monthExpense)
+    },
+    charts: {
+      expenseByCategory: normalizeBreakdownCollection(chartsInput.expenseByCategory),
+      expenseBySubcategory: normalizeBreakdownCollection(chartsInput.expenseBySubcategory),
+      incomeByAccount: normalizeBreakdownCollection(chartsInput.incomeByAccount),
+      transferByAccount: normalizeBreakdownCollection(chartsInput.transferByAccount)
+    },
+    creditSummary: {
+      totalAvailable: toFiniteNumber(creditSummaryInput.totalAvailable),
+      monthIncome: toFiniteNumber(creditSummaryInput.monthIncome),
+      monthExpense: toFiniteNumber(creditSummaryInput.monthExpense),
+      monthNet: toFiniteNumber(creditSummaryInput.monthNet),
+      monthMsiExpense: toFiniteNumber(creditSummaryInput.monthMsiExpense),
+      monthNormalExpense: toFiniteNumber(creditSummaryInput.monthNormalExpense),
+      pendingMsi: toFiniteNumber(creditSummaryInput.pendingMsi),
+      pendingNormal: toFiniteNumber(creditSummaryInput.pendingNormal)
+    },
+    cashSummary: {
+      total: toFiniteNumber(cashSummaryInput.total),
+      monthIncome: toFiniteNumber(cashSummaryInput.monthIncome),
+      monthExpense: toFiniteNumber(cashSummaryInput.monthExpense),
+      monthNet: toFiniteNumber(cashSummaryInput.monthNet)
     },
     accounts
   };

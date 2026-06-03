@@ -99,7 +99,7 @@ export function EditTransactionModal({
           <Input label="Tags (opcional, separados por coma)" type="text" value={form.tagsText} onChange={(e) => onChange({ ...form, tagsText: e.target.value })} list="transaction-tag-suggestions" />
 
           {form.type === "expense" ? (
-            <div className="app-panel space-y-2 rounded-xl border p-3">
+            <div className="space-y-2 rounded-2xl border border-blue-200/60 bg-blue-50/35 p-3 dark:border-blue-900/50 dark:bg-blue-950/20">
               <div className="flex items-center justify-between">
                 <p className="text-primary text-xs font-semibold uppercase tracking-wide">Responsables</p>
                 <Button

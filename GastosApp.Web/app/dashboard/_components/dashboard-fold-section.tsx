@@ -1,34 +1,53 @@
-import { useId, useState } from "react";
+import { type ReactNode, useEffect, useId, useState } from "react";
 import { Card } from "@/components/ui/card";
-import { AccountCard } from "@/app/dashboard/_components/account-card";
-import type { DashboardAccountOverview } from "@/lib/contracts/dashboard";
-import type { DashboardViewMode } from "@/app/dashboard/_components/dashboard-view-mode";
 import { cn } from "@/lib/ui/cn";
 
-type AccountsSectionProps = {
+type DashboardFoldSectionProps = {
   title: string;
   description: string;
-  accounts: DashboardAccountOverview[];
-  viewMode: DashboardViewMode;
-  emptyMessage: string;
+  badge?: string;
   defaultCollapsed?: boolean;
+  storageKey?: string;
+  children: ReactNode;
 };
 
-export function AccountsSection({
+export function DashboardFoldSection({
   title,
   description,
-  accounts,
-  viewMode,
-  emptyMessage,
-  defaultCollapsed = false
-}: AccountsSectionProps) {
+  badge,
+  defaultCollapsed = true,
+  storageKey,
+  children
+}: DashboardFoldSectionProps) {
   const [collapsed, setCollapsed] = useState(defaultCollapsed);
+  const [hasOpened, setHasOpened] = useState(!defaultCollapsed);
   const sectionId = useId();
-  const gridClass = viewMode === "detail" || viewMode === "headers"
-    ? "grid-cols-1"
-    : viewMode === "grid2"
-      ? "sm:grid-cols-2"
-      : "sm:grid-cols-2 xl:grid-cols-3";
+
+  useEffect(() => {
+    if (!storageKey || typeof window === "undefined") {
+      return;
+    }
+
+    const stored = window.localStorage.getItem(storageKey);
+    if (stored === "open") {
+      setCollapsed(false);
+      setHasOpened(true);
+    }
+
+    if (stored === "closed") {
+      setCollapsed(true);
+    }
+  }, [storageKey]);
+
+  useEffect(() => {
+    if (!collapsed) {
+      setHasOpened(true);
+    }
+
+    if (storageKey && typeof window !== "undefined") {
+      window.localStorage.setItem(storageKey, collapsed ? "closed" : "open");
+    }
+  }, [collapsed, storageKey]);
 
   return (
     <Card className="rounded-2xl border border-indigo-200/50 bg-indigo-50/25 p-3 dark:border-indigo-900/40 dark:bg-indigo-950/15">
@@ -45,9 +64,11 @@ export function AccountsSection({
         </div>
 
         <div className="flex items-center gap-2">
-          <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
-            {accounts.length} registradas
-          </span>
+          {badge ? (
+            <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
+              {badge}
+            </span>
+          ) : null}
           <span
             className={cn(
               "inline-flex h-7 w-7 items-center justify-center rounded-full border border-slate-200 bg-slate-50 text-slate-600 transition-transform dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300",
@@ -62,21 +83,7 @@ export function AccountsSection({
         </div>
       </button>
 
-      {collapsed ? null : (
-        <div id={sectionId}>
-          {accounts.length === 0 ? (
-            <p className="m-0 rounded-xl border border-slate-200 bg-slate-50 px-4 py-6 text-center text-sm text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
-              {emptyMessage}
-            </p>
-          ) : (
-            <div className={cn("grid gap-3", gridClass)}>
-              {accounts.map((account) => (
-                <AccountCard key={account.accountId} account={account} viewMode={viewMode} />
-              ))}
-            </div>
-          )}
-        </div>
-      )}
+      {collapsed ? null : <div id={sectionId}>{hasOpened ? children : null}</div>}
     </Card>
   );
 }

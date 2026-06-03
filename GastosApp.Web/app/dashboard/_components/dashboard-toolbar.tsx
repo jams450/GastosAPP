@@ -20,11 +20,11 @@ export function DashboardToolbar({
   onViewModeChange
 }: DashboardToolbarProps) {
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white/95 p-4 backdrop-blur dark:border-slate-800 dark:bg-slate-950/95">
+    <section className="rounded-2xl border border-purple-200/55 bg-purple-50/30 p-3 backdrop-blur dark:border-purple-900/45 dark:bg-purple-950/20">
       <div className="grid gap-4 lg:grid-cols-[1fr_auto] lg:items-end">
         <div className="space-y-1">
-          <h2 className="m-0 text-lg font-semibold text-slate-900 dark:text-slate-100">Filtro del dashboard</h2>
-          <p className="m-0 text-xs text-slate-500 dark:text-slate-400">Corte por zona horaria: {timezone}</p>
+          <h2 className="m-0 text-lg font-semibold text-slate-900 dark:text-slate-100">Filtros del dashboard</h2>
+          <p className="m-0 text-xs text-slate-500 dark:text-slate-400">Zona horaria: {timezone}</p>
         </div>
 
         <div className="flex flex-wrap items-end justify-start gap-4 lg:justify-end">

@@ -351,9 +351,9 @@ export function TransferForm({
       {submitError ? <Alert variant="danger">{submitError}</Alert> : null}
       {successMessage ? <Alert variant="info">{successMessage}</Alert> : null}
 
-      <div className="app-panel mt-6 rounded-2xl border p-3">
+      <div className="mt-6 rounded-2xl border border-blue-200/60 bg-blue-50/45 p-3 backdrop-blur dark:border-blue-900/50 dark:bg-blue-950/25">
         <div className="flex flex-col items-stretch justify-between gap-2 sm:flex-row sm:items-center">
-          <p className="text-xs text-muted">Completa obligatorios para habilitar guardado.</p>
+          <p className="text-xs text-blue-700 dark:text-blue-300">Completa obligatorios para habilitar guardado.</p>
           <Button
             type="submit"
             loading={submitLoading}

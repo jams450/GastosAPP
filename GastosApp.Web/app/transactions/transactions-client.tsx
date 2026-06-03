@@ -563,7 +563,6 @@ export function TransactionsClient({ username, fixedKind, fixedViewMode }: Props
                     description,
                     onDescriptionChange: setDescription,
                     submitError,
-                    successMessage,
                     submitLoading,
                     onSubmit,
                     parseSelectedNumber

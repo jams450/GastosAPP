@@ -155,7 +155,7 @@ export function ExpenseForm({
     <form onSubmit={onSubmit} className="space-y-5">
       <header className="space-y-1">
         <h3 className="text-base font-semibold text-primary">Nuevo gasto</h3>
-        <p className="text-xs text-muted">Completa obligatorios primero. Detalles opcionales después.</p>
+        <p className="text-xs text-blue-700 dark:text-blue-300">Completa obligatorios primero. Detalles opcionales después.</p>
       </header>
 
       <div className="grid gap-4 lg:grid-cols-2 lg:items-start">

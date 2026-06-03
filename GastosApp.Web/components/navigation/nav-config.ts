@@ -23,7 +23,7 @@ export const appNavItems: NavItem[] = [
       { href: "/transactions/income", label: "Ingreso" },
       { href: "/transactions/expense", label: "Gasto" },
       { href: "/transactions/transfers", label: "Transferencia" },
-      { href: "/transactions/credit", label: "Historial" }
+      { href: "/transactions/history", label: "Historial" }
     ]
   },
   {

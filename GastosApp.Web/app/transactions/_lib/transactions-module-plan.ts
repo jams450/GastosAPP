@@ -22,7 +22,7 @@ export const TRANSACTIONS_MODULE_PLAN = {
     income: { kind: "income", viewMode: "create" },
     expense: { kind: "expense", viewMode: "create" },
     transfers: { kind: "transfer", viewMode: "create" },
-    credit: { kind: "expense", viewMode: "history" }
+    history: { kind: "expense", viewMode: "history" }
   }
 } as const;
 

@@ -10,6 +10,7 @@ import { parseSelectedNumber, currentLocalDateTimeInput } from "../_lib/transact
 import type { Account, } from "@/lib/contracts/accounts";
 import type { TransactionKind } from "../_lib/transactions-types";
 import { useTransactionsCatalogs } from "../_shared/use-transactions-catalogs";
+import { TransactionsToastStack, useTransactionsToasts } from "../_shared/transactions-toasts";
 
 type Props = { username: string };
 
@@ -27,6 +28,7 @@ export function TransfersClient({ username }: Props) {
   const [submitLoading, setSubmitLoading] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const { toasts, dismissToast, success: successToast, error: errorToast } = useTransactionsToasts();
 
   const kind: TransactionKind = "transfer";
 
@@ -135,13 +137,25 @@ export function TransfersClient({ username }: Props) {
     setDestinationAccountId(sourceAccountId);
   }
 
+  useEffect(() => {
+    if (!submitError) return;
+    errorToast(submitError);
+    setSubmitError(null);
+  }, [submitError, errorToast]);
+
+  useEffect(() => {
+    if (!successMessage) return;
+    successToast("Transferencia registrada correctamente.");
+    setSuccessMessage(null);
+  }, [successMessage, successToast]);
+
   return (
     <AdminShell username={username} section="Operación" title="Transacciones · Transferencia" subtitle="Registra transferencias de forma individual.">
+      <TransactionsToastStack toasts={toasts} onDismiss={dismissToast} />
+
       <section className="space-y-2 md:space-y-2">
         {catalogsLoading ? <Alert>Cargando catálogos...</Alert> : null}
         {catalogsError ? <Alert variant="danger">{catalogsError}</Alert> : null}
-        {submitError ? <Alert variant="danger">{submitError}</Alert> : null}
-        {successMessage ? <Alert>{successMessage}</Alert> : null}
 
         {catalogs ? (
           <TransferSection

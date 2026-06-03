@@ -27,6 +27,11 @@ export function AccountFormDrawer({ open, account, form, errors, submitError, su
   const drawerRef = useRef<HTMLDivElement | null>(null);
   const closeButtonRef = useRef<HTMLButtonElement | null>(null);
   const triggerRef = useRef<HTMLElement | null>(null);
+  const onCloseRef = useRef(onClose);
+
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
 
   useEffect(() => {
     if (!open) {
@@ -44,7 +49,7 @@ export function AccountFormDrawer({ open, account, form, errors, submitError, su
 
       if (event.key === "Escape") {
         event.preventDefault();
-        onClose();
+        onCloseRef.current();
         return;
       }
 
@@ -102,7 +107,7 @@ export function AccountFormDrawer({ open, account, form, errors, submitError, su
       window.cancelAnimationFrame(raf);
       document.removeEventListener("keydown", onKeyDown);
     };
-  }, [open, onClose]);
+  }, [open]);
 
   if (!open) {
     return null;
