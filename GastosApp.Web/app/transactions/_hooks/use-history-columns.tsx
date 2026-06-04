@@ -3,6 +3,7 @@ import { HandCoins } from "lucide-react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Button } from "@/components/ui/button";
 import { formatCurrency } from "@/lib/format/currency";
+import { tableActionStyles } from "@/lib/ui/table-action-styles";
 import { dateTimeLocalDisplay } from "../_lib/transactions-utils";
 import { historyTypeLabel, type TransactionHistoryItem, type TransferGroupItem } from "../_lib/transactions-types";
 
@@ -89,11 +90,11 @@ export function useHistoryColumns({
           return (
             <div className="flex gap-1">
               {!isOpeningCredit ? (
-                <Button type="button" variant="secondary" className="h-6 px-1.5 text-[10px]" onClick={() => onEdit(item)}>
+                <Button type="button" variant="ghost" className={`h-6 px-1.5 text-[10px] ${tableActionStyles.edit}`} onClick={() => onEdit(item)}>
                   Editar
                 </Button>
               ) : null}
-              <Button type="button" variant="danger" className="h-6 px-1.5 text-[10px]" disabled={deleteLoadingId === item.transactionId} onClick={() => void onDelete(item)}>Borrar</Button>
+              <Button type="button" variant="ghost" className={`h-6 px-1.5 text-[10px] ${tableActionStyles.delete}`} disabled={deleteLoadingId === item.transactionId} onClick={() => void onDelete(item)}>Borrar</Button>
               {item.type === "expense" && accountById.get(item.accountId)?.isCredit ? (
                 <Button type="button" variant="secondary" className="h-6 border-indigo-300 bg-indigo-50 px-2 text-[10px] font-semibold text-indigo-700 hover:bg-indigo-100 dark:border-indigo-800 dark:bg-indigo-950/50 dark:text-indigo-300 dark:hover:bg-indigo-900/50" onClick={() => void onConvertToMsi(item)}>Convertir MSI</Button>
               ) : null}
@@ -135,8 +136,8 @@ export function useHistoryColumns({
           const item = row.original;
           return (
             <div className="flex gap-1">
-              <Button type="button" variant="secondary" className="h-6 px-1.5 text-[10px]" onClick={() => onEditTransfer(item)}>Editar</Button>
-              <Button type="button" variant="danger" className="h-6 px-1.5 text-[10px]" disabled={deleteTransferGroupId === item.transferGroupId} onClick={() => void onDeleteTransfer(item)}>Borrar</Button>
+              <Button type="button" variant="ghost" className={`h-6 px-1.5 text-[10px] ${tableActionStyles.edit}`} onClick={() => onEditTransfer(item)}>Editar</Button>
+              <Button type="button" variant="ghost" className={`h-6 px-1.5 text-[10px] ${tableActionStyles.delete}`} disabled={deleteTransferGroupId === item.transferGroupId} onClick={() => void onDeleteTransfer(item)}>Borrar</Button>
               {item.destinationAccountId && accountById.get(item.destinationAccountId)?.isCredit && item.destinationTransactionId ? (
                 <Button
                   type="button"

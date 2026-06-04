@@ -22,12 +22,12 @@ export function EditTransferModal({ open, form, catalogs, subcategories, parseSe
   if (!open || !form) return null;
 
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-slate-900/50 p-4">
-      <Card className="w-full max-w-xl p-6">
+    <div className="fixed inset-0 z-50 grid place-items-center bg-[var(--color-overlay)] p-4">
+      <Card className="app-card w-full max-w-xl p-6">
         <form className="space-y-4" onSubmit={onSubmit}>
-          <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Editar transferencia (grupo)</h3>
+          <h3 className="text-lg font-semibold text-primary">Editar transferencia (grupo)</h3>
 
-          <label className="grid gap-1.5 text-sm font-medium text-slate-700 dark:text-slate-300">
+          <label className="grid gap-1.5 text-sm font-medium text-secondary">
             Categoría
             <select
               value={form.categoryId}
@@ -35,7 +35,7 @@ export function EditTransferModal({ open, form, catalogs, subcategories, parseSe
                 const nextCategoryId = parseSelectedNumber(event.target.value) ?? 0;
                 onChange({ ...form, categoryId: nextCategoryId, subcategoryId: null });
               }}
-              className="h-11 rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-200 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+              className="input-semantic h-11 rounded-xl px-3 text-sm"
               required
             >
               {(catalogs?.categoriesByType.transfer ?? catalogs?.categories ?? []).map((category) => (
@@ -45,12 +45,12 @@ export function EditTransferModal({ open, form, catalogs, subcategories, parseSe
           </label>
 
           <div className="grid gap-4 md:grid-cols-2">
-            <label className="grid gap-1.5 text-sm font-medium text-slate-700 dark:text-slate-300">
+            <label className="grid gap-1.5 text-sm font-medium text-secondary">
               Subcategoría (opcional)
               <select
                 value={form.subcategoryId ?? ""}
                 onChange={(event) => onChange({ ...form, subcategoryId: parseSelectedNumber(event.target.value) })}
-                className="h-11 rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-200 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                className="input-semantic h-11 rounded-xl px-3 text-sm"
               >
                 <option value="">Sin subcategoría</option>
                 {subcategories.map((subcategory) => (
@@ -59,12 +59,12 @@ export function EditTransferModal({ open, form, catalogs, subcategories, parseSe
               </select>
             </label>
 
-            <label className="grid gap-1.5 text-sm font-medium text-slate-700 dark:text-slate-300">
+            <label className="grid gap-1.5 text-sm font-medium text-secondary">
               Comercio (opcional)
               <select
                 value={form.merchantId ?? ""}
                 onChange={(event) => onChange({ ...form, merchantId: parseSelectedNumber(event.target.value) })}
-                className="h-11 rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-200 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                className="input-semantic h-11 rounded-xl px-3 text-sm"
               >
                 <option value="">Sin comercio</option>
                 {(catalogs?.merchants ?? []).map((merchant) => (

@@ -1,7 +1,11 @@
 import { Button } from "@/components/ui/button";
+import { RotateCcw, SlidersHorizontal } from "lucide-react";
+import type { ReactNode } from "react";
 import type { ActiveFilterValue, FilterChip, FilterSlot } from "./catalog-section-types";
 
 type Props = {
+  title?: string;
+  subtitle?: string;
   searchPlaceholder: string;
   searchValue: string;
   onSearchChange: (value: string) => void;
@@ -10,9 +14,14 @@ type Props = {
   extraFilters?: FilterSlot[];
   chips?: FilterChip[];
   onClearFilters: () => void;
+  actions?: ReactNode;
+  hideChips?: boolean;
+  hideFeedback?: boolean;
 };
 
 export function SectionFilterBar({
+  title,
+  subtitle,
   searchPlaceholder,
   searchValue,
   onSearchChange,
@@ -20,29 +29,56 @@ export function SectionFilterBar({
   onActiveFilterChange,
   extraFilters,
   chips,
-  onClearFilters
+  onClearFilters,
+  actions,
+  hideChips = false,
+  hideFeedback = false
 }: Props) {
   const hasActiveFilters = Boolean(searchValue.trim()) || activeFilter !== "all" || Boolean(chips?.length);
 
   return (
-    <div className="space-y-2 rounded-xl border border-slate-200 bg-slate-50/70 p-2 dark:border-slate-800 dark:bg-slate-900/30">
-      <div className="grid gap-2 lg:grid-cols-[minmax(220px,2fr)_minmax(140px,1fr)]">
-        <label className="grid gap-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+    <div className="space-y-2 p-0">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <span className="inline-flex h-7 w-7 items-center justify-center rounded-none border border-strong bg-[var(--color-surface-3)] text-primary">
+            <SlidersHorizontal className="h-4 w-4" aria-hidden="true" />
+          </span>
+          <div>
+            <p className="text-primary text-xs font-bold uppercase tracking-wide">{title ?? "Buscar y filtrar"}</p>
+            {subtitle ? <p className="text-muted text-[11px] font-medium">{subtitle}</p> : null}
+          </div>
+        </div>
+
+        {hasActiveFilters && !hideFeedback ? (
+          <Button
+            type="button"
+            variant="ghost"
+            className="btn-secondary-semantic h-8 px-2.5 text-[11px] font-bold"
+            onClick={onClearFilters}
+          >
+            <RotateCcw className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
+            Limpiar filtros
+          </Button>
+        ) : null}
+      </div>
+
+      <div className="grid gap-2 p-2 lg:grid-cols-[minmax(220px,2fr)_minmax(140px,1fr)_minmax(160px,1fr)_auto] lg:items-end">
+        <label className="text-muted grid gap-1 text-[10px] font-semibold uppercase tracking-wide">
           Buscar
           <input
             value={searchValue}
             onChange={(event) => onSearchChange(event.target.value)}
-            className="h-9 rounded-lg border border-slate-300 bg-white px-2.5 text-xs text-slate-900 outline-none transition focus:border-sky-500 focus:ring-2 focus:ring-sky-200 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+            className="input-semantic h-8 rounded-none px-2.5 text-xs"
             placeholder={searchPlaceholder}
           />
         </label>
 
-        <label className="grid gap-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+        <label className="text-muted grid gap-1 text-[10px] font-semibold uppercase tracking-wide">
           Estado
           <select
             value={activeFilter}
             onChange={(event) => onActiveFilterChange(event.target.value as ActiveFilterValue)}
-            className="h-9 rounded-lg border border-slate-300 bg-white px-2 text-xs text-slate-900 outline-none transition focus:border-sky-500 focus:ring-2 focus:ring-sky-200 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+            className="input-semantic h-8 rounded-none px-2 text-xs"
           >
             <option value="all">Todos</option>
             <option value="active">Activos</option>
@@ -51,19 +87,21 @@ export function SectionFilterBar({
         </label>
 
         {extraFilters?.map((filter) => (
-          <label key={filter.label} className="grid gap-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+          <label key={filter.label} className="text-muted grid gap-1 text-[10px] font-semibold uppercase tracking-wide">
             {filter.label}
             {filter.content}
           </label>
         ))}
+
+        {actions ? <div className="flex items-end justify-end">{actions}</div> : null}
       </div>
 
-      {hasActiveFilters ? (
+      {hasActiveFilters && !hideChips && !hideFeedback ? (
         <div className="flex flex-wrap items-center gap-1.5">
           {searchValue.trim() ? (
             <button
               type="button"
-              className="rounded-full border border-slate-300 bg-white px-2 py-0.5 text-[11px] text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+              className="border-strong rounded-none border bg-[var(--color-surface-2)] px-2 py-0.5 text-[11px] text-secondary"
               onClick={() => onSearchChange("")}
             >
               Búsqueda: {searchValue.trim()} ×
@@ -73,7 +111,7 @@ export function SectionFilterBar({
           {activeFilter !== "all" ? (
             <button
               type="button"
-              className="rounded-full border border-slate-300 bg-white px-2 py-0.5 text-[11px] text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+              className="border-strong rounded-none border bg-[var(--color-surface-2)] px-2 py-0.5 text-[11px] text-secondary"
               onClick={() => onActiveFilterChange("all")}
             >
               Estado: {activeFilter === "active" ? "Activos" : "Inactivos"} ×
@@ -84,16 +122,13 @@ export function SectionFilterBar({
             <button
               key={chip.id}
               type="button"
-              className="rounded-full border border-slate-300 bg-white px-2 py-0.5 text-[11px] text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+              className="border-strong rounded-none border bg-[var(--color-surface-2)] px-2 py-0.5 text-[11px] text-secondary"
               onClick={chip.onClear}
             >
               {chip.label} ×
             </button>
           ))}
 
-          <Button type="button" variant="ghost" className="h-7 px-2 text-[11px]" onClick={onClearFilters}>
-            Limpiar filtros
-          </Button>
         </div>
       ) : null}
     </div>

@@ -5,18 +5,19 @@ import { UsersTable } from "./users-table";
 type Props = {
   rows: AdminUser[];
   loading: boolean;
+  errorMessage?: string | null;
   onEdit: (user: AdminUser) => void;
   onToggleActive: (user: AdminUser) => void;
   onDelete: (user: AdminUser) => void;
 };
 
-export function UsersResults({ rows, loading, onEdit, onToggleActive, onDelete }: Props) {
+export function UsersResults({ rows, loading, errorMessage, onEdit, onToggleActive, onDelete }: Props) {
   return (
-    <>
-      <UsersMobileList rows={rows} loading={loading} onEdit={onEdit} onToggleActive={onToggleActive} onDelete={onDelete} />
+    <section className="p-3 sm:p-4">
+      <UsersMobileList rows={rows} loading={loading} errorMessage={errorMessage} onEdit={onEdit} onToggleActive={onToggleActive} onDelete={onDelete} />
       <div className="hidden md:block">
-        <UsersTable rows={rows} loading={loading} onEdit={onEdit} onToggleActive={onToggleActive} onDelete={onDelete} />
+        <UsersTable rows={rows} loading={loading} errorMessage={errorMessage} onEdit={onEdit} onToggleActive={onToggleActive} onDelete={onDelete} />
       </div>
-    </>
+    </section>
   );
 }

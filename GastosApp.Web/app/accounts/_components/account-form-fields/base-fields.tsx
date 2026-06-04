@@ -15,12 +15,12 @@ export function BaseFields({ form, errors, onChange }: Props) {
 
       <Input label="Color" type="color" value={form.color} error={errors.color} onChange={(event) => onChange("color", event.target.value)} />
 
-      <label className="grid gap-1.5 text-sm font-medium text-slate-700 dark:text-slate-300">
+      <label className="text-secondary grid gap-1.5 text-sm font-medium">
         Estado
         <select
           value={form.active ? "active" : "inactive"}
           onChange={(event) => onChange("active", event.target.value === "active")}
-          className="h-11 rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-200 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+          className="input-semantic h-11 rounded-xl px-3 text-sm"
         >
           <option value="active">Activa</option>
           <option value="inactive">Inactiva</option>

@@ -11,14 +11,10 @@ type ButtonProps = ComponentProps<"button"> & {
 };
 
 const variantClass: Record<ButtonVariant, string> = {
-  primary:
-    "border border-sky-600 bg-sky-600 text-white hover:border-sky-700 hover:bg-sky-700 disabled:border-sky-400 disabled:bg-sky-400",
-  secondary:
-    "border border-slate-300 bg-white text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800",
-  ghost:
-    "border border-transparent bg-transparent text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800",
-  danger:
-    "border border-rose-600 bg-rose-600 text-white hover:bg-rose-700"
+  primary: "btn-primary-semantic disabled:border-[var(--color-border-strong)] disabled:bg-[var(--color-border-strong)]",
+  secondary: "btn-secondary-semantic",
+  ghost: "btn-ghost-semantic",
+  danger: "btn-danger-semantic hover:brightness-95"
 };
 
 export function Button({
@@ -34,7 +30,8 @@ export function Button({
   return (
     <button
       className={cn(
-        "inline-flex h-11 items-center justify-center gap-2 rounded-xl px-4 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-80",
+        "inline-flex h-10 items-center justify-center gap-2 rounded-lg px-4 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-border-focus)] disabled:cursor-not-allowed disabled:opacity-80",
+        "rounded-[var(--radius-sm)]",
         fullWidth && "w-full",
         variantClass[variant],
         className

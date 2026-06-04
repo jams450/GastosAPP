@@ -8,10 +8,10 @@ type AlertProps = ComponentProps<"div"> & {
 };
 
 const variants: Record<AlertVariant, string> = {
-  danger: "border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-900 dark:bg-rose-950/50 dark:text-rose-300",
-  info: "border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-900 dark:bg-sky-950/50 dark:text-sky-300"
+  danger: "border-[var(--color-danger)]/35 bg-[var(--color-danger)]/10 text-[var(--color-danger)]",
+  info: "border-[var(--color-accent)]/35 bg-[var(--color-accent)]/10 text-[var(--color-accent)]"
 };
 
 export function Alert({ className, variant = "info", ...props }: AlertProps) {
-  return <div className={cn("rounded-xl border px-3 py-2 text-sm", variants[variant], className)} role="alert" {...props} />;
+  return <div className={cn("rounded-[var(--tabler-radius-md)] border px-3 py-2 text-sm", variants[variant], className)} role="alert" {...props} />;
 }

@@ -25,18 +25,18 @@ namespace GastosApp.API.Controllers
             _logger = logger;
         }
 
-        [HttpGet("credit-overview")]
-        public async Task<IActionResult> GetCreditOverview([FromQuery] string? month)
+        [HttpGet("overview")]
+        public async Task<IActionResult> GetOverview([FromQuery] string? month)
         {
             try
             {
                 var userId = GetCurrentUserId();
-                var result = await _dashboardService.GetCreditOverviewAsync(userId, month, DashboardTimezone);
+                var result = await _dashboardService.GetOverviewAsync(userId, month, DashboardTimezone);
                 return Ok(result);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error retrieving dashboard credit overview");
+                _logger.LogError(ex, "Error retrieving dashboard overview");
                 return StatusCode(500, new { Message = "An error occurred while retrieving dashboard data" });
             }
         }

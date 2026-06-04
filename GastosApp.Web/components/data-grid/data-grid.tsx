@@ -117,12 +117,12 @@ export function DataGrid<TData>({
   });
 
   const headerCellClass = cn(
-    "text-left font-medium text-slate-500 dark:text-slate-400",
-    effectiveDensity === "compact" ? "px-2 py-2 text-[11px]" : "px-3 py-2.5 text-sm"
+    "text-left font-bold text-zinc-900 dark:text-zinc-100",
+    effectiveDensity === "compact" ? "px-2 py-2 text-xs" : "px-3 py-2.5 text-base"
   );
 
   const bodyCellClass = cn(
-    "text-slate-800 dark:text-slate-200",
+    "text-primary",
     effectiveDensity === "compact" ? "px-2 py-2 text-xs" : "px-3 py-2.5 text-sm"
   );
 
@@ -134,17 +134,17 @@ export function DataGrid<TData>({
   }
 
   return (
-    <div className="space-y-2.5">
+      <div className="space-y-2">
       {allowDensityToggle && !density ? (
-        <div className="flex items-center justify-end">
-          <div className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white p-0.5 dark:border-slate-800 dark:bg-slate-950">
+          <div className="flex items-center justify-end">
+            <div className="inline-flex items-center gap-1 border border-strong bg-[var(--color-surface-2)] p-0.5">
             <button
               type="button"
               className={cn(
-                "rounded-md px-2 py-1 text-[11px] font-medium transition",
+                "px-2 py-1 text-[11px] font-medium transition",
                 effectiveDensity === "compact"
-                  ? "bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900"
-                  : "text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
+                  ? "bg-[var(--color-accent)] text-[var(--color-accent-contrast)]"
+                  : "text-muted hover:bg-[var(--color-accent-soft)] hover:text-primary"
               )}
               onClick={() => handleDensityChange("compact")}
             >
@@ -153,10 +153,10 @@ export function DataGrid<TData>({
             <button
               type="button"
               className={cn(
-                "rounded-md px-2 py-1 text-[11px] font-medium transition",
+                "px-2 py-1 text-[11px] font-medium transition",
                 effectiveDensity === "normal"
-                  ? "bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900"
-                  : "text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
+                  ? "bg-[var(--color-accent)] text-[var(--color-accent-contrast)]"
+                  : "text-muted hover:bg-[var(--color-accent-soft)] hover:text-primary"
               )}
               onClick={() => handleDensityChange("normal")}
             >
@@ -168,9 +168,9 @@ export function DataGrid<TData>({
 
       {toolbar ? <div className="min-w-0">{toolbar}</div> : null}
 
-      <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-950">
+      <div className="table-shell overflow-x-auto rounded-xl border border-zinc-400/30 bg-[var(--table-surface-bg)]">
         <table className="min-w-full">
-          <thead className="bg-slate-50/90 dark:bg-slate-900/80">
+          <thead className="table-head bg-[var(--table-head-bg)]">
             {table.getHeaderGroups().map((headerGroup) => (
               <tr key={headerGroup.id}>
                 {headerGroup.headers.map((header) => {
@@ -180,7 +180,7 @@ export function DataGrid<TData>({
                   const isActionsColumn = header.column.id === "actions";
                   const stickyColumnClass =
                     stickyActionsColumn && isActionsColumn
-                      ? "sticky right-0 z-10 bg-slate-50/90 dark:bg-slate-900/90"
+                      ? "sticky right-0 z-10 bg-[var(--table-head-bg)]"
                       : undefined;
                   const stickyHeaderClass = stickyHeader ? "sticky top-0 z-20" : undefined;
                   const sortIndex = header.column.getSortIndex();
@@ -198,8 +198,8 @@ export function DataGrid<TData>({
                           onClick={canSort ? header.column.getToggleSortingHandler() : undefined}
                         >
                           {flexRender(header.column.columnDef.header, header.getContext())}
-                          <span className="text-[10px] text-slate-400 dark:text-slate-500">{sortIndicator}</span>
-                          {showSortOrder ? <span className="text-[10px] text-slate-400 dark:text-slate-500">{sortIndex + 1}</span> : null}
+                          <span className="text-[10px] text-muted">{sortIndicator}</span>
+                          {showSortOrder ? <span className="text-[10px] text-muted">{sortIndex + 1}</span> : null}
                         </button>
                       )}
                     </th>
@@ -211,7 +211,7 @@ export function DataGrid<TData>({
           <tbody>
             {errorMessage ? (
               <tr>
-                <td className={cn(bodyCellClass, "text-rose-600 dark:text-rose-300")} colSpan={columns.length}>
+                <td className={cn(bodyCellClass, "text-[var(--color-danger)]")} colSpan={columns.length}>
                   {errorMessage}
                 </td>
               </tr>
@@ -229,13 +229,14 @@ export function DataGrid<TData>({
               </tr>
               ) : (
                 table.getRowModel().rows.map((row) => (
-                <tr key={row.id} className="border-t border-slate-200/80 transition hover:bg-slate-50/70 dark:border-slate-800 dark:hover:bg-slate-900/60">
+                <tr key={row.id} className="table-row transition hover:bg-zinc-400/10 dark:hover:bg-zinc-700/20">
                   {row.getVisibleCells().map((cell) => (
                     <td
                       key={cell.id}
                       className={cn(
                         bodyCellClass,
-                        stickyActionsColumn && cell.column.id === "actions" ? "sticky right-0 z-10 bg-white dark:bg-slate-950" : undefined
+                        "table-cell",
+                        stickyActionsColumn && cell.column.id === "actions" ? "sticky right-0 z-10 bg-[var(--table-surface-bg)]" : undefined
                       )}
                     >
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}
@@ -249,13 +250,13 @@ export function DataGrid<TData>({
       </div>
 
       {!resolvedManualPagination && table.getPageCount() > 1 ? (
-        <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-b-xl border-x border-b border-strong bg-[var(--table-surface-bg)] px-2 py-1.5">
           <div className="flex items-center gap-2">
-            <span className="text-xs text-slate-500 dark:text-slate-400">Filas</span>
+            <span className="text-[11px] text-muted">Filas</span>
             <select
               value={table.getState().pagination.pageSize}
               onChange={(event) => table.setPageSize(Number(event.target.value))}
-              className="h-8 rounded-md border border-slate-300 bg-white px-2 text-xs text-slate-700 outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-200 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+              className="input-semantic h-7 px-2 text-[11px]"
             >
               {pageSizeOptions.map((size) => (
                 <option key={size} value={size}>
@@ -264,24 +265,24 @@ export function DataGrid<TData>({
               ))}
             </select>
           </div>
-          <div className="flex items-center gap-2">
-          <button
-            type="button"
-            className="rounded-md border border-slate-300 px-2 py-1 text-xs text-slate-700 disabled:opacity-50 dark:border-slate-700 dark:text-slate-200"
-            onClick={() => table.previousPage()}
-            disabled={!table.getCanPreviousPage()}
-          >
-            Anterior
-          </button>
-          <span className="text-xs text-slate-500 dark:text-slate-400">
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              className="btn-secondary-semantic h-7 px-2 text-[11px] disabled:opacity-50"
+              onClick={() => table.previousPage()}
+              disabled={!table.getCanPreviousPage()}
+            >
+              Anterior
+            </button>
+          <span className="text-[11px] text-muted">
             Página {table.getState().pagination.pageIndex + 1} de {table.getPageCount()}
           </span>
-          <button
-            type="button"
-            className="rounded-md border border-slate-300 px-2 py-1 text-xs text-slate-700 disabled:opacity-50 dark:border-slate-700 dark:text-slate-200"
-            onClick={() => table.nextPage()}
-            disabled={!table.getCanNextPage()}
-          >
+            <button
+              type="button"
+              className="btn-secondary-semantic h-7 px-2 text-[11px] disabled:opacity-50"
+              onClick={() => table.nextPage()}
+              disabled={!table.getCanNextPage()}
+            >
             Siguiente
           </button>
           </div>

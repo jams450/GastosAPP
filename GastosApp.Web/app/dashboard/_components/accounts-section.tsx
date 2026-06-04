@@ -31,16 +31,16 @@ export function AccountsSection({
       : "sm:grid-cols-2 xl:grid-cols-3";
 
   return (
-    <Card className="p-5">
+    <Card className="rounded-2xl border border-indigo-200/50 bg-indigo-50/25 p-3 dark:border-indigo-900/40 dark:bg-indigo-950/15">
       <button
         type="button"
         onClick={() => setCollapsed((previous) => !previous)}
-        className="mb-4 flex w-full items-start justify-between gap-3 text-left"
+        className="mb-3 flex w-full items-start justify-between gap-2 text-left"
         aria-expanded={!collapsed}
         aria-controls={sectionId}
       >
         <div className="space-y-1">
-          <h3 className="m-0 text-lg font-semibold text-slate-900 dark:text-slate-100">{title}</h3>
+          <h3 className="m-0 text-base font-semibold text-slate-900 dark:text-slate-100">{title}</h3>
           <p className="m-0 text-xs text-slate-500 dark:text-slate-400">{description}</p>
         </div>
 

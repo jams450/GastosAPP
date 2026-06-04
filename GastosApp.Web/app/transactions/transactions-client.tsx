@@ -4,15 +4,14 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { AppMenu } from "@/components/navigation/app-menu";
+import { AdminShell } from "@/components/navigation/admin-shell";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { ExpenseForm } from "./_components/create/expense-form";
-import { IncomeForm } from "./_components/create/income-form";
-import { TransferForm } from "./_components/create/transfer-form";
-import { HistoryPanel } from "./_components/history/history-panel";
-import { CreditAllocationSelector } from "./_components/create/credit-allocation-selector";
+import { IncomeSection } from "./_components/sections/income-section";
+import { ExpenseSection } from "./_components/sections/expense-section";
+import { TransferSection } from "./_components/sections/transfer-section";
+import { HistorySection } from "./_components/sections/history-section";
 import { EditTransactionModal } from "./_components/history/edit-transaction-modal";
 import { EditTransferModal } from "./_components/history/edit-transfer-modal";
 import { ApplyCreditPaymentModal, type ApplyCreditPaymentForm } from "./_components/history/apply-credit-payment-modal";
@@ -29,28 +28,38 @@ import { parseApiError } from "@/lib/bff/client-session";
 
 type Props = {
   username: string;
+  fixedKind?: TransactionKind;
+  fixedViewMode?: ViewMode;
 };
 
-export function TransactionsClient({ username }: Props) {
+export function TransactionsClient({ username, fixedKind, fixedViewMode }: Props) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
   const urlKind = useMemo<TransactionKind>(() => {
+    if (fixedKind) {
+      return fixedKind;
+    }
+
     const value = searchParams.get("kind");
     if (value === "income" || value === "expense" || value === "transfer") {
       return value;
     }
     return "expense";
-  }, [searchParams]);
+  }, [fixedKind, searchParams]);
 
   const urlViewMode = useMemo<ViewMode>(() => {
+    if (fixedViewMode) {
+      return fixedViewMode;
+    }
+
     const value = searchParams.get("view");
     if (value === "create" || value === "history") {
       return value;
     }
     return "create";
-  }, [searchParams]);
+  }, [fixedViewMode, searchParams]);
 
   function createAllocationRow(billablePartyId: number | null = null, value = ""): ExpenseAllocationFormState {
     return {
@@ -105,20 +114,32 @@ export function TransactionsClient({ username }: Props) {
   const [applyPaymentError, setApplyPaymentError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (fixedKind) {
+      return;
+    }
+
     if (kind !== urlKind) {
       setKind(urlKind);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [urlKind]);
+  }, [fixedKind, urlKind]);
 
   useEffect(() => {
+    if (fixedViewMode) {
+      return;
+    }
+
     if (viewMode !== urlViewMode) {
       setViewMode(urlViewMode);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [urlViewMode]);
+  }, [fixedViewMode, urlViewMode]);
 
   useEffect(() => {
+    if (fixedKind || fixedViewMode) {
+      return;
+    }
+
     const params = new URLSearchParams(searchParams.toString());
     const currentView = params.get("view");
     const currentKind = params.get("kind");
@@ -130,7 +151,7 @@ export function TransactionsClient({ username }: Props) {
     params.set("kind", kind);
     const nextUrl = `${pathname}?${params.toString()}`;
     router.replace(nextUrl, { scroll: false });
-  }, [kind, pathname, router, searchParams, viewMode]);
+  }, [fixedKind, fixedViewMode, kind, pathname, router, searchParams, viewMode]);
 
   const loadCatalogs = useCallback(async () => {
     setCatalogsLoading(true);
@@ -470,216 +491,213 @@ export function TransactionsClient({ username }: Props) {
   }, [applyPaymentForm, onApplyExistingPayment]);
 
   return (
-    <main className="relative min-h-dvh w-full overflow-x-clip bg-slate-100 px-4 py-8 dark:bg-slate-900 md:px-6 xl:px-8">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_0%_0%,rgba(14,165,233,0.18),transparent_30%),radial-gradient(circle_at_100%_0%,rgba(59,130,246,0.14),transparent_32%)] dark:bg-[radial-gradient(circle_at_0%_0%,rgba(14,165,233,0.14),transparent_30%),radial-gradient(circle_at_100%_0%,rgba(37,99,235,0.2),transparent_34%)]" />
-
-      <section className="relative w-full space-y-6">
-        <Card className="p-6">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div className="space-y-1">
-              <p className="text-xs font-semibold uppercase tracking-wide text-sky-700 dark:text-sky-400">Movimientos</p>
-              <h1 className="text-2xl font-semibold tracking-tight text-slate-900 dark:text-slate-100 md:text-3xl">Nueva transacción</h1>
-              <p className="text-sm text-slate-600 dark:text-slate-400">Hola {username}, registra ingresos, gastos o transferencias en segundos.</p>
+    <AdminShell
+      username={username}
+      section="Operación"
+      title="Transacciones"
+      subtitle="Registra ingresos, gastos o transferencias en segundos."
+    >
+      <section className="space-y-2 md:space-y-2">
+        <Card className="space-y-5 p-5 md:p-6">
+          {!fixedViewMode ? (
+            <div className="grid grid-cols-2 gap-2 sm:w-[360px]">
+              <Button type="button" variant={viewMode === "create" ? "primary" : "secondary"} className="h-9" onClick={() => setViewMode("create")}>
+                Nueva
+              </Button>
+              <Button type="button" variant={viewMode === "history" ? "primary" : "secondary"} className="h-9" onClick={() => setViewMode("history")}>
+                Historial
+              </Button>
             </div>
-
-            <AppMenu username={username} />
-          </div>
-        </Card>
-
-        <Card className="space-y-5 p-6">
-          <div className="grid grid-cols-2 gap-2 sm:w-[360px]">
-            <Button type="button" variant={viewMode === "create" ? "primary" : "secondary"} className="h-9" onClick={() => setViewMode("create")}>
-              Nueva
-            </Button>
-            <Button type="button" variant={viewMode === "history" ? "primary" : "secondary"} className="h-9" onClick={() => setViewMode("history")}>
-              Historial
-            </Button>
-          </div>
+          ) : null}
 
           {viewMode === "create" ? (
             <>
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-                {(["income", "expense", "transfer"] as TransactionKind[]).map((item) => (
-                  <Button
-                    key={item}
-                    type="button"
-                    variant={kind === item ? "primary" : "secondary"}
-                    onClick={() => {
-                      setKind(item);
-                      setSubmitError(null);
-                      setSuccessMessage(null);
-                      setOpeningCreditCharge(false);
-                    }}
-                    className="h-10"
-                  >
-                    {typeLabel[item]}
-                  </Button>
-                ))}
-              </div>
+               {!fixedKind ? (
+                 <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                   {(["income", "expense", "transfer"] as TransactionKind[]).map((item) => (
+                     <Button
+                       key={item}
+                       type="button"
+                       variant={kind === item ? "primary" : "secondary"}
+                       onClick={() => {
+                         setKind(item);
+                         setSubmitError(null);
+                         setSuccessMessage(null);
+                         setOpeningCreditCharge(false);
+                       }}
+                       className="h-10"
+                     >
+                       {typeLabel[item]}
+                     </Button>
+                   ))}
+                 </div>
+               ) : null}
+
 
               {catalogsLoading ? (
                 <p className="text-sm text-slate-600 dark:text-slate-400">Cargando catálogos...</p>
               ) : catalogsError ? (
                 <Alert variant="danger">{catalogsError}</Alert>
-              ) : (
-                kind === "income" ? (
-                  <IncomeForm
-                    accounts={catalogs?.accounts ?? []}
-                    merchants={catalogs?.merchants ?? []}
-                    tags={catalogs?.tags ?? []}
-                    accountId={accountId}
-                    onAccountIdChange={setAccountId}
-                    categoryId={categoryId}
-                    onCategoryIdChange={setCategoryId}
-                    categoriesForKind={categoriesForKind}
-                    subcategoryId={subcategoryId}
-                    onSubcategoryIdChange={setSubcategoryId}
-                    subcategoriesForSelectedCategory={subcategoriesForSelectedCategory}
-                    merchantId={merchantId}
-                    onMerchantIdChange={setMerchantId}
-                    tagsText={tagsText}
-                    onTagsTextChange={setTagsText}
-                    amount={amount}
-                    onAmountChange={setAmount}
-                    transactionDate={transactionDate}
-                    onTransactionDateChange={setTransactionDate}
-                    description={description}
-                    onDescriptionChange={setDescription}
-                    submitError={submitError}
-                    successMessage={successMessage}
-                    submitLoading={submitLoading}
-                    onSubmit={onSubmit}
-                    parseSelectedNumber={parseSelectedNumber}
-                  />
-                ) : kind === "expense" ? (
-                  <ExpenseForm
-                    accounts={catalogs?.accounts ?? []}
-                    merchants={catalogs?.merchants ?? []}
-                    tags={catalogs?.tags ?? []}
-                    accountId={accountId}
-                    onAccountIdChange={setAccountId}
-                    categoryId={categoryId}
-                    onCategoryIdChange={setCategoryId}
-                    categoriesForKind={categoriesForKind}
-                    subcategoryId={subcategoryId}
-                    onSubcategoryIdChange={setSubcategoryId}
-                    subcategoriesForSelectedCategory={subcategoriesForSelectedCategory}
-                    merchantId={merchantId}
-                    onMerchantIdChange={setMerchantId}
-                    tagsText={tagsText}
-                    onTagsTextChange={setTagsText}
-                    amount={amount}
-                    onAmountChange={setAmount}
-                    transactionDate={transactionDate}
-                    onTransactionDateChange={setTransactionDate}
-                    msiMonths={msiMonths}
-                    onMsiMonthsChange={setMsiMonths}
-                    openingCreditCharge={openingCreditCharge}
-                    onOpeningCreditChargeChange={setOpeningCreditCharge}
-                    billableParties={catalogs?.billableParties ?? []}
-                    expenseAllocations={expenseAllocations}
-                    onExpenseAllocationsChange={setExpenseAllocations}
-                    description={description}
-                    onDescriptionChange={setDescription}
-                    submitError={submitError}
-                    successMessage={successMessage}
-                    submitLoading={submitLoading}
-                    onSubmit={onSubmit}
-                    parseSelectedNumber={parseSelectedNumber}
-                  />
-                ) : (
-                  <TransferForm
-                    accounts={catalogs?.accounts ?? []}
-                    merchants={catalogs?.merchants ?? []}
-                    tags={catalogs?.tags ?? []}
-                    sourceAccountId={sourceAccountId}
-                    onSourceAccountIdChange={setSourceAccountId}
-                    destinationAccountId={destinationAccountId}
-                    onDestinationAccountIdChange={setDestinationAccountId}
-                    sourceAccountName={sourceAccount?.name ?? null}
-                    destinationAccountName={destinationAccount?.name ?? null}
-                    onSwapAccounts={swapTransferAccounts}
-                    categoryId={categoryId}
-                    onCategoryIdChange={setCategoryId}
-                    categoriesForKind={categoriesForKind}
-                    subcategoryId={subcategoryId}
-                    onSubcategoryIdChange={setSubcategoryId}
-                    subcategoriesForSelectedCategory={subcategoriesForSelectedCategory}
-                    merchantId={merchantId}
-                    onMerchantIdChange={setMerchantId}
-                    tagsText={tagsText}
-                    onTagsTextChange={setTagsText}
-                    amount={amount}
-                    onAmountChange={setAmount}
-                    transactionDate={transactionDate}
-                    onTransactionDateChange={setTransactionDate}
-                    description={description}
-                    onDescriptionChange={setDescription}
-                    submitError={submitError}
-                    successMessage={successMessage}
-                    submitLoading={submitLoading}
-                    onSubmit={onSubmit}
-                    parseSelectedNumber={parseSelectedNumber}
-                    creditAllocationSection={targetCreditAccountId ? (
-                      <CreditAllocationSelector
-                        items={openInstallments}
-                        loading={openInstallmentsLoading}
-                        error={openInstallmentsError}
-                        mode={allocationMode}
-                        onModeChange={setAllocationMode}
-                        selectedByInstallment={selectedInstallmentAmounts}
-                        onSelectedAmountChange={setAllocationAmount}
-                        enteredAmount={amount}
-                        selectedTotal={selectedAllocationTotal}
-                        onAutoDistributeFromAmount={autoDistributeAllocationsByAmount}
-                        onUseSelectedAsAmount={useSelectedTotalAsAmount}
-                        onClear={clearAllocations}
-                      />
-                    ) : null}
-                  />
-                )
-              )}
-
-              {viewMode === "create" && kind === "income" && targetCreditAccountId ? (
-                <CreditAllocationSelector
-                  items={openInstallments}
-                  loading={openInstallmentsLoading}
-                  error={openInstallmentsError}
-                  mode={allocationMode}
-                  onModeChange={setAllocationMode}
-                  selectedByInstallment={selectedInstallmentAmounts}
-                  onSelectedAmountChange={setAllocationAmount}
-                  enteredAmount={amount}
-                  selectedTotal={selectedAllocationTotal}
-                  onAutoDistributeFromAmount={autoDistributeAllocationsByAmount}
-                  onUseSelectedAsAmount={useSelectedTotalAsAmount}
-                  onClear={clearAllocations}
+              ) : kind === "income" ? (
+                <IncomeSection
+                  formProps={{
+                    accounts: catalogs?.accounts ?? [],
+                    merchants: catalogs?.merchants ?? [],
+                    tags: catalogs?.tags ?? [],
+                    accountId,
+                    onAccountIdChange: setAccountId,
+                    categoryId,
+                    onCategoryIdChange: setCategoryId,
+                    categoriesForKind,
+                    subcategoryId,
+                    onSubcategoryIdChange: setSubcategoryId,
+                    subcategoriesForSelectedCategory,
+                    merchantId,
+                    onMerchantIdChange: setMerchantId,
+                    tagsText,
+                    onTagsTextChange: setTagsText,
+                    amount,
+                    onAmountChange: setAmount,
+                    transactionDate,
+                    onTransactionDateChange: setTransactionDate,
+                    description,
+                    onDescriptionChange: setDescription,
+                    submitError,
+                    submitLoading,
+                    onSubmit,
+                    parseSelectedNumber
+                  }}
+                  showCreditAllocation={Boolean(targetCreditAccountId)}
+                  creditAllocationProps={{
+                    items: openInstallments,
+                    loading: openInstallmentsLoading,
+                    error: openInstallmentsError,
+                    mode: allocationMode,
+                    onModeChange: setAllocationMode,
+                    selectedByInstallment: selectedInstallmentAmounts,
+                    onSelectedAmountChange: setAllocationAmount,
+                    enteredAmount: amount,
+                    selectedTotal: selectedAllocationTotal,
+                    onAutoDistributeFromAmount: autoDistributeAllocationsByAmount,
+                    onUseSelectedAsAmount: useSelectedTotalAsAmount,
+                    onClear: clearAllocations
+                  }}
                 />
-              ) : null}
+              ) : kind === "expense" ? (
+                <ExpenseSection
+                  formProps={{
+                    accounts: catalogs?.accounts ?? [],
+                    merchants: catalogs?.merchants ?? [],
+                    tags: catalogs?.tags ?? [],
+                    accountId,
+                    onAccountIdChange: setAccountId,
+                    categoryId,
+                    onCategoryIdChange: setCategoryId,
+                    categoriesForKind,
+                    subcategoryId,
+                    onSubcategoryIdChange: setSubcategoryId,
+                    subcategoriesForSelectedCategory,
+                    merchantId,
+                    onMerchantIdChange: setMerchantId,
+                    tagsText,
+                    onTagsTextChange: setTagsText,
+                    amount,
+                    onAmountChange: setAmount,
+                    transactionDate,
+                    onTransactionDateChange: setTransactionDate,
+                    msiMonths,
+                    onMsiMonthsChange: setMsiMonths,
+                    openingCreditCharge,
+                    onOpeningCreditChargeChange: setOpeningCreditCharge,
+                    billableParties: catalogs?.billableParties ?? [],
+                    expenseAllocations,
+                    onExpenseAllocationsChange: setExpenseAllocations,
+                    description,
+                    onDescriptionChange: setDescription,
+                    submitError,
+                    successMessage,
+                    submitLoading,
+                    onSubmit,
+                    parseSelectedNumber
+                  }}
+                />
+              ) : (
+                <TransferSection
+                  formProps={{
+                    accounts: catalogs?.accounts ?? [],
+                    merchants: catalogs?.merchants ?? [],
+                    tags: catalogs?.tags ?? [],
+                    sourceAccountId,
+                    onSourceAccountIdChange: setSourceAccountId,
+                    destinationAccountId,
+                    onDestinationAccountIdChange: setDestinationAccountId,
+                    sourceAccountName: sourceAccount?.name ?? null,
+                    destinationAccountName: destinationAccount?.name ?? null,
+                    onSwapAccounts: swapTransferAccounts,
+                    categoryId,
+                    onCategoryIdChange: setCategoryId,
+                    categoriesForKind,
+                    subcategoryId,
+                    onSubcategoryIdChange: setSubcategoryId,
+                    subcategoriesForSelectedCategory,
+                    merchantId,
+                    onMerchantIdChange: setMerchantId,
+                    tagsText,
+                    onTagsTextChange: setTagsText,
+                    amount,
+                    onAmountChange: setAmount,
+                    transactionDate,
+                    onTransactionDateChange: setTransactionDate,
+                    description,
+                    onDescriptionChange: setDescription,
+                    submitError,
+                    successMessage,
+                    submitLoading,
+                    onSubmit,
+                    parseSelectedNumber
+                  }}
+                  showCreditAllocation={Boolean(targetCreditAccountId)}
+                  creditAllocationProps={{
+                    items: openInstallments,
+                    loading: openInstallmentsLoading,
+                    error: openInstallmentsError,
+                    mode: allocationMode,
+                    onModeChange: setAllocationMode,
+                    selectedByInstallment: selectedInstallmentAmounts,
+                    onSelectedAmountChange: setAllocationAmount,
+                    enteredAmount: amount,
+                    selectedTotal: selectedAllocationTotal,
+                    onAutoDistributeFromAmount: autoDistributeAllocationsByAmount,
+                    onUseSelectedAsAmount: useSelectedTotalAsAmount,
+                    onClear: clearAllocations
+                  }}
+                />
+              )}
             </>
           ) : (
-            <HistoryPanel
-              historyMonth={historyMonth}
-              onHistoryMonthChange={setHistoryMonth}
-              onReload={() => void loadHistory(historyMonth)}
-              filters={historyFilters}
-              onFiltersChange={setHistoryFilters}
-              onClearFilters={() =>
-                setHistoryFilters({
-                  type: "all",
-                  accountId: "all",
-                  categoryId: "all"
-                })
-              }
-              accountOptions={historyAccountOptions}
-              categoryOptions={historyCategoryOptions}
-              historyLoading={historyLoading}
-              historyError={historyError}
-              successMessage={successMessage}
-              historyColumns={historyColumns as ColumnDef<unknown>[]}
-              transferColumns={transferColumns as ColumnDef<unknown>[]}
-              regularHistoryItems={filteredRegularHistoryItems}
-              transferGroups={filteredTransferGroups}
+            <HistorySection
+              panelProps={{
+                historyMonth,
+                onHistoryMonthChange: setHistoryMonth,
+                onReload: () => void loadHistory(historyMonth),
+                filters: historyFilters,
+                onFiltersChange: setHistoryFilters,
+                onClearFilters: () =>
+                  setHistoryFilters({
+                    type: "all",
+                    accountId: "all",
+                    categoryId: "all"
+                  }),
+                accountOptions: historyAccountOptions,
+                categoryOptions: historyCategoryOptions,
+                historyLoading,
+                historyError,
+                successMessage,
+                historyColumns: historyColumns as ColumnDef<unknown>[],
+                transferColumns: transferColumns as ColumnDef<unknown>[],
+                regularHistoryItems: filteredRegularHistoryItems,
+                transferGroups: filteredTransferGroups
+              }}
             />
           )}
         </Card>
@@ -720,6 +738,6 @@ export function TransactionsClient({ username }: Props) {
           onSubmit={onConfirmApplyPayment}
         />
       </section>
-    </main>
+    </AdminShell>
   );
 }

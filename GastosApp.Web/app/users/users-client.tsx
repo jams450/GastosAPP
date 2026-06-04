@@ -1,8 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { AppMenu } from "@/components/navigation/app-menu";
-import { Card } from "@/components/ui/card";
+import { AdminShell } from "@/components/navigation/admin-shell";
 import { type AdminUser, type UserCreatePayload, type UserUpdatePayload, validateUserForm } from "@/lib/contracts/users-admin";
 import { UserDeleteConfirmDialog } from "./_components/user-delete-confirm-dialog";
 import { useUserForm } from "./_hooks/use-user-form";
@@ -111,25 +110,15 @@ export function UsersClient({ username }: Props) {
   }
 
   return (
-    <main className="relative min-h-dvh overflow-x-clip bg-slate-100 px-4 py-8 dark:bg-slate-900 md:px-8">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_0%_0%,rgba(14,165,233,0.18),transparent_30%),radial-gradient(circle_at_100%_0%,rgba(59,130,246,0.14),transparent_32%)] dark:bg-[radial-gradient(circle_at_0%_0%,rgba(14,165,233,0.14),transparent_30%),radial-gradient(circle_at_100%_0%,rgba(37,99,235,0.2),transparent_34%)]" />
-
+    <AdminShell
+      username={username}
+      section="Administración"
+      title="Usuarios"
+    >
       <UsersToastStack toasts={toasts} onDismiss={dismissToast} />
 
-      <section className="relative mx-auto w-full max-w-7xl space-y-4 md:space-y-5">
-        <Card className="relative z-30 border-slate-300/70 bg-white/90 p-4 shadow-sm backdrop-blur dark:border-slate-800 dark:bg-slate-950/95">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="space-y-1">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-sky-700 dark:text-sky-400">Admin</p>
-              <h1 className="text-xl font-semibold tracking-tight text-slate-900 dark:text-slate-100 md:text-2xl">Gestión de usuarios</h1>
-              <p className="text-xs text-slate-600 dark:text-slate-400">Hola {username}. Crea, edita y administra accesos del sistema.</p>
-            </div>
-
-            <AppMenu username={username} compact />
-          </div>
-        </Card>
-
-        <div className="relative z-10">
+      <section className="space-y-2 md:space-y-2">
+        <section className="overflow-hidden px-4 py-3 sm:px-5">
           <UsersToolbar
             total={users.length}
             filtered={filteredUsers.length}
@@ -143,17 +132,9 @@ export function UsersClient({ username }: Props) {
             onResetFilters={resetFilters}
             onCreate={openCreate}
           />
-        </div>
+        </section>
 
-        <Card className="overflow-hidden border-slate-200/90 bg-white/95 p-3 shadow-sm dark:border-slate-800 dark:bg-slate-950/95">
-          <UsersResults
-            rows={filteredUsers}
-            loading={loading}
-            onEdit={openEdit}
-            onToggleActive={(user) => void toggleActive(user)}
-            onDelete={askDeleteUser}
-          />
-        </Card>
+        <UsersResults rows={filteredUsers} loading={loading} errorMessage={error} onEdit={openEdit} onToggleActive={toggleActive} onDelete={askDeleteUser} />
 
         <UserFormDrawer
           open={openForm}
@@ -175,6 +156,6 @@ export function UsersClient({ username }: Props) {
           onConfirm={() => void confirmDeleteUser()}
         />
       </section>
-    </main>
+    </AdminShell>
   );
 }

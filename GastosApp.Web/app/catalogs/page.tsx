@@ -1,6 +1,5 @@
 import { redirect } from "next/navigation";
 import { getServerSession } from "@/lib/auth/session";
-import { CatalogsClient } from "./catalogs-client";
 
 export default async function CatalogsPage() {
   const session = await getServerSession();
@@ -9,5 +8,5 @@ export default async function CatalogsPage() {
     redirect("/login");
   }
 
-  return <CatalogsClient username={session.user.username} />;
+  redirect("/catalogs/categories");
 }

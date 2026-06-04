@@ -2,22 +2,18 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import { DataGrid } from "@/components/data-grid/data-grid";
-import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { Category, CategoryType } from "@/lib/contracts/categories";
 import { requestJson } from "../_shared/catalogs-api";
 import { SectionFilterBar } from "../_shared/section-filter-bar";
-import { SortSummary } from "../_shared/sort-summary";
 import { CatalogActionButton } from "../_shared/catalog-action-button";
-import { SectionCard } from "../_shared/section-card";
 import { StatusBadge } from "../_shared/status-badge";
 import { useCatalogSectionState } from "../_shared/use-catalog-section-state";
 
 type Props = {
   categories: Category[];
-  expanded: boolean;
-  onToggle: () => void;
   onCatalogChanged: () => Promise<void>;
   onError: (message: string | null) => void;
   onSuccess: (message: string) => void;
@@ -42,6 +38,36 @@ function parseTags(tagsText: string): string[] {
   return [...new Set(tagsText.split(",").map((part) => part.trim()).filter(Boolean))].slice(0, 20);
 }
 
+function toCategoryRequestPayload(form: CategoryFormState) {
+  return {
+    name: form.name.trim(),
+    color: form.color,
+    type: form.type,
+    active: form.active,
+    tags: parseTags(form.tagsText)
+  };
+}
+
+async function createCategory(payload: ReturnType<typeof toCategoryRequestPayload>) {
+  await requestJson("/api/bff/catalogs/categories", { method: "POST", body: JSON.stringify(payload) }, "No se pudo crear la categoría");
+}
+
+async function updateCategory(categoryId: number, payload: ReturnType<typeof toCategoryRequestPayload>) {
+  await requestJson(
+    `/api/bff/catalogs/categories/${categoryId}`,
+    { method: "PUT", body: JSON.stringify(payload) },
+    "No se pudo actualizar la categoría"
+  );
+}
+
+async function patchCategoryActive(categoryId: number, active: boolean) {
+  await requestJson(
+    `/api/bff/catalogs/categories/${categoryId}/active`,
+    { method: "PATCH", body: JSON.stringify({ active }) },
+    "No se pudo actualizar el estado de la categoría"
+  );
+}
+
 function emptyCategoryForm(): CategoryFormState {
   return {
     id: null,
@@ -53,7 +79,7 @@ function emptyCategoryForm(): CategoryFormState {
   };
 }
 
-export function CategoriesSection({ categories, expanded, onToggle, onCatalogChanged, onError, onSuccess }: Props) {
+export function CategoriesSection({ categories, onCatalogChanged, onError, onSuccess }: Props) {
   const [saving, setSaving] = useState(false);
   const [categoryModalOpen, setCategoryModalOpen] = useState(false);
   const [categoryForm, setCategoryForm] = useState<CategoryFormState>(emptyCategoryForm());
@@ -68,8 +94,7 @@ export function CategoriesSection({ categories, expanded, onToggle, onCatalogCha
     setActiveFilter,
     sorting,
     setSorting,
-    clearFilters,
-    clearSorting
+    clearFilters
   } = useCatalogSectionState({
     rows: categories,
     initialSorting,
@@ -77,9 +102,6 @@ export function CategoriesSection({ categories, expanded, onToggle, onCatalogCha
     activePredicate: (row) => row.active,
     extraFilterPredicate: (row) => (typeFilter === "all" ? true : row.type === typeFilter)
   });
-
-  const activeCount = useMemo(() => categories.filter((category) => category.active).length, [categories]);
-  const inactiveCount = categories.length - activeCount;
 
   function clearAllFilters() {
     clearFilters();
@@ -111,23 +133,13 @@ export function CategoriesSection({ categories, expanded, onToggle, onCatalogCha
     setSaving(true);
     onError(null);
     try {
-      const payload = {
-        name: categoryForm.name,
-        color: categoryForm.color,
-        type: categoryForm.type,
-        active: categoryForm.active,
-        tags: parseTags(categoryForm.tagsText)
-      };
+      const payload = toCategoryRequestPayload(categoryForm);
 
       if (categoryForm.id) {
-        await requestJson(
-          `/api/bff/catalogs/categories/${categoryForm.id}`,
-          { method: "PUT", body: JSON.stringify(payload) },
-          "No se pudo actualizar la categoría"
-        );
+        await updateCategory(categoryForm.id, payload);
         onSuccess("Categoría actualizada correctamente.");
       } else {
-        await requestJson("/api/bff/catalogs/categories", { method: "POST", body: JSON.stringify(payload) }, "No se pudo crear la categoría");
+        await createCategory(payload);
         onSuccess("Categoría creada correctamente.");
       }
 
@@ -144,11 +156,7 @@ export function CategoriesSection({ categories, expanded, onToggle, onCatalogCha
     setSaving(true);
     onError(null);
     try {
-      await requestJson(
-        `/api/bff/catalogs/categories/${category.categoryId}/active`,
-        { method: "PATCH", body: JSON.stringify({ active: !category.active }) },
-        "No se pudo actualizar el estado de la categoría"
-      );
+      await patchCategoryActive(category.categoryId, !category.active);
       onSuccess(`Categoría ${!category.active ? "activada" : "desactivada"}.`);
       await onCatalogChanged();
     } catch (err) {
@@ -169,8 +177,8 @@ export function CategoriesSection({ categories, expanded, onToggle, onCatalogCha
       accessorKey: "color",
       header: "Color",
       cell: ({ row }) => (
-        <span className="inline-flex items-center gap-1.5 text-xs text-slate-700 dark:text-slate-300">
-          <span className="h-2.5 w-2.5 rounded-full border border-slate-300" style={{ backgroundColor: row.original.color }} />
+        <span className="text-secondary inline-flex items-center gap-1.5 text-xs">
+          <span className="border-default h-2.5 w-2.5 rounded-full border" style={{ backgroundColor: row.original.color }} />
           {row.original.color}
         </span>
       )
@@ -188,12 +196,12 @@ export function CategoriesSection({ categories, expanded, onToggle, onCatalogCha
     },
     {
       id: "actions",
-      header: "Acciones",
+      header: "",
       enableSorting: false,
       cell: ({ row }) => {
         const category = row.original;
         return (
-          <div className="flex items-center gap-1.5">
+          <div className="flex justify-end gap-1.5">
             <CatalogActionButton type="button" action="edit" label="Editar" onClick={() => openEditCategoryModal(category)} />
             <CatalogActionButton
               type="button"
@@ -210,124 +218,134 @@ export function CategoriesSection({ categories, expanded, onToggle, onCatalogCha
 
   return (
     <>
-      <SectionCard
-        id="catalog-section-categories"
-        title="Categorías"
-        count={categories.length}
-        activeCount={activeCount}
-        inactiveCount={inactiveCount}
-        expanded={expanded}
-        onToggle={onToggle}
-        onCreate={openCreateCategoryModal}
-        createLabel="Nueva"
-      >
-        <DataGrid
-          columns={categoryColumns}
-          rows={filteredRows}
-          sorting={sorting}
-          onSortingChange={setSorting}
-          emptyMessage="Sin categorías"
-          allowDensityToggle
-          densityStorageKey="catalogs-grid-density"
-          toolbar={
-            <div className="space-y-2">
-              <SectionFilterBar
-                searchPlaceholder="Buscar por nombre o tag"
-                searchValue={searchQuery}
-                onSearchChange={setSearchQuery}
-                activeFilter={activeFilter}
-                onActiveFilterChange={setActiveFilter}
-                onClearFilters={clearAllFilters}
-                extraFilters={[
-                  {
-                    label: "Tipo",
-                    content: (
-                      <select
-                        value={typeFilter}
-                        onChange={(event) => setTypeFilter(event.target.value as CategoryType | "all")}
-                        className="h-9 rounded-lg border border-slate-300 bg-white px-2 text-xs text-slate-900 outline-none transition focus:border-sky-500 focus:ring-2 focus:ring-sky-200 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
-                      >
-                        <option value="all">Todos</option>
-                        <option value="income">Ingreso</option>
-                        <option value="expense">Gasto</option>
-                        <option value="transfer">Transferencia</option>
-                      </select>
-                    )
-                  }
-                ]}
-                chips={
-                  typeFilter !== "all"
-                    ? [
-                        {
-                          id: "type",
-                          label: `Tipo: ${categoryTypeLabel[typeFilter]}`,
-                          onClear: () => setTypeFilter("all")
-                        }
-                      ]
-                    : undefined
-                }
-              />
-              <SortSummary
-                sorting={sorting}
-                onClearSorting={clearSorting}
-                labelsByColumnId={{
-                  name: "Nombre",
-                  type: "Tipo",
-                  color: "Color",
-                  tags: "Tags",
-                  active: "Estado"
-                }}
-              />
-            </div>
-          }
-        />
-      </SectionCard>
-
-      {categoryModalOpen ? (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-slate-900/50 p-4">
-          <Card className="w-full max-w-lg p-1">
-            <form className="space-y-4" onSubmit={(event) => void submitCategory(event)}>
-              <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">{categoryForm.id ? "Editar categoría" : "Nueva categoría"}</h3>
-              <Input label="Nombre" value={categoryForm.name} onChange={(event) => setCategoryForm((current) => ({ ...current, name: event.target.value }))} required />
-              <Input label="Color" type="color" value={categoryForm.color} onChange={(event) => setCategoryForm((current) => ({ ...current, color: event.target.value }))} />
-              <label className="grid gap-1.5 text-sm font-medium text-slate-700 dark:text-slate-300">
-                Tipo
+      <section className="overflow-hidden px-4 py-3 sm:px-5">
+        <SectionFilterBar
+          searchPlaceholder="Buscar por nombre o tag"
+          searchValue={searchQuery}
+          onSearchChange={setSearchQuery}
+          activeFilter={activeFilter}
+          onActiveFilterChange={setActiveFilter}
+          onClearFilters={clearAllFilters}
+          extraFilters={[
+            {
+              label: "Tipo",
+              content: (
                 <select
-                  value={categoryForm.type}
-                  onChange={(event) => setCategoryForm((current) => ({ ...current, type: event.target.value as CategoryType }))}
-                  className="h-11 rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-200 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                  value={typeFilter}
+                  onChange={(event) => setTypeFilter(event.target.value as CategoryType | "all")}
+                  className="input-semantic h-8 rounded-none px-2 text-xs"
                 >
+                  <option value="all">Todos</option>
                   <option value="income">Ingreso</option>
                   <option value="expense">Gasto</option>
                   <option value="transfer">Transferencia</option>
                 </select>
-              </label>
-              <Input
-                label="Tags (separados por coma)"
-                value={categoryForm.tagsText}
-                onChange={(event) => setCategoryForm((current) => ({ ...current, tagsText: event.target.value }))}
-                placeholder="steam, fanatical, oferta"
-              />
-              <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
-                <input
-                  type="checkbox"
-                  checked={categoryForm.active}
-                  onChange={(event) => setCategoryForm((current) => ({ ...current, active: event.target.checked }))}
-                />
-                Activa
-              </label>
-              <div className="flex justify-end gap-2">
-                <Button type="button" variant="secondary" onClick={() => setCategoryModalOpen(false)}>
-                  Cancelar
-                </Button>
-                <Button type="submit" loading={saving} loadingText="Guardando...">
-                  Guardar
-                </Button>
+              )
+            }
+          ]}
+          chips={
+            typeFilter !== "all"
+              ? [
+                  {
+                    id: "type",
+                    label: `Tipo: ${categoryTypeLabel[typeFilter]}`,
+                    onClear: () => setTypeFilter("all")
+                  }
+                ]
+              : undefined
+          }
+          hideFeedback
+          actions={
+            <CatalogActionButton
+              type="button"
+              action="create"
+              label="Nueva"
+              onClick={openCreateCategoryModal}
+            />
+          }
+        />
+      </section>
+
+      <section className="p-3 sm:p-4">
+        <div className="app-grid-skin overflow-hidden rounded-none p-0">
+          <DataGrid
+            columns={categoryColumns}
+            rows={filteredRows}
+            sorting={sorting}
+            onSortingChange={setSorting}
+            emptyMessage="Sin categorías"
+            stickyActionsColumn
+          />
+        </div>
+      </section>
+
+      {categoryModalOpen ? (
+        <div className="fixed inset-0 z-[70] flex items-end justify-end bg-[var(--color-overlay)] p-0 backdrop-blur-sm sm:items-stretch">
+          <Card className="app-sidebar relative flex h-[100dvh] w-full flex-col border-l p-0 sm:h-full sm:max-w-xl">
+            <form className="flex h-full flex-col" onSubmit={(event) => void submitCategory(event)}>
+              <div className="drawer-header-semantic">
+                <h3 className="text-base font-semibold tracking-wide text-blue-700 dark:text-blue-300 sm:text-lg">{categoryForm.id ? "Editar categoría" : "Nueva categoría"}</h3>
+              </div>
+
+              <div className="flex-1 overflow-y-auto px-4 py-4 sm:px-5">
+                <section className="drawer-section-semantic space-y-3">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-blue-700 dark:text-blue-300">General</p>
+                  <Input
+                    label="Nombre *"
+                    value={categoryForm.name}
+                    onChange={(event) => setCategoryForm((current) => ({ ...current, name: event.target.value }))}
+                    required
+                  />
+                  <Input
+                    label="Color"
+                    value={categoryForm.color}
+                    onChange={(event) => setCategoryForm((current) => ({ ...current, color: event.target.value }))}
+                    placeholder="#4f46e5"
+                  />
+                  <label className="grid gap-1.5 text-sm font-medium text-secondary">
+                    Tipo
+                    <select
+                      value={categoryForm.type}
+                      onChange={(event) => setCategoryForm((current) => ({ ...current, type: event.target.value as CategoryType }))}
+                      className="input-semantic h-11 rounded-md px-3 text-sm"
+                    >
+                      <option value="income">Ingreso</option>
+                      <option value="expense">Gasto</option>
+                      <option value="transfer">Transferencia</option>
+                    </select>
+                  </label>
+                  <Input
+                    label="Tags (separados por coma)"
+                    value={categoryForm.tagsText}
+                    onChange={(event) => setCategoryForm((current) => ({ ...current, tagsText: event.target.value }))}
+                    placeholder="steam, fanatical, oferta"
+                  />
+                  <label className="text-secondary flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={categoryForm.active}
+                      onChange={(event) => setCategoryForm((current) => ({ ...current, active: event.target.checked }))}
+                    />
+                    Activa
+                  </label>
+                </section>
+              </div>
+
+              <div className="drawer-footer-semantic">
+                <div className="flex justify-end gap-2">
+                  <Button type="button" variant="ghost" className="h-9 rounded-md border-[var(--color-danger)]/50 bg-[var(--color-danger)]/15 text-[var(--color-danger)] hover:border-[var(--color-danger)]/70 hover:bg-[var(--color-danger)]/25" onClick={() => setCategoryModalOpen(false)}>
+                    Cancelar
+                  </Button>
+                  <Button type="submit" variant="ghost" loading={saving} loadingText="Guardando..." className="h-9 rounded-md border-blue-400/60 bg-blue-500/15 text-blue-700 hover:border-blue-500/70 hover:bg-blue-500/25 hover:text-blue-800 dark:border-blue-700/60 dark:bg-blue-500/25 dark:text-blue-300 dark:hover:border-blue-500/70 dark:hover:bg-blue-500/35 dark:hover:text-blue-100">
+                    Guardar
+                  </Button>
+                </div>
               </div>
             </form>
           </Card>
         </div>
       ) : null}
+
     </>
   );
 }

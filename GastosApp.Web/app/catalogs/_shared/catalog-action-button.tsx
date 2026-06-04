@@ -2,6 +2,7 @@ import { CheckCircle2, Pencil, Plus, Power } from "lucide-react";
 import type { ComponentProps } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/ui/cn";
+import { tableActionStyles } from "@/lib/ui/table-action-styles";
 
 export type CatalogActionType = "create" | "edit" | "deactivate" | "activate";
 
@@ -14,42 +15,46 @@ type Props = Omit<ComponentProps<typeof Button>, "variant" | "children"> & {
 const actionStyleMap: Record<
   CatalogActionType,
   {
-    variant: "primary" | "secondary" | "danger";
+    variant: "primary" | "secondary" | "ghost" | "danger";
     icon: typeof Plus;
     className?: string;
     iconClassName?: string;
   }
 > = {
   create: {
-    variant: "primary",
-    icon: Plus
+    variant: "ghost",
+    icon: Plus,
+    className: tableActionStyles.create
   },
   edit: {
-    variant: "secondary",
-    icon: Pencil
+    variant: "ghost",
+    icon: Pencil,
+    className: tableActionStyles.edit
   },
   deactivate: {
-    variant: "danger",
+    variant: "ghost",
     icon: Power,
-    className: "border-rose-500 bg-rose-500 hover:border-rose-600 hover:bg-rose-600"
+    className: tableActionStyles.deactivate
   },
   activate: {
-    variant: "secondary",
+    variant: "ghost",
     icon: CheckCircle2,
-    className:
-      "border-emerald-300 bg-emerald-50 text-emerald-700 hover:border-emerald-400 hover:bg-emerald-100 dark:border-emerald-900/80 dark:bg-emerald-900/30 dark:text-emerald-300 dark:hover:bg-emerald-900/40",
-    iconClassName: "text-emerald-600 dark:text-emerald-300"
+    className: tableActionStyles.activate,
+    iconClassName: "text-emerald-300"
   }
 };
 
 export function CatalogActionButton({ action, label, iconOnly, className, ...props }: Props) {
   const config = actionStyleMap[action];
   const Icon = config.icon;
+  const baseByAction = action === "create"
+    ? "h-8 rounded-md px-3 text-xs font-bold"
+    : "h-8 rounded-md px-2.5 text-[11px] font-semibold";
 
   return (
     <Button
       variant={config.variant}
-      className={cn("h-8 rounded-lg px-2.5 text-[11px] font-semibold", iconOnly && "w-8 px-0", config.className, className)}
+      className={cn(baseByAction, iconOnly && "w-8 px-0", config.className, className)}
       aria-label={props["aria-label"] ?? label}
       {...props}
     >

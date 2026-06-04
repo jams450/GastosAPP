@@ -34,29 +34,35 @@ export function CreditAllocationSelector({
   onClear
 }: Props) {
   return (
-    <section className="space-y-3 rounded-2xl border border-indigo-200/70 bg-indigo-50/40 p-4 dark:border-indigo-900/60 dark:bg-indigo-950/30">
+    <section className="space-y-3 rounded-2xl border border-indigo-300/75 bg-indigo-200/45 p-4 dark:border-indigo-800/70 dark:bg-indigo-900/45">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p className="text-xs font-semibold uppercase tracking-wide text-indigo-700 dark:text-indigo-300">Pago crédito</p>
-          <p className="text-xs text-slate-600 dark:text-slate-400">Selecciona mensualidades y monto total/parcial a cubrir.</p>
+          <p className="text-xs text-indigo-800 dark:text-indigo-200">Selecciona mensualidades y monto total/parcial a cubrir.</p>
         </div>
         <div className="grid grid-cols-2 gap-2">
-          <Button
-            type="button"
-            variant={mode === "byAmount" ? "primary" : "secondary"}
-            className="h-8 px-2 text-xs"
-            onClick={() => onModeChange("byAmount")}
-          >
-            Primero monto
-          </Button>
-          <Button
-            type="button"
-            variant={mode === "bySelection" ? "primary" : "secondary"}
-            className="h-8 px-2 text-xs"
-            onClick={() => onModeChange("bySelection")}
-          >
-            Primero cargos
-          </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              className={mode === "byAmount"
+                ? "h-8 border border-blue-400/65 bg-blue-500/25 px-2 text-xs font-semibold text-blue-800 dark:border-blue-600/70 dark:bg-blue-500/35 dark:text-blue-100"
+                : "h-8 border border-blue-300/45 bg-blue-500/12 px-2 text-xs font-semibold text-blue-700 hover:border-blue-400/65 hover:bg-blue-500/22 dark:border-blue-700/60 dark:bg-blue-500/20 dark:text-blue-300 dark:hover:bg-blue-500/30"}
+              onClick={() => onModeChange("byAmount")}
+            >
+              Primero monto
+            </Button>
+
+            <Button
+              type="button"
+              variant="ghost"
+              className={mode === "bySelection"
+                ? "h-8 border border-purple-400/65 bg-purple-500/25 px-2 text-xs font-semibold text-purple-800 dark:border-purple-600/70 dark:bg-purple-500/35 dark:text-purple-100"
+                : "h-8 border border-purple-300/45 bg-purple-500/12 px-2 text-xs font-semibold text-purple-700 hover:border-purple-400/65 hover:bg-purple-500/22 dark:border-purple-700/60 dark:bg-purple-500/20 dark:text-purple-300 dark:hover:bg-purple-500/30"}
+              onClick={() => onModeChange("bySelection")}
+            >
+              Primero cargos
+            </Button>
+
         </div>
       </div>
 
@@ -70,13 +76,13 @@ export function CreditAllocationSelector({
       {!loading && !error && items.length > 0 ? (
         <>
           <div className="flex flex-wrap items-center gap-2">
-            <Button type="button" variant="secondary" className="h-7 px-2 text-xs" onClick={onAutoDistributeFromAmount}>
+            <Button type="button" variant="ghost" className="h-7 border border-rose-300/50 bg-rose-500/12 px-2 text-xs font-semibold text-rose-700 hover:border-rose-400/65 hover:bg-rose-500/22 dark:border-rose-700/60 dark:bg-rose-500/20 dark:text-rose-300 dark:hover:bg-rose-500/30" onClick={onAutoDistributeFromAmount}>
               Auto distribuir desde monto
             </Button>
-            <Button type="button" variant="secondary" className="h-7 px-2 text-xs" onClick={onUseSelectedAsAmount}>
+            <Button type="button" variant="ghost" className="h-7 border border-red-300/50 bg-red-500/12 px-2 text-xs font-semibold text-red-700 hover:border-red-400/65 hover:bg-red-500/22 dark:border-red-700/60 dark:bg-red-500/20 dark:text-red-300 dark:hover:bg-red-500/30" onClick={onUseSelectedAsAmount}>
               Usar total seleccionado
             </Button>
-            <Button type="button" variant="ghost" className="h-7 px-2 text-xs" onClick={onClear}>
+            <Button type="button" variant="ghost" className="h-7 border border-slate-300/55 bg-slate-500/12 px-2 text-xs font-semibold text-slate-700 hover:border-slate-400/70 hover:bg-slate-500/22 dark:border-slate-700/60 dark:bg-slate-500/20 dark:text-slate-300 dark:hover:bg-slate-500/30" onClick={onClear}>
               Limpiar selección
             </Button>
           </div>

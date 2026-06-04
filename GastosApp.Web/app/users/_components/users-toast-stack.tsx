@@ -13,7 +13,7 @@ type Props = {
 
 export function UsersToastStack({ toasts, onDismiss }: Props) {
   return (
-    <div className="pointer-events-none fixed right-3 top-3 z-[120] flex w-[min(92vw,360px)] flex-col gap-2 md:right-6 md:top-5">
+    <div className="pointer-events-none fixed right-3 top-3 z-[120] flex w-[min(92vw,360px)] flex-col gap-2 md:right-6 md:top-5" aria-live="polite">
       {toasts.map((toast) => {
         const isSuccess = toast.variant === "success";
         return (
@@ -21,18 +21,18 @@ export function UsersToastStack({ toasts, onDismiss }: Props) {
             key={toast.id}
             role="status"
             className={isSuccess
-              ? "pointer-events-auto flex items-start gap-2.5 rounded-2xl border border-emerald-200 bg-white/95 px-3 py-2.5 text-emerald-800 shadow-lg shadow-emerald-200/40 backdrop-blur dark:border-emerald-900 dark:bg-slate-950/95 dark:text-emerald-300"
-              : "pointer-events-auto flex items-start gap-2.5 rounded-2xl border border-rose-200 bg-white/95 px-3 py-2.5 text-rose-800 shadow-lg shadow-rose-200/30 backdrop-blur dark:border-rose-900 dark:bg-slate-950/95 dark:text-rose-300"}
+              ? "tabler-panel pointer-events-auto flex items-start gap-2.5 border-[var(--color-success)]/35 bg-[var(--color-surface-1)]/95 px-3 py-2.5 text-[var(--color-success)]"
+              : "tabler-panel pointer-events-auto flex items-start gap-2.5 border-[var(--color-danger)]/35 bg-[var(--color-surface-1)]/95 px-3 py-2.5 text-[var(--color-danger)]"}
           >
             {isSuccess ? <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" /> : <CircleAlert className="mt-0.5 h-4 w-4 shrink-0" />}
             <p className="min-w-0 flex-1 text-sm font-medium">{toast.message}</p>
             <button
               type="button"
-              className="rounded-md p-1 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+              className="text-muted hover:bg-[var(--color-accent-soft)] hover:text-primary rounded-md p-1 transition"
               onClick={() => onDismiss(toast.id)}
               aria-label="Cerrar notificación"
             >
-              <X className="h-3.5 w-3.5" />
+              <X className="h-3.5 w-3.5" aria-hidden="true" />
             </button>
           </div>
         );

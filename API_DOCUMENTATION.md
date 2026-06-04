@@ -1,5 +1,448 @@
 # GastosApp API Documentation
 
+## Frontend Catálogos · Cleanup de componentes shared (CTA + filtros)
+
+> Se aplicó un cleanup de UI en `GastosApp.Web` para reducir overrides locales en pantallas de Catálogos y centralizar estilos/composición en componentes compartidos.
+
+### Alcance implementado
+
+- Centralización del estilo de CTA **Nueva** en `CatalogActionButton` (variante `create` con base visual propia).
+- Extensión de `SectionFilterBar` con props de composición (`title`, `subtitle`, `actions`, `hideChips`, `hideFeedback`) para desacoplar feedback/chips cuando la pantalla lo requiere.
+- Ajustes en secciones de Catálogos para usar `actions` del `SectionFilterBar` y reducir personalizaciones locales repetidas.
+- Limpieza de wrappers/elementos locales en secciones (`SectionCard`/`SortSummary` en estos casos) para homogeneizar layout y estilos de tabla/filtros.
+
+### Archivos tocados
+
+- `GastosApp.Web/app/catalogs/_shared/catalog-action-button.tsx`
+- `GastosApp.Web/app/catalogs/_shared/section-filter-bar.tsx`
+- `GastosApp.Web/app/catalogs/categories/categories-section.tsx`
+- `GastosApp.Web/app/catalogs/subcategories/subcategories-section.tsx`
+- `GastosApp.Web/app/catalogs/merchants/merchants-section.tsx`
+- `GastosApp.Web/app/catalogs/tags/tags-section.tsx`
+- `GastosApp.Web/app/catalogs/billable-parties/billable-parties-section.tsx`
+
+### Restricciones respetadas
+
+- Sin cambios en contratos BFF/API.
+- Sin cambios en auth.
+- Sin cambios backend (`GastosApp.API`, `GastosApp.BusinessLogic`, `GastosApp.Models`).
+
+### Validación manual mínima sugerida
+
+1. Abrir cada pantalla de Catálogos (`categories`, `subcategories`, `merchants`, `tags`, `billable-parties`) y confirmar que el botón **Nueva** conserva comportamiento/ubicación esperada.
+2. Probar búsqueda, filtro de estado y limpieza de filtros; validar que `hideFeedback` no rompe el flujo de filtros aplicado por pantalla.
+3. Validar acciones de fila (editar/activar/desactivar) y ordenamiento de tabla en cada sección.
+4. Confirmar paridad visual general (filtros + tabla) sin regresión funcional en alta/edición/eliminación.
+
+### Rollback rápido (si se requiere)
+
+- Revertir cambios en:
+  - `GastosApp.Web/app/catalogs/_shared/catalog-action-button.tsx`
+  - `GastosApp.Web/app/catalogs/_shared/section-filter-bar.tsx`
+  - secciones de Catálogos listadas arriba.
+- Revalidar flujo de Catálogos por pantalla para confirmar retorno a la composición previa.
+
+## Frontend Catálogos · Homologación visual de Subcategorías (estilo Cuentas)
+
+> Se homologó únicamente la UI de `Subcategorías` en `GastosApp.Web` para alinearla con el estilo visual de `Cuentas`.
+
+### Alcance implementado
+
+- Ajuste de composición visual de `Subcategorías` para paridad con patrón de `Cuentas`.
+- Tabla en modo compacto y ajuste de estructura de resultados.
+- Ajustes en barra de filtros y botones de acción para mantener consistencia visual.
+- Reemplazo del modal centrado por drawer lateral para alta/edición.
+
+### Archivos tocados
+
+- `GastosApp.Web/app/catalogs/subcategories/subcategories-section.tsx`
+
+### Restricciones respetadas
+
+- Sin cambios en lógica de negocio de catálogos.
+- Sin cambios en BFF/API contracts.
+- Sin cambios en auth.
+- Sin cambios backend (`GastosApp.API`, `GastosApp.BusinessLogic`, `GastosApp.Models`).
+
+### Validación manual mínima sugerida
+
+1. Abrir `/catalogs/subcategories` y confirmar nueva estructura visual (tabla/filtros/botones) alineada a `Cuentas`.
+2. Verificar alta/edición desde drawer lateral y confirmar que se mantienen validaciones existentes.
+3. Ejecutar eliminación y refresh para confirmar que el comportamiento funcional permanece sin cambios.
+4. Confirmar que no hay cambios en tráfico BFF ni contratos de endpoints usados por la pantalla.
+
+### Rollback rápido (si se requiere)
+
+- Revertir cambios en `GastosApp.Web/app/catalogs/subcategories/subcategories-section.tsx`.
+- Validar que la pantalla vuelve al layout previo sin impacto funcional.
+
+## Frontend Accounts · Fase D (migración a AdminShell + a11y focus trap)
+
+> Se aplicó Fase D únicamente al módulo `Accounts` en `GastosApp.Web`, manteniendo alcance de UI/composición.
+
+### Alcance implementado
+
+- Migración de layout de `Accounts` a `AdminShell` para paridad con `Users`.
+- Ajustes visuales/compositivos para homologar patrón de navegación y estructura con `Users`.
+- Mejora de accesibilidad en drawer con **focus trap** para navegación por teclado (`Tab` / `Shift+Tab`).
+
+### Restricciones respetadas
+
+- Cambios acotados a UI/composición de `Accounts`.
+- Sin cambios en BFF/API contracts.
+- Sin cambios en auth.
+- Sin cambios backend (`GastosApp.API`, `GastosApp.BusinessLogic`, `GastosApp.Models`).
+
+### Validación
+
+- `npm run lint` ✅
+- `npm run build` ✅
+
+### Validación manual mínima sugerida
+
+1. Abrir `Accounts` y confirmar render dentro de `AdminShell` con patrón equivalente a `Users`.
+2. Abrir drawer (alta/edición) y validar ciclo de foco:
+   - `Tab` mantiene foco dentro del drawer,
+   - `Shift+Tab` recorre elementos en sentido inverso sin escapar del drawer,
+   - cierre y retorno de foco al trigger.
+3. Confirmar que no hay cambios funcionales en flujos BFF/auth/backend.
+
+### Rollback rápido (si se requiere)
+
+- Revertir cambios de Fase D en `accounts-client.tsx` y `account-form-drawer.tsx`.
+- Mantener Fases A/B/C sin alteración funcional.
+
+## Frontend Accounts · Fase C (accesibilidad drawer + estados UX + privacidad mobile)
+
+> Se aplicó Fase C únicamente al módulo `Accounts` en `GastosApp.Web`, manteniendo alcance de UI/composición.
+
+### Alcance implementado
+
+- Mejora de accesibilidad en drawer de cuenta:
+  - atributos y semántica de modal (`role`/`aria`),
+  - cierre por teclado con `Escape`,
+  - manejo de foco para apertura/cierre y navegación básica.
+- Homologación de estados UX entre desktop y mobile:
+  - `loading`,
+  - estado vacío,
+  - estado de error,
+  - render de resultados consistente.
+- Ajuste de privacidad visual en mobile:
+  - se oculta `accountId` en el listado móvil.
+
+### Restricciones respetadas
+
+- Cambios acotados a UI/composición de `Accounts`.
+- Sin cambios en lógica de negocio de `Accounts`.
+- Sin cambios en BFF/API contracts.
+- Sin cambios en auth.
+- Sin cambios backend (`GastosApp.API`, `GastosApp.BusinessLogic`, `GastosApp.Models`).
+
+### Validación manual mínima sugerida
+
+1. Abrir Accounts en desktop y mobile; confirmar estados `loading`, vacío, error y resultados.
+2. Abrir drawer de creación/edición y validar:
+   - foco inicial dentro del drawer,
+   - cierre con `Escape`,
+   - retorno de foco al trigger al cerrar.
+3. Revisar lista mobile y confirmar que no se muestra `accountId`.
+
+### Rollback rápido (si se requiere)
+
+- Revertir cambios de Fase C en componentes de Accounts (drawer/resultados/lista mobile).
+- Mantener Fases A/B sin alteración funcional.
+
+## Frontend Accounts · Fase B (UI/composición: acciones, mobile list y helpers UI)
+
+> Se aplicó Fase B únicamente al módulo `Accounts` en `GastosApp.Web`, extendiendo el patrón visual/compositivo ya iniciado en Fase A.
+
+### Alcance implementado
+
+- Incorporación de menú de acciones reutilizable para cuentas (`AccountActionsMenu`) con variantes desktop/mobile.
+- Incorporación de listado mobile de cuentas (`AccountsMobileList`) para paridad funcional con la vista de tabla.
+- Incorporación de helpers UI (`accounts-ui.ts`) para centralizar etiquetas/clases de badges (tipo y estado).
+- Ajustes de composición en:
+  - `accounts-table.tsx` (usa `AccountActionsMenu` y helpers UI),
+  - `accounts-results.tsx` (orquesta mobile + desktop),
+  - `accounts-client.tsx` (mantiene wiring de handlers/estado con nueva composición).
+
+### Archivos tocados (Fase B)
+
+- `GastosApp.Web/app/accounts/_components/account-actions-menu.tsx` (nuevo)
+- `GastosApp.Web/app/accounts/_components/accounts-mobile-list.tsx` (nuevo)
+- `GastosApp.Web/app/accounts/_lib/accounts-ui.ts` (nuevo)
+- `GastosApp.Web/app/accounts/_components/accounts-table.tsx`
+- `GastosApp.Web/app/accounts/_components/accounts-results.tsx`
+- `GastosApp.Web/app/accounts/accounts-client.tsx`
+
+### Restricciones respetadas
+
+- Cambios acotados a UI/composición de `Accounts`.
+- Sin cambios en lógica de negocio de `Accounts`.
+- Sin cambios en BFF/API contracts.
+- Sin cambios en auth.
+- Sin cambios backend (`GastosApp.API`, `GastosApp.BusinessLogic`, `GastosApp.Models`).
+
+### Validación
+
+- Validación objetivo de la fase:
+  - `npm run lint`
+  - `npm run build`
+- Resultado de ejecución: **pendiente adjuntar evidencia/salida en este documento**.
+
+### Riesgos pendientes
+
+- Posible drift visual residual con módulos que aún no migran completamente al mismo patrón.
+- Riesgo de diferencias de comportamiento desktop/mobile ante futuros cambios si no se mantiene la paridad entre `AccountsTable` y `AccountsMobileList`.
+- Deuda de consolidación adicional en componentes compartidos si se replica este patrón en más módulos.
+
+## Frontend Accounts · Fase A (estructura patrón Users: header + toolbar + results)
+
+> Se aplicó Fase A únicamente al módulo `Accounts` en `GastosApp.Web`, alineando estructura visual con patrón `Users`.
+
+### Alcance implementado
+
+- Reorganización del `AccountsClient` para patrón de composición: **header + toolbar + results**.
+- Extracción/uso de componente de resultados para encapsular la tabla (`AccountsResults`).
+- Ajuste visual/estructural del toolbar de cuentas para consistencia con patrón `Users`.
+
+### Archivos tocados (Fase A)
+
+- `GastosApp.Web/app/accounts/accounts-client.tsx`
+- `GastosApp.Web/app/accounts/_components/accounts-toolbar.tsx`
+- `GastosApp.Web/app/accounts/_components/accounts-results.tsx` (nuevo)
+
+### Restricciones respetadas
+
+- Sin cambios en lógica de negocio de `Accounts`.
+- Sin cambios en BFF/API contracts.
+- Sin cambios en auth.
+- Sin cambios backend (`GastosApp.API`, `GastosApp.BusinessLogic`, `GastosApp.Models`).
+
+### Validación
+
+- `npm run lint`: **pendiente confirmar evidencia en esta fase**.
+- `npm run build`: **pendiente confirmar evidencia en esta fase**.
+
+### Riesgos pendientes
+
+- Puede persistir drift visual entre `Accounts` y otros módulos hasta completar réplica por fases.
+- Riesgo de divergencia desktop/mobile si el patrón de resultados no se centraliza en componentes compartidos.
+- Queda deuda de homogeneización en módulos fuera de `Users`/`Accounts`.
+
+## Frontend Users + navegación compartida · Fases 0-2 (ejecución acotada)
+
+> Se ejecutaron Fase 0, 1 y 2 **solo** sobre módulo `Users` y piezas compartidas de navegación en `GastosApp.Web`.
+
+### Alcance implementado
+
+- Estandarización inicial (Fase 0) y refactor incremental en `Users` (Fase 1-2).
+- Eliminación de duplicación de configuración/lógica de navegación (`navItems` e `isRouteActive`) mediante extracción a archivo compartido.
+- Simplificación de lógica de badges/mensajería visual en componentes de `Users`.
+
+### Archivos nuevos
+
+- `GastosApp.Web/app/_components/layout/nav-config.ts`
+- `GastosApp.Web/app/users/_components/users-ui.ts`
+
+### Archivos modificados
+
+- `GastosApp.Web/app/_components/layout/app-menu.tsx`
+- `GastosApp.Web/app/_components/layout/admin-shell.tsx`
+- `GastosApp.Web/app/users/_components/users-table.tsx`
+- `GastosApp.Web/app/users/_components/users-mobile-list.tsx`
+- `GastosApp.Web/app/users/users-client.tsx`
+
+### Restricciones respetadas
+
+- Sin cambios en contratos/API de BFF.
+- Sin cambios en auth.
+- Sin cambios backend (`GastosApp.API`, `GastosApp.BusinessLogic`, `GastosApp.Models`).
+
+### Validación ejecutada
+
+- `npm run lint` ✅
+- `npm run build` ✅
+
+### Riesgos pendientes
+
+- Replicación a otros módulos (Catalogs, Accounts, Transactions, Dashboard) puede introducir drift si no se aplica el mismo patrón compartido.
+- Posibles diferencias visuales/comportamiento entre desktop y mobile en futuras extensiones si no se centraliza más UI común.
+- Al mantenerse alcance acotado a `Users`, aún existe deuda de homogeneización global de navegación/UI.
+
+## Frontend Catalogs · Fase 2 (desacople por pantallas individuales)
+
+> Se desacopló la vista unificada de `Catalogs` en pantallas individuales por entidad, manteniendo los mismos contratos BFF y secciones existentes.
+
+### Rutas individuales incorporadas
+
+- `/catalogs/categories`
+- `/catalogs/subcategories`
+- `/catalogs/merchants`
+- `/catalogs/tags`
+- `/catalogs/billable-parties`
+
+Cada `page.tsx` valida sesión con `getServerSession()` y redirige a `/login` cuando no hay sesión.
+
+### Estructura aplicada
+
+- Cliente compartido para pantalla individual:
+  - `GastosApp.Web/app/catalogs/_shared/catalog-single-screen-client.tsx`
+- Clientes por pantalla:
+  - `GastosApp.Web/app/catalogs/categories/categories-client.tsx`
+  - `GastosApp.Web/app/catalogs/subcategories/subcategories-client.tsx`
+  - `GastosApp.Web/app/catalogs/merchants/merchants-client.tsx`
+  - `GastosApp.Web/app/catalogs/tags/tags-client.tsx`
+  - `GastosApp.Web/app/catalogs/billable-parties/billable-parties-client.tsx`
+- API client compartido (lectura/listado):
+  - `GastosApp.Web/app/catalogs/_shared/catalogs-api.ts`
+
+### Endpoints BFF consumidos por pantalla
+
+- Categorías (`/catalogs/categories`):
+  - `GET /api/bff/catalogs/categories`
+- Subcategorías (`/catalogs/subcategories`):
+  - `GET /api/bff/catalogs/subcategories`
+  - `GET /api/bff/catalogs/categories` (para resolver catálogo padre en formularios/tabla)
+- Comercios (`/catalogs/merchants`):
+  - `GET /api/bff/catalogs/merchants`
+- Tags (`/catalogs/tags`):
+  - `GET /api/bff/catalogs/tags`
+- Responsables cobrables (`/catalogs/billable-parties`):
+  - `GET /api/bff/catalogs/billable-parties`
+
+> La ruta unificada `GET /api/bff/catalogs/bootstrap` fue retirada en cleanup final de Catálogos.
+
+### Estado/handlers compartidos que se reducen en Fase 2
+
+En el cliente unificado (`catalogs-client.tsx`) se compartían entre secciones:
+- `catalogs` (payload agregado),
+- `globalSuccess`,
+- `error` global,
+- `expandedSection` + `toggleSection`,
+- `loadCatalogs()` único basado en `GET /api/bff/catalogs/bootstrap`.
+
+Con Fase 2, cada pantalla individual aísla su propio:
+- `loading`,
+- `error`,
+- `success` temporal,
+- `refresh` (`onDataChanged`) con fetch específico por entidad.
+
+### Validación manual mínima
+
+1. Entrar autenticado a cada ruta individual de catálogos.
+2. Confirmar carga inicial y contador por entidad en header (`meta`).
+3. Ejecutar alta/edición/baja desde cada sección y verificar refresh de datos en la misma pantalla.
+4. En `/catalogs/subcategories`, validar que se cargan subcategorías y categorías relacionadas.
+5. Verificar que `/catalogs` redirige a `/catalogs/categories` sin romper navegación.
+
+### Riesgos pendientes
+
+- Ya no hay duplicidad de mantenimiento: la vista unificada legacy fue eliminada y se mantienen rutas individuales por entidad.
+- Posible drift de UX/mensajería entre pantallas si los cambios futuros no se aplican de forma homogénea en todas las secciones.
+- `subcategories-client` depende de dos requests en paralelo; fallas parciales impactan la pantalla completa.
+
+### Rollback rápido (si se requiere)
+
+- Reintroducir cliente unificado y endpoint bootstrap solo si se decide volver al modelo agregado.
+
+## Frontend Catalogs · Fase 3 (redirect de `/catalogs` a `/catalogs/categories`)
+
+> Se retiró `/catalogs` del flujo principal: la ruta deja de mostrar la vista legacy y pasa a redirigir a la pantalla de categorías.
+>
+> **Estado final vigente:** no hay vista unificada legacy activa en runtime; el acceso operativo de Catálogos es por pantallas individuales.
+
+### Cambio implementado
+
+- `GastosApp.Web/app/catalogs/page.tsx`:
+  - mantiene validación de sesión,
+  - redirige a usuarios autenticados a `/catalogs/categories`,
+  - redirige a usuarios no autenticados a `/login`.
+
+### Estado de código legacy
+
+- `GastosApp.Web/app/catalogs/catalogs-client.tsx` fue eliminado.
+- `GastosApp.Web/app/catalogs/_shared/catalogs-types.ts` fue eliminado.
+- `GastosApp.Web/app/api/bff/catalogs/bootstrap/route.ts` fue eliminado.
+
+### Flujo final de navegación (Catálogos)
+
+1. Usuario sin sesión intenta abrir `/catalogs` → redirección a `/login`.
+2. Usuario autenticado abre `/catalogs` → redirección automática a `/catalogs/categories`.
+3. Navegación principal de Catálogos continúa por rutas individuales (`/catalogs/categories`, `/catalogs/subcategories`, `/catalogs/merchants`, `/catalogs/tags`, `/catalogs/billable-parties`).
+
+### Pantallas vigentes (flujo final)
+
+- `/catalogs/categories`
+- `/catalogs/subcategories`
+- `/catalogs/merchants`
+- `/catalogs/tags`
+- `/catalogs/billable-parties`
+
+### Validación manual mínima
+
+1. Abrir `/catalogs` sin sesión y confirmar redirect a `/login`.
+2. Abrir `/catalogs` con sesión activa y confirmar redirect a `/catalogs/categories`.
+3. Confirmar que las rutas individuales siguen accesibles desde navegación (`admin-shell` / `app-menu`).
+
+### Rollback rápido (si se requiere)
+
+- Reintroducir la vista unificada en `GastosApp.Web/app/catalogs/page.tsx`.
+- Restaurar `catalogs-client.tsx`, `catalogs-types.ts` y `GET /api/bff/catalogs/bootstrap`.
+
+## Estado actual del frontend (Hard replace UI Users con base Tabler)
+
+### Actualización específica: módulo Users
+
+> Se ejecutó hard replace visual del módulo `Users` sobre layout base tipo Tabler, **sin cambios en lógica de negocio ni contratos API/BFF**.
+
+#### Alcance implementado
+
+- Reemplazo de composición visual en `Users` (toolbar, tabla/lista desktop+mobile, menús de acción, drawer de formulario, confirmación de borrado, toasts).
+- Integración de layout/base visual compartida para panel admin (shell + navegación + estilos globales/componentes UI).
+- Mantenimiento explícito de hooks, handlers, tipos y llamadas existentes (solo cambio de capa UI).
+
+#### Archivos clave modificados
+
+- Base layout y navegación:
+  - `GastosApp.Web/components/navigation/admin-shell.tsx`
+  - `GastosApp.Web/components/navigation/app-menu.tsx`
+- Base visual/UI:
+  - `GastosApp.Web/app/globals.css`
+  - `GastosApp.Web/components/ui/alert.tsx`
+  - `GastosApp.Web/components/ui/button.tsx`
+  - `GastosApp.Web/components/ui/card.tsx`
+  - `GastosApp.Web/components/ui/input.tsx`
+- Módulo `Users`:
+  - `GastosApp.Web/app/users/users-client.tsx`
+  - `GastosApp.Web/app/users/_components/users-toolbar.tsx`
+  - `GastosApp.Web/app/users/_components/users-results.tsx`
+  - `GastosApp.Web/app/users/_components/users-table.tsx`
+  - `GastosApp.Web/app/users/_components/users-mobile-list.tsx`
+  - `GastosApp.Web/app/users/_components/user-actions-menu.tsx`
+  - `GastosApp.Web/app/users/_components/user-form-drawer.tsx`
+  - `GastosApp.Web/app/users/_components/user-delete-confirm-dialog.tsx`
+  - `GastosApp.Web/app/users/_components/users-toast-stack.tsx`
+
+#### Validación ejecutada
+
+Desde `GastosApp.Web/`:
+
+1. `npm run lint`
+2. `npm run build`
+
+Resultado esperado/documentado para este cambio:
+- Lint y build en verde para habilitar handoff a siguiente módulo.
+
+#### Pendientes mínimos antes de pasar a `Catalogs`
+
+1. Smoke manual de `Users` con datos reales:
+   - listar, buscar, crear, editar, eliminar,
+   - revisar estados `loading / empty / error`.
+2. Verificar responsive (`users-table` vs `users-mobile-list`) y consistencia de acciones.
+3. Confirmar accesibilidad básica (focus visible, navegación teclado en toolbar/menús/dialog).
+4. Cerrar ajuste visual menor pendiente en `Users` (si aparece en QA) antes de replicar patrón en `Catalogs`.
+
 ## Estructura modular de arranque (Program.cs + Extensions)
 
 El arranque de la API se organiza en `Program.cs` como orquestador, delegando configuración por responsabilidad en `GastosApp.API/Extensions`.
