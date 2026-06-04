@@ -22,7 +22,6 @@ type AccountCardProps = {
 };
 
 export function AccountCard({ account, viewMode }: AccountCardProps) {
-  const debt = ((account.creditLimit ?? 0) - account.currentBalance) * -1;
   const isDetailLike = viewMode === "detail" || viewMode === "headers";
   const isHeaderOnly = viewMode === "headers";
 
@@ -32,7 +31,7 @@ export function AccountCard({ account, viewMode }: AccountCardProps) {
         ? "border-b border-slate-200 px-1 py-6 last:border-b-0 dark:border-slate-800"
         : "rounded-2xl border border-slate-200 bg-white p-4 transition hover:border-sky-300 hover:shadow-sm dark:border-slate-800 dark:bg-slate-950 dark:hover:border-sky-600"}
     >
-      <CardHeader account={account} debt={debt} viewMode={viewMode} />
+      <CardHeader account={account} viewMode={viewMode} />
 
       {isHeaderOnly ? null : isDetailLike ? <DetailContent account={account} /> : <CompactContent account={account} viewMode={viewMode} />}
     </article>
@@ -41,11 +40,9 @@ export function AccountCard({ account, viewMode }: AccountCardProps) {
 
 function CardHeader({
   account,
-  debt,
   viewMode
 }: {
   account: DashboardAccountOverview;
-  debt: number;
   viewMode: DashboardViewMode;
 }) {
   const isDetail = viewMode === "detail" || viewMode === "headers";
@@ -61,7 +58,7 @@ function CardHeader({
         </p>
       </div>
 
-      <TopHeaderMetrics account={account} debt={debt} viewMode={viewMode} />
+      <TopHeaderMetrics account={account} viewMode={viewMode} />
     </header>
   );
 }
@@ -69,15 +66,16 @@ function CardHeader({
 function DetailContent({ account }: { account: DashboardAccountOverview }) {
   return (
     <>
-      <div className="grid gap-x-8 gap-y-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Kpi label="Saldo actual" value={account.currentBalance} toneClass={getBalanceToneClass(account.currentBalance)} plain />
-        <Kpi label="Inicial" value={account.initialBalance} plain />
-        <Kpi label="Apertura mes" value={account.openingBalance} plain />
-        <Kpi label="Ingresos mes" value={account.monthIncome} toneClass="text-emerald-700 dark:text-emerald-400" plain />
-        <Kpi label="Gastos mes" value={account.monthExpense} toneClass="text-rose-700 dark:text-rose-400" plain />
-      </div>
-
-      {account.isCredit ? <CreditDetails account={account} /> : null}
+      {account.isCredit ? (
+        <CreditDetails account={account} />
+      ) : (
+        <div className="grid gap-x-8 gap-y-4 sm:grid-cols-2 xl:grid-cols-4">
+          <Kpi label="Saldo actual" value={account.currentBalance} toneClass={getBalanceToneClass(account.currentBalance)} plain />
+          <Kpi label="Apertura mes" value={account.openingBalance} plain />
+          <Kpi label="Ingresos mes" value={account.monthIncome} toneClass="text-emerald-700 dark:text-emerald-400" plain />
+          <Kpi label="Gastos mes" value={account.monthExpense * -1} toneClass="text-rose-700 dark:text-rose-400" plain />
+        </div>
+      )}
     </>
   );
 }
@@ -111,11 +109,9 @@ function CompactContent({ account, viewMode }: { account: DashboardAccountOvervi
 
 function TopHeaderMetrics({
   account,
-  debt,
   viewMode
 }: {
   account: DashboardAccountOverview;
-  debt: number;
   viewMode: DashboardViewMode;
 }) {
   const isDetail = viewMode === "detail" || viewMode === "headers";
@@ -123,11 +119,9 @@ function TopHeaderMetrics({
   const isThreeColumns = viewMode === "grid3";
 
   return account.isCredit ? (
-    <div className={isDetail ? "grid w-full gap-2 sm:grid-cols-2 xl:grid-cols-4 lg:min-w-[40rem]" : isTwoColumns ? "grid w-full grid-cols-2 gap-2" : isThreeColumns ? "grid w-full grid-cols-2 gap-2" : "grid w-full gap-2 sm:w-auto sm:grid-cols-2 lg:grid-cols-4"}>
-      <HeaderMetric label="Crédito" value={account.creditLimit ?? 0} toneClass={getBalanceToneClass(account.creditLimit ?? 0)} large={isDetail} />
-      <HeaderMetric label="Cierre" value={account.closingBalance} toneClass={getBalanceToneClass(account.closingBalance)} large={isDetail} />
-      <HeaderMetric label="Neto" value={account.monthNet} toneClass={getBalanceToneClass(account.monthNet)} large={isDetail} />
-      <HeaderMetric label="Deuda" value={debt} toneClass="text-rose-700 dark:text-rose-400" large={isDetail} />
+    <div className={isDetail ? "grid w-full gap-2 sm:grid-cols-2 lg:min-w-[28rem]" : isTwoColumns ? "grid w-full grid-cols-2 gap-2" : isThreeColumns ? "grid w-full grid-cols-2 gap-2" : "grid w-full gap-2 sm:w-auto sm:grid-cols-2"}>
+      <HeaderMetric label="Límite de crédito" value={account.creditLimit ?? 0} toneClass={getBalanceToneClass(account.creditLimit ?? 0)} large={isDetail} />
+      <HeaderMetric label="Saldo actual" value={account.currentBalance} toneClass={getBalanceToneClass(account.currentBalance)} large={isDetail} />
     </div>
   ) : (
     <div className={isDetail ? "grid w-full gap-2 sm:grid-cols-2 lg:min-w-[20rem]" : isTwoColumns ? "grid w-full grid-cols-2 gap-2" : isThreeColumns ? "grid w-full grid-cols-2 gap-2" : "grid w-full gap-2 sm:w-auto sm:grid-cols-2"}>
@@ -160,6 +154,7 @@ function HeaderMetric({
 }
 
 function CreditDetails({ account }: { account: DashboardAccountOverview }) {
+  const debt = ((account.creditLimit ?? 0) - account.closingBalance) * -1;
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -220,23 +215,36 @@ function CreditDetails({ account }: { account: DashboardAccountOverview }) {
 
   return (
     <>
-      <div className="mt-5 grid gap-x-8 gap-y-4 sm:grid-cols-2 xl:grid-cols-6">
-        <Kpi label="Día de corte" value={account.cutoffDay ?? "No definido"} plain formatAsCurrency={false} />
-        <Kpi label="Pago límite" value={account.paymentDueDay ?? "No definido"} plain formatAsCurrency={false} />
-        <Kpi label="Pago estimado al corte" value={account.estimatedCutoffPayment} toneClass="text-amber-700 dark:text-amber-400" plain />
+      <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <Kpi label="Apertura mes" value={account.openingBalance} plain />
+        <Kpi label="Cierre mes" value={account.closingBalance} toneClass={getBalanceToneClass(account.closingBalance)} plain />
+        <Kpi label="Neto" value={account.monthNet} toneClass={getBalanceToneClass(account.monthNet)} plain />
+        <Kpi label="Deuda" value={debt} toneClass="text-rose-700 dark:text-rose-400" plain />
+
+        <Kpi label="Ingresos del mes" value={account.monthIncome} toneClass="text-emerald-700 dark:text-emerald-400" plain />
+        <Kpi label="Gastos del mes" value={account.monthExpense * -1} toneClass="text-rose-700 dark:text-rose-400" plain />
+        <Kpi label="Transferencias +" value={account.monthTransferIn} toneClass="text-emerald-700 dark:text-emerald-400" plain />
+        <Kpi label="Transferencias -" value={account.monthTransferOut * -1} toneClass="text-rose-700 dark:text-rose-400" plain />
+
         <Kpi label="Pendiente MSI" value={account.msiOutstanding} toneClass="text-indigo-700 dark:text-indigo-400" plain />
         <Kpi label="Pendiente normal" value={account.normalOutstanding} toneClass="text-fuchsia-700 dark:text-fuchsia-400" plain />
-        <div className="self-end">
-          <Button type="button" variant="ghost" className="h-9 w-full border-blue-400/60 bg-blue-500/15 text-blue-700 hover:border-blue-500/70 hover:bg-blue-500/25 hover:text-blue-800 dark:border-blue-700/60 dark:bg-blue-500/25 dark:text-blue-300 dark:hover:border-blue-500/70 dark:hover:bg-blue-500/35 dark:hover:text-blue-100" onClick={() => void openPendingModal()}>
+        <Kpi label="Día de corte" value={account.cutoffDay ?? "No definido"} plain formatAsCurrency={false} />
+        <Kpi label="Pago límite" value={account.paymentDueDay ?? "No definido"} plain formatAsCurrency={false} />
+
+        <Kpi label="Pago estimado del corte" value={account.estimatedCutoffCharges} toneClass="text-amber-700 dark:text-amber-400" plain />
+        <Kpi label="Pagos realizados" value={account.cutoffPayments} toneClass="text-emerald-700 dark:text-emerald-400" plain />
+        <Kpi label="Pendiente del corte" value={account.cutoffPending * -1} toneClass="text-rose-700 dark:text-rose-400" plain />
+        <div className="xl:justify-self-end self-end">
+          <Button type="button" variant="ghost" className="h-9 w-full border-blue-400/60 bg-blue-500/15 text-blue-700 hover:border-blue-500/70 hover:bg-blue-500/25 hover:text-blue-800 dark:border-blue-700/60 dark:bg-blue-500/25 dark:text-blue-300 dark:hover:border-blue-500/70 dark:hover:bg-blue-500/35 dark:hover:text-blue-100 sm:w-auto xl:min-w-[14rem]" onClick={() => void openPendingModal()}>
             Ver cargos pendientes
           </Button>
         </div>
       </div>
 
       {open ? (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-slate-900/50 p-4">
-          <Card className="w-full max-w-5xl space-y-4 p-5">
-            <div className="flex items-start justify-between gap-3">
+        <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/70 p-4 backdrop-blur-sm">
+          <Card className="flex max-h-[85vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-800 dark:bg-slate-950">
+            <div className="flex items-start justify-between gap-3 border-b border-slate-200 px-5 py-4 dark:border-slate-800">
               <div>
                 <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Cargos pendientes · {account.name}</h3>
                 <p className="text-xs text-slate-500 dark:text-slate-400">Separado por MSI y normal (revolvente).</p>
@@ -245,7 +253,8 @@ function CreditDetails({ account }: { account: DashboardAccountOverview }) {
             </div>
 
             {loading ? <p className="text-sm text-slate-600 dark:text-slate-300">Cargando cargos pendientes...</p> : null}
-            {error ? <p className="rounded-xl border border-rose-300 bg-rose-50 px-3 py-2 text-sm text-rose-700 dark:border-rose-800 dark:bg-rose-950/40 dark:text-rose-300">{error}</p> : null}
+            <div className="flex-1 space-y-4 overflow-y-auto px-5 py-4">
+              {error ? <p className="rounded-xl border border-rose-300 bg-rose-50 px-3 py-2 text-sm text-rose-700 dark:border-rose-800 dark:bg-rose-950/40 dark:text-rose-300">{error}</p> : null}
 
             {!loading && !error ? (
               <div className="grid gap-4 lg:grid-cols-2">
@@ -253,6 +262,11 @@ function CreditDetails({ account }: { account: DashboardAccountOverview }) {
                 <PendingGroup title="Normal" toneClass="text-fuchsia-700 dark:text-fuchsia-300" items={normalItems} total={totalNormal} />
               </div>
             ) : null}
+            </div>
+
+            <div className="flex justify-end border-t border-slate-200 px-5 py-4 dark:border-slate-800">
+              <Button type="button" variant="secondary" onClick={() => setOpen(false)}>Cerrar</Button>
+            </div>
           </Card>
         </div>
       ) : null}

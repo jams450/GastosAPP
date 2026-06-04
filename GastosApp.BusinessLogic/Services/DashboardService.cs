@@ -92,9 +92,31 @@ namespace GastosApp.BusinessLogic.Services
                                 Amount = g.Sum(t => t.Amount)
                             }),
                         AccountTopLimit),
-                    TransferByAccount = BuildBreakdown(
+                    ExpenseByAccount = BuildBreakdown(
                         monthTransactions
-                            .Where(t => IsTransactionType(t.Type, TransactionDomainConstants.TransactionType.Transfer))
+                            .Where(t => IsTransactionType(t.Type, TransactionDomainConstants.TransactionType.Expense))
+                            .GroupBy(t => new { t.AccountId, t.Account.Name })
+                            .Select(g => new DashboardBreakdownItem
+                            {
+                                Id = g.Key.AccountId,
+                                Name = g.Key.Name,
+                                Amount = g.Sum(t => t.Amount)
+                            }),
+                        AccountTopLimit),
+                    TransferInByAccount = BuildBreakdown(
+                        monthTransactions
+                            .Where(t => IsTransactionType(t.Type, TransactionDomainConstants.TransactionType.Transfer) && t.BalanceImpact > 0)
+                            .GroupBy(t => new { t.AccountId, t.Account.Name })
+                            .Select(g => new DashboardBreakdownItem
+                            {
+                                Id = g.Key.AccountId,
+                                Name = g.Key.Name,
+                                Amount = g.Sum(t => t.BalanceImpact)
+                            }),
+                        AccountTopLimit),
+                    TransferOutByAccount = BuildBreakdown(
+                        monthTransactions
+                            .Where(t => IsTransactionType(t.Type, TransactionDomainConstants.TransactionType.Transfer) && t.BalanceImpact < 0)
                             .GroupBy(t => new { t.AccountId, t.Account.Name })
                             .Select(g => new DashboardBreakdownItem
                             {
@@ -110,6 +132,12 @@ namespace GastosApp.BusinessLogic.Services
                     MonthIncome = creditAccounts.Sum(a => a.MonthIncome),
                     MonthExpense = creditAccounts.Sum(a => a.MonthExpense),
                     MonthNet = creditAccounts.Sum(a => a.MonthNet),
+                    TransferIn = monthTransactions
+                        .Where(t => t.Account.IsCredit && IsTransactionType(t.Type, TransactionDomainConstants.TransactionType.Transfer) && t.BalanceImpact > 0)
+                        .Sum(t => t.BalanceImpact),
+                    TransferOut = monthTransactions
+                        .Where(t => t.Account.IsCredit && IsTransactionType(t.Type, TransactionDomainConstants.TransactionType.Transfer) && t.BalanceImpact < 0)
+                        .Sum(t => Math.Abs(t.BalanceImpact)),
                     MonthMsiExpense = monthCreditCharges
                         .Where(c => string.Equals(c.PlanType, TransactionDomainConstants.CreditPlanType.Msi, StringComparison.OrdinalIgnoreCase))
                         .Sum(c => c.Amount),

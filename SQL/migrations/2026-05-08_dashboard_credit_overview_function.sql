@@ -34,13 +34,17 @@ RETURNS TABLE (
     "OpeningBalance" NUMERIC,
     "MonthIncome" NUMERIC,
     "MonthExpense" NUMERIC,
+    "MonthTransferIn" NUMERIC,
+    "MonthTransferOut" NUMERIC,
     "MonthNet" NUMERIC,
     "ClosingBalance" NUMERIC,
     "CreditLimit" NUMERIC,
     "PeriodStart" DATE,
     "PeriodEnd" DATE,
     "PeriodSpent" NUMERIC,
-    "EstimatedCutoffPayment" NUMERIC,
+    "EstimatedCutoffCharges" NUMERIC,
+    "CutoffPayments" NUMERIC,
+    "CutoffPending" NUMERIC,
     "MsiOutstanding" NUMERIC,
     "NormalOutstanding" NUMERIC
 )
@@ -84,6 +88,8 @@ transfer_rank AS (
 tx_with_impact AS (
     SELECT
         t.account_id,
+        t.type,
+        t.amount,
         t.transaction_date,
         CASE
             WHEN t.balance_impact <> 0 THEN t.balance_impact
@@ -105,8 +111,37 @@ month_agg AS (
     SELECT
         a.account_id,
         coalesce(sum(CASE WHEN t.transaction_date < p_month_start THEN t.impact ELSE 0 END), 0) AS prior_impact,
-        coalesce(sum(CASE WHEN t.transaction_date >= p_month_start AND t.transaction_date < p_next_month_start AND t.impact > 0 THEN t.impact ELSE 0 END), 0) AS month_income,
-        coalesce(sum(CASE WHEN t.transaction_date >= p_month_start AND t.transaction_date < p_next_month_start AND t.impact < 0 THEN (t.impact * -1) ELSE 0 END), 0) AS month_expense,
+        coalesce(sum(CASE
+            WHEN t.transaction_date >= p_month_start
+             AND t.transaction_date < p_next_month_start
+             AND lower(t.type) = 'income'
+             AND a.is_credit = FALSE
+            THEN t.amount
+            ELSE 0
+        END), 0) AS month_income,
+        coalesce(sum(CASE
+            WHEN t.transaction_date >= p_month_start
+             AND t.transaction_date < p_next_month_start
+             AND lower(t.type) = 'expense'
+            THEN t.amount
+            ELSE 0
+        END), 0) AS month_expense,
+        coalesce(sum(CASE
+            WHEN t.transaction_date >= p_month_start
+             AND t.transaction_date < p_next_month_start
+             AND lower(t.type) = 'transfer'
+             AND t.impact > 0
+            THEN t.impact
+            ELSE 0
+        END), 0) AS month_transfer_in,
+        coalesce(sum(CASE
+            WHEN t.transaction_date >= p_month_start
+             AND t.transaction_date < p_next_month_start
+             AND lower(t.type) = 'transfer'
+             AND t.impact < 0
+            THEN abs(t.impact)
+            ELSE 0
+        END), 0) AS month_transfer_out,
         coalesce(sum(CASE WHEN t.transaction_date >= p_month_start AND t.transaction_date < p_next_month_start THEN t.impact ELSE 0 END), 0) AS month_net
     FROM accounts_scope a
     LEFT JOIN tx_with_impact t ON t.account_id = a.account_id
@@ -116,19 +151,37 @@ credit_bounds AS (
     SELECT
         a.account_id,
         CASE WHEN a.is_credit THEN make_date(p_year_value, p_month_value, LEAST(GREATEST(coalesce(a.due_day, p_days_in_month), 1), p_days_in_month)) END AS period_end,
-        CASE WHEN a.is_credit THEN (make_date(p_previous_year, p_previous_month, LEAST(GREATEST(coalesce(a.due_day, p_previous_days_in_month), 1), p_previous_days_in_month)) + INTERVAL '1 day')::date END AS period_start
+        CASE WHEN a.is_credit THEN (make_date(p_previous_year, p_previous_month, LEAST(GREATEST(coalesce(a.due_day, p_previous_days_in_month), 1), p_previous_days_in_month)) + INTERVAL '1 day')::date END AS period_start,
+        CASE WHEN a.is_credit THEN (make_date(p_year_value, p_month_value, LEAST(GREATEST(coalesce(a.due_day, p_days_in_month), 1), p_days_in_month)) + INTERVAL '1 day')::date END AS payment_start,
+        CASE WHEN a.is_credit THEN make_date(
+            EXTRACT(YEAR FROM p_next_month_start)::int,
+            EXTRACT(MONTH FROM p_next_month_start)::int,
+            LEAST(
+                GREATEST(
+                    coalesce(a.payment_due_day, 1),
+                    1
+                ),
+                EXTRACT(DAY FROM ((date_trunc('month', p_next_month_start) + INTERVAL '1 month') - INTERVAL '1 day'))::int
+            )
+        ) END AS payment_end
     FROM accounts_scope a
 ),
 credit_spent AS (
     SELECT
         cb.account_id,
-        coalesce(exp.period_spent, 0) AS period_spent,
-        GREATEST(coalesce(exp.period_spent, 0) - coalesce(pay.period_payments, 0), 0) AS estimated_cutoff_payment
+        coalesce(chg.cutoff_charges, 0) AS period_spent,
+        coalesce(chg.cutoff_charges, 0) AS estimated_cutoff_charges,
+        coalesce(pay.cutoff_payments, 0) AS cutoff_payments,
+        GREATEST(coalesce(chg.cutoff_charges, 0) - coalesce(pay.cutoff_payments, 0), 0) AS cutoff_pending
     FROM credit_bounds cb
     LEFT JOIN (
         SELECT
             cb2.account_id,
-            coalesce(sum(t.amount), 0) AS period_spent
+            coalesce(sum(CASE
+                WHEN lower(t.type) = 'expense' THEN t.amount
+                WHEN lower(t.type) = 'transfer' AND t.balance_impact < 0 THEN abs(t.balance_impact)
+                ELSE 0
+            END), 0) AS cutoff_charges
         FROM credit_bounds cb2
         LEFT JOIN transactions t
             ON t.account_id = cb2.account_id
@@ -136,20 +189,23 @@ credit_spent AS (
             AND cb2.period_end IS NOT NULL
             AND t.transaction_date >= cb2.period_start
             AND t.transaction_date < (cb2.period_end + INTERVAL '1 day')
-            AND lower(t.type) = 'expense'
         GROUP BY cb2.account_id
-    ) exp ON exp.account_id = cb.account_id
+    ) chg ON chg.account_id = cb.account_id
     LEFT JOIN (
         SELECT
             cb3.account_id,
-            coalesce(sum(CASE WHEN ti.impact > 0 THEN ti.impact ELSE 0 END), 0) AS period_payments
+            coalesce(sum(CASE
+                WHEN lower(t.type) = 'income' THEN t.amount
+                WHEN lower(t.type) = 'transfer' AND t.balance_impact > 0 THEN t.balance_impact
+                ELSE 0
+            END), 0) AS cutoff_payments
         FROM credit_bounds cb3
-        LEFT JOIN tx_with_impact ti
-            ON ti.account_id = cb3.account_id
-            AND cb3.period_start IS NOT NULL
-            AND cb3.period_end IS NOT NULL
-            AND ti.transaction_date >= cb3.period_start
-            AND ti.transaction_date < (cb3.period_end + INTERVAL '1 day')
+        LEFT JOIN transactions t
+            ON t.account_id = cb3.account_id
+            AND cb3.payment_start IS NOT NULL
+            AND cb3.payment_end IS NOT NULL
+            AND t.transaction_date >= cb3.payment_start
+            AND t.transaction_date < (cb3.payment_end + INTERVAL '1 day')
         GROUP BY cb3.account_id
     ) pay ON pay.account_id = cb.account_id
 ),
@@ -191,13 +247,17 @@ SELECT
     (a.initial_balance + coalesce(m.prior_impact, 0)) AS "OpeningBalance",
     coalesce(m.month_income, 0) AS "MonthIncome",
     coalesce(m.month_expense, 0) AS "MonthExpense",
+    coalesce(m.month_transfer_in, 0) AS "MonthTransferIn",
+    coalesce(m.month_transfer_out, 0) AS "MonthTransferOut",
     coalesce(m.month_net, 0) AS "MonthNet",
     (a.initial_balance + coalesce(m.prior_impact, 0) + coalesce(m.month_net, 0)) AS "ClosingBalance",
     a.credit_limit AS "CreditLimit",
     cb.period_start AS "PeriodStart",
     cb.period_end AS "PeriodEnd",
     coalesce(cs.period_spent, 0) AS "PeriodSpent",
-    coalesce(cs.estimated_cutoff_payment, 0) AS "EstimatedCutoffPayment",
+    coalesce(cs.estimated_cutoff_charges, 0) AS "EstimatedCutoffCharges",
+    coalesce(cs.cutoff_payments, 0) AS "CutoffPayments",
+    coalesce(cs.cutoff_pending, 0) AS "CutoffPending",
     coalesce(cib.msi_outstanding, 0) AS "MsiOutstanding",
     coalesce(cib.normal_outstanding, 0) AS "NormalOutstanding"
 FROM accounts_scope a

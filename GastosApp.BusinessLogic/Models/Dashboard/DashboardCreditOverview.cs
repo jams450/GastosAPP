@@ -13,13 +13,17 @@ namespace GastosApp.BusinessLogic.Models.Dashboard
         public decimal CurrentBalance { get; set; }
         public decimal MonthIncome { get; set; }
         public decimal MonthExpense { get; set; }
+        public decimal MonthTransferIn { get; set; }
+        public decimal MonthTransferOut { get; set; }
         public decimal MonthNet { get; set; }
         public decimal ClosingBalance { get; set; }
         public decimal? CreditLimit { get; set; }
         public DateTime? PeriodStart { get; set; }
         public DateTime? PeriodEnd { get; set; }
         public decimal PeriodSpent { get; set; }
-        public decimal EstimatedCutoffPayment { get; set; }
+        public decimal EstimatedCutoffCharges { get; set; }
+        public decimal CutoffPayments { get; set; }
+        public decimal CutoffPending { get; set; }
         public decimal MsiOutstanding { get; set; }
         public decimal NormalOutstanding { get; set; }
     }
@@ -46,7 +50,9 @@ namespace GastosApp.BusinessLogic.Models.Dashboard
         public IEnumerable<DashboardBreakdownItem> ExpenseByCategory { get; set; } = Enumerable.Empty<DashboardBreakdownItem>();
         public IEnumerable<DashboardBreakdownItem> ExpenseBySubcategory { get; set; } = Enumerable.Empty<DashboardBreakdownItem>();
         public IEnumerable<DashboardBreakdownItem> IncomeByAccount { get; set; } = Enumerable.Empty<DashboardBreakdownItem>();
-        public IEnumerable<DashboardBreakdownItem> TransferByAccount { get; set; } = Enumerable.Empty<DashboardBreakdownItem>();
+        public IEnumerable<DashboardBreakdownItem> ExpenseByAccount { get; set; } = Enumerable.Empty<DashboardBreakdownItem>();
+        public IEnumerable<DashboardBreakdownItem> TransferInByAccount { get; set; } = Enumerable.Empty<DashboardBreakdownItem>();
+        public IEnumerable<DashboardBreakdownItem> TransferOutByAccount { get; set; } = Enumerable.Empty<DashboardBreakdownItem>();
     }
 
     public class DashboardBreakdownItem
@@ -62,6 +68,8 @@ namespace GastosApp.BusinessLogic.Models.Dashboard
         public decimal MonthIncome { get; set; }
         public decimal MonthExpense { get; set; }
         public decimal MonthNet { get; set; }
+        public decimal TransferIn { get; set; }
+        public decimal TransferOut { get; set; }
         public decimal MonthMsiExpense { get; set; }
         public decimal MonthNormalExpense { get; set; }
         public decimal PendingMsi { get; set; }

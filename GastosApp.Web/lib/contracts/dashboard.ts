@@ -10,13 +10,17 @@ export type DashboardAccountOverview = {
   currentBalance: number;
   monthIncome: number;
   monthExpense: number;
+  monthTransferIn: number;
+  monthTransferOut: number;
   monthNet: number;
   closingBalance: number;
   creditLimit: number | null;
   periodStart: string | null;
   periodEnd: string | null;
   periodSpent: number;
-  estimatedCutoffPayment: number;
+  estimatedCutoffCharges: number;
+  cutoffPayments: number;
+  cutoffPending: number;
   msiOutstanding: number;
   normalOutstanding: number;
 };
@@ -84,13 +88,17 @@ function normalizeAccount(input: unknown): DashboardAccountOverview | null {
     currentBalance: toFiniteNumber(input.currentBalance),
     monthIncome: toFiniteNumber(input.monthIncome),
     monthExpense: toFiniteNumber(input.monthExpense),
+    monthTransferIn: toFiniteNumber(input.monthTransferIn),
+    monthTransferOut: toFiniteNumber(input.monthTransferOut),
     monthNet: toFiniteNumber(input.monthNet),
     closingBalance: toFiniteNumber(input.closingBalance),
     creditLimit: toOptionalFiniteNumber(input.creditLimit),
     periodStart: toOptionalDateString(input.periodStart),
     periodEnd: toOptionalDateString(input.periodEnd),
     periodSpent: toFiniteNumber(input.periodSpent),
-    estimatedCutoffPayment: toFiniteNumber(input.estimatedCutoffPayment),
+    estimatedCutoffCharges: toFiniteNumber(input.estimatedCutoffCharges),
+    cutoffPayments: toFiniteNumber(input.cutoffPayments),
+    cutoffPending: toFiniteNumber(input.cutoffPending),
     msiOutstanding: toFiniteNumber(input.msiOutstanding),
     normalOutstanding: toFiniteNumber(input.normalOutstanding)
   };
@@ -111,7 +119,9 @@ export type DashboardCharts = {
   expenseByCategory: DashboardBreakdownItem[];
   expenseBySubcategory: DashboardBreakdownItem[];
   incomeByAccount: DashboardBreakdownItem[];
-  transferByAccount: DashboardBreakdownItem[];
+  expenseByAccount: DashboardBreakdownItem[];
+  transferInByAccount: DashboardBreakdownItem[];
+  transferOutByAccount: DashboardBreakdownItem[];
 };
 
 export type DashboardCreditSectionSummary = {
@@ -119,6 +129,8 @@ export type DashboardCreditSectionSummary = {
   monthIncome: number;
   monthExpense: number;
   monthNet: number;
+  transferIn: number;
+  transferOut: number;
   monthMsiExpense: number;
   monthNormalExpense: number;
   pendingMsi: number;
@@ -173,13 +185,17 @@ export function normalizeDashboardOverview(input: unknown): DashboardOverviewRes
         expenseByCategory: [],
         expenseBySubcategory: [],
         incomeByAccount: [],
-        transferByAccount: []
+        expenseByAccount: [],
+        transferInByAccount: [],
+        transferOutByAccount: []
       },
       creditSummary: {
         totalAvailable: 0,
         monthIncome: 0,
         monthExpense: 0,
         monthNet: 0,
+        transferIn: 0,
+        transferOut: 0,
         monthMsiExpense: 0,
         monthNormalExpense: 0,
         pendingMsi: 0,
@@ -214,13 +230,17 @@ export function normalizeDashboardOverview(input: unknown): DashboardOverviewRes
       expenseByCategory: normalizeBreakdownCollection(chartsInput.expenseByCategory),
       expenseBySubcategory: normalizeBreakdownCollection(chartsInput.expenseBySubcategory),
       incomeByAccount: normalizeBreakdownCollection(chartsInput.incomeByAccount),
-      transferByAccount: normalizeBreakdownCollection(chartsInput.transferByAccount)
+      expenseByAccount: normalizeBreakdownCollection(chartsInput.expenseByAccount),
+      transferInByAccount: normalizeBreakdownCollection(chartsInput.transferInByAccount),
+      transferOutByAccount: normalizeBreakdownCollection(chartsInput.transferOutByAccount)
     },
     creditSummary: {
       totalAvailable: toFiniteNumber(creditSummaryInput.totalAvailable),
       monthIncome: toFiniteNumber(creditSummaryInput.monthIncome),
       monthExpense: toFiniteNumber(creditSummaryInput.monthExpense),
       monthNet: toFiniteNumber(creditSummaryInput.monthNet),
+      transferIn: toFiniteNumber(creditSummaryInput.transferIn),
+      transferOut: toFiniteNumber(creditSummaryInput.transferOut),
       monthMsiExpense: toFiniteNumber(creditSummaryInput.monthMsiExpense),
       monthNormalExpense: toFiniteNumber(creditSummaryInput.monthNormalExpense),
       pendingMsi: toFiniteNumber(creditSummaryInput.pendingMsi),
