@@ -1,29 +1,34 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { FormEvent } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { AdminShell } from "@/components/navigation/admin-shell";
 import { Alert } from "@/components/ui/alert";
 import type { Account } from "@/lib/contracts/accounts";
 import { HistorySection } from "../_components/sections/history-section";
 import { EditTransactionModal } from "../_components/history/edit-transaction-modal";
 import { EditTransferModal } from "../_components/history/edit-transfer-modal";
-import { ApplyCreditPaymentModal, type ApplyCreditPaymentForm } from "../_components/history/apply-credit-payment-modal";
 import { useHistoryColumns } from "../_hooks/use-history-columns";
 import { useTransactionMutations } from "../_hooks/use-transaction-mutations";
 import { useTransactionsHistory } from "../_hooks/use-transactions-history";
-import { currentLocalDateTimeInput, currentMonthInput, dateTimeLocalInputValue, parseSelectedNumber } from "../_lib/transactions-utils";
+import { currentLocalDateTimeInput, dateTimeLocalInputValue, parseSelectedNumber } from "../_lib/transactions-utils";
 import type { EditFormState, ExpenseAllocationFormState, TransactionHistoryItem, TransferEditFormState, TransferGroupItem } from "../_lib/transactions-types";
 import { createAllocationRow, resolveDefaultSelfBillablePartyId } from "../_shared/transactions-screen-shared";
 import { useTransactionsCatalogs } from "../_shared/use-transactions-catalogs";
 
-type Props = { username: string };
+type Props = {
+  username: string;
+  initialMonth: string;
+};
 
-export function HistoryClient({ username }: Props) {
+export function HistoryClient({ username, initialMonth }: Props) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const { catalogs, catalogsLoading, catalogsError } = useTransactionsCatalogs();
 
-  const [historyMonth, setHistoryMonth] = useState<string>(currentMonthInput());
+  const [historyMonth, setHistoryMonth] = useState<string>(initialMonth);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [, setSubmitLoading] = useState(false);
   const [, setSubmitError] = useState<string | null>(null);
@@ -34,9 +39,6 @@ export function HistoryClient({ username }: Props) {
   const [editError, setEditError] = useState<string | null>(null);
   const [deleteLoadingId, setDeleteLoadingId] = useState<number | null>(null);
   const [deleteTransferGroupId, setDeleteTransferGroupId] = useState<string | null>(null);
-  const [applyPaymentForm, setApplyPaymentForm] = useState<ApplyCreditPaymentForm | null>(null);
-  const [applyPaymentSaving, setApplyPaymentSaving] = useState(false);
-  const [applyPaymentError, setApplyPaymentError] = useState<string | null>(null);
 
   const [dummyAmount, setDummyAmount] = useState("");
   const [dummyDescription, setDummyDescription] = useState("");
@@ -88,6 +90,23 @@ export function HistoryClient({ username }: Props) {
     filteredTransferGroups,
     loadHistory
   } = useTransactionsHistory({ catalogs, historyMonth });
+
+  useEffect(() => {
+    const urlMonth = searchParams.get("month");
+    if (urlMonth && /^\d{4}-\d{2}$/.test(urlMonth)) {
+      setHistoryMonth((current) => current === urlMonth ? current : urlMonth);
+    }
+  }, [searchParams]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (params.get("month") === historyMonth) {
+      return;
+    }
+
+    params.set("month", historyMonth);
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+  }, [historyMonth, pathname, router, searchParams]);
 
   useEffect(() => {
     void loadHistory();
@@ -146,24 +165,12 @@ export function HistoryClient({ username }: Props) {
     });
   }, [catalogs]);
 
-  const openApplyPaymentModal = useCallback((sourceTransactionId: number, creditAccountId: number, maxAmount: number) => {
-    setApplyPaymentError(null);
-    setApplyPaymentForm({
-      sourceTransactionId,
-      creditAccountId,
-      maxAmount,
-      mode: "full",
-      amount: maxAmount.toFixed(2)
-    });
-  }, []);
-
   const {
     onSaveEdit,
     onSaveTransferEdit,
     onDelete,
     onDeleteTransferGroup,
-    onConvertChargeToMsi,
-    onApplyExistingPayment
+    onConvertChargeToMsi
   } = useTransactionMutations({
     createState: {
       kind: "expense",
@@ -215,6 +222,7 @@ export function HistoryClient({ username }: Props) {
 
   const { historyColumns, transferColumns } = useHistoryColumns({
     accountById,
+    selfBillablePartyId: defaultSelfBillablePartyId,
     categoryNameById,
     subcategoryNameById,
     merchantNameById,
@@ -223,38 +231,9 @@ export function HistoryClient({ username }: Props) {
     onEdit: openEditModal,
     onDelete,
     onConvertToMsi: onConvertChargeToMsi,
-    onApplyExistingPayment: openApplyPaymentModal,
     onEditTransfer: openTransferEditModal,
     onDeleteTransfer: onDeleteTransferGroup
   });
-
-  const onConfirmApplyPayment = useCallback(async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!applyPaymentForm) return;
-
-    setApplyPaymentSaving(true);
-    setApplyPaymentError(null);
-    try {
-      if (applyPaymentForm.mode === "full") {
-        await onApplyExistingPayment(applyPaymentForm.sourceTransactionId, applyPaymentForm.creditAccountId);
-      } else {
-        const amount = Number(applyPaymentForm.amount);
-        if (!Number.isFinite(amount) || amount <= 0) {
-          setApplyPaymentError("Monto parcial inválido.");
-          return;
-        }
-        if (amount > applyPaymentForm.maxAmount) {
-          setApplyPaymentError("Monto parcial no puede exceder monto de transacción.");
-          return;
-        }
-        await onApplyExistingPayment(applyPaymentForm.sourceTransactionId, applyPaymentForm.creditAccountId, amount);
-      }
-
-      setApplyPaymentForm(null);
-    } finally {
-      setApplyPaymentSaving(false);
-    }
-  }, [applyPaymentForm, onApplyExistingPayment]);
 
   return (
     <AdminShell username={username} section="Operación" title="Transacciones · Historial" subtitle="Consulta historial y aplica operaciones de crédito.">
@@ -306,16 +285,6 @@ export function HistoryClient({ username }: Props) {
           onSubmit={(event) => void onSaveTransferEdit(event)}
           saving={editSaving}
           error={editError}
-        />
-
-        <ApplyCreditPaymentModal
-          open={Boolean(applyPaymentForm)}
-          form={applyPaymentForm}
-          saving={applyPaymentSaving}
-          error={applyPaymentError}
-          onChange={setApplyPaymentForm}
-          onClose={() => setApplyPaymentForm(null)}
-          onSubmit={onConfirmApplyPayment}
         />
       </section>
     </AdminShell>

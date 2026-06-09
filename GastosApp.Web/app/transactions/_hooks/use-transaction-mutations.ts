@@ -380,27 +380,5 @@ export function useTransactionMutations(params: Params) {
     }
   }, [loadHistory, setHistoryError, setSuccessMessage]);
 
-  const onApplyExistingPayment = useCallback(async (sourceTransactionId: number, creditAccountId: number, amount?: number) => {
-
-    setHistoryError(null);
-    try {
-      const response = await csrfFetch("/api/bff/transactions/credit/apply-existing-payment", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sourceTransactionId, creditAccountId, amount })
-      });
-
-      if (!response.ok) {
-        const data = (await response.json().catch(() => null)) as { message?: string } | null;
-        throw new Error(data?.message ?? "No se pudo aplicar pago existente");
-      }
-
-      setSuccessMessage(typeof amount === "number" ? "Pago parcial aplicado a mensualidades." : "Pago completo aplicado a mensualidades.");
-      await loadHistory();
-    } catch (error) {
-      setHistoryError(error instanceof Error ? error.message : "No se pudo aplicar pago existente");
-    }
-  }, [loadHistory, setHistoryError, setSuccessMessage]);
-
-  return { onSubmit, onSaveEdit, onSaveTransferEdit, onDelete, onDeleteTransferGroup, onConvertChargeToMsi, onApplyExistingPayment };
+  return { onSubmit, onSaveEdit, onSaveTransferEdit, onDelete, onDeleteTransferGroup, onConvertChargeToMsi };
 }

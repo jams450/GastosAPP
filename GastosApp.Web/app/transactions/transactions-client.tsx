@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { FormEvent } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { AdminShell } from "@/components/navigation/admin-shell";
@@ -14,7 +13,6 @@ import { TransferSection } from "./_components/sections/transfer-section";
 import { HistorySection } from "./_components/sections/history-section";
 import { EditTransactionModal } from "./_components/history/edit-transaction-modal";
 import { EditTransferModal } from "./_components/history/edit-transfer-modal";
-import { ApplyCreditPaymentModal, type ApplyCreditPaymentForm } from "./_components/history/apply-credit-payment-modal";
 import { useCreditAllocation } from "./_hooks/use-credit-allocation";
 import { useTransactionsHistory } from "./_hooks/use-transactions-history";
 import { useHistoryColumns } from "./_hooks/use-history-columns";
@@ -109,9 +107,6 @@ export function TransactionsClient({ username, fixedKind, fixedViewMode }: Props
   const [editError, setEditError] = useState<string | null>(null);
   const [deleteLoadingId, setDeleteLoadingId] = useState<number | null>(null);
   const [deleteTransferGroupId, setDeleteTransferGroupId] = useState<string | null>(null);
-  const [applyPaymentForm, setApplyPaymentForm] = useState<ApplyCreditPaymentForm | null>(null);
-  const [applyPaymentSaving, setApplyPaymentSaving] = useState(false);
-  const [applyPaymentError, setApplyPaymentError] = useState<string | null>(null);
 
   useEffect(() => {
     if (fixedKind) {
@@ -379,25 +374,13 @@ export function TransactionsClient({ username, fixedKind, fixedViewMode }: Props
     });
   }, [catalogs]);
 
-  const openApplyPaymentModal = useCallback((sourceTransactionId: number, creditAccountId: number, maxAmount: number) => {
-    setApplyPaymentError(null);
-    setApplyPaymentForm({
-      sourceTransactionId,
-      creditAccountId,
-      maxAmount,
-      mode: "full",
-      amount: maxAmount.toFixed(2)
-    });
-  }, []);
-
   const {
     onSubmit,
     onSaveEdit,
     onSaveTransferEdit,
     onDelete,
     onDeleteTransferGroup,
-    onConvertChargeToMsi,
-    onApplyExistingPayment
+    onConvertChargeToMsi
   } = useTransactionMutations({
     createState: {
       kind,
@@ -449,6 +432,7 @@ export function TransactionsClient({ username, fixedKind, fixedViewMode }: Props
 
   const { historyColumns, transferColumns } = useHistoryColumns({
     accountById,
+    selfBillablePartyId: defaultSelfBillablePartyId,
     categoryNameById,
     subcategoryNameById,
     merchantNameById,
@@ -457,38 +441,9 @@ export function TransactionsClient({ username, fixedKind, fixedViewMode }: Props
     onEdit: openEditModal,
     onDelete,
     onConvertToMsi: onConvertChargeToMsi,
-    onApplyExistingPayment: openApplyPaymentModal,
     onEditTransfer: openTransferEditModal,
     onDeleteTransfer: onDeleteTransferGroup
   });
-
-  const onConfirmApplyPayment = useCallback(async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!applyPaymentForm) return;
-
-    setApplyPaymentSaving(true);
-    setApplyPaymentError(null);
-    try {
-      if (applyPaymentForm.mode === "full") {
-        await onApplyExistingPayment(applyPaymentForm.sourceTransactionId, applyPaymentForm.creditAccountId);
-      } else {
-        const amount = Number(applyPaymentForm.amount);
-        if (!Number.isFinite(amount) || amount <= 0) {
-          setApplyPaymentError("Monto parcial inválido.");
-          return;
-        }
-        if (amount > applyPaymentForm.maxAmount) {
-          setApplyPaymentError("Monto parcial no puede exceder monto de transacción.");
-          return;
-        }
-        await onApplyExistingPayment(applyPaymentForm.sourceTransactionId, applyPaymentForm.creditAccountId, amount);
-      }
-
-      setApplyPaymentForm(null);
-    } finally {
-      setApplyPaymentSaving(false);
-    }
-  }, [applyPaymentForm, onApplyExistingPayment]);
 
   return (
     <AdminShell
@@ -726,16 +681,6 @@ export function TransactionsClient({ username, fixedKind, fixedViewMode }: Props
           onSubmit={(event) => void onSaveTransferEdit(event)}
           saving={editSaving}
           error={editError}
-        />
-
-        <ApplyCreditPaymentModal
-          open={Boolean(applyPaymentForm)}
-          form={applyPaymentForm}
-          saving={applyPaymentSaving}
-          error={applyPaymentError}
-          onChange={setApplyPaymentForm}
-          onClose={() => setApplyPaymentForm(null)}
-          onSubmit={onConfirmApplyPayment}
         />
       </section>
     </AdminShell>

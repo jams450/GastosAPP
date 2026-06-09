@@ -1,5 +1,4 @@
 import { useMemo } from "react";
-import { HandCoins } from "lucide-react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Button } from "@/components/ui/button";
 import { formatCurrency } from "@/lib/format/currency";
@@ -9,6 +8,7 @@ import { historyTypeLabel, type TransactionHistoryItem, type TransferGroupItem }
 
 type Params = {
   accountById: Map<number, { isCredit?: boolean }>;
+  selfBillablePartyId: number | null;
   categoryNameById: Map<number, string>;
   subcategoryNameById: Map<number, string>;
   merchantNameById: Map<number, string>;
@@ -17,13 +17,13 @@ type Params = {
   onEdit: (item: TransactionHistoryItem) => void;
   onDelete: (item: TransactionHistoryItem) => Promise<void>;
   onConvertToMsi: (item: TransactionHistoryItem) => Promise<void>;
-  onApplyExistingPayment: (sourceTransactionId: number, creditAccountId: number, maxAmount: number) => void | Promise<void>;
   onEditTransfer: (item: TransferGroupItem) => void;
   onDeleteTransfer: (item: TransferGroupItem) => Promise<void>;
 };
 
 export function useHistoryColumns({
   accountById,
+  selfBillablePartyId,
   categoryNameById,
   subcategoryNameById,
   merchantNameById,
@@ -32,7 +32,6 @@ export function useHistoryColumns({
   onEdit,
   onDelete,
   onConvertToMsi,
-  onApplyExistingPayment,
   onEditTransfer,
   onDeleteTransfer
 }: Params) {
@@ -59,7 +58,7 @@ export function useHistoryColumns({
       },
       {
         accessorKey: "creditStatus",
-        header: "Estatus",
+        header: "Estado crédito",
         cell: ({ row }) => {
           if (!(row.original.type === "expense" && accountById.get(row.original.accountId)?.isCredit)) {
             return "—";
@@ -79,14 +78,44 @@ export function useHistoryColumns({
         }
       },
       { accessorKey: "description", header: "Descripción" },
-      { accessorKey: "tags", header: "Tags", cell: ({ row }) => (row.original.tags.length > 0 ? row.original.tags.join(", ") : "—") },
+      {
+        id: "sharedExpense",
+        header: "¿Alguien más paga?",
+        cell: ({ row }) => {
+          const distinctBillablePartyIds = new Set(row.original.allocations.map((allocation) => allocation.billablePartyId));
+          if (distinctBillablePartyIds.size === 0) {
+            return "—";
+          }
+
+          if (selfBillablePartyId === null) {
+            return distinctBillablePartyIds.size > 1 ? "Sí" : "No";
+          }
+
+          const hasSelf = distinctBillablePartyIds.has(selfBillablePartyId);
+          const hasOthers = [...distinctBillablePartyIds].some((billablePartyId) => billablePartyId !== selfBillablePartyId);
+
+          if (hasSelf && hasOthers) {
+            return "Sí";
+          }
+
+          if (!hasSelf && hasOthers) {
+            return "Otro";
+          }
+
+          return "No";
+        }
+      },
       {
         id: "actions",
+
         header: "Acciones",
         enableSorting: false,
         cell: ({ row }) => {
           const item = row.original;
           const isOpeningCredit = item.type === "opening_credit";
+          const canConvertToMsi = item.type === "expense"
+            && accountById.get(item.accountId)?.isCredit
+            && (item.creditMonths === null || item.creditMonths <= 1);
           return (
             <div className="flex gap-1">
               {!isOpeningCredit ? (
@@ -95,26 +124,15 @@ export function useHistoryColumns({
                 </Button>
               ) : null}
               <Button type="button" variant="ghost" className={`h-6 px-1.5 text-[10px] ${tableActionStyles.delete}`} disabled={deleteLoadingId === item.transactionId} onClick={() => void onDelete(item)}>Borrar</Button>
-              {item.type === "expense" && accountById.get(item.accountId)?.isCredit ? (
+              {canConvertToMsi ? (
                 <Button type="button" variant="secondary" className="h-6 border-indigo-300 bg-indigo-50 px-2 text-[10px] font-semibold text-indigo-700 hover:bg-indigo-100 dark:border-indigo-800 dark:bg-indigo-950/50 dark:text-indigo-300 dark:hover:bg-indigo-900/50" onClick={() => void onConvertToMsi(item)}>Convertir MSI</Button>
-              ) : null}
-              {item.type === "income" && accountById.get(item.accountId)?.isCredit ? (
-                <Button
-                  type="button"
-                  variant="secondary"
-                  className="h-6 gap-1 border-emerald-300 bg-emerald-50 px-2 text-[10px] font-semibold text-emerald-700 hover:bg-emerald-100 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 dark:hover:bg-emerald-900/50"
-                  onClick={() => void onApplyExistingPayment(item.transactionId, item.accountId, item.amount)}
-                >
-                  <HandCoins className="h-3 w-3" aria-hidden="true" />
-                  Aplicar pago
-                </Button>
               ) : null}
             </div>
           );
         }
       }
     ],
-    [accountById, categoryNameById, deleteLoadingId, merchantNameById, onApplyExistingPayment, onConvertToMsi, onDelete, onEdit, subcategoryNameById]
+    [accountById, selfBillablePartyId, categoryNameById, deleteLoadingId, merchantNameById, onConvertToMsi, onDelete, onEdit, subcategoryNameById]
   );
 
   const transferColumns = useMemo<ColumnDef<TransferGroupItem>[]>(
@@ -138,23 +156,12 @@ export function useHistoryColumns({
             <div className="flex gap-1">
               <Button type="button" variant="ghost" className={`h-6 px-1.5 text-[10px] ${tableActionStyles.edit}`} onClick={() => onEditTransfer(item)}>Editar</Button>
               <Button type="button" variant="ghost" className={`h-6 px-1.5 text-[10px] ${tableActionStyles.delete}`} disabled={deleteTransferGroupId === item.transferGroupId} onClick={() => void onDeleteTransfer(item)}>Borrar</Button>
-              {item.destinationAccountId && accountById.get(item.destinationAccountId)?.isCredit && item.destinationTransactionId ? (
-                <Button
-                  type="button"
-                  variant="secondary"
-                  className="h-6 gap-1 border-emerald-300 bg-emerald-50 px-2 text-[10px] font-semibold text-emerald-700 hover:bg-emerald-100 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 dark:hover:bg-emerald-900/50"
-                  onClick={() => void onApplyExistingPayment(item.destinationTransactionId as number, item.destinationAccountId as number, item.amount)}
-                >
-                  <HandCoins className="h-3 w-3" aria-hidden="true" />
-                  Aplicar pago
-                </Button>
-              ) : null}
             </div>
           );
         }
       }
     ],
-    [accountById, categoryNameById, deleteTransferGroupId, merchantNameById, onApplyExistingPayment, onDeleteTransfer, onEditTransfer, subcategoryNameById]
+    [accountById, categoryNameById, deleteTransferGroupId, merchantNameById, onDeleteTransfer, onEditTransfer, subcategoryNameById]
   );
 
   return { historyColumns, transferColumns };

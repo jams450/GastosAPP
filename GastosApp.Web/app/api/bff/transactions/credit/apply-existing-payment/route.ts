@@ -4,6 +4,8 @@ import { attachSessionCookie, fetchApiWithAutoRefresh } from "@/lib/auth/api-ses
 import { getServerSession } from "@/lib/auth/session";
 import { badRequest, unauthorized, upstreamError } from "@/lib/bff/http";
 
+// TODO: Validar si este flujo/endpoint sigue siendo necesario. La UI web ya no expone "Aplicar pago" porque ingresos/transferencias a crédito asignan mensualidades al crear la transacción.
+
 type Payload = {
   sourceTransactionId: number;
   creditAccountId: number;

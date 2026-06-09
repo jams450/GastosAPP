@@ -166,22 +166,29 @@ credit_bounds AS (
         ) END AS payment_end
     FROM accounts_scope a
 ),
+msi_source_transactions AS (
+    SELECT DISTINCT
+        cc.source_transaction_id AS transaction_id
+    FROM credit_charges cc
+    INNER JOIN credit_installment_plans cip ON cip.source_charge_id = cc.charge_id
+    WHERE cip.plan_type = 'MSI'
+),
 credit_spent AS (
     SELECT
         cb.account_id,
-        coalesce(chg.cutoff_charges, 0) AS period_spent,
-        coalesce(chg.cutoff_charges, 0) AS estimated_cutoff_charges,
+        coalesce(chg.regular_cutoff_charges, 0) + coalesce(msi.msi_cutoff_charges, 0) AS period_spent,
+        coalesce(chg.regular_cutoff_charges, 0) + coalesce(msi.msi_cutoff_charges, 0) AS estimated_cutoff_charges,
         coalesce(pay.cutoff_payments, 0) AS cutoff_payments,
-        GREATEST(coalesce(chg.cutoff_charges, 0) - coalesce(pay.cutoff_payments, 0), 0) AS cutoff_pending
+        GREATEST((coalesce(chg.regular_cutoff_charges, 0) + coalesce(msi.msi_cutoff_charges, 0)) - coalesce(pay.cutoff_payments, 0), 0) AS cutoff_pending
     FROM credit_bounds cb
     LEFT JOIN (
         SELECT
             cb2.account_id,
             coalesce(sum(CASE
-                WHEN lower(t.type) = 'expense' THEN t.amount
+                WHEN lower(t.type) = 'expense' AND mst.transaction_id IS NULL THEN t.amount
                 WHEN lower(t.type) = 'transfer' AND t.balance_impact < 0 THEN abs(t.balance_impact)
                 ELSE 0
-            END), 0) AS cutoff_charges
+            END), 0) AS regular_cutoff_charges
         FROM credit_bounds cb2
         LEFT JOIN transactions t
             ON t.account_id = cb2.account_id
@@ -189,8 +196,34 @@ credit_spent AS (
             AND cb2.period_end IS NOT NULL
             AND t.transaction_date >= cb2.period_start
             AND t.transaction_date < (cb2.period_end + INTERVAL '1 day')
+        LEFT JOIN msi_source_transactions mst ON mst.transaction_id = t.transaction_id
         GROUP BY cb2.account_id
     ) chg ON chg.account_id = cb.account_id
+    LEFT JOIN (
+        SELECT
+            cbm.account_id,
+            coalesce(sum(GREATEST(ci.total_due - coalesce(ip.allocated_total, 0), 0)), 0) AS msi_cutoff_charges
+        FROM credit_bounds cbm
+        INNER JOIN credit_installment_plans cip
+            ON cip.account_id = cbm.account_id
+            AND cip.plan_type = 'MSI'
+        INNER JOIN credit_installments ci
+            ON ci.plan_id = cip.plan_id
+            AND ci.status IN ('Open', 'PartiallyPaid', 'Overdue')
+            AND cbm.payment_start IS NOT NULL
+            AND cbm.payment_end IS NOT NULL
+            AND ci.due_date >= cbm.payment_start
+            AND ci.due_date < (cbm.payment_end + INTERVAL '1 day')
+        LEFT JOIN (
+            SELECT
+                ia.installment_id,
+                coalesce(sum(ia.allocated_amount), 0) AS allocated_total
+            FROM installment_allocations ia
+            INNER JOIN credit_payments cp ON cp.payment_id = ia.payment_id AND cp.status = 'Posted'
+            GROUP BY ia.installment_id
+        ) ip ON ip.installment_id = ci.installment_id
+        GROUP BY cbm.account_id
+    ) msi ON msi.account_id = cb.account_id
     LEFT JOIN (
         SELECT
             cb3.account_id,
