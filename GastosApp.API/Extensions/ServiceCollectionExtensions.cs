@@ -27,6 +27,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ITransactionCommandService, TransactionCommandService>();
         services.AddScoped<ITransferService, TransferService>();
         services.AddScoped<ITransactionValidationService, TransactionValidationService>();
+        services.AddScoped<ICreditCycleService, CreditCycleService>();
         services.AddScoped<ITransactionTagService, TransactionTagService>();
         services.AddScoped<IExpenseAllocationService, ExpenseAllocationService>();
         services.AddScoped<ICreditLifecycleService, CreditLifecycleService>();

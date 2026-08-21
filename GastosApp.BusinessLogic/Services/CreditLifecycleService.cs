@@ -10,12 +10,18 @@ namespace GastosApp.BusinessLogic.Services
         private readonly IRepository _repository;
         private readonly IAccountService _accountService;
         private readonly ITransactionValidationService _validation;
+        private readonly ICreditCycleService _creditCycleService;
 
-        public CreditLifecycleService(IRepository repository, IAccountService accountService, ITransactionValidationService validation)
+        public CreditLifecycleService(
+            IRepository repository,
+            IAccountService accountService,
+            ITransactionValidationService validation,
+            ICreditCycleService creditCycleService)
         {
             _repository = repository;
             _accountService = accountService;
             _validation = validation;
+            _creditCycleService = creditCycleService;
         }
 
         public async Task<(bool Success, string? ErrorMessage)> RegisterCreditPaymentAsync(int creditAccountId, int sourceTransactionId, DateTime paidAt, decimal amount, IEnumerable<(int InstallmentId, decimal Amount)> allocations)
@@ -100,6 +106,9 @@ namespace GastosApp.BusinessLogic.Services
             if (charge == null) return (false, "No existe cargo de crédito para esa transacción");
             if (charge.InstallmentPlan == null) return (false, "Cargo sin plan de pagos");
 
+            var account = await _accountService.GetByIdAsync(charge.AccountId);
+            if (account == null || !account.IsCredit) return (false, "La cuenta indicada no es de crédito");
+
             var plan = charge.InstallmentPlan;
             var hasPayments = await _repository.Get<InstallmentAllocation>(a => plan.Installments.Select(i => i.InstallmentId).Contains(a.InstallmentId)).AnyAsync();
             if (hasPayments) return (false, "No se puede convertir a MSI un cargo con pagos ya asignados");
@@ -115,26 +124,12 @@ namespace GastosApp.BusinessLogic.Services
             plan.MonthlyAmountBase = Math.Round(charge.PrincipalAmount / months, 2, MidpointRounding.AwayFromZero);
             plan.RoundingResidual = charge.PrincipalAmount - (plan.MonthlyAmountBase * months);
 
-            var dueDateBase = charge.OccurredAt.Date;
-            var installments = new List<CreditInstallment>();
-            for (var installmentNumber = 1; installmentNumber <= months; installmentNumber++)
-            {
-                var totalDue = plan.MonthlyAmountBase;
-                if (installmentNumber == months) totalDue += plan.RoundingResidual;
+            var chargeCycle = await _creditCycleService.ResolveChargeCycleAsync(account, charge.OccurredAt);
+            var dueCycles = await _creditCycleService.ResolveDueCyclesAsync(account, charge.OccurredAt, months);
+            charge.CycleId = chargeCycle.CycleId;
+            plan.StartCycleId = chargeCycle.CycleId;
 
-                installments.Add(new CreditInstallment
-                {
-                    PlanId = plan.PlanId,
-                    InstallmentNumber = installmentNumber,
-                    DueDate = _validation.EnsureUtc(dueDateBase.AddMonths(installmentNumber)),
-                    PrincipalDue = totalDue,
-                    InterestDue = 0m,
-                    FeeDue = 0m,
-                    TotalDue = totalDue,
-                    Status = TransactionDomainConstants.CreditStatus.Open
-                });
-            }
-
+            var installments = BuildInstallments(plan, dueCycles);
             _repository.GetTrack<CreditInstallment>().AddRange(installments);
             await _repository.SaveChangesAsync();
             return (true, null);
@@ -155,10 +150,10 @@ namespace GastosApp.BusinessLogic.Services
             }).ToList();
 
             if (normalized.Count == 0) return (false, "Debes enviar al menos un cargo con monto mayor a cero", 0);
+            if (normalized.Any(i => i.Months < 1 || i.Months > 60)) return (false, "Meses inválido. Debe estar entre 1 y 60", 0);
 
             foreach (var input in normalized)
             {
-                if (input.Months < 1 || input.Months > 60) return (false, "Meses inválido. Debe estar entre 1 y 60", 0);
                 var occurredAt = _validation.EnsureUtc(input.OccurredAt ?? DateTime.UtcNow);
                 var syntheticTransaction = await _repository.Save(new Transaction
                 {
@@ -180,48 +175,43 @@ namespace GastosApp.BusinessLogic.Services
 
         public async Task CreateCreditChargeWithPlanAsync(Transaction transaction, int months, string planType)
         {
+            var account = await _accountService.GetByIdAsync(transaction.AccountId);
+            if (account == null || !account.IsCredit)
+            {
+                throw new InvalidOperationException("La cuenta indicada no es de crédito");
+            }
+
+            var normalizedMonths = Math.Max(months, 1);
+            var chargeCycle = await _creditCycleService.ResolveChargeCycleAsync(account, transaction.TransactionDate);
+            var dueCycles = await _creditCycleService.ResolveDueCyclesAsync(account, transaction.TransactionDate, normalizedMonths);
+
             var charge = await _repository.Save(new CreditCharge
             {
                 AccountId = transaction.AccountId,
                 SourceTransactionId = transaction.TransactionId,
+                CycleId = chargeCycle.CycleId,
                 OccurredAt = transaction.TransactionDate,
                 PrincipalAmount = transaction.Amount,
                 Status = TransactionDomainConstants.CreditStatus.Open
             });
 
-            var monthlyAmountBase = Math.Round(transaction.Amount / months, 2, MidpointRounding.AwayFromZero);
-            var roundingResidual = transaction.Amount - (monthlyAmountBase * months);
+            var monthlyAmountBase = Math.Round(transaction.Amount / normalizedMonths, 2, MidpointRounding.AwayFromZero);
+            var roundingResidual = transaction.Amount - (monthlyAmountBase * normalizedMonths);
 
             var plan = await _repository.Save(new CreditInstallmentPlan
             {
                 AccountId = transaction.AccountId,
                 SourceChargeId = charge.ChargeId,
                 PlanType = planType,
-                Months = months,
+                Months = normalizedMonths,
                 PrincipalAmount = transaction.Amount,
                 MonthlyAmountBase = monthlyAmountBase,
                 RoundingResidual = roundingResidual,
+                StartCycleId = chargeCycle.CycleId,
                 Status = TransactionDomainConstants.CreditStatus.Active
             });
 
-            var installments = new List<CreditInstallment>();
-            for (var installmentNumber = 1; installmentNumber <= months; installmentNumber++)
-            {
-                var totalDue = monthlyAmountBase;
-                if (installmentNumber == months) totalDue += roundingResidual;
-                installments.Add(new CreditInstallment
-                {
-                    PlanId = plan.PlanId,
-                    InstallmentNumber = installmentNumber,
-                    DueDate = _validation.EnsureUtc(transaction.TransactionDate.Date.AddMonths(installmentNumber)),
-                    PrincipalDue = totalDue,
-                    InterestDue = 0m,
-                    FeeDue = 0m,
-                    TotalDue = totalDue,
-                    Status = TransactionDomainConstants.CreditStatus.Open
-                });
-            }
-
+            var installments = BuildInstallments(plan, dueCycles);
             _repository.GetTrack<CreditInstallment>().AddRange(installments);
             await _repository.SaveChangesAsync();
         }
@@ -234,11 +224,18 @@ namespace GastosApp.BusinessLogic.Services
                 .FirstOrDefaultAsync(c => c.SourceTransactionId == sourceTransactionId);
             if (charge?.InstallmentPlan == null) return;
 
+            var account = await _accountService.GetByIdAsync(charge.AccountId);
+            if (account == null || !account.IsCredit) return;
+
             var plan = charge.InstallmentPlan;
             var months = Math.Max(plan.Months, 1);
+            var normalizedTransactionDate = _validation.EnsureUtc(newTransactionDate);
+            var chargeCycle = await _creditCycleService.ResolveChargeCycleAsync(account, normalizedTransactionDate);
+            var dueCycles = await _creditCycleService.ResolveDueCyclesAsync(account, normalizedTransactionDate, months);
 
             charge.PrincipalAmount = newAmount;
-            charge.OccurredAt = _validation.EnsureUtc(newTransactionDate);
+            charge.OccurredAt = normalizedTransactionDate;
+            charge.CycleId = chargeCycle.CycleId;
 
             var monthlyAmountBase = Math.Round(newAmount / months, 2, MidpointRounding.AwayFromZero);
             var roundingResidual = newAmount - (monthlyAmountBase * months);
@@ -246,6 +243,7 @@ namespace GastosApp.BusinessLogic.Services
             plan.PrincipalAmount = newAmount;
             plan.MonthlyAmountBase = monthlyAmountBase;
             plan.RoundingResidual = roundingResidual;
+            plan.StartCycleId = chargeCycle.CycleId;
 
             var orderedInstallments = plan.Installments.OrderBy(i => i.InstallmentNumber).ToList();
             if (orderedInstallments.Count != months) return;
@@ -254,7 +252,10 @@ namespace GastosApp.BusinessLogic.Services
             {
                 var totalDue = monthlyAmountBase;
                 if (installment.InstallmentNumber == months) totalDue += roundingResidual;
-                installment.DueDate = _validation.EnsureUtc(newTransactionDate.Date.AddMonths(installment.InstallmentNumber));
+
+                var dueCycle = dueCycles[installment.InstallmentNumber - 1];
+                installment.DueCycleId = dueCycle.CycleId;
+                installment.DueDate = dueCycle.DueAt;
                 installment.PrincipalDue = totalDue;
                 installment.InterestDue = 0m;
                 installment.FeeDue = 0m;
@@ -263,6 +264,32 @@ namespace GastosApp.BusinessLogic.Services
 
             await _repository.SaveChangesAsync();
             await RecalculateInstallmentStatusesAsync(orderedInstallments.Select(i => i.InstallmentId));
+        }
+
+        private List<CreditInstallment> BuildInstallments(CreditInstallmentPlan plan, IReadOnlyList<CreditCycle> dueCycles)
+        {
+            var installments = new List<CreditInstallment>(dueCycles.Count);
+            for (var installmentNumber = 1; installmentNumber <= dueCycles.Count; installmentNumber++)
+            {
+                var totalDue = plan.MonthlyAmountBase;
+                if (installmentNumber == dueCycles.Count) totalDue += plan.RoundingResidual;
+
+                var dueCycle = dueCycles[installmentNumber - 1];
+                installments.Add(new CreditInstallment
+                {
+                    PlanId = plan.PlanId,
+                    InstallmentNumber = installmentNumber,
+                    DueCycleId = dueCycle.CycleId,
+                    DueDate = dueCycle.DueAt,
+                    PrincipalDue = totalDue,
+                    InterestDue = 0m,
+                    FeeDue = 0m,
+                    TotalDue = totalDue,
+                    Status = TransactionDomainConstants.CreditStatus.Open
+                });
+            }
+
+            return installments;
         }
 
         private async Task RecalculateInstallmentStatusesAsync(IEnumerable<int> installmentIds)
