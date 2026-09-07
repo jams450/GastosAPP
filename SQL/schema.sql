@@ -152,6 +152,21 @@ CREATE TABLE transactions (
     FOREIGN KEY (merchant_id) REFERENCES merchants(merchant_id) ON DELETE SET NULL
 );
 
+-- Persistent Bancoppel import idempotency claims
+CREATE TABLE bancoppel_imported_rows (
+    imported_row_id SERIAL PRIMARY KEY,
+    account_id INT NOT NULL,
+    fingerprint VARCHAR(64) NOT NULL,
+    transaction_id INT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_by VARCHAR(100),
+    updated_by VARCHAR(100),
+    UNIQUE (account_id, fingerprint),
+    FOREIGN KEY (account_id) REFERENCES accounts(account_id) ON DELETE CASCADE,
+    FOREIGN KEY (transaction_id) REFERENCES transactions(transaction_id) ON DELETE SET NULL
+);
+
 -- Transaction Tags Relation
 CREATE TABLE transaction_tags (
     transaction_id INT NOT NULL,
@@ -216,6 +231,7 @@ CREATE INDEX idx_merchants_user ON merchants(user_id);
 CREATE INDEX idx_tags_user ON tags(user_id);
 CREATE INDEX idx_tags_normalized ON tags(normalized_name);
 CREATE INDEX idx_transaction_tags_tag ON transaction_tags(tag_id);
+CREATE INDEX idx_bancoppel_imported_rows_transaction ON bancoppel_imported_rows(transaction_id);
 CREATE INDEX idx_billable_parties_owner ON billable_parties(owner_user_id);
 CREATE INDEX idx_billable_parties_owner_type ON billable_parties(owner_user_id, type, active);
 CREATE INDEX idx_transaction_allocations_transaction ON transaction_allocations(transaction_id);

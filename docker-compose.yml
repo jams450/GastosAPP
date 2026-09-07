@@ -37,33 +37,13 @@ services:
       - Auth__Username=${Auth__Username}
       - Auth__Password=${Auth__Password}
       - Cors__AllowedOrigins=${Cors__AllowedOrigins}
-    depends_on:
-      - postgres
     networks:
       - gastos-network
+      - shared-db-network
     restart: "no"
-
-  # Database PostgreSQL
-  postgres:
-    image: postgres:16-alpine
-    container_name: gastos-postgres
-    ports:
-      - "5432:5432"
-    environment:
-      POSTGRES_USER: admin
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
-      POSTGRES_DB: gastos_db
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./SQL/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
-    networks:
-      - gastos-network
-    restart: "no"
-
-volumes:
-  postgres_data:
-    driver: local
 
 networks:
   gastos-network:
     driver: bridge
+  shared-db-network:
+    external: true

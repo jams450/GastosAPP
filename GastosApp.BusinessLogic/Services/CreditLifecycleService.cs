@@ -24,19 +24,38 @@ namespace GastosApp.BusinessLogic.Services
             _creditCycleService = creditCycleService;
         }
 
-        public async Task<(bool Success, string? ErrorMessage)> RegisterCreditPaymentAsync(int creditAccountId, int sourceTransactionId, DateTime paidAt, decimal amount, IEnumerable<(int InstallmentId, decimal Amount)> allocations)
+        public Task<(bool Success, string? ErrorMessage)> RegisterCreditPaymentAsync(int creditAccountId, int sourceTransactionId, DateTime paidAt, decimal amount, IEnumerable<(int InstallmentId, decimal Amount)> allocations)
+        {
+            return _repository.ExecuteInTransactionAsync(() => RegisterCreditPaymentInternalAsync(creditAccountId, sourceTransactionId, paidAt, amount, allocations));
+        }
+
+        private async Task<(bool Success, string? ErrorMessage)> RegisterCreditPaymentInternalAsync(int creditAccountId, int sourceTransactionId, DateTime paidAt, decimal amount, IEnumerable<(int InstallmentId, decimal Amount)> allocations)
         {
             if (amount <= 0) return (false, "El monto del pago debe ser mayor a cero");
 
-            var allocationList = allocations.Where(a => a.InstallmentId > 0 && a.Amount > 0).ToList();
+            var allocationList = allocations
+                .Where(a => a.InstallmentId > 0 && a.Amount > 0)
+                .GroupBy(a => a.InstallmentId)
+                .Select(g => (InstallmentId: g.Key, Amount: g.Sum(a => a.Amount)))
+                .ToList();
             if (allocationList.Count == 0) return (false, "Debes asignar al menos una mensualidad");
             if (allocationList.Sum(a => a.Amount) != amount) return (false, "La suma de asignaciones debe coincidir con monto del pago");
 
             var account = await _accountService.GetByIdAsync(creditAccountId);
             if (account == null || !account.IsCredit) return (false, "La cuenta destino no es de crédito");
 
-            var sourceTransaction = await _repository.Get<Transaction>(t => t.TransactionId == sourceTransactionId).FirstOrDefaultAsync();
+            var sourceTransaction = await _repository.LockTransactionAsync(sourceTransactionId);
             if (sourceTransaction == null) return (false, "No existe transacción origen para aplicar pago de crédito");
+            if (sourceTransaction.AccountId != creditAccountId) return (false, "La transacción origen no pertenece a la cuenta crédito indicada");
+            if (!string.Equals(sourceTransaction.Type, TransactionDomainConstants.TransactionType.Income, StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(sourceTransaction.Type, TransactionDomainConstants.TransactionType.Transfer, StringComparison.OrdinalIgnoreCase))
+            {
+                return (false, "Solo ingresos o transferencias entrantes pueden aplicarse como pago de crédito");
+            }
+            if (!string.Equals(sourceTransaction.Direction, TransactionDomainConstants.Direction.Credit, StringComparison.OrdinalIgnoreCase))
+            {
+                return (false, "Solo transacciones con dirección crédito pueden aplicarse como pago de crédito");
+            }
 
             var existingPayment = await _repository.GetTrack<CreditPayment>().FirstOrDefaultAsync(p => p.SourceTransactionId == sourceTransactionId);
             var maxAllowedFromSource = sourceTransaction.Amount;
@@ -46,7 +65,7 @@ namespace GastosApp.BusinessLogic.Services
             }
 
             var installmentIds = allocationList.Select(a => a.InstallmentId).Distinct().ToList();
-            var installments = await _repository.GetTrack<CreditInstallment>().Include(i => i.Plan).Where(i => installmentIds.Contains(i.InstallmentId)).ToListAsync();
+            var installments = await _repository.LockCreditInstallmentsAsync(installmentIds);
             if (installments.Count != installmentIds.Count) return (false, "Hay mensualidades inválidas en la asignación");
             if (installments.Any(i => i.Plan.AccountId != creditAccountId)) return (false, "Todas las mensualidades deben pertenecer a la misma cuenta crédito");
 
@@ -95,8 +114,42 @@ namespace GastosApp.BusinessLogic.Services
             return (true, null);
         }
 
-        public async Task<(bool Success, string? ErrorMessage)> ConvertChargeToMsiAsync(int sourceTransactionId, int months)
+        public Task<(bool Success, string? ErrorMessage)> ReverseCreditPaymentSourceAsync(int sourceTransactionId)
         {
+            return _repository.ExecuteInTransactionAsync(() => ReverseCreditPaymentSourceInternalAsync(sourceTransactionId));
+        }
+
+        private async Task<(bool Success, string? ErrorMessage)> ReverseCreditPaymentSourceInternalAsync(int sourceTransactionId)
+        {
+            await _repository.LockTransactionAsync(sourceTransactionId);
+            var payment = await _repository.GetTrack<CreditPayment>()
+                .Include(p => p.Allocations)
+                .FirstOrDefaultAsync(p => p.SourceTransactionId == sourceTransactionId);
+            if (payment == null) return (true, null);
+
+            var installmentIds = payment.Allocations.Select(a => a.InstallmentId).Distinct().ToList();
+            await _repository.LockCreditInstallmentsAsync(installmentIds);
+            if (payment.Allocations.Count > 0)
+            {
+                _repository.GetTrack<InstallmentAllocation>().RemoveRange(payment.Allocations);
+                await _repository.SaveChangesAsync();
+            }
+
+            _repository.GetTrack<CreditPayment>().Remove(payment);
+            await _repository.SaveChangesAsync();
+            await RecalculateInstallmentStatusesAsync(installmentIds);
+
+            return (true, null);
+        }
+
+        public Task<(bool Success, string? ErrorMessage)> ConvertChargeToMsiAsync(int sourceTransactionId, int months)
+        {
+            return _repository.ExecuteInTransactionAsync(() => ConvertChargeToMsiInternalAsync(sourceTransactionId, months));
+        }
+
+        private async Task<(bool Success, string? ErrorMessage)> ConvertChargeToMsiInternalAsync(int sourceTransactionId, int months)
+        {
+            await _repository.LockTransactionAsync(sourceTransactionId);
             if (months <= 1) return (false, "Meses MSI debe ser mayor a 1");
 
             var charge = await _repository.GetTrack<CreditCharge>()
@@ -110,7 +163,9 @@ namespace GastosApp.BusinessLogic.Services
             if (account == null || !account.IsCredit) return (false, "La cuenta indicada no es de crédito");
 
             var plan = charge.InstallmentPlan;
-            var hasPayments = await _repository.Get<InstallmentAllocation>(a => plan.Installments.Select(i => i.InstallmentId).Contains(a.InstallmentId)).AnyAsync();
+            var oldInstallmentIds = plan.Installments.Select(i => i.InstallmentId).ToList();
+            await _repository.LockCreditInstallmentsAsync(oldInstallmentIds);
+            var hasPayments = await _repository.Get<InstallmentAllocation>(a => oldInstallmentIds.Contains(a.InstallmentId)).AnyAsync();
             if (hasPayments) return (false, "No se puede convertir a MSI un cargo con pagos ya asignados");
 
             var oldInstallments = plan.Installments.ToList();
@@ -135,12 +190,17 @@ namespace GastosApp.BusinessLogic.Services
             return (true, null);
         }
 
-        public async Task<(bool Success, string? ErrorMessage, int CreatedCount)> CreateOpeningCreditChargesAsync(int creditAccountId, IEnumerable<OpeningCreditChargeInput> items)
+        public Task<(bool Success, string? ErrorMessage, int CreatedCount)> CreateOpeningCreditChargesAsync(int userId, int creditAccountId, IEnumerable<OpeningCreditChargeInput> items)
         {
-            var account = await _accountService.GetByIdAsync(creditAccountId);
-            if (account == null || !account.IsCredit) return (false, "La cuenta indicada no es de crédito", 0);
+            return _repository.ExecuteInTransactionAsync(() => CreateOpeningCreditChargesInternalAsync(userId, creditAccountId, items));
+        }
 
-            var normalized = items.Where(i => i.Amount > 0 && i.CategoryId > 0).Select(i => new OpeningCreditChargeInput
+        private async Task<(bool Success, string? ErrorMessage, int CreatedCount)> CreateOpeningCreditChargesInternalAsync(int userId, int creditAccountId, IEnumerable<OpeningCreditChargeInput> items)
+        {
+            var inputItems = items.ToList();
+            if (inputItems.Count == 0) return (false, "Debes enviar al menos un cargo con monto mayor a cero", 0);
+
+            var normalized = inputItems.Select(i => new OpeningCreditChargeInput
             {
                 CategoryId = i.CategoryId,
                 Amount = decimal.Round(i.Amount, 2, MidpointRounding.AwayFromZero),
@@ -149,8 +209,29 @@ namespace GastosApp.BusinessLogic.Services
                 OccurredAt = i.OccurredAt
             }).ToList();
 
-            if (normalized.Count == 0) return (false, "Debes enviar al menos un cargo con monto mayor a cero", 0);
+            if (normalized.Any(i => i.Amount <= 0 || i.CategoryId <= 0))
+            {
+                return (false, "Cada cargo debe tener monto y categoría válidos", 0);
+            }
+
+            var account = await _accountService.GetByIdAsync(creditAccountId);
+            if (account == null || account.UserId != userId || !account.IsCredit) return (false, "La cuenta indicada no es de crédito", 0);
+
             if (normalized.Any(i => i.Months < 1 || i.Months > 60)) return (false, "Meses inválido. Debe estar entre 1 y 60", 0);
+
+            foreach (var input in normalized)
+            {
+                var dimensionsValidation = await _validation.ValidateAnalyticsDimensionsAsync(
+                    userId,
+                    input.CategoryId,
+                    null,
+                    null,
+                    TransactionDomainConstants.TransactionType.Expense);
+                if (!dimensionsValidation.IsValid)
+                {
+                    return (false, dimensionsValidation.ErrorMessage, 0);
+                }
+            }
 
             foreach (var input in normalized)
             {
@@ -218,6 +299,7 @@ namespace GastosApp.BusinessLogic.Services
 
         public async Task SynchronizeCreditChargePlanAsync(int sourceTransactionId, decimal newAmount, DateTime newTransactionDate)
         {
+            await _repository.LockTransactionAsync(sourceTransactionId);
             var charge = await _repository.GetTrack<CreditCharge>()
                 .Include(c => c.InstallmentPlan)
                 .ThenInclude(p => p!.Installments)
@@ -228,6 +310,14 @@ namespace GastosApp.BusinessLogic.Services
             if (account == null || !account.IsCredit) return;
 
             var plan = charge.InstallmentPlan;
+            var planInstallmentIds = plan.Installments.Select(i => i.InstallmentId).ToList();
+            await _repository.LockCreditInstallmentsAsync(planInstallmentIds);
+            var hasPayments = await _repository.Get<InstallmentAllocation>(a => planInstallmentIds.Contains(a.InstallmentId)).AnyAsync();
+            if (hasPayments)
+            {
+                throw new ArgumentException("No se puede actualizar el monto o fecha de un gasto de crédito con pagos asignados");
+            }
+
             var months = Math.Max(plan.Months, 1);
             var normalizedTransactionDate = _validation.EnsureUtc(newTransactionDate);
             var chargeCycle = await _creditCycleService.ResolveChargeCycleAsync(account, normalizedTransactionDate);

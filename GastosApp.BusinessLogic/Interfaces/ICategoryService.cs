@@ -8,7 +8,7 @@ namespace GastosApp.BusinessLogic.Interfaces
         Task<IEnumerable<Category>> GetAllByUserIdAsync(int userId);
         Task<IEnumerable<Category>> GetAllActiveByUserIdAsync(int userId);
         Task<IEnumerable<Category>> GetByTypeAsync(int userId, string type);
-        Task<bool> UpdateActiveStatusAsync(int id, bool active);
+        Task<bool> UpdateActiveStatusAsync(int id, int userId, bool active);
         Task<Category?> GetByIdWithTagsAsync(int id, int userId);
         Task<Category> CreateWithTagsAsync(Category category, int userId, IEnumerable<string>? tags);
         Task<Category?> UpdateWithTagsAsync(int id, Category category, int userId, IEnumerable<string>? tags);

@@ -182,16 +182,10 @@ public class CategoriesController : ControllerBase
         try
         {
             var userId = GetCurrentUserId();
-            var category = await _categoryService.GetByIdAsync(id);
-            if (category == null || (category.UserId != null && category.UserId != userId))
-            {
-                return NotFound(new { Message = $"Category with ID {id} not found" });
-            }
-
-            var updated = await _categoryService.UpdateActiveStatusAsync(id, active);
+            var updated = await _categoryService.UpdateActiveStatusAsync(id, userId, active);
             if (!updated)
             {
-                return StatusCode(500, new { Message = "Failed to update category status" });
+                return NotFound(new { Message = $"Category with ID {id} not found" });
             }
 
             return Ok(new { Message = $"Category active status updated to {active}" });

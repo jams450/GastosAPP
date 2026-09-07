@@ -54,28 +54,76 @@ namespace GastosApp.BusinessLogic.Services
 
         public async Task<Account?> UpdateAsync(int id, Account account)
         {
-            var existing = await _repository.GetByIdAsync<Account>(id);
-            if (existing == null) return null;
+            return await UpdateInternalAsync(id, null, account);
+        }
 
-            var validation = ValidateAccount(account);
-            if (!validation.IsValid)
+        public async Task<Account?> UpdateForUserAsync(int id, int userId, Account account)
+        {
+            return await UpdateInternalAsync(id, userId, account);
+        }
+
+        private Task<Account?> UpdateInternalAsync(int id, int? userId, Account account)
+        {
+            return _repository.ExecuteInTransactionAsync(async () =>
             {
-                throw new ArgumentException(validation.ErrorMessage);
-            }
+                var lockedAccounts = await _repository.LockAccountsAsync([id]);
+                var existing = lockedAccounts.SingleOrDefault();
+                if (existing == null || (userId.HasValue && existing.UserId != userId.Value)) return null;
 
-            account.AccountId = id;
-            return await _repository.SaveUpdate<Account>(id, account);
+                account.AccountId = id;
+                account.UserId = existing.UserId;
+                account.CurrentBalance = existing.CurrentBalance;
+
+                var validation = ValidateAccount(account);
+                if (!validation.IsValid)
+                {
+                    throw new ArgumentException(validation.ErrorMessage);
+                }
+
+                return await _repository.SaveUpdate<Account>(id, account);
+            });
         }
 
         public async Task<bool> DeleteAsync(int id)
         {
-            var result = await _repository.RemoveAsync<Account>(id);
-            return result > 0;
+            return await DeleteInternalAsync(id, null);
+        }
+
+        public async Task<bool> DeleteForUserAsync(int id, int userId)
+        {
+            return await DeleteInternalAsync(id, userId);
+        }
+
+        private Task<bool> DeleteInternalAsync(int id, int? userId)
+        {
+            return _repository.ExecuteInTransactionAsync(async () =>
+            {
+                var lockedAccounts = await _repository.LockAccountsAsync([id]);
+                var existing = lockedAccounts.SingleOrDefault();
+                if (existing == null || (userId.HasValue && existing.UserId != userId.Value)) return false;
+
+                var result = await _repository.RemoveAsync(existing);
+                return result > 0;
+            });
         }
 
         public async Task<bool> UpdateActiveStatusAsync(int id, bool active)
         {
             return await _repository.UpdateFieldAsync<Account, bool>(id, a => a.Active, active);
+        }
+
+        public Task<bool> UpdateActiveStatusForUserAsync(int id, int userId, bool active)
+        {
+            return _repository.ExecuteInTransactionAsync(async () =>
+            {
+                var lockedAccounts = await _repository.LockAccountsAsync([id]);
+                var account = lockedAccounts.SingleOrDefault();
+                if (account == null || account.UserId != userId) return false;
+
+                account.Active = active;
+                await _repository.SaveChangesAsync();
+                return true;
+            });
         }
 
         public async Task<bool> RecalculateBalanceAsync(int accountId)

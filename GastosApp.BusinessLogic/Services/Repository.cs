@@ -7,6 +7,7 @@ using GastosApp.BusinessLogic.Interfaces;
 using Microsoft.EntityFrameworkCore;
 using System.Reflection;
 using GastosApp.BusinessLogic.Context;
+using GastosApp.Models.Entities;
 
 namespace GastosApp.BusinessLogic.Services
 {
@@ -272,9 +273,105 @@ namespace GastosApp.BusinessLogic.Services
             return await _context.Database.SqlQueryRaw<T>(sql, parameters).ToListAsync();
         }
 
+        public async Task<bool> UpdateAccountBalanceAsync(int accountId, decimal delta, bool requireSufficientBalance)
+        {
+            var affected = await _context.Database.ExecuteSqlInterpolatedAsync($@"
+                UPDATE accounts
+                SET current_balance = current_balance + {delta}
+                WHERE account_id = {accountId}
+                  AND ({!requireSufficientBalance} OR is_credit OR current_balance + {delta} >= 0)");
+            return affected == 1;
+        }
+
+        public async Task<List<Account>> LockAccountsAsync(IEnumerable<int> accountIds)
+        {
+            var ids = accountIds.Distinct().OrderBy(id => id).ToArray();
+            if (ids.Length == 0) return [];
+
+            return await _context.Accounts
+                .FromSqlInterpolated($"SELECT * FROM accounts WHERE account_id = ANY({ids}) ORDER BY account_id FOR UPDATE")
+                .ToListAsync();
+        }
+
+        public async Task<List<CreditInstallment>> LockCreditInstallmentsAsync(IEnumerable<int> installmentIds)
+        {
+            var ids = installmentIds.Distinct().OrderBy(id => id).ToArray();
+            if (ids.Length == 0) return [];
+
+            return await _context.CreditInstallments
+                .FromSqlInterpolated($"SELECT * FROM credit_installments WHERE installment_id = ANY({ids}) ORDER BY installment_id FOR UPDATE")
+                .Include(i => i.Plan)
+                .ToListAsync();
+        }
+
+        public async Task<Transaction?> LockTransactionAsync(int transactionId)
+        {
+            return await _context.Transactions
+                .FromSqlInterpolated($"SELECT * FROM transactions WHERE transaction_id = {transactionId} FOR UPDATE")
+                .FirstOrDefaultAsync();
+        }
+
+        public async Task<List<Transaction>> LockTransactionsAsync(IEnumerable<int> transactionIds)
+        {
+            var ids = transactionIds.Distinct().OrderBy(id => id).ToArray();
+            if (ids.Length == 0) return [];
+
+            return await _context.Transactions
+                .FromSqlInterpolated($"SELECT * FROM transactions WHERE transaction_id = ANY({ids}) ORDER BY transaction_id FOR UPDATE")
+                .ToListAsync();
+        }
+
+        public async Task<List<Transaction>> LockTransferTransactionsAsync(Guid transferGroupId)
+        {
+            return await _context.Transactions
+                .FromSqlInterpolated($"SELECT * FROM transactions WHERE transfer_group_id = {transferGroupId} ORDER BY transaction_id FOR UPDATE")
+                .ToListAsync();
+        }
+
+        public async Task<bool> ClaimBancoppelImportedRowAsync(int accountId, string fingerprint)
+        {
+            var claimed = await _context.Database.SqlQuery<int>($"""
+                INSERT INTO bancoppel_imported_rows (account_id, fingerprint)
+                VALUES ({accountId}, {fingerprint})
+                ON CONFLICT (account_id, fingerprint) DO NOTHING
+                RETURNING 1 AS "Value"
+                """).AnyAsync();
+            return claimed;
+        }
+
+        public async Task LinkBancoppelImportedRowAsync(int accountId, string fingerprint, int transactionId)
+        {
+            await _context.Database.ExecuteSqlInterpolatedAsync($"""
+                UPDATE bancoppel_imported_rows
+                SET transaction_id = {transactionId}
+                WHERE account_id = {accountId} AND fingerprint = {fingerprint}
+                """);
+        }
+
         public async Task<int> SaveChangesAsync()
         {
             return await _context.SaveChangesAsync();
+        }
+
+        public async Task<T> ExecuteInTransactionAsync<T>(Func<Task<T>> operation)
+        {
+            if (_context.Database.CurrentTransaction != null)
+            {
+                return await operation();
+            }
+
+            await using var transaction = await _context.Database.BeginTransactionAsync();
+            try
+            {
+                var result = await operation();
+                await transaction.CommitAsync();
+                return result;
+            }
+            catch
+            {
+                await transaction.RollbackAsync();
+                throw;
+            }
         }
 
         #endregion

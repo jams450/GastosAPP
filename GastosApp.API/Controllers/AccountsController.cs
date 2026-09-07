@@ -167,13 +167,15 @@ namespace GastosApp.API.Controllers
                 if (request.EarnsInterest.HasValue) existingAccount.EarnsInterest = request.EarnsInterest.Value;
                 if (request.InitialBalance.HasValue) existingAccount.InitialBalance = request.InitialBalance.Value;
                 if (request.AnnualInterestRate.HasValue) existingAccount.AnnualInterestRate = request.AnnualInterestRate.Value;
-                if (request.CurrentBalance.HasValue) existingAccount.CurrentBalance = request.CurrentBalance.Value;
                 if (request.CreditLimit.HasValue) existingAccount.CreditLimit = request.CreditLimit.Value;
 
-                var updatedAccount = await _accountService.UpdateAsync(id, existingAccount);
+                var updatedAccount = await _accountService.UpdateForUserAsync(id, userId, existingAccount);
+                if (updatedAccount == null)
+                    return NotFound(new { Message = $"Account with ID {id} not found" });
+
                 _logger.LogInformation("Account updated successfully: {AccountId}", id);
 
-                return Ok(updatedAccount!.Adapt<AccountResponse>());
+                return Ok(updatedAccount.Adapt<AccountResponse>());
             }
             catch (ArgumentException ex)
             {
@@ -196,7 +198,7 @@ namespace GastosApp.API.Controllers
                 if (existingAccount == null)
                     return NotFound(new { Message = $"Account with ID {id} not found" });
 
-                var result = await _accountService.UpdateActiveStatusAsync(id, active);
+                var result = await _accountService.UpdateActiveStatusForUserAsync(id, userId, active);
                 if (!result)
                     return StatusCode(500, new { Message = "Failed to update account status" });
 
@@ -220,7 +222,7 @@ namespace GastosApp.API.Controllers
                 if (existingAccount == null)
                     return NotFound(new { Message = $"Account with ID {id} not found" });
 
-                var result = await _accountService.DeleteAsync(id);
+                var result = await _accountService.DeleteForUserAsync(id, userId);
                 if (!result)
                     return StatusCode(500, new { Message = "Failed to delete account" });
 

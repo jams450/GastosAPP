@@ -1,5 +1,6 @@
 using System.Linq.Expressions;
 using Microsoft.EntityFrameworkCore;
+using GastosApp.Models.Entities;
 
 namespace GastosApp.BusinessLogic.Interfaces
 {
@@ -31,6 +32,15 @@ namespace GastosApp.BusinessLogic.Interfaces
 
         Task<int> ExecuteSqlRawAsync(string sql, params object[] parameters);
         Task<List<T>> SqlQueryAsync<T>(string sql, params object[] parameters) where T : class;
+        Task<bool> UpdateAccountBalanceAsync(int accountId, decimal delta, bool requireSufficientBalance);
+        Task<List<Account>> LockAccountsAsync(IEnumerable<int> accountIds);
+        Task<List<CreditInstallment>> LockCreditInstallmentsAsync(IEnumerable<int> installmentIds);
+        Task<Transaction?> LockTransactionAsync(int transactionId);
+        Task<List<Transaction>> LockTransactionsAsync(IEnumerable<int> transactionIds);
+        Task<List<Transaction>> LockTransferTransactionsAsync(Guid transferGroupId);
+        Task<bool> ClaimBancoppelImportedRowAsync(int accountId, string fingerprint);
+        Task LinkBancoppelImportedRowAsync(int accountId, string fingerprint, int transactionId);
         Task<int> SaveChangesAsync();
+        Task<T> ExecuteInTransactionAsync<T>(Func<Task<T>> operation);
     }
 }

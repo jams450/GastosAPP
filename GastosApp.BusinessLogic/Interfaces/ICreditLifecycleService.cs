@@ -11,9 +11,11 @@ namespace GastosApp.BusinessLogic.Interfaces
             DateTime paidAt,
             decimal amount,
             IEnumerable<(int InstallmentId, decimal Amount)> allocations);
+        Task<(bool Success, string? ErrorMessage)> ReverseCreditPaymentSourceAsync(int sourceTransactionId);
 
         Task<(bool Success, string? ErrorMessage)> ConvertChargeToMsiAsync(int sourceTransactionId, int months);
         Task<(bool Success, string? ErrorMessage, int CreatedCount)> CreateOpeningCreditChargesAsync(
+            int userId,
             int creditAccountId,
             IEnumerable<OpeningCreditChargeInput> items);
 

@@ -79,7 +79,10 @@ public class AuthService : IAuthService
         var newRefreshExpiration = DateTime.UtcNow.AddDays(_refreshDays);
         var newSession = BuildNewSession(user.UserId, newRefreshToken, newRefreshExpiration);
 
-        await RotateRefreshTokenAtomicAsync(session, newSession);
+        if (!await RotateRefreshTokenAtomicAsync(session, newSession, HashToken(refreshToken)))
+        {
+            return null;
+        }
 
         var accessToken = _jwtService.GenerateToken(user.UserId, user.Email, user.Admin, user.SessionVersion, newSession.SessionId);
         var accessExpiration = _jwtService.GetTokenExpiration();
@@ -241,18 +244,29 @@ public class AuthService : IAuthService
         return user.Active && (!user.LockedUntil.HasValue || user.LockedUntil.Value <= DateTime.UtcNow);
     }
 
-    private async Task RotateRefreshTokenAtomicAsync(UserSession currentSession, UserSession newSession)
+    private async Task<bool> RotateRefreshTokenAtomicAsync(UserSession currentSession, UserSession newSession, string refreshTokenHash)
     {
         await using var transaction = await _context.Database.BeginTransactionAsync();
+        var now = DateTime.UtcNow;
 
-        currentSession.RevokedAt = DateTime.UtcNow;
+        var revoked = await _context.UserSessions
+            .Where(s => s.SessionId == currentSession.SessionId
+                && s.RefreshTokenHash == refreshTokenHash
+                && s.RevokedAt == null
+                && s.ExpiresAt > now)
+            .ExecuteUpdateAsync(setters => setters
+                .SetProperty(s => s.RevokedAt, now)
+                .SetProperty(s => s.ReplacedBySessionId, newSession.SessionId));
+        if (revoked != 1)
+        {
+            await transaction.RollbackAsync();
+            return false;
+        }
+
         _context.UserSessions.Add(newSession);
         await _context.SaveChangesAsync();
-
-        currentSession.ReplacedBySessionId = newSession.SessionId;
-        await _context.SaveChangesAsync();
-
         await transaction.CommitAsync();
+        return true;
     }
 
     private static string GenerateRefreshToken()

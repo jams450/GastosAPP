@@ -4,7 +4,7 @@ namespace GastosApp.BusinessLogic.Interfaces
 {
     public interface ITransactionValidationService
     {
-        Task<(bool IsValid, string? ErrorMessage)> ValidateAnalyticsDimensionsAsync(int userId, int? categoryId, int? subcategoryId, int? merchantId);
+        Task<(bool IsValid, string? ErrorMessage)> ValidateAnalyticsDimensionsAsync(int userId, int? categoryId, int? subcategoryId, int? merchantId, string? requiredCategoryType = null);
         DateTime EnsureUtc(DateTime value);
         string ResolveDirection(decimal balanceImpact);
         decimal ResolveUpdatedBalanceImpact(Transaction transaction, decimal previousImpact);

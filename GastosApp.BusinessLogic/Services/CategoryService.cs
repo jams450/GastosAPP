@@ -76,7 +76,7 @@ namespace GastosApp.BusinessLogic.Services
             var existing = await _repository.GetTrack<Category>()
                 .Include(c => c.CategoryTags)
                 .ThenInclude(ct => ct.Tag)
-                .FirstOrDefaultAsync(c => c.CategoryId == id && (c.UserId == userId || c.UserId == null));
+                .FirstOrDefaultAsync(c => c.CategoryId == id && c.UserId == userId);
 
             if (existing == null)
             {
@@ -95,9 +95,19 @@ namespace GastosApp.BusinessLogic.Services
             return await GetByIdWithTagsAsync(id, userId);
         }
 
-        public async Task<bool> UpdateActiveStatusAsync(int id, bool active)
+        public async Task<bool> UpdateActiveStatusAsync(int id, int userId, bool active)
         {
-            return await _repository.UpdateFieldAsync<Category>(id, "Active", active);
+            var category = await _repository.GetTrack<Category>()
+                .FirstOrDefaultAsync(c => c.CategoryId == id && c.UserId == userId);
+            if (category == null)
+            {
+                return false;
+            }
+
+            category.Active = active;
+            category.Updated = DateTime.UtcNow;
+            await _repository.SaveChangesAsync();
+            return true;
         }
 
         private async Task SyncTagsAsync(Category category, int userId, IEnumerable<string>? tags)

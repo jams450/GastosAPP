@@ -11,27 +11,27 @@ namespace GastosApp.BusinessLogic.Services
         private readonly IAccountService _accountService;
         private readonly ITransactionTagService _tagService;
         private readonly ITransactionValidationService _validation;
+        private readonly ICreditLifecycleService _creditLifecycleService;
 
-        public TransferService(IRepository repository, IAccountService accountService, ITransactionTagService tagService, ITransactionValidationService validation)
+        public TransferService(IRepository repository, IAccountService accountService, ITransactionTagService tagService, ITransactionValidationService validation, ICreditLifecycleService creditLifecycleService)
         {
             _repository = repository;
             _accountService = accountService;
             _tagService = tagService;
             _validation = validation;
+            _creditLifecycleService = creditLifecycleService;
         }
 
-        public async Task<(bool Success, string? ErrorMessage)> CreateTransferAsync(int userId, int sourceAccountId, int destinationAccountId, decimal amount, string? description = null, DateTime? transactionDate = null, int? categoryId = null, int? subcategoryId = null, int? merchantId = null, IEnumerable<string>? tags = null)
+        public async Task<(bool Success, string? ErrorMessage, Guid? TransferGroupId, int? SourceTransactionId, int? DestinationTransactionId)> CreateTransferAsync(int userId, int sourceAccountId, int destinationAccountId, decimal amount, string? description = null, DateTime? transactionDate = null, int? categoryId = null, int? subcategoryId = null, int? merchantId = null, IEnumerable<string>? tags = null, IEnumerable<(int InstallmentId, decimal Amount)>? creditAllocations = null)
         {
-            if (amount <= 0) return (false, "El monto debe ser mayor a cero");
-            if (sourceAccountId == destinationAccountId) return (false, "Las cuentas de origen y destino deben ser diferentes");
+            if (amount <= 0) return (false, "El monto debe ser mayor a cero", null, null, null);
+            if (sourceAccountId == destinationAccountId) return (false, "Las cuentas de origen y destino deben ser diferentes", null, null, null);
 
             var sourceAccount = await _accountService.GetByIdAsync(sourceAccountId);
-            if (sourceAccount == null) return (false, "Cuenta de origen no encontrada");
+            if (sourceAccount == null) return (false, "Cuenta de origen no encontrada", null, null, null);
             var destinationAccount = await _accountService.GetByIdAsync(destinationAccountId);
-            if (destinationAccount == null) return (false, "Cuenta de destino no encontrada");
-            if (sourceAccount.UserId != userId || destinationAccount.UserId != userId) return (false, "Transfer not found");
-            if (sourceAccount.CurrentBalance < amount) return (false, "Saldo insuficiente en la cuenta de origen");
-
+            if (destinationAccount == null) return (false, "Cuenta de destino no encontrada", null, null, null);
+            if (sourceAccount.UserId != userId || destinationAccount.UserId != userId) return (false, "Transfer not found", null, null, null);
             var transferGroupId = Guid.NewGuid();
             var date = _validation.EnsureUtc(transactionDate ?? DateTime.UtcNow);
 
@@ -67,44 +67,124 @@ namespace GastosApp.BusinessLogic.Services
                 TransactionDate = date
             };
 
-            var createdSource = await _repository.Save(sourceTransaction);
-            var createdDestination = await _repository.Save(destinationTransaction);
+            try
+            {
+                return await _repository.ExecuteInTransactionAsync<(bool Success, string? ErrorMessage, Guid? TransferGroupId, int? SourceTransactionId, int? DestinationTransactionId)>(async () =>
+                {
+                    var lockedAccounts = await _repository.LockAccountsAsync([sourceAccountId, destinationAccountId]);
+                    if (lockedAccounts.Count != 2 || lockedAccounts.Any(a => a.UserId != userId))
+                    {
+                        return (false, "Transfer not found", null, null, null);
+                    }
 
-            await _tagService.SyncTransactionTagsAsync(createdSource.TransactionId, sourceAccount.UserId, tags);
-            await _tagService.SyncTransactionTagsAsync(createdDestination.TransactionId, destinationAccount.UserId, tags);
+                    var dimensionsValidation = await _validation.ValidateAnalyticsDimensionsAsync(
+                        userId,
+                        categoryId,
+                        subcategoryId,
+                        merchantId);
+                    if (!dimensionsValidation.IsValid)
+                    {
+                        return (false, dimensionsValidation.ErrorMessage, null, null, null);
+                    }
 
-            await UpdateAccountBalanceAsync(sourceAccountId, -amount);
-            await UpdateAccountBalanceAsync(destinationAccountId, amount);
-            return (true, null);
+                    sourceAccount = lockedAccounts.Single(a => a.AccountId == sourceAccountId);
+                    destinationAccount = lockedAccounts.Single(a => a.AccountId == destinationAccountId);
+                    sourceTransaction.Description ??= $"Transferencia a {destinationAccount.Name}";
+                    destinationTransaction.Description ??= $"Transferencia desde {sourceAccount.Name}";
+
+                    var createdSource = await _repository.Save(sourceTransaction);
+                    var createdDestination = await _repository.Save(destinationTransaction);
+
+                    await _tagService.SyncTransactionTagsAsync(createdSource.TransactionId, sourceAccount.UserId, tags);
+                    await _tagService.SyncTransactionTagsAsync(createdDestination.TransactionId, destinationAccount.UserId, tags);
+
+                    await UpdateAccountBalanceAsync(sourceAccountId, -amount);
+                    await UpdateAccountBalanceAsync(destinationAccountId, amount);
+
+                    if (destinationAccount.IsCredit)
+                    {
+                        var allocationItems = creditAllocations?.Where(a => a.InstallmentId > 0 && a.Amount > 0).ToList() ?? [];
+                        var paymentResult = await _creditLifecycleService.RegisterCreditPaymentAsync(
+                            destinationAccount.AccountId,
+                            createdDestination.TransactionId,
+                            createdDestination.TransactionDate,
+                            createdDestination.Amount,
+                            allocationItems);
+
+                        if (!paymentResult.Success)
+                        {
+                            throw new ArgumentException(paymentResult.ErrorMessage ?? "No se pudo registrar pago de crédito");
+                        }
+                    }
+
+                    return (true, null, (Guid?)transferGroupId, (int?)createdSource.TransactionId, (int?)createdDestination.TransactionId);
+                });
+            }
+            catch (ArgumentException ex)
+            {
+                return (false, ex.Message, null, null, null);
+            }
         }
 
-        public async Task<bool> DeleteTransferAsync(Guid transferGroupId, int userId)
+        public Task<bool> DeleteTransferAsync(Guid transferGroupId, int userId)
         {
-            var transactions = await _repository.Get<Transaction>(t => t.TransferGroupId == transferGroupId && t.Account.UserId == userId).ToListAsync();
-            if (transactions.Count != 2) return false;
-
-            foreach (var transaction in transactions)
+            return _repository.ExecuteInTransactionAsync(async () =>
             {
-                var balanceImpact = transaction.BalanceImpact;
-                if (balanceImpact == 0)
+                var accountIds = await _repository.Get<Transaction>()
+                    .Where(t => t.TransferGroupId == transferGroupId)
+                    .Select(t => t.AccountId)
+                    .Distinct()
+                    .ToListAsync();
+                var lockedAccounts = await _repository.LockAccountsAsync(accountIds);
+                if (lockedAccounts.Count != 2 || lockedAccounts.Any(a => a.UserId != userId)) return false;
+
+                var transactions = await _repository.LockTransferTransactionsAsync(transferGroupId);
+                var pairValidation = await ValidateTransferPairAsync(transactions, transferGroupId, userId);
+                if (!pairValidation.Success) return false;
+
+                foreach (var transaction in transactions)
                 {
-                    balanceImpact = await _validation.InferLegacyBalanceImpactAsync(transaction);
+                    var paymentResult = await _creditLifecycleService.ReverseCreditPaymentSourceAsync(transaction.TransactionId);
+                    if (!paymentResult.Success)
+                    {
+                        throw new ArgumentException(paymentResult.ErrorMessage ?? "No se pudo revertir el pago de crédito");
+                    }
+
+                    var balanceImpact = transaction.BalanceImpact;
+                    if (balanceImpact == 0)
+                    {
+                        balanceImpact = await _validation.InferLegacyBalanceImpactAsync(transaction);
+                    }
+
+                    await UpdateAccountBalanceAsync(transaction.AccountId, balanceImpact * -1);
                 }
 
-                await UpdateAccountBalanceAsync(transaction.AccountId, balanceImpact * -1);
-            }
-
-            await _repository.RemoveRangeAsync(transactions);
-            return true;
+                var deleted = await _repository.RemoveRangeAsync(transactions);
+                return deleted == transactions.Count;
+            });
         }
 
-        public async Task<(bool Success, string? ErrorMessage)> UpdateTransferMetadataAsync(Guid transferGroupId, int userId, int? categoryId, int? subcategoryId, int? merchantId, string? description, DateTime? transactionDate, IEnumerable<string>? tags)
+        public Task<(bool Success, string? ErrorMessage)> UpdateTransferMetadataAsync(Guid transferGroupId, int userId, int? categoryId, int? subcategoryId, int? merchantId, string? description, DateTime? transactionDate, IEnumerable<string>? tags)
         {
-            var transactions = await _repository.GetTrack<Transaction>().Where(t => t.TransferGroupId == transferGroupId).ToListAsync();
-            if (transactions.Count != 2) return (false, "Transfer not found");
+            return _repository.ExecuteInTransactionAsync(() => UpdateTransferMetadataInternalAsync(transferGroupId, userId, categoryId, subcategoryId, merchantId, description, transactionDate, tags));
+        }
 
-            var ownerChecks = await Task.WhenAll(transactions.Select(t => _accountService.GetByIdAsync(t.AccountId)));
-            if (ownerChecks.Any(a => a == null || a.UserId != userId)) return (false, "Transfer not found");
+        private async Task<(bool Success, string? ErrorMessage)> UpdateTransferMetadataInternalAsync(Guid transferGroupId, int userId, int? categoryId, int? subcategoryId, int? merchantId, string? description, DateTime? transactionDate, IEnumerable<string>? tags)
+        {
+            var accountIds = await _repository.Get<Transaction>()
+                .Where(t => t.TransferGroupId == transferGroupId)
+                .Select(t => t.AccountId)
+                .Distinct()
+                .ToListAsync();
+            var lockedAccounts = await _repository.LockAccountsAsync(accountIds);
+            if (lockedAccounts.Count != 2 || lockedAccounts.Any(a => a.UserId != userId))
+            {
+                return (false, "Transfer not found");
+            }
+
+            var transactions = await _repository.LockTransferTransactionsAsync(transferGroupId);
+            var pairValidation = await ValidateTransferPairAsync(transactions, transferGroupId, userId);
+            if (!pairValidation.Success) return (false, pairValidation.ErrorMessage);
 
             var sample = transactions[0];
             var effectiveCategoryId = categoryId ?? sample.CategoryId;
@@ -114,13 +194,30 @@ namespace GastosApp.BusinessLogic.Services
             var dimensionsValidation = await _validation.ValidateAnalyticsDimensionsAsync(userId, effectiveCategoryId, effectiveSubcategoryId, effectiveMerchantId);
             if (!dimensionsValidation.IsValid) return (false, dimensionsValidation.ErrorMessage);
 
+            var updatedTransactionDate = transactionDate.HasValue
+                ? _validation.EnsureUtc(transactionDate.Value)
+                : (DateTime?)null;
+
             foreach (var transaction in transactions)
             {
                 if (categoryId.HasValue) transaction.CategoryId = categoryId.Value;
                 if (subcategoryId.HasValue) transaction.SubcategoryId = subcategoryId.Value;
                 if (merchantId.HasValue) transaction.MerchantId = merchantId.Value;
                 if (description != null) transaction.Description = description;
-                if (transactionDate.HasValue) transaction.TransactionDate = _validation.EnsureUtc(transactionDate.Value);
+                if (updatedTransactionDate.HasValue) transaction.TransactionDate = updatedTransactionDate.Value;
+            }
+
+            if (updatedTransactionDate.HasValue)
+            {
+                var destinationTransactionId = transactions
+                    .Single(t => string.Equals(t.Direction, TransactionDomainConstants.Direction.Credit, StringComparison.OrdinalIgnoreCase))
+                    .TransactionId;
+                var creditPayment = await _repository.GetTrack<CreditPayment>()
+                    .FirstOrDefaultAsync(p => p.SourceTransactionId == destinationTransactionId);
+                if (creditPayment != null)
+                {
+                    creditPayment.PaidAt = updatedTransactionDate.Value;
+                }
             }
 
             await _repository.SaveChangesAsync();
@@ -133,12 +230,51 @@ namespace GastosApp.BusinessLogic.Services
             return (true, null);
         }
 
+        private async Task<(bool Success, string? ErrorMessage)> ValidateTransferPairAsync(IReadOnlyCollection<Transaction> transactions, Guid transferGroupId, int userId)
+        {
+            if (transactions.Count != 2 || transactions.Any(t => t.TransferGroupId != transferGroupId))
+            {
+                return (false, "Transfer not found");
+            }
+
+            var accounts = await _repository.Get<Account>()
+                .Where(a => transactions.Select(t => t.AccountId).Contains(a.AccountId))
+                .ToDictionaryAsync(a => a.AccountId);
+            if (accounts.Count != 2 || accounts.Values.Any(a => a.UserId != userId))
+            {
+                return (false, "Transfer not found");
+            }
+
+            var debits = transactions.Where(t => string.Equals(t.Direction, TransactionDomainConstants.Direction.Debit, StringComparison.OrdinalIgnoreCase)).ToList();
+            var credits = transactions.Where(t => string.Equals(t.Direction, TransactionDomainConstants.Direction.Credit, StringComparison.OrdinalIgnoreCase)).ToList();
+            if (debits.Count != 1 || credits.Count != 1 ||
+                transactions.Any(t => !string.Equals(t.Type, TransactionDomainConstants.TransactionType.Transfer, StringComparison.OrdinalIgnoreCase)))
+            {
+                return (false, "Transfer not found");
+            }
+
+            var debit = debits[0];
+            var credit = credits[0];
+            if (debit.AccountId == credit.AccountId ||
+                debit.CounterpartyAccountId != credit.AccountId ||
+                credit.CounterpartyAccountId != debit.AccountId ||
+                debit.Amount != credit.Amount)
+            {
+                return (false, "Transfer not found");
+            }
+
+            return (true, null);
+        }
+
         private async Task UpdateAccountBalanceAsync(int accountId, decimal amount)
         {
-            var account = await _repository.GetTrack<Account>().FirstOrDefaultAsync(a => a.AccountId == accountId);
-            if (account == null) throw new ArgumentException($"Account with ID {accountId} not found");
-            account.CurrentBalance += amount;
-            await _repository.SaveChangesAsync();
+            var updated = await _repository.UpdateAccountBalanceAsync(accountId, amount, amount < 0);
+            if (!updated)
+            {
+                throw new ArgumentException(amount < 0
+                    ? "Saldo insuficiente en la cuenta de origen"
+                    : $"Account with ID {accountId} not found");
+            }
         }
     }
 }

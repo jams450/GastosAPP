@@ -15,11 +15,11 @@ namespace GastosApp.BusinessLogic.Interfaces
         Task<IEnumerable<Transaction>> GetByCategoryForUserAsync(int categoryId, int userId);
         
         // Transacciones normales (ingreso/gasto)
-        Task<Transaction> CreateIncomeAsync(Transaction transaction);
-        Task<Transaction> CreateExpenseAsync(Transaction transaction, int userId, IEnumerable<ExpenseAllocationInput>? allocations = null);
+        Task<Transaction> CreateIncomeAsync(Transaction transaction, int userId, IEnumerable<(int InstallmentId, decimal Amount)>? creditAllocations = null, IEnumerable<string>? tags = null);
+        Task<Transaction> CreateExpenseAsync(Transaction transaction, int userId, IEnumerable<ExpenseAllocationInput>? allocations = null, IEnumerable<string>? tags = null, int? msiMonths = null);
         
         // Transferencias entre cuentas
-        Task<(bool Success, string? ErrorMessage)> CreateTransferAsync(
+        Task<(bool Success, string? ErrorMessage, Guid? TransferGroupId, int? SourceTransactionId, int? DestinationTransactionId)> CreateTransferAsync(
             int userId,
             int sourceAccountId, 
             int destinationAccountId, 
@@ -29,10 +29,18 @@ namespace GastosApp.BusinessLogic.Interfaces
             int? categoryId = null,
             int? subcategoryId = null,
             int? merchantId = null,
-            IEnumerable<string>? tags = null);
+            IEnumerable<string>? tags = null,
+            IEnumerable<(int InstallmentId, decimal Amount)>? creditAllocations = null);
         
         Task<Transaction?> UpdateAsync(int id, Transaction transaction);
         Task<Transaction?> UpdateForUserAsync(int id, int userId, Transaction transaction);
+        Task<(Transaction? Transaction, string? ErrorMessage)> UpdateTransactionWithDetailsForUserAsync(
+            int id,
+            int userId,
+            Transaction transaction,
+            IEnumerable<string>? tags,
+            IEnumerable<ExpenseAllocationInput>? allocations,
+            bool replaceAllocations);
         Task<bool> DeleteAsync(int id);
         Task<bool> DeleteForUserAsync(int id, int userId);
         Task<bool> DeleteTransferAsync(Guid transferGroupId, int userId);
@@ -61,6 +69,7 @@ namespace GastosApp.BusinessLogic.Interfaces
         Task<IEnumerable<CreditInstallmentOpenItem>> GetOpenCreditInstallmentsAsync(int creditAccountId);
         Task<IEnumerable<CreditChargeSummaryItem>> GetCreditChargeSummariesAsync(IEnumerable<int> sourceTransactionIds);
         Task<(bool Success, string? ErrorMessage, int CreatedCount)> CreateOpeningCreditChargesAsync(
+            int userId,
             int creditAccountId,
             IEnumerable<OpeningCreditChargeInput> items);
     }

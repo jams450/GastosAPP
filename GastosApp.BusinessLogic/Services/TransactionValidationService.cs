@@ -14,7 +14,7 @@ namespace GastosApp.BusinessLogic.Services
             _repository = repository;
         }
 
-        public async Task<(bool IsValid, string? ErrorMessage)> ValidateAnalyticsDimensionsAsync(int userId, int? categoryId, int? subcategoryId, int? merchantId)
+        public async Task<(bool IsValid, string? ErrorMessage)> ValidateAnalyticsDimensionsAsync(int userId, int? categoryId, int? subcategoryId, int? merchantId, string? requiredCategoryType = null)
         {
             Category? category = null;
 
@@ -26,6 +26,12 @@ namespace GastosApp.BusinessLogic.Services
                 if (category == null)
                 {
                     return (false, $"Category with ID {categoryId.Value} not found");
+                }
+
+                if (!string.IsNullOrEmpty(requiredCategoryType) &&
+                    !string.Equals(category.Type, requiredCategoryType, StringComparison.OrdinalIgnoreCase))
+                {
+                    return (false, $"Category with ID {categoryId.Value} must be of type {requiredCategoryType}");
                 }
             }
 
@@ -95,6 +101,7 @@ namespace GastosApp.BusinessLogic.Services
             {
                 case TransactionDomainConstants.TransactionType.Income: return transaction.Amount;
                 case TransactionDomainConstants.TransactionType.Expense: return transaction.Amount * -1;
+                case TransactionDomainConstants.TransactionType.OpeningCredit: return 0;
                 case TransactionDomainConstants.TransactionType.Transfer:
                     if (!transaction.TransferGroupId.HasValue) return transaction.Amount;
                     var ordered = await _repository.Get<Transaction>(t => t.TransferGroupId == transaction.TransferGroupId)

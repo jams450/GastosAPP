@@ -33,6 +33,7 @@ namespace GastosApp.BusinessLogic.Context
         public DbSet<InstallmentAllocation> InstallmentAllocations { get; set; } = null!;
         public DbSet<BillableParty> BillableParties { get; set; } = null!;
         public DbSet<TransactionAllocation> TransactionAllocations { get; set; } = null!;
+        public DbSet<BancoppelImportedRow> BancoppelImportedRows { get; set; } = null!;
 
         public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
         {
@@ -186,6 +187,13 @@ namespace GastosApp.BusinessLogic.Context
                     .WithMany(e => e.TransactionAllocations)
                     .HasForeignKey(e => e.BillablePartyId)
                     .OnDelete(DeleteBehavior.Restrict);
+            });
+
+            modelBuilder.Entity<BancoppelImportedRow>(entity =>
+            {
+                entity.HasIndex(e => new { e.AccountId, e.Fingerprint }).IsUnique();
+                entity.HasOne(e => e.Account).WithMany().HasForeignKey(e => e.AccountId).OnDelete(DeleteBehavior.Cascade);
+                entity.HasOne(e => e.Transaction).WithMany().HasForeignKey(e => e.TransactionId).OnDelete(DeleteBehavior.SetNull);
             });
 
             modelBuilder.Entity<CreditCycle>(entity =>

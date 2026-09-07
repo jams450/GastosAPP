@@ -1,5 +1,7 @@
 using System.Globalization;
 using System.Text.RegularExpressions;
+using System.Security.Cryptography;
+using System.Text;
 using GastosApp.BusinessLogic.Interfaces;
 using GastosApp.BusinessLogic.Models.Transactions;
 using GastosApp.Models.Entities;
@@ -122,94 +124,88 @@ public class BancoppelImportService : IBancoppelImportService
             return result;
         }
 
-        var minDate = inputRows.Min(r => r.TransactionDate).Date.AddDays(-7);
-        var maxDate = inputRows.Max(r => r.TransactionDate).Date.AddDays(7);
-
-        var existing = await _repository
-            .Get<Transaction>(t => t.AccountId == accountId && t.TransactionDate >= minDate && t.TransactionDate <= maxDate)
-            .ToListAsync(cancellationToken);
-
-        var recentKeys = existing.Select(BuildKey).ToHashSet(StringComparer.OrdinalIgnoreCase);
         var commitKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        foreach (var row in inputRows)
+        return await _repository.ExecuteInTransactionAsync(async () =>
         {
-            cancellationToken.ThrowIfCancellationRequested();
-
-            if (row.Amount <= 0)
+            foreach (var row in inputRows)
             {
-                result.SkippedCount++;
-                result.Warnings.Add("Se omitió una fila por monto no válido.");
-                continue;
+                cancellationToken.ThrowIfCancellationRequested();
+
+                if (row.Amount <= 0)
+                {
+                    result.SkippedCount++;
+                    result.Warnings.Add("Se omitió una fila por monto no válido.");
+                    continue;
+                }
+
+                if (string.IsNullOrWhiteSpace(row.Description))
+                {
+                    result.SkippedCount++;
+                    result.Warnings.Add("Se omitió una fila por descripción vacía.");
+                    continue;
+                }
+
+                if (row.Type != TransactionDomainConstants.TransactionType.Expense && row.Type != TransactionDomainConstants.TransactionType.Income)
+                {
+                    result.SkippedCount++;
+                    result.Warnings.Add($"Se omitió una fila por tipo inválido '{row.Type}'.");
+                    continue;
+                }
+
+                var temp = new Transaction
+                {
+                    AccountId = accountId,
+                    TransactionDate = DateTime.SpecifyKind(row.TransactionDate.Date, DateTimeKind.Utc),
+                    Amount = row.Amount,
+                    Description = row.Description.Trim(),
+                    Type = row.Type
+                };
+
+                var dedupeKey = BuildKey(temp);
+                if (!commitKeys.Add(dedupeKey))
+                {
+                    result.SkippedCount++;
+                    result.Warnings.Add($"Duplicado en el mismo lote: {row.TransactionDate:yyyy-MM-dd} | {row.Description} | {row.Amount}.");
+                    continue;
+                }
+
+                var dimensionsValidation = await _transactionService.ValidateAnalyticsDimensionsAsync(userId, row.CategoryId, row.SubcategoryId, row.MerchantId);
+                if (!dimensionsValidation.IsValid)
+                {
+                    result.SkippedCount++;
+                    result.Warnings.Add(dimensionsValidation.ErrorMessage ?? "Dimensiones analíticas inválidas.");
+                    continue;
+                }
+
+                temp.CategoryId = row.CategoryId;
+                temp.SubcategoryId = row.SubcategoryId;
+                temp.MerchantId = row.MerchantId;
+
+                var fingerprint = BuildFingerprint(temp);
+                if (!await _repository.ClaimBancoppelImportedRowAsync(accountId, fingerprint))
+                {
+                    result.SkippedCount++;
+                    result.Warnings.Add($"Posible duplicado existente, omitido: {row.TransactionDate:yyyy-MM-dd} | {row.Description} | {row.Amount}.");
+                    continue;
+                }
+
+                Transaction created;
+                if (row.Type == TransactionDomainConstants.TransactionType.Expense)
+                {
+                    created = await _transactionService.CreateExpenseAsync(temp, userId, tags: row.Tags);
+                }
+                else
+                {
+                    created = await _transactionService.CreateIncomeAsync(temp, userId, tags: row.Tags);
+                }
+
+                await _repository.LinkBancoppelImportedRowAsync(accountId, fingerprint, created.TransactionId);
+                result.CreatedCount++;
             }
 
-            if (string.IsNullOrWhiteSpace(row.Description))
-            {
-                result.SkippedCount++;
-                result.Warnings.Add("Se omitió una fila por descripción vacía.");
-                continue;
-            }
-
-            if (row.Type != TransactionDomainConstants.TransactionType.Expense && row.Type != TransactionDomainConstants.TransactionType.Income)
-            {
-                result.SkippedCount++;
-                result.Warnings.Add($"Se omitió una fila por tipo inválido '{row.Type}'.");
-                continue;
-            }
-
-            var temp = new Transaction
-            {
-                AccountId = accountId,
-                TransactionDate = DateTime.SpecifyKind(row.TransactionDate.Date, DateTimeKind.Utc),
-                Amount = row.Amount,
-                Description = row.Description.Trim(),
-                Type = row.Type
-            };
-
-            var dedupeKey = BuildKey(temp);
-            if (!commitKeys.Add(dedupeKey))
-            {
-                result.SkippedCount++;
-                result.Warnings.Add($"Duplicado en el mismo lote: {row.TransactionDate:yyyy-MM-dd} | {row.Description} | {row.Amount}.");
-                continue;
-            }
-
-            if (recentKeys.Contains(dedupeKey))
-            {
-                result.SkippedCount++;
-                result.Warnings.Add($"Posible duplicado existente, omitido: {row.TransactionDate:yyyy-MM-dd} | {row.Description} | {row.Amount}.");
-                continue;
-            }
-
-            var dimensionsValidation = await _transactionService.ValidateAnalyticsDimensionsAsync(userId, row.CategoryId, row.SubcategoryId, row.MerchantId);
-            if (!dimensionsValidation.IsValid)
-            {
-                result.SkippedCount++;
-                result.Warnings.Add(dimensionsValidation.ErrorMessage ?? "Dimensiones analíticas inválidas.");
-                continue;
-            }
-
-            temp.CategoryId = row.CategoryId;
-            temp.SubcategoryId = row.SubcategoryId;
-            temp.MerchantId = row.MerchantId;
-
-            Transaction created;
-            if (row.Type == TransactionDomainConstants.TransactionType.Expense)
-            {
-                created = await _transactionService.CreateExpenseAsync(temp, userId);
-            }
-            else
-            {
-                created = await _transactionService.CreateIncomeAsync(temp);
-            }
-
-            await _transactionService.SyncTransactionTagsAsync(created.TransactionId, userId, row.Tags);
-
-            result.CreatedCount++;
-            recentKeys.Add(dedupeKey);
-        }
-
-        return result;
+            return result;
+        });
     }
 
     private static List<string> ExtractRegularChargesSectionLines(IReadOnlyList<string> allLines, ICollection<string> warnings)
@@ -254,6 +250,17 @@ public class BancoppelImportService : IBancoppelImportService
             transaction.Type?.Trim().ToLowerInvariant(),
             transaction.TransactionDate.Date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
             transaction.Amount.ToString("0.00", CultureInfo.InvariantCulture),
-            (transaction.Description ?? string.Empty).Trim().ToLowerInvariant());
+            NormalizeDescription(transaction.Description));
+    }
+
+    private static string BuildFingerprint(Transaction transaction)
+    {
+        var canonical = $"v1|{BuildKey(transaction)}";
+        return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(canonical)));
+    }
+
+    private static string NormalizeDescription(string? description)
+    {
+        return Regex.Replace(description?.Trim() ?? string.Empty, @"\s+", " ").ToLowerInvariant();
     }
 }
