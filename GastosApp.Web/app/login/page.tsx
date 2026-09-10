@@ -50,7 +50,7 @@ export default function LoginPage() {
         <ThemeToggle />
       </div>
 
-      <Card className="relative z-10 w-full max-w-md space-y-6 border-[var(--tabler-border-strong)]/70 bg-[var(--tabler-surface-1)]/95 shadow-[var(--tabler-shadow-md)] backdrop-blur">
+      <Card className="relative z-10 w-full max-w-md space-y-6 border-[var(--tabler-border-strong)]/70 bg-[var(--tabler-surface-1)]/95 p-5 shadow-[var(--tabler-shadow-md)] backdrop-blur">
         <header className="space-y-2 text-center">
           <p className="tabler-badge mx-auto rounded-full px-3 py-1 text-xs">
             GastosApp

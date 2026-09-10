@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { createPortal } from "react-dom";
+import { useEffect, useId, useRef, useState } from "react";
 import type { DashboardViewMode } from "@/app/dashboard/_components/dashboard-view-mode";
 import { formatAmount } from "@/app/dashboard/_components/dashboard-format";
 import type { DashboardAccountOverview } from "@/lib/contracts/dashboard";
@@ -19,9 +20,166 @@ type CreditInstallmentItem = {
 type AccountCardProps = {
   account: DashboardAccountOverview;
   viewMode: DashboardViewMode;
+  timezone: string;
 };
 
-export function AccountCard({ account, viewMode }: AccountCardProps) {
+type ModalAttributeSnapshot = {
+  inert: boolean;
+  ariaHidden: string | null;
+  visibility: string;
+  zIndex: string;
+};
+
+type ModalBodySnapshot = {
+  scrollY: number;
+  overflow: string;
+  position: string;
+  top: string;
+  width: string;
+  siblings: Array<{
+    element: Element;
+    inert: boolean;
+    ariaHidden: string | null;
+  }>;
+};
+
+type ActiveModalLock = {
+  portal: HTMLElement;
+  portalSnapshot: ModalAttributeSnapshot;
+};
+
+const MODAL_PORTAL_ATTRIBUTE = "data-dashboard-modal-portal";
+const MODAL_PORTAL_BASE_Z_INDEX = 1000;
+let activeModalLocks: ActiveModalLock[] = [];
+let modalBodySnapshot: ModalBodySnapshot | null = null;
+
+function snapshotModalAttributes(element: HTMLElement): ModalAttributeSnapshot {
+  return {
+    inert: element.hasAttribute("inert"),
+    ariaHidden: element.getAttribute("aria-hidden"),
+    visibility: element.style.visibility,
+    zIndex: element.style.zIndex
+  };
+}
+
+function restoreModalAttributes(element: HTMLElement, snapshot: ModalAttributeSnapshot) {
+  if (snapshot.inert) element.setAttribute("inert", "");
+  else element.removeAttribute("inert");
+  if (snapshot.ariaHidden === null) element.removeAttribute("aria-hidden");
+  else element.setAttribute("aria-hidden", snapshot.ariaHidden);
+  element.style.visibility = snapshot.visibility;
+  element.style.zIndex = snapshot.zIndex;
+}
+
+function restoreInertAttributes(element: Element, snapshot: { inert: boolean; ariaHidden: string | null }) {
+  if (snapshot.inert) element.setAttribute("inert", "");
+  else element.removeAttribute("inert");
+  if (snapshot.ariaHidden === null) element.removeAttribute("aria-hidden");
+  else element.setAttribute("aria-hidden", snapshot.ariaHidden);
+}
+
+function focusTopModal(): boolean {
+  const topPortal = activeModalLocks[activeModalLocks.length - 1]?.portal;
+  if (!topPortal || topPortal.style.visibility === "hidden") return false;
+
+  const focusableSelector = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
+  const focusable = Array.from(topPortal.querySelectorAll<HTMLElement>(focusableSelector))
+    .filter((element) => !element.hasAttribute("disabled") && element.getClientRects().length > 0);
+  const target = focusable[0] ?? topPortal.querySelector<HTMLElement>("[role=dialog]");
+  if (!target || !target.isConnected) return false;
+  target.focus();
+  return document.activeElement === target;
+}
+
+function reconcileModalPortals() {
+  activeModalLocks.forEach(({ portal, portalSnapshot }, index) => {
+    const isTopModal = index === activeModalLocks.length - 1;
+    portal.style.zIndex = String(MODAL_PORTAL_BASE_Z_INDEX + index);
+    if (isTopModal) {
+      restoreModalAttributes(portal, portalSnapshot);
+      portal.style.zIndex = String(MODAL_PORTAL_BASE_Z_INDEX + index);
+    } else {
+      portal.setAttribute("inert", "");
+      portal.setAttribute("aria-hidden", "true");
+      portal.style.visibility = "hidden";
+    }
+  });
+}
+
+function acquireModalBodyLock(portal: HTMLElement): () => void {
+  let released = false;
+  const existingLock = activeModalLocks.find((lock) => lock.portal === portal);
+  const lock: ActiveModalLock = existingLock ?? {
+    portal,
+    portalSnapshot: snapshotModalAttributes(portal)
+  };
+
+  if (activeModalLocks.length === 0) {
+    const siblings = Array.from(document.body.children).filter(
+      (element) => !element.hasAttribute(MODAL_PORTAL_ATTRIBUTE)
+    );
+
+    modalBodySnapshot = {
+      scrollY: window.scrollY,
+      overflow: document.body.style.overflow,
+      position: document.body.style.position,
+      top: document.body.style.top,
+      width: document.body.style.width,
+      siblings: siblings.map((element) => ({
+        element,
+        inert: element.hasAttribute("inert"),
+        ariaHidden: element.getAttribute("aria-hidden")
+      }))
+    };
+
+    document.body.style.overflow = "hidden";
+    document.body.style.position = "fixed";
+    document.body.style.top = `-${modalBodySnapshot.scrollY}px`;
+    document.body.style.width = "100%";
+    siblings.forEach((element) => {
+      element.setAttribute("inert", "");
+      element.setAttribute("aria-hidden", "true");
+    });
+  }
+
+  if (!existingLock) {
+    activeModalLocks = [...activeModalLocks, lock];
+  }
+  reconcileModalPortals();
+
+  return () => {
+    if (released) {
+      return;
+    }
+
+    released = true;
+    activeModalLocks = activeModalLocks.filter((activeLock) => activeLock !== lock);
+    restoreModalAttributes(lock.portal, lock.portalSnapshot);
+    reconcileModalPortals();
+
+    if (activeModalLocks.length > 0) {
+      focusTopModal();
+      return;
+    }
+
+    if (!modalBodySnapshot) {
+      return;
+    }
+
+    const snapshot = modalBodySnapshot;
+    modalBodySnapshot = null;
+    document.body.style.overflow = snapshot.overflow;
+    document.body.style.position = snapshot.position;
+    document.body.style.top = snapshot.top;
+    document.body.style.width = snapshot.width;
+    window.scrollTo(0, snapshot.scrollY);
+    snapshot.siblings.forEach(({ element, inert, ariaHidden }) => {
+      restoreInertAttributes(element, { inert, ariaHidden });
+    });
+  };
+}
+
+export function AccountCard({ account, viewMode, timezone }: AccountCardProps) {
   const isDetailLike = viewMode === "detail" || viewMode === "headers";
   const isHeaderOnly = viewMode === "headers";
 
@@ -33,7 +191,7 @@ export function AccountCard({ account, viewMode }: AccountCardProps) {
     >
       <CardHeader account={account} viewMode={viewMode} />
 
-      {isHeaderOnly ? null : isDetailLike ? <DetailContent account={account} /> : <CompactContent account={account} viewMode={viewMode} />}
+      {isHeaderOnly ? null : isDetailLike ? <DetailContent account={account} timezone={timezone} /> : <CompactContent account={account} viewMode={viewMode} />}
     </article>
   );
 }
@@ -63,11 +221,11 @@ function CardHeader({
   );
 }
 
-function DetailContent({ account }: { account: DashboardAccountOverview }) {
+function DetailContent({ account, timezone }: { account: DashboardAccountOverview; timezone: string }) {
   return (
     <>
       {account.isCredit ? (
-        <CreditDetails account={account} />
+        <CreditDetails account={account} timezone={timezone} />
       ) : (
         <div className="grid gap-x-8 gap-y-4 sm:grid-cols-2 xl:grid-cols-4">
           <Kpi label="Saldo actual" value={account.currentBalance} toneClass={getBalanceToneClass(account.currentBalance)} plain />
@@ -153,12 +311,102 @@ function HeaderMetric({
   );
 }
 
-function CreditDetails({ account }: { account: DashboardAccountOverview }) {
+function CreditDetails({ account, timezone }: { account: DashboardAccountOverview; timezone: string }) {
   const debt = ((account.creditLimit ?? 0) - account.closingBalance) * -1;
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [items, setItems] = useState<CreditInstallmentItem[]>([]);
+  const dialogTitleId = useId();
+  const openButtonRef = useRef<HTMLButtonElement>(null);
+  const wasOpenRef = useRef(false);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const [portalRoot, setPortalRoot] = useState<HTMLElement | null>(null);
+
+  useEffect(() => {
+    const root = document.createElement("div");
+    root.setAttribute(MODAL_PORTAL_ATTRIBUTE, "true");
+    document.body.appendChild(root);
+    setPortalRoot(root);
+
+    return () => {
+      root.remove();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!open || !portalRoot) {
+      return;
+    }
+
+    return acquireModalBodyLock(portalRoot);
+  }, [open, portalRoot]);
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+
+    const dialog = dialogRef.current;
+    if (!dialog) {
+      return;
+    }
+
+    const focusableSelector = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
+    const focusableElements = () => Array.from(dialog.querySelectorAll<HTMLElement>(focusableSelector)).filter((element) => !element.hasAttribute("disabled"));
+    const firstFocusable = focusableElements()[0];
+    firstFocusable?.focus();
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setOpen(false);
+        return;
+      }
+
+      if (event.key !== "Tab") {
+        return;
+      }
+
+      const elements = focusableElements();
+      if (elements.length === 0) {
+        event.preventDefault();
+        return;
+      }
+
+      const first = elements[0];
+      const last = elements[elements.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    }
+
+    dialog.addEventListener("keydown", handleKeyDown);
+    return () => dialog.removeEventListener("keydown", handleKeyDown);
+  }, [open]);
+
+  useEffect(() => {
+    if (open) {
+      wasOpenRef.current = true;
+      return;
+    }
+
+    if (wasOpenRef.current) {
+      wasOpenRef.current = false;
+      if (activeModalLocks.length > 0) {
+        focusTopModal();
+        return;
+      }
+
+      const openButton = openButtonRef.current;
+      if (openButton?.isConnected) {
+        openButton.focus();
+      }
+    }
+  }, [open]);
 
   async function openPendingModal() {
     setOpen(true);
@@ -235,40 +483,41 @@ function CreditDetails({ account }: { account: DashboardAccountOverview }) {
         <Kpi label="Pagos realizados" value={account.cutoffPayments} toneClass="text-emerald-700 dark:text-emerald-400" plain />
         <Kpi label="Pendiente del corte" value={account.cutoffPending * -1} toneClass="text-rose-700 dark:text-rose-400" plain />
         <div className="xl:justify-self-end self-end">
-          <Button type="button" variant="ghost" className="h-9 w-full border-blue-400/60 bg-blue-500/15 text-blue-700 hover:border-blue-500/70 hover:bg-blue-500/25 hover:text-blue-800 dark:border-blue-700/60 dark:bg-blue-500/25 dark:text-blue-300 dark:hover:border-blue-500/70 dark:hover:bg-blue-500/35 dark:hover:text-blue-100 sm:w-auto xl:min-w-[14rem]" onClick={() => void openPendingModal()}>
+          <Button ref={openButtonRef} type="button" variant="ghost" className="h-9 w-full border-blue-400/60 bg-blue-500/15 text-blue-700 hover:border-blue-500/70 hover:bg-blue-500/25 hover:text-blue-800 dark:border-blue-700/60 dark:bg-blue-500/25 dark:text-blue-300 dark:hover:border-blue-500/70 dark:hover:bg-blue-500/35 dark:hover:text-blue-100 sm:w-auto xl:min-w-[14rem]" onClick={() => void openPendingModal()}>
             Ver cargos pendientes
           </Button>
         </div>
       </div>
 
-      {open ? (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/70 p-4 backdrop-blur-sm">
-          <Card className="flex max-h-[85vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-800 dark:bg-slate-950">
-            <div className="flex items-start justify-between gap-3 border-b border-slate-200 px-5 py-4 dark:border-slate-800">
+      {open && portalRoot ? createPortal(
+        <div className="fixed inset-0 z-50 grid place-items-center bg-[var(--color-overlay)] p-4 backdrop-blur-sm" onMouseDown={(event) => { if (event.target === event.currentTarget) setOpen(false); }}>
+          <Card ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby={dialogTitleId} className="app-card flex max-h-[85vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl shadow-[var(--shadow-md)]">
+            <div className="border-default flex items-start justify-between gap-3 border-b px-5 py-4">
               <div>
-                <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Cargos pendientes · {account.name}</h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400">Separado por MSI y normal (revolvente).</p>
+                <h3 id={dialogTitleId} className="text-primary text-lg font-semibold">Cargos pendientes · {account.name}</h3>
+                <p className="text-muted text-xs">Separado por MSI y normal (revolvente).</p>
               </div>
               <Button type="button" variant="secondary" onClick={() => setOpen(false)}>Cerrar</Button>
             </div>
 
-            {loading ? <p className="text-sm text-slate-600 dark:text-slate-300">Cargando cargos pendientes...</p> : null}
+            {loading ? <p className="text-muted px-5 pt-4 text-sm">Cargando cargos pendientes...</p> : null}
             <div className="flex-1 space-y-4 overflow-y-auto px-5 py-4">
-              {error ? <p className="rounded-xl border border-rose-300 bg-rose-50 px-3 py-2 text-sm text-rose-700 dark:border-rose-800 dark:bg-rose-950/40 dark:text-rose-300">{error}</p> : null}
+              {error ? <p className="border border-[var(--color-danger)] bg-[var(--color-surface-2)] px-3 py-2 text-sm text-[var(--color-danger)]">{error}</p> : null}
 
             {!loading && !error ? (
               <div className="grid gap-4 lg:grid-cols-2">
-                <PendingGroup title="MSI" toneClass="text-indigo-700 dark:text-indigo-300" items={msiItems} total={totalMsi} />
-                <PendingGroup title="Normal" toneClass="text-fuchsia-700 dark:text-fuchsia-300" items={normalItems} total={totalNormal} />
+<PendingGroup title="MSI" toneClass="text-[var(--color-accent)]" items={msiItems} total={totalMsi} timezone={timezone} />
+                 <PendingGroup title="Normal" toneClass="text-[var(--color-warning)]" items={normalItems} total={totalNormal} timezone={timezone} />
               </div>
             ) : null}
             </div>
 
-            <div className="flex justify-end border-t border-slate-200 px-5 py-4 dark:border-slate-800">
+            <div className="border-default flex justify-end border-t px-5 py-4">
               <Button type="button" variant="secondary" onClick={() => setOpen(false)}>Cerrar</Button>
             </div>
           </Card>
-        </div>
+        </div>,
+        portalRoot
       ) : null}
     </>
   );
@@ -278,23 +527,25 @@ function PendingGroup({
   title,
   toneClass,
   items,
-  total
+  total,
+  timezone
 }: {
   title: string;
   toneClass: string;
   items: CreditInstallmentItem[];
   total: number;
+  timezone: string;
 }) {
   return (
-    <section className="space-y-2 rounded-xl border border-indigo-200/55 bg-indigo-50/30 p-3 dark:border-indigo-900/40 dark:bg-indigo-950/15">
+    <section className="app-panel space-y-2 rounded-xl border border-default p-3">
       <div className="flex items-center justify-between gap-2">
         <h4 className={`text-sm font-semibold ${toneClass}`}>{title}</h4>
-        <p className="text-xs text-slate-500 dark:text-slate-400">{items.length} cargos</p>
+        <p className="text-muted text-xs">{items.length} cargos</p>
       </div>
 
-      <div className="max-h-72 overflow-auto rounded-lg border border-slate-200 dark:border-slate-800">
+      <div className="border-default max-h-72 overflow-x-auto overflow-y-auto rounded-lg border">
         <table className="w-full text-xs">
-          <thead className="bg-slate-50 text-slate-600 dark:bg-slate-900 dark:text-slate-300">
+          <thead className="bg-[var(--color-surface-3)] text-secondary">
             <tr>
               <th className="px-2 py-2 text-left font-semibold">Cargo</th>
               <th className="px-2 py-2 text-left font-semibold">Mensualidad</th>
@@ -305,15 +556,15 @@ function PendingGroup({
           <tbody>
             {items.length === 0 ? (
               <tr>
-                <td className="px-2 py-3 text-slate-500 dark:text-slate-400" colSpan={4}>Sin cargos pendientes</td>
+                <td className="text-muted px-2 py-3" colSpan={4}>Sin cargos pendientes</td>
               </tr>
             ) : (
               items.map((item) => (
-                <tr key={item.installmentId} className="border-t border-slate-100 dark:border-slate-800">
-                  <td className="px-2 py-2 text-slate-700 dark:text-slate-200">{item.description}</td>
-                  <td className="px-2 py-2 text-slate-700 dark:text-slate-200">{item.installmentNumber}/{item.months}</td>
-                  <td className="px-2 py-2 text-slate-700 dark:text-slate-200">{formatDate(item.dueDate)}</td>
-                  <td className="px-2 py-2 text-right font-semibold text-slate-900 dark:text-slate-100">{formatAmount(item.remainingAmount)}</td>
+                <tr key={item.installmentId} className="border-default border-t">
+                  <td className="text-secondary px-2 py-2">{item.description}</td>
+                  <td className="text-secondary px-2 py-2">{item.installmentNumber}/{item.months}</td>
+                  <td className="text-secondary px-2 py-2">{formatDate(item.dueDate, timezone)}</td>
+                  <td className="text-primary px-2 py-2 text-right font-semibold">{formatAmount(item.remainingAmount)}</td>
                 </tr>
               ))
             )}
@@ -321,18 +572,31 @@ function PendingGroup({
         </table>
       </div>
 
-      <p className="text-right text-sm font-semibold text-slate-900 dark:text-slate-100">Total: {formatAmount(total)}</p>
+      <p className="text-primary text-right text-sm font-semibold">Total: {formatAmount(total)}</p>
     </section>
   );
 }
 
-function formatDate(value: string): string {
+function formatDate(value: string, timezone: string): string {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    const [year, month, day] = value.split("-");
+    return `${day}/${month}/${year}`;
+  }
+
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "—";
-  const day = String(date.getDate()).padStart(2, "0");
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const year = date.getFullYear();
-  return `${day}/${month}/${year}`;
+
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: timezone || "UTC",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric"
+  }).formatToParts(date);
+  const day = parts.find((part) => part.type === "day")?.value;
+  const month = parts.find((part) => part.type === "month")?.value;
+  const year = parts.find((part) => part.type === "year")?.value;
+
+  return day && month && year ? `${day}/${month}/${year}` : "—";
 }
 
 function Kpi({

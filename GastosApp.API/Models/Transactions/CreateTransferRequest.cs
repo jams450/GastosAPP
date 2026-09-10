@@ -4,10 +4,10 @@ namespace GastosApp.API.Models.Transactions;
 
 public class CreateTransferRequest
 {
-    [Required]
+    [Range(1, int.MaxValue)]
     public int SourceAccountId { get; set; }
 
-    [Required]
+    [Range(1, int.MaxValue)]
     public int DestinationAccountId { get; set; }
 
     [Required]

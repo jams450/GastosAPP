@@ -1,6 +1,10 @@
+using GastosApp.API;
 using GastosApp.API.Extensions;
 
 var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.AddProblemDetails();
+builder.Services.AddExceptionHandler<ExceptionHandler>();
 
 builder.Services
     .AddApiMvc()
@@ -16,6 +20,7 @@ var app = builder.Build();
 
 app.UseApiOpenApiIfDevelopment();
 
+app.UseExceptionHandler();
 app.UseCors("Production");
 app.UseAuthentication();
 app.UseAuthorization();

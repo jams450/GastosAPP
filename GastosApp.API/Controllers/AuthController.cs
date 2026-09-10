@@ -27,7 +27,10 @@ public class AuthController : ControllerBase
                 return BadRequest(new { Message = "Username and password are required" });
             }
 
-            var response = await _authService.AuthenticateAsync(request);
+            var response = await _authService.AuthenticateAsync(
+                request,
+                HttpContext.Connection.RemoteIpAddress?.ToString(),
+                Request.Headers.UserAgent.ToString());
 
             if (response == null)
             {
@@ -55,7 +58,10 @@ public class AuthController : ControllerBase
                 return BadRequest(new { Message = "Refresh token is required" });
             }
 
-            var response = await _authService.RefreshAsync(request.RefreshToken);
+            var response = await _authService.RefreshAsync(
+                request.RefreshToken,
+                HttpContext.Connection.RemoteIpAddress?.ToString(),
+                Request.Headers.UserAgent.ToString());
             if (response == null)
             {
                 return Unauthorized(new { Message = "Invalid refresh token" });

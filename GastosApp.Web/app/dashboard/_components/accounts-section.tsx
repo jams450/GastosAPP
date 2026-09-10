@@ -1,3 +1,4 @@
+import { ChevronDown } from "lucide-react";
 import { useId, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { AccountCard } from "@/app/dashboard/_components/account-card";
@@ -10,6 +11,7 @@ type AccountsSectionProps = {
   description: string;
   accounts: DashboardAccountOverview[];
   viewMode: DashboardViewMode;
+  timezone: string;
   emptyMessage: string;
   defaultCollapsed?: boolean;
 };
@@ -19,6 +21,7 @@ export function AccountsSection({
   description,
   accounts,
   viewMode,
+  timezone,
   emptyMessage,
   defaultCollapsed = false
 }: AccountsSectionProps) {
@@ -31,7 +34,7 @@ export function AccountsSection({
       : "sm:grid-cols-2 xl:grid-cols-3";
 
   return (
-    <Card className="rounded-2xl border border-indigo-200/50 bg-indigo-50/25 p-3 dark:border-indigo-900/40 dark:bg-indigo-950/15">
+    <Card className="overflow-hidden p-3 sm:p-4">
       <button
         type="button"
         onClick={() => setCollapsed((previous) => !previous)}
@@ -40,24 +43,22 @@ export function AccountsSection({
         aria-controls={sectionId}
       >
         <div className="space-y-1">
-          <h3 className="m-0 text-base font-semibold text-slate-900 dark:text-slate-100">{title}</h3>
-          <p className="m-0 text-xs text-slate-500 dark:text-slate-400">{description}</p>
+           <h3 className="m-0 text-base font-semibold text-primary">{title}</h3>
+           <p className="m-0 text-xs text-muted">{description}</p>
         </div>
 
         <div className="flex items-center gap-2">
-          <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
+          <span className="rounded-full border border-default bg-[var(--color-surface-2)] px-3 py-1 text-xs font-semibold text-muted">
             {accounts.length} registradas
           </span>
           <span
             className={cn(
-              "inline-flex h-7 w-7 items-center justify-center rounded-full border border-slate-200 bg-slate-50 text-slate-600 transition-transform dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300",
+              "grid h-9 w-9 place-items-center rounded-xl border border-default bg-[var(--color-surface-2)] text-muted transition-transform",
               collapsed ? "rotate-0" : "rotate-180"
             )}
             aria-hidden="true"
           >
-            <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4" xmlns="http://www.w3.org/2000/svg">
-              <path d="M5 8L10 13L15 8" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
+             <ChevronDown className="h-4 w-4" />
           </span>
         </div>
       </button>
@@ -65,13 +66,13 @@ export function AccountsSection({
       {collapsed ? null : (
         <div id={sectionId}>
           {accounts.length === 0 ? (
-            <p className="m-0 rounded-xl border border-slate-200 bg-slate-50 px-4 py-6 text-center text-sm text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
+            <p className="m-0 rounded-xl border border-default bg-[var(--color-surface-2)] px-4 py-6 text-center text-sm text-muted">
               {emptyMessage}
             </p>
           ) : (
             <div className={cn("grid gap-3", gridClass)}>
               {accounts.map((account) => (
-                <AccountCard key={account.accountId} account={account} viewMode={viewMode} />
+                <AccountCard key={account.accountId} account={account} viewMode={viewMode} timezone={timezone} />
               ))}
             </div>
           )}

@@ -54,6 +54,30 @@ namespace GastosApp.BusinessLogic.Services
                 .ToListAsync();
         }
 
+        public async Task<PagedTransactions> QueryByAccountForUserAsync(int accountId, int userId, TransactionQuery query)
+        {
+            var transactions = BuildBaseQuery(t => t.AccountId == accountId && t.Account.UserId == userId);
+
+            if (query.StartDate.HasValue) transactions = transactions.Where(t => t.TransactionDate >= query.StartDate.Value);
+            if (query.EndDate.HasValue) transactions = transactions.Where(t => t.TransactionDate <= query.EndDate.Value);
+            if (query.CategoryId.HasValue) transactions = transactions.Where(t => t.CategoryId == query.CategoryId.Value);
+            if (query.SubcategoryId.HasValue) transactions = transactions.Where(t => t.SubcategoryId == query.SubcategoryId.Value);
+            if (query.MerchantId.HasValue) transactions = transactions.Where(t => t.MerchantId == query.MerchantId.Value);
+            if (!string.IsNullOrWhiteSpace(query.Type)) transactions = transactions.Where(t => t.Type == query.Type);
+
+            var totalCount = await transactions.CountAsync();
+            var skip = ((long)query.Page - 1) * query.PageSize;
+            var items = await transactions
+                .OrderByDescending(t => t.TransactionDate)
+                .ThenByDescending(t => t.TransactionId)
+                .Skip(checked((int)skip))
+                .Take(query.PageSize)
+                .AsSplitQuery()
+                .ToListAsync();
+
+            return new PagedTransactions { TotalCount = totalCount, Items = items };
+        }
+
         public async Task<IEnumerable<Transaction>> GetByCategoryAsync(int categoryId)
         {
             return await BuildBaseQuery(t => t.CategoryId == categoryId)

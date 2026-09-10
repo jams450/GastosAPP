@@ -11,8 +11,15 @@ public static class AuthenticationExtensions
 {
     public static IServiceCollection AddApiAuthentication(this IServiceCollection services, IConfiguration configuration)
     {
-        var jwtKey = configuration["Jwt:Key"]
-            ?? throw new InvalidOperationException("JWT Key not configured in appsettings.json");
+        var jwtKey = configuration["Jwt:Key"];
+
+        if (string.IsNullOrWhiteSpace(jwtKey) ||
+            jwtKey.StartsWith("SET_", StringComparison.OrdinalIgnoreCase) ||
+            Encoding.UTF8.GetByteCount(jwtKey) < 32)
+        {
+            throw new InvalidOperationException(
+                "Jwt:Key must be configured with a non-placeholder value of at least 32 UTF-8 bytes.");
+        }
 
         var securityKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey));
 
@@ -38,14 +45,9 @@ public static class AuthenticationExtensions
                         var userIdClaim = context.Principal?.FindFirst(ClaimNames.NameIdentifier)?.Value
                             ?? context.Principal?.FindFirst(ClaimNames.Subject)?.Value;
 
-                        if (!int.TryParse(userIdClaim, out var userId) || userId < 0)
+                        if (!int.TryParse(userIdClaim, out var userId) || userId <= 0)
                         {
                             context.Fail("Invalid user id claim.");
-                            return;
-                        }
-
-                        if (userId == 0)
-                        {
                             return;
                         }
 

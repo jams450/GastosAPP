@@ -30,6 +30,6 @@ public static class AuthorizationExtensions
             ?? context.User.FindFirst(ClaimNames.Subject)?.Value
             ?? context.User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
 
-        return int.TryParse(userIdClaim, out var userId) && userId >= 0;
+        return int.TryParse(userIdClaim, out var userId) && userId > 0;
     }
 }

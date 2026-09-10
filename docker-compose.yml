@@ -34,8 +34,6 @@ services:
       - Jwt__Key=${Jwt__Key}
       - Jwt__Issuer=${Jwt__Issuer}
       - Jwt__Audience=${Jwt__Audience}
-      - Auth__Username=${Auth__Username}
-      - Auth__Password=${Auth__Password}
       - Cors__AllowedOrigins=${Cors__AllowedOrigins}
     networks:
       - gastos-network

@@ -23,10 +23,14 @@ namespace GastosApp.BusinessLogic.Services
 
         public async Task<DashboardOverviewResponse> GetOverviewAsync(int userId, string? month, string timezoneId = "America/Mexico_City")
         {
-            var (year, monthNumber) = ResolveMonth(month, timezoneId);
-            var monthStart = new DateTime(year, monthNumber, 1, 0, 0, 0, DateTimeKind.Utc);
-            var nextMonthStart = monthStart.AddMonths(1);
-            var previousMonthDate = monthStart.AddMonths(-1);
+            var (year, monthNumber, timezone) = ResolveMonth(month, timezoneId);
+            var monthStart = TimeZoneInfo.ConvertTimeToUtc(
+                new DateTime(year, monthNumber, 1, 0, 0, 0, DateTimeKind.Unspecified),
+                timezone);
+            var nextMonthStart = TimeZoneInfo.ConvertTimeToUtc(
+                new DateTime(year, monthNumber, 1, 0, 0, 0, DateTimeKind.Unspecified).AddMonths(1),
+                timezone);
+            var previousMonthDate = new DateTime(year, monthNumber, 1).AddMonths(-1);
             var daysInMonth = DateTime.DaysInMonth(year, monthNumber);
             var previousDaysInMonth = DateTime.DaysInMonth(previousMonthDate.Year, previousMonthDate.Month);
 
@@ -259,17 +263,22 @@ namespace GastosApp.BusinessLogic.Services
             return string.Equals(actual, expected, StringComparison.OrdinalIgnoreCase);
         }
 
-        private static (int Year, int Month) ResolveMonth(string? month, string timezoneId)
+        private static (int Year, int Month, TimeZoneInfo Timezone) ResolveMonth(string? month, string timezoneId)
         {
-            if (!string.IsNullOrWhiteSpace(month) &&
-                DateTime.TryParseExact(month, "yyyy-MM", CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsed))
+            var timezone = ResolveTimeZone(timezoneId);
+
+            if (!string.IsNullOrWhiteSpace(month))
             {
-                return (parsed.Year, parsed.Month);
+                if (DateTime.TryParseExact(month, "yyyy-MM", CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsed))
+                {
+                    return (parsed.Year, parsed.Month, timezone);
+                }
+
+                throw new ArgumentException("Month must use yyyy-MM format.");
             }
 
-            var timezone = ResolveTimeZone(timezoneId);
             var localNow = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, timezone);
-            return (localNow.Year, localNow.Month);
+            return (localNow.Year, localNow.Month, timezone);
         }
 
         private static TimeZoneInfo ResolveTimeZone(string timezoneId)

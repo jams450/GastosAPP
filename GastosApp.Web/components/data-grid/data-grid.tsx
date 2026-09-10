@@ -117,7 +117,7 @@ export function DataGrid<TData>({
   });
 
   const headerCellClass = cn(
-    "text-left font-bold text-zinc-900 dark:text-zinc-100",
+    "text-left font-semibold text-primary",
     effectiveDensity === "compact" ? "px-2 py-2 text-xs" : "px-3 py-2.5 text-base"
   );
 
@@ -168,7 +168,7 @@ export function DataGrid<TData>({
 
       {toolbar ? <div className="min-w-0">{toolbar}</div> : null}
 
-      <div className="table-shell overflow-x-auto rounded-xl border border-zinc-400/30 bg-[var(--table-surface-bg)]">
+      <div className="table-shell overflow-x-auto rounded-xl border border-strong bg-[var(--table-surface-bg)] shadow-[var(--shadow-sm)]">
         <table className="min-w-full">
           <thead className="table-head bg-[var(--table-head-bg)]">
             {table.getHeaderGroups().map((headerGroup) => (

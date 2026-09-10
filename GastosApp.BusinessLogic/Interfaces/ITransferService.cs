@@ -25,6 +25,7 @@ namespace GastosApp.BusinessLogic.Interfaces
             int? merchantId,
             string? description,
             DateTime? transactionDate,
-            IEnumerable<string>? tags);
+            IEnumerable<string>? tags,
+            bool clearAnalytics);
     }
 }

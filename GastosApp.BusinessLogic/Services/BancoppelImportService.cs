@@ -12,6 +12,11 @@ namespace GastosApp.BusinessLogic.Services;
 
 public class BancoppelImportService : IBancoppelImportService
 {
+    private const long MaxPdfBytes = 10_000_000;
+    private const int MaxPages = 100;
+    private const int MaxExtractedLines = 1000;
+    private const int MaxExtractedCharacters = 600_000;
+    private const int MaxPreviewRows = 1000;
     private static readonly Regex DateRegex = new(@"^(?<date>\d{2}[/-]\d{2})\s+(?<description>.+?)\s+(?<amount>[+-]\s?\$?[\d,]+(?:\.\d{2})?)$", RegexOptions.Compiled);
 
     private readonly IAccountService _accountService;
@@ -27,18 +32,58 @@ public class BancoppelImportService : IBancoppelImportService
 
     public async Task<BancoppelImportPreviewResult> PreviewAsync(Stream pdfStream, CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(pdfStream);
+        cancellationToken.ThrowIfCancellationRequested();
+        if (pdfStream.CanSeek && pdfStream.Length > MaxPdfBytes)
+        {
+            throw new ArgumentException("El archivo PDF no debe exceder 10 MB.");
+        }
+
         var result = new BancoppelImportPreviewResult();
-
         using var memory = new MemoryStream();
-        await pdfStream.CopyToAsync(memory, cancellationToken);
-        memory.Position = 0;
+        var buffer = new byte[81920];
+        int read;
+        while ((read = await pdfStream.ReadAsync(buffer, cancellationToken)) > 0)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (memory.Length + read > MaxPdfBytes)
+            {
+                throw new ArgumentException("El archivo PDF no debe exceder 10 MB.");
+            }
 
+            await memory.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
+        }
+
+        memory.Position = 0;
         using var document = PdfDocument.Open(memory);
-        var allLines = document.GetPages()
-            .SelectMany(p => p.Text.Split('\n'))
-            .Select(l => l.Trim())
-            .Where(l => !string.IsNullOrWhiteSpace(l))
-            .ToList();
+        var pages = document.GetPages().Take(MaxPages + 1).ToList();
+        if (pages.Count > MaxPages)
+        {
+            throw new ArgumentException("El archivo PDF no debe exceder 100 páginas.");
+        }
+
+        var allLines = new List<string>();
+        var extractedCharacters = 0;
+        foreach (var page in pages)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            extractedCharacters += page.Text.Length;
+            if (extractedCharacters > MaxExtractedCharacters)
+            {
+                throw new ArgumentException("El PDF excede el límite de texto extraíble.");
+            }
+
+            foreach (var line in page.Text.Split('\n'))
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var trimmed = line.Trim();
+                if (!string.IsNullOrWhiteSpace(trimmed)) allLines.Add(trimmed);
+                if (allLines.Count > MaxExtractedLines)
+                {
+                    throw new ArgumentException("El PDF excede el límite de líneas extraíbles.");
+                }
+            }
+        }
 
         var sectionLines = ExtractRegularChargesSectionLines(allLines, result.Warnings);
         if (sectionLines.Count == 0)
@@ -60,6 +105,11 @@ public class BancoppelImportService : IBancoppelImportService
             }
 
             rowNumber++;
+            if (rowNumber > MaxPreviewRows)
+            {
+                throw new ArgumentException("El PDF excede el límite de filas de vista previa.");
+            }
+
             var datePart = match.Groups["date"].Value;
             var description = match.Groups["description"].Value.Trim();
             var amountPart = match.Groups["amount"].Value.Replace("$", string.Empty).Replace(",", string.Empty).Replace(" ", string.Empty);

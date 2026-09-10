@@ -13,6 +13,7 @@ namespace GastosApp.BusinessLogic.Interfaces
         Task<IEnumerable<Transaction>> GetByDateRangeForUserAsync(int accountId, int userId, DateTime startDate, DateTime endDate);
         Task<IEnumerable<Transaction>> GetByCategoryAsync(int categoryId);
         Task<IEnumerable<Transaction>> GetByCategoryForUserAsync(int categoryId, int userId);
+        Task<PagedTransactions> QueryByAccountForUserAsync(int accountId, int userId, TransactionQuery query);
         
         // Transacciones normales (ingreso/gasto)
         Task<Transaction> CreateIncomeAsync(Transaction transaction, int userId, IEnumerable<(int InstallmentId, decimal Amount)>? creditAllocations = null, IEnumerable<string>? tags = null);
@@ -52,7 +53,8 @@ namespace GastosApp.BusinessLogic.Interfaces
             int? merchantId,
             string? description,
             DateTime? transactionDate,
-            IEnumerable<string>? tags);
+            IEnumerable<string>? tags,
+            bool clearAnalytics);
         
         // Recalcular saldo de cuenta basado en transacciones
         Task<decimal> CalculateAccountBalanceAsync(int accountId);

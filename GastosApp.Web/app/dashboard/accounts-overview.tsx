@@ -9,7 +9,7 @@ import { DashboardFoldSection } from "@/app/dashboard/_components/dashboard-fold
 import { DashboardMetricCards } from "@/app/dashboard/_components/dashboard-metric-cards";
 import { DashboardToolbar } from "@/app/dashboard/_components/dashboard-toolbar";
 import type { DashboardViewMode } from "@/app/dashboard/_components/dashboard-view-mode";
-import type { DashboardOverviewResponse } from "@/lib/contracts/dashboard";
+import { normalizeDashboardOverview, type DashboardOverviewResponse } from "@/lib/contracts/dashboard";
 
 const TIMEZONE = "America/Mexico_City";
 
@@ -107,9 +107,9 @@ export function AccountsOverview() {
           throw new Error("No se pudo obtener dashboard");
         }
 
-        const payload = (await response.json()) as DashboardOverviewResponse;
+        const payload = await response.json();
         if (isMounted) {
-          setData(payload);
+          setData(normalizeDashboardOverview(payload));
         }
       } catch {
         if (isMounted) {
@@ -144,7 +144,7 @@ export function AccountsOverview() {
   }
 
   return (
-    <div className="grid gap-6">
+    <div className="grid gap-5 sm:gap-6">
       <DashboardToolbar
         month={month}
         timezone={timezone}
@@ -259,9 +259,10 @@ export function AccountsOverview() {
           <AccountsSection
             title="Cuentas de crédito"
             description="Detalle por cuenta con corte, pago y comportamiento del periodo."
-            accounts={creditAccounts}
-            viewMode={viewMode}
-            emptyMessage="No hay cuentas de crédito registradas."
+             accounts={creditAccounts}
+             viewMode={viewMode}
+             timezone={timezone}
+             emptyMessage="No hay cuentas de crédito registradas."
           />
         </div>
       </DashboardFoldSection>
@@ -286,9 +287,10 @@ export function AccountsOverview() {
           <AccountsSection
             title="Cuentas de efectivo"
             description="Detalle por cuenta de débito, ahorro o disponible mensual."
-            accounts={cashAccounts}
-            viewMode={viewMode}
-            emptyMessage="No hay cuentas de efectivo registradas."
+             accounts={cashAccounts}
+             viewMode={viewMode}
+             timezone={timezone}
+             emptyMessage="No hay cuentas de efectivo registradas."
           />
         </div>
       </DashboardFoldSection>
@@ -299,12 +301,12 @@ export function AccountsOverview() {
 function DashboardOverviewSkeleton() {
   return (
     <section className="grid gap-4">
-      <div className="h-20 animate-pulse rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950" aria-hidden="true" />
+      <div className="h-28 animate-pulse rounded-2xl border border-default bg-[var(--color-surface-1)]" aria-hidden="true" />
       <div className="grid gap-3 sm:grid-cols-2">
         {Array.from({ length: 2 }).map((_, index) => (
           <div
             key={index}
-            className="h-24 animate-pulse rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950"
+            className="h-28 animate-pulse rounded-2xl border border-default bg-[var(--color-surface-1)]"
             aria-hidden="true"
           />
         ))}
@@ -313,13 +315,13 @@ function DashboardOverviewSkeleton() {
         {Array.from({ length: 4 }).map((_, index) => (
           <div
             key={index}
-            className="h-64 animate-pulse rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950"
+            className="h-72 animate-pulse rounded-2xl border border-default bg-[var(--color-surface-1)]"
             aria-hidden="true"
           />
         ))}
       </div>
-      <div className="h-24 animate-pulse rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950" aria-hidden="true" />
-      <div className="h-24 animate-pulse rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950" aria-hidden="true" />
+      <div className="h-28 animate-pulse rounded-2xl border border-default bg-[var(--color-surface-1)]" aria-hidden="true" />
+      <div className="h-28 animate-pulse rounded-2xl border border-default bg-[var(--color-surface-1)]" aria-hidden="true" />
     </section>
   );
 }

@@ -244,7 +244,10 @@ namespace GastosApp.BusinessLogic.Services
                 }
 
                 var updated = await UpdateInternalAsync(id, transaction, existing);
-                await _tagService.SyncTransactionTagsAsync(id, userId, tags);
+                if (tags != null)
+                {
+                    await _tagService.SyncTransactionTagsAsync(id, userId, tags);
+                }
 
                 if (replaceAllocations)
                 {

@@ -1,3 +1,4 @@
+import { BarChart3 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { formatAmount } from "@/app/dashboard/_components/dashboard-format";
 import type { DashboardBreakdownItem } from "@/lib/contracts/dashboard";
@@ -28,14 +29,17 @@ export function BreakdownChart({
   const totalAmount = items.reduce((sum, item) => sum + Math.abs(item.amount), 0);
 
   return (
-    <Card className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-950">
-      <div className="mb-4 space-y-1">
-        <h3 className="m-0 text-base font-semibold text-slate-900 dark:text-slate-100">{title}</h3>
-        <p className="m-0 text-xs text-slate-500 dark:text-slate-400">{description}</p>
+    <Card className="p-4 sm:p-5">
+       <div className="mb-5 flex items-start gap-3">
+         <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-[var(--color-accent-soft)] text-[var(--color-accent)]"><BarChart3 className="h-4 w-4" aria-hidden="true" /></span>
+         <div className="min-w-0 space-y-1">
+           <h3 className="m-0 text-base font-semibold text-primary">{title}</h3>
+           <p className="m-0 text-xs text-muted">{description}</p>
+         </div>
       </div>
 
       {items.length === 0 ? (
-        <p className="m-0 rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-center text-sm text-slate-500 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400">
+           <p className="app-panel m-0 border-dashed px-4 py-7 text-center text-sm text-muted">
           {emptyMessage}
         </p>
       ) : (

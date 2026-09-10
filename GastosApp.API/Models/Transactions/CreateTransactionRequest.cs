@@ -2,9 +2,9 @@ using System.ComponentModel.DataAnnotations;
 
 namespace GastosApp.API.Models.Transactions;
 
-public class CreateTransactionRequest
+public class CreateTransactionRequest : IValidatableObject
 {
-    [Required]
+    [Range(1, int.MaxValue)]
     public int AccountId { get; set; }
 
     public int? CategoryId { get; set; }
@@ -30,4 +30,12 @@ public class CreateTransactionRequest
     public List<CreditInstallmentAllocationRequest>? CreditAllocations { get; set; }
 
     public List<TransactionAllocationRequest>? Allocations { get; set; }
+
+    public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
+    {
+        if (TransactionDate == default)
+        {
+            yield return new ValidationResult("TransactionDate is required.", [nameof(TransactionDate)]);
+        }
+    }
 }

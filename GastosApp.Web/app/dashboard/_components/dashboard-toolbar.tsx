@@ -1,5 +1,6 @@
 import type { DashboardViewMode } from "@/app/dashboard/_components/dashboard-view-mode";
 import { dashboardViewModeLabel } from "@/app/dashboard/_components/dashboard-view-mode";
+import { CalendarDays, LayoutGrid, SlidersHorizontal } from "lucide-react";
 import { cn } from "@/lib/ui/cn";
 
 type DashboardToolbarProps = {
@@ -20,30 +21,39 @@ export function DashboardToolbar({
   onViewModeChange
 }: DashboardToolbarProps) {
   return (
-    <section className="rounded-2xl border border-purple-200/55 bg-purple-50/30 p-3 backdrop-blur dark:border-purple-900/45 dark:bg-purple-950/20">
-      <div className="grid gap-4 lg:grid-cols-[1fr_auto] lg:items-end">
-        <div className="space-y-1">
-          <h2 className="m-0 text-lg font-semibold text-slate-900 dark:text-slate-100">Filtros del dashboard</h2>
-          <p className="m-0 text-xs text-slate-500 dark:text-slate-400">Zona horaria: {timezone}</p>
+    <section className="app-panel overflow-hidden p-4 sm:p-5">
+      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
+        <div className="space-y-2">
+          <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--color-accent)]">
+            <SlidersHorizontal className="h-4 w-4" aria-hidden="true" />
+            Control del dashboard
+          </div>
+          <h2 className="m-0 text-xl font-semibold tracking-tight text-primary">Tu resumen financiero</h2>
+          <p className="m-0 text-sm text-muted">Consulta ingresos, gastos, saldos y deuda sin perder el contexto del periodo.</p>
+          <p className="m-0 text-xs text-muted">Zona horaria: {timezone}</p>
         </div>
 
-        <div className="flex flex-wrap items-end justify-start gap-4 lg:justify-end">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end lg:justify-end">
           <div className="grid gap-1">
-            <label className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400" htmlFor="dashboard-month">
-              Mes
-            </label>
-            <input
+             <label className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted" htmlFor="dashboard-month">
+               <CalendarDays className="h-3.5 w-3.5" aria-hidden="true" />
+               Mes
+             </label>
+             <input
               id="dashboard-month"
               type="month"
               value={month}
               onChange={(event) => onMonthChange(event.target.value)}
-              className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-900 focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-200 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:focus:border-sky-500 dark:focus:ring-sky-900"
+               className="input-semantic h-10 min-w-44 px-3 text-sm focus-ring"
             />
           </div>
 
           <div className="grid gap-1">
-            <span className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Visualización</span>
-            <div className="inline-flex rounded-lg border border-slate-200 p-1 dark:border-slate-700">
+             <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted">
+               <LayoutGrid className="h-3.5 w-3.5" aria-hidden="true" />
+               Visualización
+             </span>
+             <div className="grid min-h-10 grid-cols-2 rounded-[var(--radius-sm)] border border-default bg-[var(--color-surface-1)] p-1 sm:inline-flex sm:grid-cols-none">
               {viewModes.map((mode) => {
                 const isActive = mode === viewMode;
                 return (
@@ -52,10 +62,10 @@ export function DashboardToolbar({
                     type="button"
                     onClick={() => onViewModeChange(mode)}
                     className={cn(
-                      "rounded-md px-3 py-1.5 text-xs font-semibold transition",
+                       "min-h-8 rounded-md px-3 py-1.5 text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-border-focus)]",
                       isActive
-                        ? "bg-sky-100 text-sky-700 dark:bg-sky-900/50 dark:text-sky-200"
-                        : "text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
+                         ? "bg-[var(--color-accent-soft)] text-primary"
+                         : "text-muted hover:bg-[var(--color-surface-3)] hover:text-primary"
                     )}
                     aria-pressed={isActive}
                   >

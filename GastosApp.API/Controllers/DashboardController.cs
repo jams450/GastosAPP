@@ -13,32 +13,20 @@ namespace GastosApp.API.Controllers
 
         private readonly IDashboardService _dashboardService;
         private readonly ICurrentUserService _currentUserService;
-        private readonly ILogger<DashboardController> _logger;
-
         public DashboardController(
             IDashboardService dashboardService,
-            ICurrentUserService currentUserService,
-            ILogger<DashboardController> logger)
+            ICurrentUserService currentUserService)
         {
             _dashboardService = dashboardService;
             _currentUserService = currentUserService;
-            _logger = logger;
         }
 
         [HttpGet("overview")]
         public async Task<IActionResult> GetOverview([FromQuery] string? month)
         {
-            try
-            {
-                var userId = GetCurrentUserId();
-                var result = await _dashboardService.GetOverviewAsync(userId, month, DashboardTimezone);
-                return Ok(result);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error retrieving dashboard overview");
-                return StatusCode(500, new { Message = "An error occurred while retrieving dashboard data" });
-            }
+            var userId = GetCurrentUserId();
+            var result = await _dashboardService.GetOverviewAsync(userId, month, DashboardTimezone);
+            return Ok(result);
         }
 
         private int GetCurrentUserId()

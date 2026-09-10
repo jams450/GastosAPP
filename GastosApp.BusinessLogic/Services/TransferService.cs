@@ -164,12 +164,12 @@ namespace GastosApp.BusinessLogic.Services
             });
         }
 
-        public Task<(bool Success, string? ErrorMessage)> UpdateTransferMetadataAsync(Guid transferGroupId, int userId, int? categoryId, int? subcategoryId, int? merchantId, string? description, DateTime? transactionDate, IEnumerable<string>? tags)
+        public Task<(bool Success, string? ErrorMessage)> UpdateTransferMetadataAsync(Guid transferGroupId, int userId, int? categoryId, int? subcategoryId, int? merchantId, string? description, DateTime? transactionDate, IEnumerable<string>? tags, bool clearAnalytics)
         {
-            return _repository.ExecuteInTransactionAsync(() => UpdateTransferMetadataInternalAsync(transferGroupId, userId, categoryId, subcategoryId, merchantId, description, transactionDate, tags));
+            return _repository.ExecuteInTransactionAsync(() => UpdateTransferMetadataInternalAsync(transferGroupId, userId, categoryId, subcategoryId, merchantId, description, transactionDate, tags, clearAnalytics));
         }
 
-        private async Task<(bool Success, string? ErrorMessage)> UpdateTransferMetadataInternalAsync(Guid transferGroupId, int userId, int? categoryId, int? subcategoryId, int? merchantId, string? description, DateTime? transactionDate, IEnumerable<string>? tags)
+        private async Task<(bool Success, string? ErrorMessage)> UpdateTransferMetadataInternalAsync(Guid transferGroupId, int userId, int? categoryId, int? subcategoryId, int? merchantId, string? description, DateTime? transactionDate, IEnumerable<string>? tags, bool clearAnalytics)
         {
             var accountIds = await _repository.Get<Transaction>()
                 .Where(t => t.TransferGroupId == transferGroupId)
@@ -187,9 +187,9 @@ namespace GastosApp.BusinessLogic.Services
             if (!pairValidation.Success) return (false, pairValidation.ErrorMessage);
 
             var sample = transactions[0];
-            var effectiveCategoryId = categoryId ?? sample.CategoryId;
-            var effectiveSubcategoryId = subcategoryId ?? sample.SubcategoryId;
-            var effectiveMerchantId = merchantId ?? sample.MerchantId;
+            var effectiveCategoryId = clearAnalytics ? null : categoryId ?? sample.CategoryId;
+            var effectiveSubcategoryId = clearAnalytics ? null : subcategoryId ?? sample.SubcategoryId;
+            var effectiveMerchantId = clearAnalytics ? null : merchantId ?? sample.MerchantId;
 
             var dimensionsValidation = await _validation.ValidateAnalyticsDimensionsAsync(userId, effectiveCategoryId, effectiveSubcategoryId, effectiveMerchantId);
             if (!dimensionsValidation.IsValid) return (false, dimensionsValidation.ErrorMessage);
@@ -200,9 +200,18 @@ namespace GastosApp.BusinessLogic.Services
 
             foreach (var transaction in transactions)
             {
-                if (categoryId.HasValue) transaction.CategoryId = categoryId.Value;
-                if (subcategoryId.HasValue) transaction.SubcategoryId = subcategoryId.Value;
-                if (merchantId.HasValue) transaction.MerchantId = merchantId.Value;
+                if (clearAnalytics)
+                {
+                    transaction.CategoryId = null;
+                    transaction.SubcategoryId = null;
+                    transaction.MerchantId = null;
+                }
+                else
+                {
+                    if (categoryId.HasValue) transaction.CategoryId = categoryId.Value;
+                    if (subcategoryId.HasValue) transaction.SubcategoryId = subcategoryId.Value;
+                    if (merchantId.HasValue) transaction.MerchantId = merchantId.Value;
+                }
                 if (description != null) transaction.Description = description;
                 if (updatedTransactionDate.HasValue) transaction.TransactionDate = updatedTransactionDate.Value;
             }
@@ -222,9 +231,12 @@ namespace GastosApp.BusinessLogic.Services
 
             await _repository.SaveChangesAsync();
 
-            foreach (var transaction in transactions)
+            if (tags != null)
             {
-                await _tagService.SyncTransactionTagsAsync(transaction.TransactionId, userId, tags);
+                foreach (var transaction in transactions)
+                {
+                    await _tagService.SyncTransactionTagsAsync(transaction.TransactionId, userId, tags);
+                }
             }
 
             return (true, null);

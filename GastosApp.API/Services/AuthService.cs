@@ -19,14 +19,12 @@ public class AuthService : IAuthService
     private readonly int _maxFailedAttempts;
     private readonly int _lockMinutes;
     private readonly int _refreshDays;
-    private readonly bool _allowConfiguredAdminLogin;
 
     public AuthService(
         IConfiguration configuration,
         IJwtService jwtService,
         IUserService userService,
-        ContextSqlGastos context,
-        IWebHostEnvironment environment)
+        ContextSqlGastos context)
     {
         _configuration = configuration;
         _jwtService = jwtService;
@@ -35,28 +33,20 @@ public class AuthService : IAuthService
         _maxFailedAttempts = Math.Max(1, _configuration.GetValue<int>("Auth:MaxFailedAttempts", 5));
         _lockMinutes = Math.Max(1, _configuration.GetValue<int>("Auth:LockMinutes", 15));
         _refreshDays = Math.Max(1, _configuration.GetValue<int>("Auth:RefreshDays", 30));
-        _allowConfiguredAdminLogin = _configuration.GetValue<bool>("Auth:EnableConfiguredAdminLogin", false)
-            && environment.IsDevelopment();
     }
 
-    public async Task<LoginResponse?> AuthenticateAsync(LoginRequest request)
+    public async Task<LoginResponse?> AuthenticateAsync(LoginRequest request, string? ipAddress = null, string? userAgent = null)
     {
-        var adminUser = TryAuthenticateConfiguredAdmin(request);
-        if (adminUser != null)
-        {
-            return BuildAdminLoginResponse(adminUser);
-        }
-
         var user = await AuthenticateRegularUserAsync(request);
         if (user == null)
         {
             return null;
         }
 
-        return await BuildUserLoginResponseAsync(user);
+        return await BuildUserLoginResponseAsync(user, ipAddress, userAgent);
     }
 
-    public async Task<LoginResponse?> RefreshAsync(string refreshToken)
+    public async Task<LoginResponse?> RefreshAsync(string refreshToken, string? ipAddress = null, string? userAgent = null)
     {
         if (string.IsNullOrWhiteSpace(refreshToken))
         {
@@ -77,7 +67,7 @@ public class AuthService : IAuthService
 
         var newRefreshToken = GenerateRefreshToken();
         var newRefreshExpiration = DateTime.UtcNow.AddDays(_refreshDays);
-        var newSession = BuildNewSession(user.UserId, newRefreshToken, newRefreshExpiration);
+        var newSession = BuildNewSession(user.UserId, newRefreshToken, newRefreshExpiration, ipAddress, userAgent);
 
         if (!await RotateRefreshTokenAtomicAsync(session, newSession, HashToken(refreshToken)))
         {
@@ -109,39 +99,6 @@ public class AuthService : IAuthService
         return true;
     }
 
-    private User? TryAuthenticateConfiguredAdmin(LoginRequest request)
-    {
-        if (!_allowConfiguredAdminLogin)
-        {
-            return null;
-        }
-
-        if (!request.Username.Equals("admin", StringComparison.OrdinalIgnoreCase))
-        {
-            return null;
-        }
-
-        var adminUsername = _configuration["Auth:Username"];
-        var adminPassword = _configuration["Auth:Password"];
-
-        if (string.IsNullOrWhiteSpace(adminUsername)
-            || string.IsNullOrWhiteSpace(adminPassword)
-            || request.Username != adminUsername
-            || request.Password != adminPassword)
-        {
-            return null;
-        }
-
-        return new User
-        {
-            UserId = 0,
-            Name = "Administrator",
-            Email = adminUsername,
-            Admin = true,
-            Active = true
-        };
-    }
-
     private async Task<User?> AuthenticateRegularUserAsync(LoginRequest request)
     {
         var existing = await _context.Users.FirstOrDefaultAsync(u => u.Email == request.Username);
@@ -161,12 +118,12 @@ public class AuthService : IAuthService
         return user;
     }
 
-    private async Task<LoginResponse> BuildUserLoginResponseAsync(User user)
+    private async Task<LoginResponse> BuildUserLoginResponseAsync(User user, string? ipAddress, string? userAgent)
     {
         var refreshToken = GenerateRefreshToken();
         var refreshExpiration = DateTime.UtcNow.AddDays(_refreshDays);
 
-        var session = BuildNewSession(user.UserId, refreshToken, refreshExpiration);
+        var session = BuildNewSession(user.UserId, refreshToken, refreshExpiration, ipAddress, userAgent);
         _context.UserSessions.Add(session);
         await _context.SaveChangesAsync();
 
@@ -176,23 +133,25 @@ public class AuthService : IAuthService
         return new LoginResponse(token, expiration, user.Email, refreshToken, refreshExpiration);
     }
 
-    private LoginResponse BuildAdminLoginResponse(User adminUser)
-    {
-        var adminToken = _jwtService.GenerateToken(adminUser.UserId, adminUser.Email, adminUser.Admin, adminUser.SessionVersion);
-        var adminExpiration = _jwtService.GetTokenExpiration();
-        return new LoginResponse(adminToken, adminExpiration, adminUser.Email, null, null);
-    }
-
-    private UserSession BuildNewSession(int userId, string refreshToken, DateTime expiresAt)
+    private UserSession BuildNewSession(int userId, string refreshToken, DateTime expiresAt, string? ipAddress = null, string? userAgent = null)
     {
         return new UserSession
         {
             UserId = userId,
             RefreshTokenHash = HashToken(refreshToken),
             ExpiresAt = expiresAt,
+            Ip = Truncate(ipAddress, 64),
+            UserAgent = Truncate(userAgent, 512),
             Created = DateTime.UtcNow,
             ReplacedBySessionId = null
         };
+    }
+
+    private static string? Truncate(string? value, int maxLength)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return null;
+        var cleaned = value.Trim();
+        return cleaned.Length <= maxLength ? cleaned : cleaned[..maxLength];
     }
 
     private async Task RegisterFailedLoginAttemptAsync(User? existing)
