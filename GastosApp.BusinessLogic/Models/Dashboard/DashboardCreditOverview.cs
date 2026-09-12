@@ -43,6 +43,7 @@ namespace GastosApp.BusinessLogic.Models.Dashboard
     {
         public decimal MonthIncome { get; set; }
         public decimal MonthExpense { get; set; }
+        public decimal MonthFinancialNet { get; set; }
     }
 
     public class DashboardCharts
@@ -51,7 +52,9 @@ namespace GastosApp.BusinessLogic.Models.Dashboard
         public IEnumerable<DashboardBreakdownItem> ExpenseBySubcategory { get; set; } = Enumerable.Empty<DashboardBreakdownItem>();
         public IEnumerable<DashboardBreakdownItem> IncomeByAccount { get; set; } = Enumerable.Empty<DashboardBreakdownItem>();
         public IEnumerable<DashboardBreakdownItem> ExpenseByAccount { get; set; } = Enumerable.Empty<DashboardBreakdownItem>();
+        // Sin uso en la UI del dashboard (se conserva por compatibilidad).
         public IEnumerable<DashboardBreakdownItem> TransferInByAccount { get; set; } = Enumerable.Empty<DashboardBreakdownItem>();
+        // Sin uso en la UI del dashboard (se conserva por compatibilidad).
         public IEnumerable<DashboardBreakdownItem> TransferOutByAccount { get; set; } = Enumerable.Empty<DashboardBreakdownItem>();
     }
 
@@ -60,6 +63,8 @@ namespace GastosApp.BusinessLogic.Models.Dashboard
         public int? Id { get; set; }
         public string Name { get; set; } = string.Empty;
         public decimal Amount { get; set; }
+        public decimal CashAmount { get; set; }
+        public decimal CreditAmount { get; set; }
     }
 
     public class DashboardCreditSectionSummary
@@ -68,6 +73,7 @@ namespace GastosApp.BusinessLogic.Models.Dashboard
         public decimal MonthIncome { get; set; }
         public decimal MonthExpense { get; set; }
         public decimal MonthNet { get; set; }
+        public decimal MonthFinancialNet { get; set; }
         public decimal TransferIn { get; set; }
         public decimal TransferOut { get; set; }
         public decimal MonthMsiExpense { get; set; }
@@ -82,5 +88,6 @@ namespace GastosApp.BusinessLogic.Models.Dashboard
         public decimal MonthIncome { get; set; }
         public decimal MonthExpense { get; set; }
         public decimal MonthNet { get; set; }
+        public decimal MonthFinancialNet { get; set; }
     }
 }

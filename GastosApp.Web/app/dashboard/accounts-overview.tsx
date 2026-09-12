@@ -37,7 +37,8 @@ const emptyOverview: DashboardOverviewResponse = {
   timezone: TIMEZONE,
   generalSummary: {
     monthIncome: 0,
-    monthExpense: 0
+    monthExpense: 0,
+    monthFinancialNet: 0
   },
   charts: {
     expenseByCategory: [],
@@ -52,6 +53,7 @@ const emptyOverview: DashboardOverviewResponse = {
     monthIncome: 0,
     monthExpense: 0,
     monthNet: 0,
+    monthFinancialNet: 0,
     transferIn: 0,
     transferOut: 0,
     monthMsiExpense: 0,
@@ -63,7 +65,8 @@ const emptyOverview: DashboardOverviewResponse = {
     total: 0,
     monthIncome: 0,
     monthExpense: 0,
-    monthNet: 0
+    monthNet: 0,
+    monthFinancialNet: 0
   },
   accounts: []
 };
@@ -133,15 +136,18 @@ export function AccountsOverview() {
   const accounts = overview.accounts;
   const creditAccounts = useMemo(() => accounts.filter((account) => account.isCredit), [accounts]);
   const cashAccounts = useMemo(() => accounts.filter((account) => !account.isCredit), [accounts]);
+  const cashTotals = useMemo(
+    () =>
+      cashAccounts.reduce(
+        (totals, account) => ({
+          transferIn: totals.transferIn + account.monthTransferIn,
+          transferOut: totals.transferOut + account.monthTransferOut
+        }),
+        { transferIn: 0, transferOut: 0 }
+      ),
+    [cashAccounts]
+  );
   const timezone = overview.timezone || TIMEZONE;
-
-  if (loading) {
-    return <DashboardOverviewSkeleton />;
-  }
-
-  if (error) {
-    return <Alert variant="danger">{error}</Alert>;
-  }
 
   return (
     <div className="grid gap-5 sm:gap-6">
@@ -158,6 +164,12 @@ export function AccountsOverview() {
         onViewModeChange={setViewMode}
       />
 
+      {loading ? (
+        <DashboardOverviewSkeleton />
+      ) : error ? (
+        <Alert variant="danger">{error}</Alert>
+      ) : (
+        <>
       <DashboardFoldSection
         title="Resumen general"
         description="Vista mensual de ingresos, gastos y distribución operativa."
@@ -167,54 +179,46 @@ export function AccountsOverview() {
         <div className="grid gap-4">
           <DashboardMetricCards
             items={[
-              { title: "Ingresos del mes", subtitle: "Real", amount: overview.generalSummary.monthIncome },
-              { title: "Gastos del mes", subtitle: "Real", amount: overview.generalSummary.monthExpense * -1, toneClass: "text-rose-700 dark:text-rose-400" }
+              { title: "Ingresos del mes efectivo", subtitle: "Ingreso real", amount: overview.cashSummary.monthIncome, toneClass: "text-emerald-700 dark:text-emerald-400" },
+              { title: "Gastos del mes efectivo", subtitle: "Gasto real + efectivo→crédito", amount: overview.cashSummary.monthExpense * -1, toneClass: "text-rose-700 dark:text-rose-400" },
+              { title: "Neto del mes efectivo", subtitle: "Balance financiero", amount: overview.cashSummary.monthFinancialNet },
+              { title: "Ingresos del mes crédito", subtitle: "Ingreso real + efectivo→crédito", amount: overview.creditSummary.monthIncome, toneClass: "text-emerald-700 dark:text-emerald-400" },
+              { title: "Gastos del mes crédito", subtitle: "Gasto real + transferencias", amount: overview.creditSummary.monthExpense * -1, toneClass: "text-rose-700 dark:text-rose-400" },
+              { title: "Neto del mes crédito", subtitle: "Balance financiero", amount: overview.creditSummary.monthFinancialNet }
             ]}
-            columns="sm:grid-cols-2"
+            columns="sm:grid-cols-2 xl:grid-cols-3"
           />
 
-          <section className="grid gap-4 xl:grid-cols-2">
-            <BreakdownChart
-              title="Gastos por categoría"
-              description="Top de egresos mensuales agrupados por categoría."
+           <section className="grid gap-4">
+             <BreakdownChart
+               title="Gastos por categoría"
+               description="Top de egresos mensuales agrupados por categoría, dividido entre efectivo y crédito."
+               showFundingSplit
               items={overview.charts.expenseByCategory}
               emptyMessage="No hay gastos del mes por categoría."
-              tone="rose"
             />
             <BreakdownChart
-              title="Gastos por subcategoría"
-              description="Top de egresos mensuales agrupados por subcategoría."
+               title="Gastos por subcategoría"
+               description="Top de egresos mensuales agrupados por subcategoría, dividido entre efectivo y crédito."
+               showFundingSplit
               items={overview.charts.expenseBySubcategory}
               emptyMessage="No hay gastos del mes por subcategoría."
-              tone="violet"
             />
-            <BreakdownChart
-              title="Ingresos por cuenta"
-              description="Ingresos reales del mes por cuenta."
+           </section>
+           <section className="grid gap-4">
+             <BreakdownChart
+               title="Ingresos por cuenta"
+              description="Ingresos reales y transferencias de efectivo a crédito, por cuenta."
               items={overview.charts.incomeByAccount}
-              emptyMessage="No hay ingresos del mes."
+              emptyMessage="No hay ingresos del mes por cuenta."
               tone="emerald"
             />
             <BreakdownChart
               title="Gastos por cuenta"
-              description="Gastos reales del mes por cuenta."
+              description="Gastos reales y transferencias hacia crédito o efectivo, por cuenta."
               items={overview.charts.expenseByAccount}
               emptyMessage="No hay gastos por cuenta del mes."
               tone="sky"
-            />
-            <BreakdownChart
-              title="Transferencias que suman"
-              description="Transferencias que aumentan saldo por cuenta."
-              items={overview.charts.transferInByAccount}
-              emptyMessage="No hay transferencias que sumen en el mes."
-              tone="emerald"
-            />
-            <BreakdownChart
-              title="Transferencias que restan"
-              description="Transferencias que disminuyen saldo por cuenta."
-              items={overview.charts.transferOutByAccount}
-              emptyMessage="No hay transferencias que resten en el mes."
-              tone="rose"
             />
           </section>
         </div>
@@ -231,29 +235,18 @@ export function AccountsOverview() {
           <DashboardMetricCards
             items={[
               { title: "Crédito disponible", amount: overview.creditSummary.totalAvailable },
-              { title: "Neto del mes", amount: overview.creditSummary.monthNet }
-            ]}
-            columns="sm:grid-cols-2"
-          />
-
-          <DashboardMetricCards
-            items={[
-              { title: "Ingresos del mes crédito", amount: overview.creditSummary.monthIncome },
-              { title: "Gastos del mes crédito", amount: overview.creditSummary.monthExpense * -1, toneClass: "text-rose-700 dark:text-rose-400" },
-              { title: "Transferencias que suman", amount: overview.creditSummary.transferIn, toneClass: "text-emerald-700 dark:text-emerald-400" },
-              { title: "Transferencias que restan", amount: overview.creditSummary.transferOut * -1, toneClass: "text-rose-700 dark:text-rose-400" }
-            ]}
-            columns="sm:grid-cols-2 xl:grid-cols-4"
-          />
-
-          <DashboardMetricCards
-            items={[
               { title: "Gastos MSI", amount: overview.creditSummary.monthMsiExpense, toneClass: "text-indigo-700 dark:text-indigo-400" },
-              { title: "Gastos normales", amount: overview.creditSummary.monthNormalExpense, toneClass: "text-fuchsia-700 dark:text-fuchsia-400" },
+              { title: "Gastos normales", amount: overview.creditSummary.monthNormalExpense, toneClass: "text-fuchsia-700 dark:text-fuchsia-400" }
+            ]}
+            columns="sm:grid-cols-3"
+          />
+
+          <DashboardMetricCards
+            items={[
               { title: "Pendiente MSI", amount: overview.creditSummary.pendingMsi, toneClass: "text-indigo-700 dark:text-indigo-400" },
               { title: "Pendiente normal", amount: overview.creditSummary.pendingNormal, toneClass: "text-fuchsia-700 dark:text-fuchsia-400" }
             ]}
-            columns="sm:grid-cols-2 xl:grid-cols-4"
+            columns="sm:grid-cols-2"
           />
 
           <AccountsSection
@@ -277,11 +270,19 @@ export function AccountsOverview() {
         <div className="grid gap-4">
           <DashboardMetricCards
             items={[
-              { title: "Total efectivo", amount: overview.cashSummary.total },
-              { title: "Ingresos del mes efectivo", amount: overview.cashSummary.monthIncome },
-              { title: "Gastos del mes efectivo", amount: overview.cashSummary.monthExpense },
-              { title: "Neto del mes", amount: overview.cashSummary.monthNet }
+              { title: "Ingresos", amount: overview.cashSummary.monthIncome, toneClass: "text-emerald-700 dark:text-emerald-400" },
+              { title: "Gastos", amount: overview.cashSummary.monthExpense * -1, toneClass: "text-rose-700 dark:text-rose-400" },
+              { title: "Transferencias ingreso", amount: cashTotals.transferIn, toneClass: "text-emerald-700 dark:text-emerald-400" }
             ]}
+            columns="sm:grid-cols-3"
+          />
+
+          <DashboardMetricCards
+            items={[
+              { title: "Transferencias gasto", amount: cashTotals.transferOut * -1, toneClass: "text-rose-700 dark:text-rose-400" },
+              { title: "Total efectivo", amount: overview.cashSummary.total }
+            ]}
+            columns="sm:grid-cols-2"
           />
 
           <AccountsSection
@@ -294,16 +295,18 @@ export function AccountsOverview() {
           />
         </div>
       </DashboardFoldSection>
+        </>
+      )}
     </div>
   );
 }
 
 function DashboardOverviewSkeleton() {
   return (
-    <section className="grid gap-4">
-      <div className="h-28 animate-pulse rounded-2xl border border-default bg-[var(--color-surface-1)]" aria-hidden="true" />
-      <div className="grid gap-3 sm:grid-cols-2">
-        {Array.from({ length: 2 }).map((_, index) => (
+    <section className="grid gap-4" aria-busy="true">
+      <span className="sr-only">Cargando resumen del dashboard</span>
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        {Array.from({ length: 6 }).map((_, index) => (
           <div
             key={index}
             className="h-28 animate-pulse rounded-2xl border border-default bg-[var(--color-surface-1)]"
@@ -311,7 +314,7 @@ function DashboardOverviewSkeleton() {
           />
         ))}
       </div>
-      <div className="grid gap-4 xl:grid-cols-2">
+      <div className="grid gap-4">
         {Array.from({ length: 4 }).map((_, index) => (
           <div
             key={index}
@@ -320,8 +323,6 @@ function DashboardOverviewSkeleton() {
           />
         ))}
       </div>
-      <div className="h-28 animate-pulse rounded-2xl border border-default bg-[var(--color-surface-1)]" aria-hidden="true" />
-      <div className="h-28 animate-pulse rounded-2xl border border-default bg-[var(--color-surface-1)]" aria-hidden="true" />
     </section>
   );
 }

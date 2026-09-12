@@ -1,3 +1,5 @@
+const MONTH_TIMEZONE = "America/Mexico_City";
+
 export function currentLocalDateTimeInput(): string {
   const now = new Date();
   const year = now.getFullYear();
@@ -13,9 +15,21 @@ export function parseTagsInput(input: string): string[] {
 }
 
 export function currentMonthInput(): string {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const formatter = new Intl.DateTimeFormat("en-CA", {
+    timeZone: MONTH_TIMEZONE,
+    year: "numeric",
+    month: "2-digit"
+  });
+
+  const parts = formatter.formatToParts(new Date());
+  const year = parts.find((part) => part.type === "year")?.value;
+  const month = parts.find((part) => part.type === "month")?.value;
+
+  if (!year || !month) {
+    const now = new Date();
+    return `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}`;
+  }
+
   return `${year}-${month}`;
 }
 

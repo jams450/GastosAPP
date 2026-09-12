@@ -1,5 +1,6 @@
 import { createPortal } from "react-dom";
 import { useEffect, useId, useRef, useState } from "react";
+import type { ReactNode } from "react";
 import type { DashboardViewMode } from "@/app/dashboard/_components/dashboard-view-mode";
 import { formatAmount } from "@/app/dashboard/_components/dashboard-format";
 import type { DashboardAccountOverview } from "@/lib/contracts/dashboard";
@@ -186,7 +187,9 @@ export function AccountCard({ account, viewMode, timezone }: AccountCardProps) {
   return (
     <article
       className={isDetailLike
-        ? "border-b border-slate-200 px-1 py-6 last:border-b-0 dark:border-slate-800"
+        ? account.isCredit
+          ? "border-b border-slate-200 px-1 py-6 last:border-b-0 dark:border-slate-800"
+          : "border-b border-slate-200 px-1 py-4 last:border-b-0 dark:border-slate-800"
         : "rounded-2xl border border-slate-200 bg-white p-4 transition hover:border-sky-300 hover:shadow-sm dark:border-slate-800 dark:bg-slate-950 dark:hover:border-sky-600"}
     >
       <CardHeader account={account} viewMode={viewMode} />
@@ -204,13 +207,14 @@ function CardHeader({
   viewMode: DashboardViewMode;
 }) {
   const isDetail = viewMode === "detail" || viewMode === "headers";
+  const isCashDetail = isDetail && !account.isCredit;
   const isTwoColumns = viewMode === "grid2";
   const isThreeColumns = viewMode === "grid3";
 
   return (
-    <header className={isDetail ? "mb-5 grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start" : isTwoColumns || isThreeColumns ? "mb-3 space-y-2" : "mb-3 grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start"}>
+    <header className={isDetail ? isCashDetail ? "mb-3 grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start" : "mb-5 grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start" : isTwoColumns || isThreeColumns ? "mb-3 space-y-2" : "mb-3 grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start"}>
       <div className={isDetail || isTwoColumns || isThreeColumns ? "min-w-0" : "min-w-0 flex-1"}>
-        <p className={isDetail ? "m-0 truncate text-xl font-semibold text-slate-900 dark:text-slate-100" : "m-0 truncate text-base font-semibold text-slate-900 dark:text-slate-100"}>{account.name}</p>
+        <p className={isDetail ? "m-0 line-clamp-2 text-xl font-semibold text-slate-900 dark:text-slate-100" : "m-0 line-clamp-2 text-base font-semibold text-slate-900 dark:text-slate-100"}>{account.name}</p>
         <p className={isDetail ? "mt-1 text-sm text-slate-500 dark:text-slate-400" : "mt-1 text-xs text-slate-500 dark:text-slate-400"}>
           {account.isCredit ? "Crédito" : "Efectivo"} · {account.active ? "Activa" : "Inactiva"}
         </p>
@@ -227,7 +231,7 @@ function DetailContent({ account, timezone }: { account: DashboardAccountOvervie
       {account.isCredit ? (
         <CreditDetails account={account} timezone={timezone} />
       ) : (
-        <div className="grid gap-x-8 gap-y-4 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="grid gap-x-6 gap-y-3 sm:grid-cols-2 xl:grid-cols-4">
           <Kpi label="Saldo actual" value={account.currentBalance} toneClass={getBalanceToneClass(account.currentBalance)} plain />
           <Kpi label="Apertura mes" value={account.openingBalance} plain />
           <Kpi label="Ingresos mes" value={account.monthIncome} toneClass="text-emerald-700 dark:text-emerald-400" plain />
@@ -249,7 +253,7 @@ function CompactContent({ account, viewMode }: { account: DashboardAccountOvervi
       {account.isCredit ? (
         <Kpi
           label={isThreeColumns ? "Deuda" : "Deuda total"}
-          value={((account.creditLimit ?? 0) - account.currentBalance) * -1}
+          value={(account.creditLimit ?? 0) - account.currentBalance}
           toneClass="text-rose-700 dark:text-rose-400"
           compact
         />
@@ -273,16 +277,17 @@ function TopHeaderMetrics({
   viewMode: DashboardViewMode;
 }) {
   const isDetail = viewMode === "detail" || viewMode === "headers";
+  const isCashDetail = isDetail && !account.isCredit;
   const isTwoColumns = viewMode === "grid2";
   const isThreeColumns = viewMode === "grid3";
 
   return account.isCredit ? (
-    <div className={isDetail ? "grid w-full gap-2 sm:grid-cols-2 lg:min-w-[28rem]" : isTwoColumns ? "grid w-full grid-cols-2 gap-2" : isThreeColumns ? "grid w-full grid-cols-2 gap-2" : "grid w-full gap-2 sm:w-auto sm:grid-cols-2"}>
+    <div className={isDetail ? "grid w-full gap-2 sm:grid-cols-2 lg:min-w-[28rem]" : isTwoColumns || isThreeColumns ? "grid w-full grid-cols-1 gap-2 sm:grid-cols-2" : "grid w-full gap-2 sm:w-auto sm:grid-cols-2"}>
       <HeaderMetric label="Límite de crédito" value={account.creditLimit ?? 0} toneClass={getBalanceToneClass(account.creditLimit ?? 0)} large={isDetail} />
       <HeaderMetric label="Saldo actual" value={account.currentBalance} toneClass={getBalanceToneClass(account.currentBalance)} large={isDetail} />
     </div>
   ) : (
-    <div className={isDetail ? "grid w-full gap-2 sm:grid-cols-2 lg:min-w-[20rem]" : isTwoColumns ? "grid w-full grid-cols-2 gap-2" : isThreeColumns ? "grid w-full grid-cols-2 gap-2" : "grid w-full gap-2 sm:w-auto sm:grid-cols-2"}>
+    <div className={isCashDetail ? "grid w-full gap-1.5 sm:grid-cols-2 lg:min-w-[16rem]" : isTwoColumns ? "grid w-full grid-cols-2 gap-2" : isThreeColumns ? "grid w-full grid-cols-2 gap-2" : "grid w-full gap-2 sm:w-auto sm:grid-cols-2"}>
       <HeaderMetric label="Cierre" value={account.closingBalance} toneClass={getBalanceToneClass(account.closingBalance)} large={isDetail} />
       <HeaderMetric label="Neto mes" value={account.monthNet} toneClass={getBalanceToneClass(account.monthNet)} large={isDetail} />
     </div>
@@ -312,7 +317,9 @@ function HeaderMetric({
 }
 
 function CreditDetails({ account, timezone }: { account: DashboardAccountOverview; timezone: string }) {
-  const debt = ((account.creditLimit ?? 0) - account.closingBalance) * -1;
+  const debt = (account.creditLimit ?? 0) - account.currentBalance;
+  const incomeTotal = account.monthIncome + account.monthTransferIn;
+  const expenseTotal = account.monthExpense + account.monthTransferOut;
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -463,30 +470,34 @@ function CreditDetails({ account, timezone }: { account: DashboardAccountOvervie
 
   return (
     <>
-      <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Kpi label="Apertura mes" value={account.openingBalance} plain />
-        <Kpi label="Cierre mes" value={account.closingBalance} toneClass={getBalanceToneClass(account.closingBalance)} plain />
-        <Kpi label="Neto" value={account.monthNet} toneClass={getBalanceToneClass(account.monthNet)} plain />
-        <Kpi label="Deuda" value={debt} toneClass="text-rose-700 dark:text-rose-400" plain />
+      <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <CreditSection title="Balance">
+          <Kpi dense label="Apertura" value={account.openingBalance} plain />
+          <Kpi dense label="Cierre" value={account.closingBalance} toneClass={getBalanceToneClass(account.closingBalance)} plain />
+          <Kpi dense label="Neto" value={account.monthNet} toneClass={getBalanceToneClass(account.monthNet)} plain />
+          <Kpi dense label="Deuda" value={debt} toneClass="text-rose-700 dark:text-rose-400" plain />
+        </CreditSection>
+        <CreditSection title="Movimiento">
+          <Kpi dense label="Ingresos +" value={incomeTotal} toneClass="text-emerald-700 dark:text-emerald-400" plain />
+          <Kpi dense label="Gastos -" value={expenseTotal * -1} toneClass="text-rose-700 dark:text-rose-400" plain />
+        </CreditSection>
+        <CreditSection title="Compromisos">
+          <Kpi dense label="Pend. MSI" value={account.msiOutstanding} toneClass="text-indigo-700 dark:text-indigo-400" plain />
+          <Kpi dense label="Pend. normal" value={account.normalOutstanding} toneClass="text-fuchsia-700 dark:text-fuchsia-400" plain />
+        </CreditSection>
+        <CreditSection title="Corte">
+          <Kpi dense label="Día de corte" value={account.cutoffDay ?? "No definido"} plain formatAsCurrency={false} />
+          <Kpi dense label="Pago límite" value={account.paymentDueDay ?? "No definido"} plain formatAsCurrency={false} />
+          <Kpi dense label="Pago estimado" value={account.estimatedCutoffCharges} toneClass="text-amber-700 dark:text-amber-400" plain />
+          <Kpi dense label="Pagos realizados" value={account.cutoffPayments} toneClass="text-emerald-700 dark:text-emerald-400" plain />
+          <Kpi dense label="Pendiente del corte" value={account.cutoffPending * -1} toneClass="text-rose-700 dark:text-rose-400" plain fullWidth />
+        </CreditSection>
+      </div>
 
-        <Kpi label="Ingresos del mes" value={account.monthIncome} toneClass="text-emerald-700 dark:text-emerald-400" plain />
-        <Kpi label="Gastos del mes" value={account.monthExpense * -1} toneClass="text-rose-700 dark:text-rose-400" plain />
-        <Kpi label="Transferencias +" value={account.monthTransferIn} toneClass="text-emerald-700 dark:text-emerald-400" plain />
-        <Kpi label="Transferencias -" value={account.monthTransferOut * -1} toneClass="text-rose-700 dark:text-rose-400" plain />
-
-        <Kpi label="Pendiente MSI" value={account.msiOutstanding} toneClass="text-indigo-700 dark:text-indigo-400" plain />
-        <Kpi label="Pendiente normal" value={account.normalOutstanding} toneClass="text-fuchsia-700 dark:text-fuchsia-400" plain />
-        <Kpi label="Día de corte" value={account.cutoffDay ?? "No definido"} plain formatAsCurrency={false} />
-        <Kpi label="Pago límite" value={account.paymentDueDay ?? "No definido"} plain formatAsCurrency={false} />
-
-        <Kpi label="Pago estimado del corte" value={account.estimatedCutoffCharges} toneClass="text-amber-700 dark:text-amber-400" plain />
-        <Kpi label="Pagos realizados" value={account.cutoffPayments} toneClass="text-emerald-700 dark:text-emerald-400" plain />
-        <Kpi label="Pendiente del corte" value={account.cutoffPending * -1} toneClass="text-rose-700 dark:text-rose-400" plain />
-        <div className="xl:justify-self-end self-end">
-          <Button ref={openButtonRef} type="button" variant="ghost" className="h-9 w-full border-blue-400/60 bg-blue-500/15 text-blue-700 hover:border-blue-500/70 hover:bg-blue-500/25 hover:text-blue-800 dark:border-blue-700/60 dark:bg-blue-500/25 dark:text-blue-300 dark:hover:border-blue-500/70 dark:hover:bg-blue-500/35 dark:hover:text-blue-100 sm:w-auto xl:min-w-[14rem]" onClick={() => void openPendingModal()}>
-            Ver cargos pendientes
-          </Button>
-        </div>
+      <div className="mt-3 flex justify-end">
+        <Button ref={openButtonRef} type="button" variant="ghost" className="h-8 w-full border-blue-400/60 bg-blue-500/15 px-3 text-xs text-blue-700 hover:border-blue-500/70 hover:bg-blue-500/25 hover:text-blue-800 dark:border-blue-700/60 dark:bg-blue-500/25 dark:text-blue-300 dark:hover:border-blue-500/70 dark:hover:bg-blue-500/35 dark:hover:text-blue-100 sm:w-auto" onClick={() => void openPendingModal()}>
+          Ver cargos pendientes
+        </Button>
       </div>
 
       {open && portalRoot ? createPortal(
@@ -520,6 +531,15 @@ function CreditDetails({ account, timezone }: { account: DashboardAccountOvervie
         portalRoot
       ) : null}
     </>
+  );
+}
+
+function CreditSection({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <section className="rounded-xl border border-slate-200 bg-slate-50/70 p-2.5 dark:border-slate-800 dark:bg-slate-900/40">
+      <p className="m-0 mb-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-500 dark:text-slate-400">{title}</p>
+      <div className="grid grid-cols-2 gap-x-4 gap-y-2">{children}</div>
+    </section>
   );
 }
 
@@ -605,6 +625,8 @@ function Kpi({
   toneClass,
   compact = false,
   plain = false,
+  dense = false,
+  fullWidth = false,
   formatAsCurrency = true
 }: {
   label: string;
@@ -612,19 +634,25 @@ function Kpi({
   toneClass?: string;
   compact?: boolean;
   plain?: boolean;
+  dense?: boolean;
+  fullWidth?: boolean;
   formatAsCurrency?: boolean;
 }) {
   const formattedValue = typeof value === "number" ? (formatAsCurrency ? formatAmount(value) : String(value)) : value;
 
   return (
-    <div className={plain
+    <div className={`${plain
       ? "px-0 py-0"
       : compact
         ? "rounded-xl bg-slate-50 px-3 py-2 dark:bg-slate-900"
-        : "rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 dark:border-slate-700 dark:bg-slate-900"}
+        : "rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 dark:border-slate-700 dark:bg-slate-900"}${fullWidth ? " col-span-2" : ""}`}
     >
-      <p className={plain ? "m-0 text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400" : "m-0 text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400"}>{label}</p>
-      <p className={`m-0 ${plain ? "text-lg" : compact ? "text-sm" : "text-base"} font-semibold ${toneClass ?? "text-slate-900 dark:text-slate-100"}`}>
+      <p className={dense
+        ? "m-0 text-[10px] uppercase tracking-wide text-slate-500 dark:text-slate-400"
+        : plain
+          ? "m-0 text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400"
+          : "m-0 text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400"}>{label}</p>
+      <p className={`m-0 ${dense ? "text-sm" : plain ? "text-lg" : compact ? "text-sm" : "text-base"} font-semibold ${toneClass ?? "text-slate-900 dark:text-slate-100"}`}>
         {formattedValue}
       </p>
     </div>

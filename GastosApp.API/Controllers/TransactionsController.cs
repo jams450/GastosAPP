@@ -94,6 +94,16 @@ namespace GastosApp.API.Controllers
             return Ok(transactions.Select(MapTransaction));
         }
 
+        [HttpGet("account/{accountId}/month")]
+        public async Task<IActionResult> GetByMonth(
+            int accountId,
+            [FromQuery] string? month)
+        {
+            var userId = GetCurrentUserId();
+            var transactions = await _transactionService.GetByMonthForUserAsync(accountId, userId, month);
+            return Ok(transactions.Select(MapTransaction));
+        }
+
         [HttpGet("category/{categoryId}")]
         public async Task<IActionResult> GetByCategory(int categoryId)
         {

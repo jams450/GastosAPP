@@ -261,9 +261,8 @@ month_agg AS (
         coalesce(sum(CASE
             WHEN t.transaction_date >= p_month_start
              AND t.transaction_date < p_next_month_start
-             AND lower(t.type) = 'income'
-             AND a.is_credit = FALSE
-            THEN t.amount
+              AND lower(t.type) = 'income'
+             THEN t.amount
             ELSE 0
         END), 0) AS month_income,
         coalesce(sum(CASE

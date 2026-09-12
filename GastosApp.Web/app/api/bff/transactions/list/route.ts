@@ -173,15 +173,6 @@ function currentMonth(timezone = TRANSACTIONS_TIMEZONE) {
   return `${year}-${monthFallback}`;
 }
 
-function getMonthRangeUtc(month: string): { startIso: string; endIso: string } {
-  const [yearText, monthText] = month.split("-");
-  const year = Number(yearText);
-  const monthNumber = Number(monthText);
-  const startUtc = new Date(Date.UTC(year, monthNumber - 1, 1, 0, 0, 0, 0));
-  const endUtc = new Date(Date.UTC(year, monthNumber, 0, 23, 59, 59, 999));
-  return { startIso: startUtc.toISOString(), endIso: endUtc.toISOString() };
-}
-
 export async function GET(request: Request) {
   const traceId = request.headers.get("x-request-id") ?? request.headers.get("x-correlation-id") ?? crypto.randomUUID();
   const startedAt = Date.now();
@@ -227,11 +218,10 @@ export async function GET(request: Request) {
         .filter((value): value is { accountId: number; name: string; isCredit: boolean } => value !== null)
     : [];
 
-  const { startIso, endIso } = getMonthRangeUtc(month);
   const accountRequests = accounts.map(async (account) => {
     const call = await fetchApiWithAutoRefresh(
       authSession,
-      `${getApiBaseUrl()}/api/transactions/account/${account.accountId}/date-range?startDate=${encodeURIComponent(startIso)}&endDate=${encodeURIComponent(endIso)}`,
+      `${getApiBaseUrl()}/api/transactions/account/${account.accountId}/month?month=${encodeURIComponent(month)}`,
       {
         method: "GET",
         cache: "no-store"

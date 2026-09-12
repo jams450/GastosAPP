@@ -54,6 +54,16 @@ namespace GastosApp.BusinessLogic.Services
                 .ToListAsync();
         }
 
+        public async Task<IEnumerable<Transaction>> GetByMonthForUserAsync(int accountId, int userId, string? month)
+        {
+            var (_, _, monthStartUtc, nextMonthStartUtc) = MonthRangeResolver.ResolveUtcRange(month, MonthRangeResolver.DefaultTimezoneId);
+
+            return await BuildBaseQuery(t => t.AccountId == accountId && t.Account.UserId == userId &&
+                    t.TransactionDate >= monthStartUtc && t.TransactionDate < nextMonthStartUtc)
+                .OrderByDescending(t => t.TransactionDate)
+                .ToListAsync();
+        }
+
         public async Task<PagedTransactions> QueryByAccountForUserAsync(int accountId, int userId, TransactionQuery query)
         {
             var transactions = BuildBaseQuery(t => t.AccountId == accountId && t.Account.UserId == userId);

@@ -108,11 +108,14 @@ export type DashboardBreakdownItem = {
   id: number | null;
   name: string;
   amount: number;
+  cashAmount: number;
+  creditAmount: number;
 };
 
 export type DashboardGeneralSummary = {
   monthIncome: number;
   monthExpense: number;
+  monthFinancialNet: number;
 };
 
 export type DashboardCharts = {
@@ -120,7 +123,9 @@ export type DashboardCharts = {
   expenseBySubcategory: DashboardBreakdownItem[];
   incomeByAccount: DashboardBreakdownItem[];
   expenseByAccount: DashboardBreakdownItem[];
+  // Sin uso en la UI del dashboard (se conserva por compatibilidad).
   transferInByAccount: DashboardBreakdownItem[];
+  // Sin uso en la UI del dashboard (se conserva por compatibilidad).
   transferOutByAccount: DashboardBreakdownItem[];
 };
 
@@ -129,6 +134,7 @@ export type DashboardCreditSectionSummary = {
   monthIncome: number;
   monthExpense: number;
   monthNet: number;
+  monthFinancialNet: number;
   transferIn: number;
   transferOut: number;
   monthMsiExpense: number;
@@ -142,6 +148,7 @@ export type DashboardCashSectionSummary = {
   monthIncome: number;
   monthExpense: number;
   monthNet: number;
+  monthFinancialNet: number;
 };
 
 export type DashboardOverviewResponse = {
@@ -162,7 +169,9 @@ function normalizeBreakdownItem(input: unknown): DashboardBreakdownItem | null {
   return {
     id: toOptionalInt(input.id),
     name: typeof input.name === "string" && input.name.trim().length > 0 ? input.name.trim() : "Sin nombre",
-    amount: toFiniteNumber(input.amount)
+    amount: toFiniteNumber(input.amount),
+    cashAmount: toFiniteNumber(input.cashAmount),
+    creditAmount: toFiniteNumber(input.creditAmount)
   };
 }
 
@@ -179,7 +188,8 @@ export function normalizeDashboardOverview(input: unknown): DashboardOverviewRes
       timezone: "America/Mexico_City",
       generalSummary: {
         monthIncome: 0,
-        monthExpense: 0
+        monthExpense: 0,
+        monthFinancialNet: 0
       },
       charts: {
         expenseByCategory: [],
@@ -194,6 +204,7 @@ export function normalizeDashboardOverview(input: unknown): DashboardOverviewRes
         monthIncome: 0,
         monthExpense: 0,
         monthNet: 0,
+        monthFinancialNet: 0,
         transferIn: 0,
         transferOut: 0,
         monthMsiExpense: 0,
@@ -205,7 +216,8 @@ export function normalizeDashboardOverview(input: unknown): DashboardOverviewRes
         total: 0,
         monthIncome: 0,
         monthExpense: 0,
-        monthNet: 0
+        monthNet: 0,
+        monthFinancialNet: 0
       },
       accounts: []
     };
@@ -224,7 +236,11 @@ export function normalizeDashboardOverview(input: unknown): DashboardOverviewRes
     timezone: typeof input.timezone === "string" ? input.timezone : "America/Mexico_City",
     generalSummary: {
       monthIncome: toFiniteNumber(generalSummaryInput.monthIncome),
-      monthExpense: toFiniteNumber(generalSummaryInput.monthExpense)
+      monthExpense: toFiniteNumber(generalSummaryInput.monthExpense),
+      monthFinancialNet: toFiniteNumber(
+        generalSummaryInput.monthFinancialNet ??
+          toFiniteNumber(generalSummaryInput.monthIncome) - toFiniteNumber(generalSummaryInput.monthExpense)
+      )
     },
     charts: {
       expenseByCategory: normalizeBreakdownCollection(chartsInput.expenseByCategory),
@@ -239,6 +255,10 @@ export function normalizeDashboardOverview(input: unknown): DashboardOverviewRes
       monthIncome: toFiniteNumber(creditSummaryInput.monthIncome),
       monthExpense: toFiniteNumber(creditSummaryInput.monthExpense),
       monthNet: toFiniteNumber(creditSummaryInput.monthNet),
+      monthFinancialNet: toFiniteNumber(
+        creditSummaryInput.monthFinancialNet ??
+          toFiniteNumber(creditSummaryInput.monthIncome) - toFiniteNumber(creditSummaryInput.monthExpense)
+      ),
       transferIn: toFiniteNumber(creditSummaryInput.transferIn),
       transferOut: toFiniteNumber(creditSummaryInput.transferOut),
       monthMsiExpense: toFiniteNumber(creditSummaryInput.monthMsiExpense),
@@ -250,7 +270,11 @@ export function normalizeDashboardOverview(input: unknown): DashboardOverviewRes
       total: toFiniteNumber(cashSummaryInput.total),
       monthIncome: toFiniteNumber(cashSummaryInput.monthIncome),
       monthExpense: toFiniteNumber(cashSummaryInput.monthExpense),
-      monthNet: toFiniteNumber(cashSummaryInput.monthNet)
+      monthNet: toFiniteNumber(cashSummaryInput.monthNet),
+      monthFinancialNet: toFiniteNumber(
+        cashSummaryInput.monthFinancialNet ??
+          toFiniteNumber(cashSummaryInput.monthIncome) - toFiniteNumber(cashSummaryInput.monthExpense)
+      )
     },
     accounts
   };

@@ -38,6 +38,7 @@ namespace GastosApp.BusinessLogic.Services
         public Task<IEnumerable<Transaction>> GetAllByAccountIdForUserAsync(int accountId, int userId) => _queryService.GetAllByAccountIdForUserAsync(accountId, userId);
         public Task<IEnumerable<Transaction>> GetByDateRangeAsync(int accountId, DateTime startDate, DateTime endDate) => _queryService.GetByDateRangeAsync(accountId, startDate, endDate);
         public Task<IEnumerable<Transaction>> GetByDateRangeForUserAsync(int accountId, int userId, DateTime startDate, DateTime endDate) => _queryService.GetByDateRangeForUserAsync(accountId, userId, startDate, endDate);
+        public Task<IEnumerable<Transaction>> GetByMonthForUserAsync(int accountId, int userId, string? month) => _queryService.GetByMonthForUserAsync(accountId, userId, month);
         public Task<IEnumerable<Transaction>> GetByCategoryAsync(int categoryId) => _queryService.GetByCategoryAsync(categoryId);
         public Task<IEnumerable<Transaction>> GetByCategoryForUserAsync(int categoryId, int userId) => _queryService.GetByCategoryForUserAsync(categoryId, userId);
         public Task<PagedTransactions> QueryByAccountForUserAsync(int accountId, int userId, TransactionQuery query) => _queryService.QueryByAccountForUserAsync(accountId, userId, query);

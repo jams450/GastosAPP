@@ -1,4 +1,3 @@
-using System.Globalization;
 using GastosApp.BusinessLogic.Interfaces;
 using GastosApp.BusinessLogic.Models.Dashboard;
 using GastosApp.BusinessLogic.Models.Transactions;
@@ -21,15 +20,9 @@ namespace GastosApp.BusinessLogic.Services
             _repository = repository;
         }
 
-        public async Task<DashboardOverviewResponse> GetOverviewAsync(int userId, string? month, string timezoneId = "America/Mexico_City")
+        public async Task<DashboardOverviewResponse> GetOverviewAsync(int userId, string? month, string timezoneId = MonthRangeResolver.DefaultTimezoneId)
         {
-            var (year, monthNumber, timezone) = ResolveMonth(month, timezoneId);
-            var monthStart = TimeZoneInfo.ConvertTimeToUtc(
-                new DateTime(year, monthNumber, 1, 0, 0, 0, DateTimeKind.Unspecified),
-                timezone);
-            var nextMonthStart = TimeZoneInfo.ConvertTimeToUtc(
-                new DateTime(year, monthNumber, 1, 0, 0, 0, DateTimeKind.Unspecified).AddMonths(1),
-                timezone);
+            var (year, monthNumber, monthStart, nextMonthStart) = MonthRangeResolver.ResolveUtcRange(month, timezoneId);
             var previousMonthDate = new DateTime(year, monthNumber, 1).AddMonths(-1);
             var daysInMonth = DateTime.DaysInMonth(year, monthNumber);
             var previousDaysInMonth = DateTime.DaysInMonth(previousMonthDate.Year, previousMonthDate.Month);
@@ -47,7 +40,9 @@ namespace GastosApp.BusinessLogic.Services
 
             var accounts = accountRows.Adapt<List<DashboardAccountOverview>>();
             var monthTransactions = await QueryMonthTransactionsAsync(userId, monthStart, nextMonthStart);
+            var accountCreditTypes = await QueryUserAccountCreditTypesAsync(userId);
             var monthCreditCharges = await QueryMonthCreditChargesAsync(userId, monthStart, nextMonthStart);
+            var financialSummary = CalculateFinancialSummary(monthTransactions, accountCreditTypes);
 
             var creditAccounts = accounts.Where(a => a.IsCredit).ToList();
             var cashAccounts = accounts.Where(a => !a.IsCredit).ToList();
@@ -58,8 +53,9 @@ namespace GastosApp.BusinessLogic.Services
                 Timezone = timezoneId,
                 GeneralSummary = new DashboardGeneralSummary
                 {
-                    MonthIncome = accounts.Sum(a => a.MonthIncome),
-                    MonthExpense = accounts.Sum(a => a.MonthExpense)
+                    MonthIncome = financialSummary.CashIncome + financialSummary.CreditIncome,
+                    MonthExpense = financialSummary.CashExpense + financialSummary.CreditExpense,
+                    MonthFinancialNet = financialSummary.CashFinancialNet + financialSummary.CreditFinancialNet
                 },
                 Charts = new DashboardCharts
                 {
@@ -71,7 +67,9 @@ namespace GastosApp.BusinessLogic.Services
                             {
                                 Id = g.Key.CategoryId,
                                 Name = g.Key.CategoryName,
-                                Amount = g.Sum(t => t.Amount)
+                                Amount = g.Sum(t => t.Amount),
+                                CashAmount = g.Where(t => !t.Account.IsCredit).Sum(t => t.Amount),
+                                CreditAmount = g.Where(t => t.Account.IsCredit).Sum(t => t.Amount)
                             }),
                         CategoryTopLimit),
                     ExpenseBySubcategory = BuildBreakdown(
@@ -82,31 +80,14 @@ namespace GastosApp.BusinessLogic.Services
                             {
                                 Id = g.Key.SubcategoryId,
                                 Name = g.Key.SubcategoryName,
-                                Amount = g.Sum(t => t.Amount)
+                                Amount = g.Sum(t => t.Amount),
+                                CashAmount = g.Where(t => !t.Account.IsCredit).Sum(t => t.Amount),
+                                CreditAmount = g.Where(t => t.Account.IsCredit).Sum(t => t.Amount)
                             }),
                         SubcategoryTopLimit),
-                    IncomeByAccount = BuildBreakdown(
-                        monthTransactions
-                            .Where(t => IsTransactionType(t.Type, TransactionDomainConstants.TransactionType.Income))
-                            .GroupBy(t => new { t.AccountId, t.Account.Name })
-                            .Select(g => new DashboardBreakdownItem
-                            {
-                                Id = g.Key.AccountId,
-                                Name = g.Key.Name,
-                                Amount = g.Sum(t => t.Amount)
-                            }),
-                        AccountTopLimit),
-                    ExpenseByAccount = BuildBreakdown(
-                        monthTransactions
-                            .Where(t => IsTransactionType(t.Type, TransactionDomainConstants.TransactionType.Expense))
-                            .GroupBy(t => new { t.AccountId, t.Account.Name })
-                            .Select(g => new DashboardBreakdownItem
-                            {
-                                Id = g.Key.AccountId,
-                                Name = g.Key.Name,
-                                Amount = g.Sum(t => t.Amount)
-                            }),
-                        AccountTopLimit),
+                    IncomeByAccount = BuildAccountBreakdown(financialSummary.IncomeByAccount, accounts),
+                    ExpenseByAccount = BuildAccountBreakdown(financialSummary.ExpenseByAccount, accounts),
+                    // Sin uso en la UI del dashboard (se conserva por compatibilidad).
                     TransferInByAccount = BuildBreakdown(
                         monthTransactions
                             .Where(t => IsTransactionType(t.Type, TransactionDomainConstants.TransactionType.Transfer) && t.BalanceImpact > 0)
@@ -118,6 +99,7 @@ namespace GastosApp.BusinessLogic.Services
                                 Amount = g.Sum(t => t.BalanceImpact)
                             }),
                         AccountTopLimit),
+                    // Sin uso en la UI del dashboard (se conserva por compatibilidad).
                     TransferOutByAccount = BuildBreakdown(
                         monthTransactions
                             .Where(t => IsTransactionType(t.Type, TransactionDomainConstants.TransactionType.Transfer) && t.BalanceImpact < 0)
@@ -133,9 +115,10 @@ namespace GastosApp.BusinessLogic.Services
                 CreditSummary = new DashboardCreditSectionSummary
                 {
                     TotalAvailable = creditAccounts.Sum(a => a.ClosingBalance),
-                    MonthIncome = creditAccounts.Sum(a => a.MonthIncome),
-                    MonthExpense = creditAccounts.Sum(a => a.MonthExpense),
+                    MonthIncome = financialSummary.CreditIncome,
+                    MonthExpense = financialSummary.CreditExpense,
                     MonthNet = creditAccounts.Sum(a => a.MonthNet),
+                    MonthFinancialNet = financialSummary.CreditFinancialNet,
                     TransferIn = monthTransactions
                         .Where(t => t.Account.IsCredit && IsTransactionType(t.Type, TransactionDomainConstants.TransactionType.Transfer) && t.BalanceImpact > 0)
                         .Sum(t => t.BalanceImpact),
@@ -154,9 +137,10 @@ namespace GastosApp.BusinessLogic.Services
                 CashSummary = new DashboardCashSectionSummary
                 {
                     Total = cashAccounts.Sum(a => a.ClosingBalance),
-                    MonthIncome = cashAccounts.Sum(a => a.MonthIncome),
-                    MonthExpense = cashAccounts.Sum(a => a.MonthExpense),
-                    MonthNet = cashAccounts.Sum(a => a.MonthNet)
+                    MonthIncome = financialSummary.CashIncome,
+                    MonthExpense = financialSummary.CashExpense,
+                    MonthNet = cashAccounts.Sum(a => a.MonthNet),
+                    MonthFinancialNet = financialSummary.CashFinancialNet
                 },
                 Accounts = accounts
             };
@@ -213,6 +197,160 @@ namespace GastosApp.BusinessLogic.Services
                 .ToListAsync();
         }
 
+        private async Task<Dictionary<int, bool>> QueryUserAccountCreditTypesAsync(int userId)
+        {
+            return await _repository.Get<Account>(a => a.UserId == userId)
+                .AsNoTracking()
+                .ToDictionaryAsync(a => a.AccountId, a => a.IsCredit);
+        }
+
+        private static DashboardFinancialSummary CalculateFinancialSummary(
+            IEnumerable<Transaction> transactions,
+            IReadOnlyDictionary<int, bool> accountCreditTypes)
+        {
+            var summary = new DashboardFinancialSummary();
+            var transactionList = transactions.ToList();
+
+            foreach (var transaction in transactionList)
+            {
+                if (!accountCreditTypes.TryGetValue(transaction.AccountId, out var isCredit))
+                {
+                    continue;
+                }
+
+                if (IsTransactionType(transaction.Type, TransactionDomainConstants.TransactionType.Income))
+                {
+                    summary.AddIncome(transaction.AccountId, isCredit, transaction.Amount);
+                }
+                else if (IsTransactionType(transaction.Type, TransactionDomainConstants.TransactionType.Expense))
+                {
+                    summary.AddExpense(transaction.AccountId, isCredit, transaction.Amount);
+                }
+            }
+
+            var pairedTransferIds = new HashSet<int>();
+            foreach (var transferGroup in transactionList
+                         .Where(t => IsTransactionType(t.Type, TransactionDomainConstants.TransactionType.Transfer) && t.TransferGroupId.HasValue)
+                         .GroupBy(t => t.TransferGroupId)
+                         .Where(g => g.Count() == 2))
+            {
+                var pair = transferGroup.ToList();
+                pairedTransferIds.UnionWith(pair.Select(t => t.TransactionId));
+                AddTransferFinancialImpact(summary, pair[0], pair[1], accountCreditTypes);
+            }
+
+            foreach (var transaction in transactionList.Where(t =>
+                         IsTransactionType(t.Type, TransactionDomainConstants.TransactionType.Transfer) &&
+                         !pairedTransferIds.Contains(t.TransactionId)))
+            {
+                AddTransferFinancialImpact(summary, transaction, accountCreditTypes);
+            }
+
+            return summary;
+        }
+
+        private static void AddTransferFinancialImpact(
+            DashboardFinancialSummary summary,
+            Transaction first,
+            Transaction second,
+            IReadOnlyDictionary<int, bool> accountCreditTypes)
+        {
+            if (!accountCreditTypes.TryGetValue(first.AccountId, out var firstIsCredit) ||
+                !accountCreditTypes.TryGetValue(second.AccountId, out var secondIsCredit) ||
+                firstIsCredit == secondIsCredit)
+            {
+                return;
+            }
+
+            Transaction source;
+            Transaction destination;
+            if (first.BalanceImpact < 0)
+            {
+                source = first;
+                destination = second;
+            }
+            else if (second.BalanceImpact < 0)
+            {
+                source = second;
+                destination = first;
+            }
+            else if (first.BalanceImpact > 0)
+            {
+                source = second;
+                destination = first;
+            }
+            else if (second.BalanceImpact > 0)
+            {
+                source = first;
+                destination = second;
+            }
+            else
+            {
+                source = first.TransactionId < second.TransactionId ? first : second;
+                destination = source == first ? second : first;
+            }
+
+            AddTransferFinancialImpact(summary, source.AccountId, destination.AccountId, source.Amount, accountCreditTypes);
+        }
+
+        private static void AddTransferFinancialImpact(
+            DashboardFinancialSummary summary,
+            Transaction transaction,
+            IReadOnlyDictionary<int, bool> accountCreditTypes)
+        {
+            if (!transaction.CounterpartyAccountId.HasValue)
+            {
+                return;
+            }
+
+            int sourceAccountId;
+            int destinationAccountId;
+            if (transaction.BalanceImpact < 0 ||
+                (transaction.BalanceImpact == 0 && string.Equals(transaction.Direction, "debit", StringComparison.OrdinalIgnoreCase)))
+            {
+                sourceAccountId = transaction.AccountId;
+                destinationAccountId = transaction.CounterpartyAccountId.Value;
+            }
+            else if (transaction.BalanceImpact > 0 ||
+                     (transaction.BalanceImpact == 0 && string.Equals(transaction.Direction, "credit", StringComparison.OrdinalIgnoreCase)))
+            {
+                sourceAccountId = transaction.CounterpartyAccountId.Value;
+                destinationAccountId = transaction.AccountId;
+            }
+            else
+            {
+                // Legacy zero-impact rows without Direction require the paired TransferGroupId row above.
+                return;
+            }
+
+            AddTransferFinancialImpact(summary, sourceAccountId, destinationAccountId, transaction.Amount, accountCreditTypes);
+        }
+
+        private static void AddTransferFinancialImpact(
+            DashboardFinancialSummary summary,
+            int sourceAccountId,
+            int destinationAccountId,
+            decimal amount,
+            IReadOnlyDictionary<int, bool> accountCreditTypes)
+        {
+            if (!accountCreditTypes.TryGetValue(sourceAccountId, out var sourceIsCredit) ||
+                !accountCreditTypes.TryGetValue(destinationAccountId, out var destinationIsCredit) ||
+                sourceIsCredit == destinationIsCredit)
+            {
+                return;
+            }
+
+            if (!sourceIsCredit && destinationIsCredit)
+            {
+                summary.AddExpense(sourceAccountId, false, amount);
+                summary.AddIncome(destinationAccountId, true, amount);
+            }
+            else if (sourceIsCredit)
+            {
+                summary.AddExpense(sourceAccountId, true, amount);
+            }
+        }
+
         private async Task<List<DashboardCreditChargeRow>> QueryMonthCreditChargesAsync(int userId, DateTime monthStart, DateTime nextMonthStart)
         {
             return await _repository.Get<CreditCharge>(c =>
@@ -229,6 +367,21 @@ namespace GastosApp.BusinessLogic.Services
                 .ToListAsync();
         }
 
+        private static List<DashboardBreakdownItem> BuildAccountBreakdown(
+            IReadOnlyDictionary<int, decimal> amounts,
+            IEnumerable<DashboardAccountOverview> accounts)
+        {
+            var accountNames = accounts.ToDictionary(a => a.AccountId, a => a.Name);
+            return BuildBreakdown(
+                amounts.Select(amount => new DashboardBreakdownItem
+                {
+                    Id = amount.Key,
+                    Name = accountNames.GetValueOrDefault(amount.Key, $"Cuenta {amount.Key}"),
+                    Amount = amount.Value
+                }),
+                AccountTopLimit);
+        }
+
         private static List<DashboardBreakdownItem> BuildBreakdown(IEnumerable<DashboardBreakdownItem> source, int? limit = null)
         {
             var ordered = source
@@ -243,7 +396,8 @@ namespace GastosApp.BusinessLogic.Services
             }
 
             var top = ordered.Take(limit.Value).ToList();
-            var othersAmount = ordered.Skip(limit.Value).Sum(x => x.Amount);
+            var others = ordered.Skip(limit.Value).ToList();
+            var othersAmount = others.Sum(x => x.Amount);
 
             if (othersAmount != 0)
             {
@@ -251,7 +405,9 @@ namespace GastosApp.BusinessLogic.Services
                 {
                     Id = null,
                     Name = "Otros",
-                    Amount = othersAmount
+                    Amount = othersAmount,
+                    CashAmount = others.Sum(x => x.CashAmount),
+                    CreditAmount = others.Sum(x => x.CreditAmount)
                 });
             }
 
@@ -263,41 +419,47 @@ namespace GastosApp.BusinessLogic.Services
             return string.Equals(actual, expected, StringComparison.OrdinalIgnoreCase);
         }
 
-        private static (int Year, int Month, TimeZoneInfo Timezone) ResolveMonth(string? month, string timezoneId)
-        {
-            var timezone = ResolveTimeZone(timezoneId);
-
-            if (!string.IsNullOrWhiteSpace(month))
-            {
-                if (DateTime.TryParseExact(month, "yyyy-MM", CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsed))
-                {
-                    return (parsed.Year, parsed.Month, timezone);
-                }
-
-                throw new ArgumentException("Month must use yyyy-MM format.");
-            }
-
-            var localNow = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, timezone);
-            return (localNow.Year, localNow.Month, timezone);
-        }
-
-        private static TimeZoneInfo ResolveTimeZone(string timezoneId)
-        {
-            try
-            {
-                return TimeZoneInfo.FindSystemTimeZoneById(timezoneId);
-            }
-            catch (TimeZoneNotFoundException)
-            {
-                return TimeZoneInfo.FindSystemTimeZoneById("Central Standard Time (Mexico)");
-            }
-        }
-
         private sealed class DashboardCreditChargeRow
         {
             public int AccountId { get; set; }
             public decimal Amount { get; set; }
             public string PlanType { get; set; } = TransactionDomainConstants.CreditPlanType.Revolving;
+        }
+
+        private sealed class DashboardFinancialSummary
+        {
+            public decimal CashIncome { get; private set; }
+            public decimal CashExpense { get; private set; }
+            public decimal CreditIncome { get; private set; }
+            public decimal CreditExpense { get; private set; }
+            public Dictionary<int, decimal> IncomeByAccount { get; } = [];
+            public Dictionary<int, decimal> ExpenseByAccount { get; } = [];
+            public decimal CashFinancialNet => CashIncome - CashExpense;
+            public decimal CreditFinancialNet => CreditIncome - CreditExpense;
+
+            public void AddIncome(int accountId, bool isCredit, decimal amount)
+            {
+                IncomeByAccount[accountId] = IncomeByAccount.GetValueOrDefault(accountId) + amount;
+                if (isCredit)
+                {
+                    CreditIncome += amount;
+                    return;
+                }
+
+                CashIncome += amount;
+            }
+
+            public void AddExpense(int accountId, bool isCredit, decimal amount)
+            {
+                ExpenseByAccount[accountId] = ExpenseByAccount.GetValueOrDefault(accountId) + amount;
+                if (isCredit)
+                {
+                    CreditExpense += amount;
+                    return;
+                }
+
+                CashExpense += amount;
+            }
         }
     }
 }

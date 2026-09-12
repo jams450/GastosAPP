@@ -11,6 +11,7 @@ namespace GastosApp.BusinessLogic.Interfaces
         Task<IEnumerable<Transaction>> GetAllByAccountIdForUserAsync(int accountId, int userId);
         Task<IEnumerable<Transaction>> GetByDateRangeAsync(int accountId, DateTime startDate, DateTime endDate);
         Task<IEnumerable<Transaction>> GetByDateRangeForUserAsync(int accountId, int userId, DateTime startDate, DateTime endDate);
+        Task<IEnumerable<Transaction>> GetByMonthForUserAsync(int accountId, int userId, string? month);
         Task<IEnumerable<Transaction>> GetByCategoryAsync(int categoryId);
         Task<IEnumerable<Transaction>> GetByCategoryForUserAsync(int categoryId, int userId);
         Task<PagedTransactions> QueryByAccountForUserAsync(int accountId, int userId, TransactionQuery query);
