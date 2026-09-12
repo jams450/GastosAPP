@@ -127,7 +127,7 @@ export function ExpenseClient({ username }: Props) {
 
   useEffect(() => {
     if (!successMessage) return;
-    successToast("Gasto registrado correctamente.");
+    successToast(successMessage);
     setSuccessMessage(null);
   }, [successMessage, successToast]);
 

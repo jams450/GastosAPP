@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { DataGrid } from "@/components/data-grid/data-grid";
 import { Alert } from "@/components/ui/alert";
@@ -57,6 +57,8 @@ export function HistoryPanel({
   const hasActiveFilters = filters.type !== "all" || filters.accountId !== "all" || filters.categoryId !== "all";
   const [isRegularOpen, setIsRegularOpen] = useState(true);
   const [isTransfersOpen, setIsTransfersOpen] = useState(true);
+  const regularSectionId = useId();
+  const transfersSectionId = useId();
 
   function updateType(value: string) {
     onFiltersChange({
@@ -97,7 +99,7 @@ export function HistoryPanel({
           </Button>
         </div>
 
-        <div className="grid gap-3 rounded-2xl border border-blue-200/60 bg-blue-50/35 p-4 dark:border-blue-900/50 dark:bg-blue-950/20">
+        <div className="app-panel grid gap-3 p-4">
           <div className="grid gap-3 md:grid-cols-3">
             <label className="text-muted grid gap-1 text-xs font-medium">
               Tipo
@@ -165,56 +167,66 @@ export function HistoryPanel({
       {historyError ? <Alert variant="danger">{historyError}</Alert> : null}
       {successMessage ? <Alert variant="info">{successMessage}</Alert> : null}
 
-      <div className="space-y-2 rounded-2xl border border-blue-200/60 bg-blue-50/35 p-3 dark:border-blue-900/50 dark:bg-blue-950/20">
+      <div className="app-panel min-w-0 space-y-2 p-3">
         <button
           type="button"
-          className="flex w-full items-center justify-between rounded-xl px-2 py-1.5 text-left hover:bg-[var(--color-accent-soft)]"
+          className="flex w-full items-center justify-between rounded-xl px-2 py-1.5 text-left transition hover:bg-[var(--color-accent-soft)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-border-focus)]"
           aria-expanded={isRegularOpen}
+          aria-controls={regularSectionId}
           onClick={() => setIsRegularOpen((current) => !current)}
         >
-          <span className="text-sm font-semibold text-blue-700 dark:text-blue-300">
+          <span className="text-sm font-semibold text-primary">
             Transacciones normales ({regularHistoryItems.length})
           </span>
-          <span className="text-xs font-semibold text-blue-700 dark:text-blue-300">{isRegularOpen ? "Ocultar" : "Mostrar"}</span>
+          <span className="text-xs font-semibold text-muted">{isRegularOpen ? "Ocultar" : "Mostrar"}</span>
         </button>
 
-        {isRegularOpen ? (
-          <DataGrid
-            columns={historyColumns}
-            rows={regularHistoryItems}
-            mode="client"
-            density="compact"
-            loading={historyLoading}
-            stickyActionsColumn
-            emptyMessage={hasActiveFilters ? "Sin resultados con filtros actuales" : "No hay transacciones normales en este mes"}
-          />
-        ) : null}
+        <div id={regularSectionId} className="min-w-0">
+          {isRegularOpen ? (
+            <DataGrid
+              columns={historyColumns}
+              rows={regularHistoryItems}
+              mode="client"
+              density="compact"
+              loading={historyLoading}
+              stickyActionsColumn
+              enableGlobalFilter
+              globalFilterPlaceholder="Buscar transacciones..."
+              emptyMessage={hasActiveFilters ? "Sin resultados con filtros actuales" : "No hay transacciones normales en este mes"}
+            />
+          ) : null}
+        </div>
       </div>
 
-      <div className="space-y-2 rounded-2xl border border-blue-200/60 bg-blue-50/35 p-3 dark:border-blue-900/50 dark:bg-blue-950/20">
+      <div className="app-panel min-w-0 space-y-2 p-3">
         <button
           type="button"
-          className="flex w-full items-center justify-between rounded-xl px-2 py-1.5 text-left hover:bg-[var(--color-accent-soft)]"
+          className="flex w-full items-center justify-between rounded-xl px-2 py-1.5 text-left transition hover:bg-[var(--color-accent-soft)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-border-focus)]"
           aria-expanded={isTransfersOpen}
+          aria-controls={transfersSectionId}
           onClick={() => setIsTransfersOpen((current) => !current)}
         >
-          <span className="text-sm font-semibold text-blue-700 dark:text-blue-300">
+          <span className="text-sm font-semibold text-primary">
             Transferencias por grupo ({transferGroups.length})
           </span>
-          <span className="text-xs font-semibold text-blue-700 dark:text-blue-300">{isTransfersOpen ? "Ocultar" : "Mostrar"}</span>
+          <span className="text-xs font-semibold text-muted">{isTransfersOpen ? "Ocultar" : "Mostrar"}</span>
         </button>
 
-        {isTransfersOpen ? (
-          <DataGrid
-            columns={transferColumns}
-            rows={transferGroups}
-            mode="client"
-            density="compact"
-            loading={historyLoading}
-            stickyActionsColumn
-            emptyMessage={hasActiveFilters ? "Sin resultados con filtros actuales" : "No hay transferencias en este mes"}
-          />
-        ) : null}
+        <div id={transfersSectionId} className="min-w-0">
+          {isTransfersOpen ? (
+            <DataGrid
+              columns={transferColumns}
+              rows={transferGroups}
+              mode="client"
+              density="compact"
+              loading={historyLoading}
+              stickyActionsColumn
+              enableGlobalFilter
+              globalFilterPlaceholder="Buscar transferencias..."
+              emptyMessage={hasActiveFilters ? "Sin resultados con filtros actuales" : "No hay transferencias en este mes"}
+            />
+          ) : null}
+        </div>
       </div>
     </div>
   );

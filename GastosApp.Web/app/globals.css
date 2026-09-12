@@ -91,15 +91,15 @@
 
 .dark {
   color-scheme: dark;
-  --tabler-page-bg: #060b16;
+  --tabler-page-bg: #0b0e14;
   --tabler-sidebar-bg: oklch(12.9% 0.042 264.695);
-  --tabler-surface-1: #090909;
-  --tabler-surface-2: #111111;
-  --tabler-surface-3: #171717;
-  --tabler-border: #262626;
-  --tabler-border-strong: #3f3f46;
-  --tabler-text: #f5f5f5;
-  --tabler-text-soft: #a1a1aa;
+  --tabler-surface-1: #12151c;
+  --tabler-surface-2: #171b24;
+  --tabler-surface-3: #1e232e;
+  --tabler-border: #2a3040;
+  --tabler-border-strong: #3b4354;
+  --tabler-text: #f1f3f7;
+  --tabler-text-soft: #a6adbb;
   --tabler-primary: #2563eb;
   --tabler-primary-hover: #3b82f6;
   --tabler-danger: #fb7185;
@@ -325,6 +325,51 @@ body {
   .table-cell {
     color: var(--color-text-primary);
     border-top: 1px solid var(--color-border);
+  }
+
+  /* Transaction semantic treatments — reuse state tokens, never color alone */
+  .txn-type-badge {
+    @apply inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-semibold leading-tight;
+  }
+
+  .txn-type-income {
+    border-color: color-mix(in srgb, var(--color-success) 42%, transparent);
+    background: color-mix(in srgb, var(--color-success) 16%, transparent);
+    color: var(--color-success);
+  }
+
+  .txn-type-expense {
+    border-color: color-mix(in srgb, var(--color-danger) 42%, transparent);
+    background: color-mix(in srgb, var(--color-danger) 16%, transparent);
+    color: var(--color-danger);
+  }
+
+  .txn-type-transfer {
+    border-color: color-mix(in srgb, var(--color-info) 42%, transparent);
+    background: color-mix(in srgb, var(--color-info) 16%, transparent);
+    color: var(--color-info);
+  }
+
+  .txn-type-opening {
+    border-color: color-mix(in srgb, var(--color-warning) 46%, transparent);
+    background: color-mix(in srgb, var(--color-warning) 18%, transparent);
+    color: var(--color-warning);
+  }
+
+  .txn-amount {
+    @apply font-semibold tabular-nums;
+  }
+
+  .txn-amount-income {
+    color: var(--color-success);
+  }
+
+  .txn-amount-expense {
+    color: var(--color-danger);
+  }
+
+  .txn-amount-transfer {
+    color: var(--color-info);
   }
 
   .tabler-card {

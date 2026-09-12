@@ -87,7 +87,7 @@ export function CreditAllocationSelector({
             </Button>
           </div>
 
-          <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800">
+          <div className="max-h-64 overflow-auto rounded-xl border border-slate-200 dark:border-slate-800">
             <table className="min-w-full text-xs">
               <thead className="bg-slate-100 text-slate-700 dark:bg-slate-900 dark:text-slate-200">
                 <tr>

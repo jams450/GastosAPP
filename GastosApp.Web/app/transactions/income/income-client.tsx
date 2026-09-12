@@ -7,11 +7,11 @@ import { IncomeSection } from "../_components/sections/income-section";
 import { useCreditAllocation } from "../_hooks/use-credit-allocation";
 import { useTransactionMutations } from "../_hooks/use-transaction-mutations";
 import { parseSelectedNumber } from "../_lib/transactions-utils";
-import type { ExpenseAllocationFormState, TransactionKind } from "../_lib/transactions-types";
+import type { TransactionKind } from "../_lib/transactions-types";
 import type { Account } from "@/lib/contracts/accounts";
 import type { Category } from "@/lib/contracts/categories";
 import type { Subcategory } from "@/lib/contracts/subcategories";
-import { createAllocationRow, resolveDefaultSelfBillablePartyId, buildIncomeScreenDefaults } from "../_shared/transactions-screen-shared";
+import { buildIncomeScreenDefaults } from "../_shared/transactions-screen-shared";
 import { useTransactionsCatalogs } from "../_shared/use-transactions-catalogs";
 import { TransactionsToastStack, useTransactionsToasts } from "../_shared/transactions-toasts";
 
@@ -41,17 +41,13 @@ export function IncomeClient({ username }: Props) {
   const destinationAccountId = null;
   const msiMonths = 1;
   const openingCreditCharge = false;
-  const defaultSelfBillablePartyId = resolveDefaultSelfBillablePartyId(catalogs);
-  const [expenseAllocations, setExpenseAllocations] = useState<ExpenseAllocationFormState[]>([
-    createAllocationRow(defaultSelfBillablePartyId, "100")
-  ]);
 
   useEffect(() => {
     if (!catalogs || accountId !== null || categoryId !== null) {
       return;
     }
 
-    setAccountId(catalogs.accounts[0]?.accountId ?? null);
+    setAccountId(catalogs.accounts.find((account) => !account.isCredit)?.accountId ?? null);
     setCategoryId(catalogs.categoriesByType.income[0]?.categoryId ?? null);
   }, [catalogs, accountId, categoryId]);
 
@@ -110,9 +106,9 @@ export function IncomeClient({ username }: Props) {
       amount,
       description,
       transactionDate,
-      msiMonths,
-      openingCreditCharge,
-      expenseAllocations
+       msiMonths,
+       openingCreditCharge
+
     },
     selectedAllocations,
     selectedAllocationTotal,
@@ -132,8 +128,7 @@ export function IncomeClient({ username }: Props) {
     setTransactionDate,
     setMsiMonths: () => {},
     setOpeningCreditCharge: () => {},
-    setExpenseAllocations,
-    defaultSelfBillablePartyId,
+
     clearAllocations,
     editForm: null,
     setEditSaving: () => {},
@@ -154,7 +149,7 @@ export function IncomeClient({ username }: Props) {
 
   useEffect(() => {
     if (!successMessage) return;
-    successToast("Ingreso registrado correctamente.");
+    successToast(successMessage);
     setSuccessMessage(null);
   }, [successMessage, successToast]);
 
@@ -195,8 +190,8 @@ export function IncomeClient({ username }: Props) {
             onTransactionDateChange: setTransactionDate,
               description,
               onDescriptionChange: setDescription,
-              submitError,
-              submitLoading,
+               submitLoading,
+
 
             onSubmit,
               parseSelectedNumber

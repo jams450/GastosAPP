@@ -1,8 +1,8 @@
 import { useMemo, useState } from "react";
 import type { FormEvent, ReactNode } from "react";
-import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 import { formatCurrency } from "@/lib/format/currency";
 import type { Account } from "@/lib/contracts/accounts";
 import type { Category } from "@/lib/contracts/categories";
@@ -32,7 +32,7 @@ type Props = {
   onTransactionDateChange: (value: string) => void;
   description: string;
   onDescriptionChange: (value: string) => void;
-  submitError: string | null;
+  submitError?: string | null;
   submitLoading: boolean;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
   parseSelectedNumber: (value: string) => number | null;
@@ -61,13 +61,12 @@ export function IncomeForm({
   onTransactionDateChange,
   description,
   onDescriptionChange,
-  submitError,
   submitLoading,
   onSubmit,
   parseSelectedNumber,
   creditAllocationSection
 }: Props) {
-  const [showOptional, setShowOptional] = useState(true);
+  const [showOptional, setShowOptional] = useState(false);
 
   const selectedCategoryName = useMemo(
     () => categoriesForKind.find((category) => category.categoryId === categoryId)?.name?.toLowerCase() ?? "",
@@ -123,47 +122,31 @@ export function IncomeForm({
     <form onSubmit={onSubmit} className="space-y-5">
       <header className="space-y-1">
         <h3 className="text-base font-semibold text-primary">Nuevo ingreso</h3>
-        <p className="text-xs text-blue-700 dark:text-blue-300">Completa obligatorios primero. Detalles opcionales después.</p>
+        <p className="text-xs text-muted">Completa obligatorios primero. Detalles opcionales después.</p>
       </header>
 
       <div className="grid gap-4 lg:grid-cols-2 lg:items-start">
-      <section className="space-y-4 rounded-2xl border border-emerald-200/70 bg-emerald-50/40 p-4 dark:border-emerald-900/60 dark:bg-emerald-950/30">
-        <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">Datos obligatorios</p>
+      <section className="app-panel space-y-4 border-[color-mix(in_srgb,var(--color-success)_35%,transparent)] bg-[color-mix(in_srgb,var(--color-success)_8%,var(--color-surface-1))] p-4">
+        <p className="text-xs font-semibold uppercase tracking-wide text-[var(--color-success)]">Datos obligatorios</p>
 
         <div className="grid gap-4 md:grid-cols-2">
-          <label className="grid gap-1.5 text-sm font-medium text-secondary">
-            Cuenta *
-            <select
-              value={accountId ?? ""}
-              onChange={(event) => onAccountIdChange(parseSelectedNumber(event.target.value))}
-              className="input-semantic h-11 rounded-xl px-3 text-sm"
-              required
-            >
-              <option value="">Selecciona una cuenta</option>
-              {accounts.map((account) => (
-                <option key={account.accountId} value={account.accountId}>
-                  {account.name} · {formatCurrency(account.currentBalance)}
-                </option>
-              ))}
-            </select>
-          </label>
+          <Select label="Cuenta *" value={accountId ?? ""} onChange={(event) => onAccountIdChange(parseSelectedNumber(event.target.value))} required>
+            <option value="">Selecciona una cuenta</option>
+            {accounts.map((account) => (
+              <option key={account.accountId} value={account.accountId}>
+                {account.name} · {formatCurrency(account.currentBalance)}
+              </option>
+            ))}
+          </Select>
 
-          <label className="grid gap-1.5 text-sm font-medium text-secondary">
-            Categoría *
-            <select
-              value={categoryId ?? ""}
-              onChange={(event) => onCategoryIdChange(parseSelectedNumber(event.target.value))}
-              className="input-semantic h-11 rounded-xl px-3 text-sm"
-              required
-            >
-              <option value="">Selecciona una categoría</option>
-              {categoriesForKind.map((category) => (
-                <option key={category.categoryId} value={category.categoryId}>
-                  {category.name}
-                </option>
-              ))}
-            </select>
-          </label>
+          <Select label="Categoría *" value={categoryId ?? ""} onChange={(event) => onCategoryIdChange(parseSelectedNumber(event.target.value))} required>
+            <option value="">Selecciona una categoría</option>
+            {categoriesForKind.map((category) => (
+              <option key={category.categoryId} value={category.categoryId}>
+                {category.name}
+              </option>
+            ))}
+          </Select>
         </div>
 
         <div className="grid gap-4 md:grid-cols-2">
@@ -177,7 +160,7 @@ export function IncomeForm({
               onChange={(event) => onAmountChange(event.target.value)}
               placeholder="0.00"
               className="text-right"
-              rightSlot={<span className="text-xs font-semibold text-emerald-700 dark:text-emerald-300">MXN</span>}
+                              rightSlot={<span className="text-xs font-semibold text-[var(--color-success)]">MXN</span>}
               required
             />
             <p className="px-1 text-xs text-muted">
@@ -214,56 +197,42 @@ export function IncomeForm({
           maxLength={120}
           required
         />
-        <p className="-mt-3 px-1 text-right text-xs text-slate-500 dark:text-slate-400">{description.trim().length}/120</p>
+        <p className="px-1 text-right text-xs text-muted">{description.trim().length}/120</p>
       </section>
 
-      <section className="space-y-3 rounded-2xl border border-amber-400/50 bg-amber-500/15 p-4">
+      <section className="app-panel space-y-3 p-4">
         <button
           type="button"
           className="flex w-full items-center justify-between rounded-lg px-1 text-left"
           onClick={() => setShowOptional((value) => !value)}
           aria-expanded={showOptional}
+          aria-controls="income-optional-details"
         >
-          <span className="text-sm font-semibold text-amber-700 dark:text-amber-300">Más detalles (opcional)</span>
+          <span className="text-sm font-semibold text-primary">Más detalles (opcional)</span>
           <span className="text-muted text-xs font-semibold">{showOptional ? "Ocultar" : "Mostrar"}</span>
         </button>
 
         {showOptional ? (
-          <div className="space-y-4">
+          <div id="income-optional-details" className="space-y-4">
             <div className="grid gap-4 md:grid-cols-2">
-              <label className="grid gap-1.5 text-sm font-medium text-secondary">
-                Subcategoría
-                <select
-                  value={subcategoryId ?? ""}
-                  onChange={(event) => onSubcategoryIdChange(parseSelectedNumber(event.target.value))}
-                  className="input-semantic h-11 rounded-xl px-3 text-sm disabled:cursor-not-allowed disabled:opacity-70"
-                  disabled={!categoryId}
-                >
-                  <option value="">Sin subcategoría</option>
-                  {subcategoriesForSelectedCategory.map((subcategory) => (
-                    <option key={subcategory.subcategoryId} value={subcategory.subcategoryId}>
-                      {subcategory.name}
-                    </option>
-                  ))}
-                </select>
-                {!categoryId ? <span className="text-xs text-slate-500 dark:text-slate-400">Primero selecciona categoría</span> : null}
-              </label>
+              <Select label="Subcategoría" value={subcategoryId ?? ""} onChange={(event) => onSubcategoryIdChange(parseSelectedNumber(event.target.value))} disabled={!categoryId}>
+                <option value="">Sin subcategoría</option>
+                {subcategoriesForSelectedCategory.map((subcategory) => (
+                  <option key={subcategory.subcategoryId} value={subcategory.subcategoryId}>
+                    {subcategory.name}
+                  </option>
+                ))}
+              </Select>
+              {!categoryId ? <span className="text-xs text-muted">Primero selecciona categoría</span> : null}
 
-              <label className="grid gap-1.5 text-sm font-medium text-secondary">
-                Comercio
-                <select
-                  value={merchantId ?? ""}
-                  onChange={(event) => onMerchantIdChange(parseSelectedNumber(event.target.value))}
-                  className="input-semantic h-11 rounded-xl px-3 text-sm"
-                >
-                  <option value="">Sin comercio</option>
-                  {merchants.map((merchant) => (
-                    <option key={merchant.merchantId} value={merchant.merchantId}>
-                      {merchant.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              <Select label="Comercio" value={merchantId ?? ""} onChange={(event) => onMerchantIdChange(parseSelectedNumber(event.target.value))}>
+                <option value="">Sin comercio</option>
+                {merchants.map((merchant) => (
+                  <option key={merchant.merchantId} value={merchant.merchantId}>
+                    {merchant.name}
+                  </option>
+                ))}
+              </Select>
             </div>
 
             <Input
@@ -301,17 +270,15 @@ export function IncomeForm({
 
       {creditAllocationSection ? <div className="space-y-3">{creditAllocationSection}</div> : null}
 
-      {submitError ? <Alert variant="danger">{submitError}</Alert> : null}
-
-      <div className="sticky bottom-0 rounded-2xl border border-blue-200/60 bg-blue-50/45 p-3 backdrop-blur dark:border-blue-900/50 dark:bg-blue-950/25">
+      <div className="sticky bottom-0 rounded-2xl border border-accent bg-[color-mix(in_srgb,var(--color-accent)_8%,var(--color-surface-1))] p-3 backdrop-blur">
 
         <div className="flex flex-col items-stretch justify-between gap-2 sm:flex-row sm:items-center">
-          <p className="text-xs text-blue-700 dark:text-blue-300">Completa obligatorios para habilitar guardado.</p>
+          <p className="text-xs text-muted">Completa obligatorios para habilitar guardado.</p>
           <Button
             type="submit"
             loading={submitLoading}
             loadingText="Guardando ingreso..."
-            className="w-full border-emerald-600 bg-emerald-600 hover:border-emerald-700 hover:bg-emerald-700 sm:w-auto"
+            className="w-full border-[var(--color-success)] bg-[var(--color-success)] hover:brightness-95 sm:w-auto"
             disabled={!isSubmitEnabled}
           >
             Guardar ingreso

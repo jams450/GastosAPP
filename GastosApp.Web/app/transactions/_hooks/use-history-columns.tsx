@@ -4,7 +4,26 @@ import { Button } from "@/components/ui/button";
 import { formatCurrency } from "@/lib/format/currency";
 import { tableActionStyles } from "@/lib/ui/table-action-styles";
 import { dateTimeLocalDisplay } from "../_lib/transactions-utils";
-import { historyTypeLabel, type TransactionHistoryItem, type TransferGroupItem } from "../_lib/transactions-types";
+import { historyTypeLabel, type HistoryTransactionType, type TransactionHistoryItem, type TransferGroupItem } from "../_lib/transactions-types";
+
+const typeBadgeClass: Record<HistoryTransactionType, string> = {
+  income: "txn-type-badge txn-type-income",
+  expense: "txn-type-badge txn-type-expense",
+  transfer: "txn-type-badge txn-type-transfer",
+  opening_credit: "txn-type-badge txn-type-opening"
+};
+
+function renderSignedAmount(type: HistoryTransactionType, amount: number) {
+  if (type === "income") {
+    return <span className="txn-amount txn-amount-income">+{formatCurrency(Math.abs(amount))}</span>;
+  }
+
+  if (type === "expense" || type === "opening_credit") {
+    return <span className="txn-amount txn-amount-expense">−{formatCurrency(Math.abs(amount))}</span>;
+  }
+
+  return <span className="txn-amount txn-amount-transfer">{formatCurrency(Math.abs(amount))}</span>;
+}
 
 type Params = {
   accountById: Map<number, { isCredit?: boolean }>;
@@ -38,12 +57,32 @@ export function useHistoryColumns({
   const historyColumns = useMemo<ColumnDef<TransactionHistoryItem>[]>(
     () => [
       { accessorKey: "transactionDate", header: "Fecha", cell: ({ row }) => dateTimeLocalDisplay(row.original.transactionDate) },
-      { accessorKey: "type", header: "Tipo", cell: ({ row }) => historyTypeLabel[row.original.type] },
+      {
+        id: "type",
+        accessorFn: (row) => historyTypeLabel[row.type],
+        header: "Tipo",
+        cell: ({ row }) => <span className={typeBadgeClass[row.original.type]}>{historyTypeLabel[row.original.type]}</span>
+      },
       { accessorKey: "accountName", header: "Cuenta" },
-      { accessorKey: "categoryId", header: "Categoría", cell: ({ row }) => (row.original.categoryId ? (categoryNameById.get(row.original.categoryId) ?? "—") : "—") },
-      { accessorKey: "subcategoryId", header: "Subcategoría", cell: ({ row }) => (row.original.subcategoryId ? (subcategoryNameById.get(row.original.subcategoryId) ?? "—") : "—") },
-      { accessorKey: "merchantId", header: "Comercio", cell: ({ row }) => (row.original.merchantId ? (merchantNameById.get(row.original.merchantId) ?? "—") : "—") },
-      { accessorKey: "amount", header: "Monto", cell: ({ row }) => formatCurrency(row.original.amount) },
+      {
+        id: "categoryId",
+        accessorFn: (row) => (row.categoryId ? (categoryNameById.get(row.categoryId) ?? "—") : "—"),
+        header: "Categoría",
+        cell: ({ row }) => (row.original.categoryId ? (categoryNameById.get(row.original.categoryId) ?? "—") : "—")
+      },
+      {
+        id: "subcategoryId",
+        accessorFn: (row) => (row.subcategoryId ? (subcategoryNameById.get(row.subcategoryId) ?? "—") : "—"),
+        header: "Subcategoría",
+        cell: ({ row }) => (row.original.subcategoryId ? (subcategoryNameById.get(row.original.subcategoryId) ?? "—") : "—")
+      },
+      {
+        id: "merchantId",
+        accessorFn: (row) => (row.merchantId ? (merchantNameById.get(row.merchantId) ?? "—") : "—"),
+        header: "Comercio",
+        cell: ({ row }) => (row.original.merchantId ? (merchantNameById.get(row.original.merchantId) ?? "—") : "—")
+      },
+      { accessorKey: "amount", header: "Monto", cell: ({ row }) => renderSignedAmount(row.original.type, row.original.amount) },
       {
         accessorKey: "creditMonths",
         header: "Meses",
@@ -125,7 +164,7 @@ export function useHistoryColumns({
               ) : null}
               <Button type="button" variant="ghost" className={`h-6 px-1.5 text-[10px] ${tableActionStyles.delete}`} disabled={deleteLoadingId === item.transactionId} onClick={() => void onDelete(item)}>Borrar</Button>
               {canConvertToMsi ? (
-                <Button type="button" variant="secondary" className="h-6 border-indigo-300 bg-indigo-50 px-2 text-[10px] font-semibold text-indigo-700 hover:bg-indigo-100 dark:border-indigo-800 dark:bg-indigo-950/50 dark:text-indigo-300 dark:hover:bg-indigo-900/50" onClick={() => void onConvertToMsi(item)}>Convertir MSI</Button>
+                <Button type="button" variant="secondary" className="h-6 px-2 text-[10px] font-semibold" onClick={() => void onConvertToMsi(item)}>Convertir MSI</Button>
               ) : null}
             </div>
           );
@@ -137,15 +176,45 @@ export function useHistoryColumns({
 
   const transferColumns = useMemo<ColumnDef<TransferGroupItem>[]>(
     () => [
+      {
+        id: "type",
+        accessorFn: () => "Transferencia",
+        header: "Tipo",
+        cell: () => <span className="txn-type-badge txn-type-transfer">Transferencia</span>
+      },
       { accessorKey: "transactionDate", header: "Fecha", cell: ({ row }) => dateTimeLocalDisplay(row.original.transactionDate) },
       { accessorKey: "accountFromName", header: "Cuenta A" },
       { accessorKey: "accountToName", header: "Cuenta B" },
-      { accessorKey: "categoryId", header: "Categoría", cell: ({ row }) => (row.original.categoryId ? (categoryNameById.get(row.original.categoryId) ?? "—") : "—") },
-      { accessorKey: "subcategoryId", header: "Subcategoría", cell: ({ row }) => (row.original.subcategoryId ? (subcategoryNameById.get(row.original.subcategoryId) ?? "—") : "—") },
-      { accessorKey: "merchantId", header: "Comercio", cell: ({ row }) => (row.original.merchantId ? (merchantNameById.get(row.original.merchantId) ?? "—") : "—") },
-      { accessorKey: "amount", header: "Monto", cell: ({ row }) => formatCurrency(row.original.amount) },
+      {
+        id: "categoryId",
+        accessorFn: (row) => (row.categoryId ? (categoryNameById.get(row.categoryId) ?? "—") : "—"),
+        header: "Categoría",
+        cell: ({ row }) => (row.original.categoryId ? (categoryNameById.get(row.original.categoryId) ?? "—") : "—")
+      },
+      {
+        id: "subcategoryId",
+        accessorFn: (row) => (row.subcategoryId ? (subcategoryNameById.get(row.subcategoryId) ?? "—") : "—"),
+        header: "Subcategoría",
+        cell: ({ row }) => (row.original.subcategoryId ? (subcategoryNameById.get(row.original.subcategoryId) ?? "—") : "—")
+      },
+      {
+        id: "merchantId",
+        accessorFn: (row) => (row.merchantId ? (merchantNameById.get(row.merchantId) ?? "—") : "—"),
+        header: "Comercio",
+        cell: ({ row }) => (row.original.merchantId ? (merchantNameById.get(row.original.merchantId) ?? "—") : "—")
+      },
+      {
+        accessorKey: "amount",
+        header: "Monto",
+        cell: ({ row }) => <span className="txn-amount txn-amount-transfer">{formatCurrency(Math.abs(row.original.amount))}</span>
+      },
       { accessorKey: "description", header: "Descripción" },
-      { accessorKey: "tags", header: "Tags", cell: ({ row }) => (row.original.tags.length > 0 ? row.original.tags.join(", ") : "—") },
+      {
+        id: "tags",
+        accessorFn: (row) => (row.tags.length > 0 ? row.tags.join(", ") : "—"),
+        header: "Tags",
+        cell: ({ row }) => (row.original.tags.length > 0 ? row.original.tags.join(", ") : "—")
+      },
       {
         id: "actions",
         header: "Acciones",
@@ -161,7 +230,7 @@ export function useHistoryColumns({
         }
       }
     ],
-    [accountById, categoryNameById, deleteTransferGroupId, merchantNameById, onDeleteTransfer, onEditTransfer, subcategoryNameById]
+    [categoryNameById, deleteTransferGroupId, merchantNameById, onDeleteTransfer, onEditTransfer, subcategoryNameById]
   );
 
   return { historyColumns, transferColumns };

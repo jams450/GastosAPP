@@ -2,15 +2,18 @@
 
 import {
   type ColumnDef,
+  type FilterFn,
   type PaginationState,
   type SortingState,
   flexRender,
   getCoreRowModel,
+  getFilteredRowModel,
   getPaginationRowModel,
   getSortedRowModel,
   useReactTable
 } from "@tanstack/react-table";
-import { type ReactNode, useEffect, useState } from "react";
+import { ArrowDown, ArrowUp, ChevronsUpDown, Search, X } from "lucide-react";
+import { type ReactNode, useEffect, useId, useState } from "react";
 import { cn } from "@/lib/ui/cn";
 
 export type DataGridMode = "client" | "server";
@@ -38,7 +41,13 @@ type DataGridProps<TData> = {
   toolbar?: ReactNode;
   stickyHeader?: boolean;
   stickyActionsColumn?: boolean;
+  enableGlobalFilter?: boolean;
+  globalFilterPlaceholder?: string;
+  globalFilterFn?: FilterFn<TData>;
 };
+
+const pagerButtonClass =
+  "btn-secondary-semantic h-7 px-2 text-[11px] disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-border-focus)]";
 
 export function DataGrid<TData>({
   columns,
@@ -61,7 +70,10 @@ export function DataGrid<TData>({
   pageSizeOptions = [10, 25, 50],
   toolbar,
   stickyHeader = true,
-  stickyActionsColumn = true
+  stickyActionsColumn = true,
+  enableGlobalFilter = false,
+  globalFilterPlaceholder = "Buscar...",
+  globalFilterFn
 }: DataGridProps<TData>) {
   const resolvedManualSorting = manualSorting ?? mode === "server";
   const resolvedManualPagination = manualPagination ?? mode === "server";
@@ -69,6 +81,8 @@ export function DataGrid<TData>({
   const [internalSorting, setInternalSorting] = useState<SortingState>(initialSorting ?? []);
   const [internalPagination, setInternalPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 10 });
   const [internalDensity, setInternalDensity] = useState<DataGridDensity>(density ?? "compact");
+  const [internalGlobalFilter, setInternalGlobalFilter] = useState("");
+  const globalFilterInputId = useId();
 
   useEffect(() => {
     if (!densityStorageKey || density) {
@@ -84,17 +98,24 @@ export function DataGrid<TData>({
   const effectiveSorting = sorting ?? internalSorting;
   const effectivePagination = pagination ?? internalPagination;
   const effectiveDensity = density ?? internalDensity;
+  const effectiveGlobalFilter = enableGlobalFilter ? internalGlobalFilter : undefined;
 
   const table = useReactTable({
     data: rows,
     columns,
     state: {
       sorting: effectiveSorting,
-      pagination: effectivePagination
+      pagination: effectivePagination,
+      globalFilter: effectiveGlobalFilter
     },
     manualSorting: resolvedManualSorting,
     manualPagination: resolvedManualPagination,
     rowCount,
+    globalFilterFn,
+    onGlobalFilterChange: (updater) => {
+      const next = typeof updater === "function" ? updater(internalGlobalFilter) : updater;
+      setInternalGlobalFilter(typeof next === "string" ? next : "");
+    },
     onSortingChange: (updater) => {
       const next = typeof updater === "function" ? updater(effectiveSorting) : updater;
       if (onSortingChange) {
@@ -113,6 +134,7 @@ export function DataGrid<TData>({
     },
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: resolvedManualSorting ? undefined : getSortedRowModel(),
+    getFilteredRowModel: enableGlobalFilter ? getFilteredRowModel() : undefined,
     getPaginationRowModel: resolvedManualPagination ? undefined : getPaginationRowModel()
   });
 
@@ -141,7 +163,7 @@ export function DataGrid<TData>({
             <button
               type="button"
               className={cn(
-                "px-2 py-1 text-[11px] font-medium transition",
+                "px-2 py-1 text-[11px] font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-border-focus)]",
                 effectiveDensity === "compact"
                   ? "bg-[var(--color-accent)] text-[var(--color-accent-contrast)]"
                   : "text-muted hover:bg-[var(--color-accent-soft)] hover:text-primary"
@@ -153,7 +175,7 @@ export function DataGrid<TData>({
             <button
               type="button"
               className={cn(
-                "px-2 py-1 text-[11px] font-medium transition",
+                "px-2 py-1 text-[11px] font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-border-focus)]",
                 effectiveDensity === "normal"
                   ? "bg-[var(--color-accent)] text-[var(--color-accent-contrast)]"
                   : "text-muted hover:bg-[var(--color-accent-soft)] hover:text-primary"
@@ -168,15 +190,46 @@ export function DataGrid<TData>({
 
       {toolbar ? <div className="min-w-0">{toolbar}</div> : null}
 
-      <div className="table-shell overflow-x-auto rounded-xl border border-strong bg-[var(--table-surface-bg)] shadow-[var(--shadow-sm)]">
-        <table className="min-w-full">
+      {enableGlobalFilter ? (
+        <div className="flex items-center">
+          <label className="sr-only" htmlFor={globalFilterInputId}>
+            {globalFilterPlaceholder}
+          </label>
+          <div className="relative w-full max-w-xs">
+            <Search className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted" aria-hidden="true" />
+            <input
+              id={globalFilterInputId}
+              type="search"
+              value={internalGlobalFilter}
+              onChange={(event) => setInternalGlobalFilter(event.target.value)}
+              placeholder={globalFilterPlaceholder}
+              className="input-semantic h-8 w-full pl-7 pr-7 text-xs"
+            />
+            {internalGlobalFilter ? (
+              <button
+                type="button"
+                aria-label="Limpiar búsqueda"
+                onClick={() => setInternalGlobalFilter("")}
+                className="absolute right-1 top-1/2 -translate-y-1/2 rounded-sm p-0.5 text-muted hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-border-focus)]"
+              >
+                <X className="h-3.5 w-3.5" aria-hidden="true" />
+              </button>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
+
+      <div className="table-shell max-w-full overflow-x-auto overscroll-x-contain rounded-xl border border-strong bg-[var(--table-surface-bg)] shadow-[var(--shadow-sm)]">
+        <table className="w-full min-w-full">
           <thead className="table-head bg-[var(--table-head-bg)]">
             {table.getHeaderGroups().map((headerGroup) => (
               <tr key={headerGroup.id}>
                 {headerGroup.headers.map((header) => {
                   const canSort = header.column.getCanSort();
                   const sortState = header.column.getIsSorted();
-                  const sortIndicator = sortState === "asc" ? "▲" : sortState === "desc" ? "▼" : "";
+                  const sortAriaValue = sortState === "asc" ? "ascending" : sortState === "desc" ? "descending" : "none";
+                  const headerLabel =
+                    typeof header.column.columnDef.header === "string" ? header.column.columnDef.header : header.column.id;
                   const isActionsColumn = header.column.id === "actions";
                   const stickyColumnClass =
                     stickyActionsColumn && isActionsColumn
@@ -187,20 +240,33 @@ export function DataGrid<TData>({
                   const showSortOrder = sortState && table.getState().sorting.length > 1;
 
                   return (
-                    <th key={header.id} className={cn(headerCellClass, stickyHeaderClass, stickyColumnClass)}>
-                      {header.isPlaceholder ? null : (
+                    <th
+                      key={header.id}
+                      scope="col"
+                      aria-sort={canSort ? sortAriaValue : undefined}
+                      className={cn(headerCellClass, stickyHeaderClass, stickyColumnClass)}
+                    >
+                      {header.isPlaceholder ? null : canSort ? (
                         <button
                           type="button"
-                          className={cn(
-                            "inline-flex items-center gap-1",
-                            canSort ? "cursor-pointer select-none" : "cursor-default"
-                          )}
-                          onClick={canSort ? header.column.getToggleSortingHandler() : undefined}
+                          className="-mx-1 inline-flex cursor-pointer select-none items-center gap-1 rounded-sm px-1 hover:text-[var(--color-accent)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-border-focus)]"
+                          onClick={header.column.getToggleSortingHandler()}
+                          aria-label={`Ordenar por ${headerLabel}`}
                         >
                           {flexRender(header.column.columnDef.header, header.getContext())}
-                          <span className="text-[10px] text-muted">{sortIndicator}</span>
+                          {sortState === "asc" ? (
+                            <ArrowUp className="h-3 w-3 text-[var(--color-accent)]" aria-hidden="true" />
+                          ) : sortState === "desc" ? (
+                            <ArrowDown className="h-3 w-3 text-[var(--color-accent)]" aria-hidden="true" />
+                          ) : (
+                            <ChevronsUpDown className="h-3 w-3 text-muted opacity-60" aria-hidden="true" />
+                          )}
                           {showSortOrder ? <span className="text-[10px] text-muted">{sortIndex + 1}</span> : null}
                         </button>
+                      ) : (
+                        <span className="inline-flex items-center gap-1">
+                          {flexRender(header.column.columnDef.header, header.getContext())}
+                        </span>
                       )}
                     </th>
                   );
@@ -217,19 +283,19 @@ export function DataGrid<TData>({
               </tr>
             ) : loading ? (
               <tr>
-                <td className={bodyCellClass} colSpan={columns.length}>
+                <td className={cn(bodyCellClass, "text-muted")} colSpan={columns.length}>
                   Cargando...
                 </td>
               </tr>
             ) : table.getRowModel().rows.length === 0 ? (
               <tr>
-                <td className={bodyCellClass} colSpan={columns.length}>
+                <td className={cn(bodyCellClass, "text-muted")} colSpan={columns.length}>
                   {emptyMessage}
                 </td>
               </tr>
               ) : (
                 table.getRowModel().rows.map((row) => (
-                <tr key={row.id} className="table-row transition hover:bg-zinc-400/10 dark:hover:bg-zinc-700/20">
+                <tr key={row.id} className="table-row transition">
                   {row.getVisibleCells().map((cell) => (
                     <td
                       key={cell.id}
@@ -268,7 +334,7 @@ export function DataGrid<TData>({
           <div className="flex items-center gap-1.5">
             <button
               type="button"
-              className="btn-secondary-semantic h-7 px-2 text-[11px] disabled:opacity-50"
+              className={pagerButtonClass}
               onClick={() => table.previousPage()}
               disabled={!table.getCanPreviousPage()}
             >
@@ -279,7 +345,7 @@ export function DataGrid<TData>({
           </span>
             <button
               type="button"
-              className="btn-secondary-semantic h-7 px-2 text-[11px] disabled:opacity-50"
+              className={pagerButtonClass}
               onClick={() => table.nextPage()}
               disabled={!table.getCanNextPage()}
             >

@@ -20,7 +20,7 @@ type CreateState = {
   transactionDate: string;
   msiMonths: number;
   openingCreditCharge: boolean;
-  expenseAllocations: ExpenseAllocationFormState[];
+  expenseAllocations?: ExpenseAllocationFormState[];
 };
 
 type Params = {
@@ -43,8 +43,8 @@ type Params = {
   setTransactionDate: (v: string) => void;
   setMsiMonths: (v: number) => void;
   setOpeningCreditCharge: (v: boolean) => void;
-  setExpenseAllocations: (v: ExpenseAllocationFormState[]) => void;
-  defaultSelfBillablePartyId: number | null;
+  setExpenseAllocations?: (v: ExpenseAllocationFormState[]) => void;
+  defaultSelfBillablePartyId?: number | null;
   clearAllocations: () => void;
   editForm: EditFormState | null;
   setEditSaving: (v: boolean) => void;
@@ -150,9 +150,10 @@ export function useTransactionMutations(params: Params) {
           };
         } else {
           const shouldValidateAllocations = kind === "expense";
+          const currentExpenseAllocations = expenseAllocations ?? [];
 
-          const normalizedAllocations = shouldValidateAllocations
-            ? expenseAllocations
+           const normalizedAllocations = shouldValidateAllocations
+             ? currentExpenseAllocations
                 .map((row) => ({
                   billablePartyId: row.billablePartyId,
                   type: row.type,
@@ -235,9 +236,11 @@ export function useTransactionMutations(params: Params) {
       setTransactionDate(currentLocalDateTimeInput());
       setMsiMonths(1);
       setOpeningCreditCharge(false);
-      setExpenseAllocations([
-        { rowId: crypto.randomUUID(), billablePartyId: defaultSelfBillablePartyId, type: "percentage", value: "100" }
-      ]);
+      if (kind === "expense" && setExpenseAllocations) {
+        setExpenseAllocations([
+          { rowId: crypto.randomUUID(), billablePartyId: defaultSelfBillablePartyId ?? null, type: "percentage", value: "100" }
+        ]);
+      }
       clearAllocations();
       await refreshCatalogs();
       if (isCreditPaymentFlow) {

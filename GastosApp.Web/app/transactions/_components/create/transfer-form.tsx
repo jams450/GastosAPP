@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 import { ArrowUpDown, RefreshCw } from "lucide-react";
 import { formatCurrency } from "@/lib/format/currency";
 import type { Account } from "@/lib/contracts/accounts";
@@ -81,7 +82,7 @@ export function TransferForm({
   parseSelectedNumber,
   creditAllocationSection
 }: Props) {
-  const [showOptional, setShowOptional] = useState(true);
+  const [showOptional, setShowOptional] = useState(false);
 
   const selectedCategoryName = useMemo(
     () => categoriesForKind.find((category) => category.categoryId === categoryId)?.name?.toLowerCase() ?? "",
@@ -146,72 +147,48 @@ export function TransferForm({
       </header>
 
       <div className="grid gap-4 lg:grid-cols-2 lg:items-start">
-      <section className="space-y-4 rounded-2xl border border-indigo-200/70 bg-indigo-50/40 p-4 dark:border-indigo-900/60 dark:bg-indigo-950/30">
-        <p className="text-xs font-semibold uppercase tracking-wide text-indigo-700 dark:text-indigo-300">Datos obligatorios</p>
+      <section className="app-panel space-y-4 border-[color-mix(in_srgb,var(--color-accent)_35%,transparent)] bg-[color-mix(in_srgb,var(--color-accent)_8%,var(--color-surface-1))] p-4">
+        <p className="text-xs font-semibold uppercase tracking-wide text-[var(--color-accent)]">Datos obligatorios</p>
 
         <div className="grid gap-4 md:grid-cols-2">
-          <label className="grid gap-1.5 text-sm font-medium text-secondary">
-            Cuenta origen *
-            <select
-              value={sourceAccountId ?? ""}
-              onChange={(event) => onSourceAccountIdChange(parseSelectedNumber(event.target.value))}
-              className="input-semantic h-11 rounded-xl px-3 text-sm"
-              required
-            >
-              <option value="">Selecciona una cuenta</option>
-              {accounts.map((account) => (
-                <option key={account.accountId} value={account.accountId}>
-                  {account.name} · {formatCurrency(account.currentBalance)}
-                </option>
-              ))}
-            </select>
-          </label>
+          <Select label="Cuenta origen *" value={sourceAccountId ?? ""} onChange={(event) => onSourceAccountIdChange(parseSelectedNumber(event.target.value))} required>
+            <option value="">Selecciona una cuenta</option>
+            {accounts.map((account) => (
+              <option key={account.accountId} value={account.accountId}>
+                {account.name} · {formatCurrency(account.currentBalance)}
+              </option>
+            ))}
+          </Select>
 
-          <label className="grid gap-1.5 text-sm font-medium text-secondary">
-            Cuenta destino *
-            <select
-              value={destinationAccountId ?? ""}
-              onChange={(event) => onDestinationAccountIdChange(parseSelectedNumber(event.target.value))}
-              className="input-semantic h-11 rounded-xl px-3 text-sm"
-              required
-            >
-              <option value="">Selecciona una cuenta</option>
-              {accounts.map((account) => (
-                <option key={account.accountId} value={account.accountId}>
-                  {account.name} · {formatCurrency(account.currentBalance)}
-                </option>
-              ))}
-            </select>
-          </label>
+          <Select label="Cuenta destino *" value={destinationAccountId ?? ""} onChange={(event) => onDestinationAccountIdChange(parseSelectedNumber(event.target.value))} required>
+            <option value="">Selecciona una cuenta</option>
+            {accounts.map((account) => (
+              <option key={account.accountId} value={account.accountId}>
+                {account.name} · {formatCurrency(account.currentBalance)}
+              </option>
+            ))}
+          </Select>
         </div>
 
-        <div className="rounded-xl border border-indigo-200 bg-white/80 p-3 dark:border-indigo-800 dark:bg-slate-950/60">
-          <p className="text-xs text-slate-500 dark:text-slate-400">
+        <div className="app-panel p-3">
+          <p className="text-xs text-muted">
             {sourceAccountName ? `Origen: ${sourceAccountName}` : "Origen sin seleccionar"} · {" "}
             {destinationAccountName ? `Destino: ${destinationAccountName}` : "Destino sin seleccionar"}
           </p>
           {sourceAccountId && destinationAccountId && sourceAccountId === destinationAccountId ? (
-            <p className="mt-1 text-xs font-medium text-rose-600 dark:text-rose-400">Origen y destino deben ser diferentes.</p>
+            <p className="mt-1 text-xs font-medium text-[var(--color-danger)]">Origen y destino deben ser diferentes.</p>
           ) : null}
         </div>
 
         <div className="grid gap-4 md:grid-cols-2">
-          <label className="grid gap-1.5 text-sm font-medium text-secondary">
-            Categoría *
-            <select
-              value={categoryId ?? ""}
-              onChange={(event) => onCategoryIdChange(parseSelectedNumber(event.target.value))}
-              className="input-semantic h-11 rounded-xl px-3 text-sm"
-              required
-            >
-              <option value="">Selecciona una categoría</option>
-              {categoriesForKind.map((category) => (
-                <option key={category.categoryId} value={category.categoryId}>
-                  {category.name}
-                </option>
-              ))}
-            </select>
-          </label>
+          <Select label="Categoría *" value={categoryId ?? ""} onChange={(event) => onCategoryIdChange(parseSelectedNumber(event.target.value))} required>
+            <option value="">Selecciona una categoría</option>
+            {categoriesForKind.map((category) => (
+              <option key={category.categoryId} value={category.categoryId}>
+                {category.name}
+              </option>
+            ))}
+          </Select>
 
           <div className="space-y-1">
             <Input
@@ -223,7 +200,7 @@ export function TransferForm({
               onChange={(event) => onAmountChange(event.target.value)}
               placeholder="0.00"
               className="text-right"
-              rightSlot={<span className="text-xs font-semibold text-indigo-700 dark:text-indigo-300">MXN</span>}
+               rightSlot={<span className="text-xs font-semibold text-[var(--color-accent)]">MXN</span>}
               required
             />
             <p className="px-1 text-xs text-muted">
@@ -261,56 +238,44 @@ export function TransferForm({
           </div>
         </div>
 
-        <p className="-mt-3 px-1 text-right text-xs text-slate-500 dark:text-slate-400">{description.trim().length}/120</p>
+        <p className="px-1 text-right text-xs text-muted">{description.trim().length}/120</p>
       </section>
 
-      <section className="space-y-3 rounded-2xl border border-amber-400/50 bg-amber-500/15 p-4">
+      <section className="app-panel space-y-3 p-4">
         <button
           type="button"
           className="flex w-full items-center justify-between rounded-lg px-1 text-left"
           onClick={() => setShowOptional((value) => !value)}
           aria-expanded={showOptional}
+          aria-controls="transfer-optional-details"
         >
-          <span className="text-sm font-semibold text-amber-700 dark:text-amber-300">Más detalles (opcional)</span>
+          <span className="text-sm font-semibold text-primary">Más detalles (opcional)</span>
           <span className="text-muted text-xs font-semibold">{showOptional ? "Ocultar" : "Mostrar"}</span>
         </button>
 
         {showOptional ? (
-          <div className="space-y-4">
+          <div id="transfer-optional-details" className="space-y-4">
             <div className="grid gap-4 md:grid-cols-2">
-              <label className="grid gap-1.5 text-sm font-medium text-secondary">
-                Subcategoría
-                <select
-                  value={subcategoryId ?? ""}
-                  onChange={(event) => onSubcategoryIdChange(parseSelectedNumber(event.target.value))}
-                  className="input-semantic h-11 rounded-xl px-3 text-sm disabled:cursor-not-allowed disabled:opacity-70"
-                  disabled={!categoryId}
-                >
+              <div>
+                <Select label="Subcategoría" value={subcategoryId ?? ""} onChange={(event) => onSubcategoryIdChange(parseSelectedNumber(event.target.value))} disabled={!categoryId}>
                   <option value="">Sin subcategoría</option>
                   {subcategoriesForSelectedCategory.map((subcategory) => (
                     <option key={subcategory.subcategoryId} value={subcategory.subcategoryId}>
                       {subcategory.name}
                     </option>
                   ))}
-                </select>
-                {!categoryId ? <span className="text-xs text-slate-500 dark:text-slate-400">Primero selecciona categoría</span> : null}
-              </label>
+                </Select>
+                {!categoryId ? <span className="text-xs text-muted">Primero selecciona categoría</span> : null}
+              </div>
 
-              <label className="grid gap-1.5 text-sm font-medium text-secondary">
-                Comercio
-                <select
-                  value={merchantId ?? ""}
-                  onChange={(event) => onMerchantIdChange(parseSelectedNumber(event.target.value))}
-                  className="input-semantic h-11 rounded-xl px-3 text-sm"
-                >
-                  <option value="">Sin comercio</option>
-                  {merchants.map((merchant) => (
-                    <option key={merchant.merchantId} value={merchant.merchantId}>
-                      {merchant.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              <Select label="Comercio" value={merchantId ?? ""} onChange={(event) => onMerchantIdChange(parseSelectedNumber(event.target.value))}>
+                <option value="">Sin comercio</option>
+                {merchants.map((merchant) => (
+                  <option key={merchant.merchantId} value={merchant.merchantId}>
+                    {merchant.name}
+                  </option>
+                ))}
+              </Select>
             </div>
 
             <Input
@@ -351,14 +316,14 @@ export function TransferForm({
       {submitError ? <Alert variant="danger">{submitError}</Alert> : null}
       {successMessage ? <Alert variant="info">{successMessage}</Alert> : null}
 
-      <div className="mt-6 rounded-2xl border border-blue-200/60 bg-blue-50/45 p-3 backdrop-blur dark:border-blue-900/50 dark:bg-blue-950/25">
+      <div className="sticky bottom-0 mt-6 rounded-2xl border border-accent bg-[color-mix(in_srgb,var(--color-accent)_8%,var(--color-surface-1))] p-3 backdrop-blur">
         <div className="flex flex-col items-stretch justify-between gap-2 sm:flex-row sm:items-center">
-          <p className="text-xs text-blue-700 dark:text-blue-300">Completa obligatorios para habilitar guardado.</p>
+          <p className="text-xs text-muted">Completa obligatorios para habilitar guardado.</p>
           <Button
             type="submit"
             loading={submitLoading}
             loadingText="Guardando transferencia..."
-            className="w-full border-indigo-600 bg-indigo-600 hover:border-indigo-700 hover:bg-indigo-700 sm:w-auto"
+            className="w-full border-[var(--color-accent)] bg-[var(--color-accent)] hover:brightness-95 sm:w-auto"
             disabled={!isSubmitEnabled}
           >
           <RefreshCw className="mr-1 h-3.5 w-3.5" aria-hidden="true" />

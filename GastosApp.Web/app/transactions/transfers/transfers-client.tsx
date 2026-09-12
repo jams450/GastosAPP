@@ -145,7 +145,7 @@ export function TransfersClient({ username }: Props) {
 
   useEffect(() => {
     if (!successMessage) return;
-    successToast("Transferencia registrada correctamente.");
+    successToast(successMessage);
     setSuccessMessage(null);
   }, [successMessage, successToast]);
 
