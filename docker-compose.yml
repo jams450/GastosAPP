@@ -35,6 +35,14 @@ services:
       - Jwt__Issuer=${Jwt__Issuer}
       - Jwt__Audience=${Jwt__Audience}
       - Cors__AllowedOrigins=${Cors__AllowedOrigins}
+      - Telegram__Enabled=${Telegram__Enabled}
+      - Telegram__BotToken=${Telegram__BotToken}
+      - Telegram__WebhookSecret=${Telegram__WebhookSecret}
+      - Telegram__AllowedUserId=${Telegram__AllowedUserId}
+      - Telegram__AppUserId=${Telegram__AppUserId}
+      - Llm__BaseUrl=${Llm__BaseUrl}
+      - Llm__ApiKey=${Llm__ApiKey}
+      - Llm__Model=${Llm__Model}
     networks:
       - gastos-network
       - shared-db-network

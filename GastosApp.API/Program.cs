@@ -11,6 +11,7 @@ builder.Services
     .AddApiOpenApi()
     .AddApiHttpContext()
     .AddApiCors(builder.Configuration)
+    .AddApiTelegramConfiguration(builder.Configuration)
     .AddApiDatabase(builder.Configuration)
     .AddApiAuthentication(builder.Configuration)
     .AddApiAuthorization()

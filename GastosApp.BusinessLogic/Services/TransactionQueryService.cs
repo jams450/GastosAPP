@@ -102,6 +102,140 @@ namespace GastosApp.BusinessLogic.Services
                 .ToListAsync();
         }
 
+        public async Task<TransactionAggregateResult> QueryAcrossAccountsForUserAsync(int userId, TransactionAggregateQuery query)
+        {
+            var timezone = MonthRangeResolver.ResolveTimeZone(MonthRangeResolver.DefaultTimezoneId);
+            var startLocal = DateTime.SpecifyKind(query.Desde.Date, DateTimeKind.Unspecified);
+            var endLocal = DateTime.SpecifyKind(query.Hasta.Date.AddDays(1), DateTimeKind.Unspecified);
+            var startUtc = TimeZoneInfo.ConvertTimeToUtc(startLocal, timezone);
+            var endUtc = TimeZoneInfo.ConvertTimeToUtc(endLocal, timezone);
+            var groupBy = query.GroupBy?.ToLowerInvariant() ?? "total";
+            var limit = Math.Clamp(query.Limit, 1, 50);
+
+            var transactions = _repository.Get<Transaction>(t =>
+                t.Account.UserId == userId &&
+                t.TransactionDate >= startUtc &&
+                t.TransactionDate < endUtc);
+
+            if (!string.IsNullOrWhiteSpace(query.Type)) transactions = transactions.Where(t => t.Type == query.Type);
+            if (query.CategoryId.HasValue) transactions = transactions.Where(t => t.CategoryId == query.CategoryId.Value);
+            if (query.SubcategoryId.HasValue) transactions = transactions.Where(t => t.SubcategoryId == query.SubcategoryId.Value);
+            if (query.AccountId.HasValue) transactions = transactions.Where(t => t.AccountId == query.AccountId.Value);
+            if (query.MerchantId.HasValue) transactions = transactions.Where(t => t.MerchantId == query.MerchantId.Value);
+
+            var totals = await transactions
+                .GroupBy(_ => 1)
+                .Select(g => new
+                {
+                    Expense = g.Sum(t => t.Type == TransactionDomainConstants.TransactionType.Expense ? t.Amount : 0m),
+                    Income = g.Sum(t => t.Type == TransactionDomainConstants.TransactionType.Income ? t.Amount : 0m)
+                })
+                .FirstOrDefaultAsync();
+
+            var result = new TransactionAggregateResult
+            {
+                TotalExpense = totals?.Expense ?? 0m,
+                TotalIncome = totals?.Income ?? 0m,
+                GroupBy = groupBy
+            };
+
+            if (groupBy == "total") return result;
+
+            List<TransactionAggregateBucket> buckets;
+            switch (groupBy)
+            {
+                case "categoria":
+                    buckets = await transactions
+                        .GroupBy(t => new { t.CategoryId, Name = t.Category != null ? t.Category.Name : "Sin categoría" })
+                        .Select(g => new TransactionAggregateBucket
+                        {
+                            Id = g.Key.CategoryId,
+                            Key = g.Key.Name,
+                            Expense = g.Sum(t => t.Type == TransactionDomainConstants.TransactionType.Expense ? t.Amount : 0m),
+                            Income = g.Sum(t => t.Type == TransactionDomainConstants.TransactionType.Income ? t.Amount : 0m),
+                            Count = g.Count()
+                        })
+                        .OrderByDescending(b => b.Expense)
+                        .Take(limit)
+                        .ToListAsync();
+                    break;
+                case "subcategoria":
+                    buckets = await transactions
+                        .GroupBy(t => new { t.SubcategoryId, Name = t.Subcategory != null ? t.Subcategory.Name : "Sin subcategoría" })
+                        .Select(g => new TransactionAggregateBucket
+                        {
+                            Id = g.Key.SubcategoryId,
+                            Key = g.Key.Name,
+                            Expense = g.Sum(t => t.Type == TransactionDomainConstants.TransactionType.Expense ? t.Amount : 0m),
+                            Income = g.Sum(t => t.Type == TransactionDomainConstants.TransactionType.Income ? t.Amount : 0m),
+                            Count = g.Count()
+                        })
+                        .OrderByDescending(b => b.Expense)
+                        .Take(limit)
+                        .ToListAsync();
+                    break;
+                case "cuenta":
+                    buckets = await transactions
+                        .GroupBy(t => new { t.AccountId, t.Account.Name })
+                        .Select(g => new TransactionAggregateBucket
+                        {
+                            Id = g.Key.AccountId,
+                            Key = g.Key.Name,
+                            Expense = g.Sum(t => t.Type == TransactionDomainConstants.TransactionType.Expense ? t.Amount : 0m),
+                            Income = g.Sum(t => t.Type == TransactionDomainConstants.TransactionType.Income ? t.Amount : 0m),
+                            Count = g.Count()
+                        })
+                        .OrderByDescending(b => b.Expense)
+                        .Take(limit)
+                        .ToListAsync();
+                    break;
+                case "comercio":
+                    buckets = await transactions
+                        .GroupBy(t => new { t.MerchantId, Name = t.Merchant != null ? t.Merchant.Name : "Sin comercio" })
+                        .Select(g => new TransactionAggregateBucket
+                        {
+                            Id = g.Key.MerchantId,
+                            Key = g.Key.Name,
+                            Expense = g.Sum(t => t.Type == TransactionDomainConstants.TransactionType.Expense ? t.Amount : 0m),
+                            Income = g.Sum(t => t.Type == TransactionDomainConstants.TransactionType.Income ? t.Amount : 0m),
+                            Count = g.Count()
+                        })
+                        .OrderByDescending(b => b.Expense)
+                        .Take(limit)
+                        .ToListAsync();
+                    break;
+                case "dia":
+                case "mes":
+                    var rows = await transactions
+                        .Select(t => new TransactionAggregateRow { TransactionDate = t.TransactionDate, Type = t.Type, Amount = t.Amount })
+                        .ToListAsync();
+                    buckets = rows
+                        .GroupBy(row => TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(row.TransactionDate, DateTimeKind.Utc), timezone)
+                            .ToString(groupBy == "dia" ? "yyyy-MM-dd" : "yyyy-MM"))
+                        .Select(g => new TransactionAggregateBucket
+                        {
+                            Key = g.Key,
+                            Expense = g.Where(row => IsTransactionType(row.Type, TransactionDomainConstants.TransactionType.Expense)).Sum(row => row.Amount),
+                            Income = g.Where(row => IsTransactionType(row.Type, TransactionDomainConstants.TransactionType.Income)).Sum(row => row.Amount),
+                            Count = g.Count()
+                        })
+                        .OrderByDescending(b => b.Expense)
+                        .Take(limit)
+                        .ToList();
+                    break;
+                default:
+                    throw new ArgumentException("GroupBy must be total, categoria, subcategoria, cuenta, comercio, dia, or mes.");
+            }
+
+            return new TransactionAggregateResult
+            {
+                TotalExpense = result.TotalExpense,
+                TotalIncome = result.TotalIncome,
+                GroupBy = groupBy,
+                Buckets = buckets
+            };
+        }
+
         public async Task<decimal> CalculateAccountBalanceAsync(int accountId)
         {
             return await _repository.Get<Transaction>(t => t.AccountId == accountId).SumAsync(t => t.BalanceImpact);
@@ -179,6 +313,18 @@ namespace GastosApp.BusinessLogic.Services
                     Status = plan.SourceCharge.Status
                 };
             }).ToList();
+        }
+
+        private static bool IsTransactionType(string? actual, string expected)
+        {
+            return string.Equals(actual, expected, StringComparison.OrdinalIgnoreCase);
+        }
+
+        private sealed class TransactionAggregateRow
+        {
+            public DateTime TransactionDate { get; init; }
+            public string Type { get; init; } = string.Empty;
+            public decimal Amount { get; init; }
         }
 
         private IQueryable<Transaction> BuildBaseQuery(System.Linq.Expressions.Expression<Func<Transaction, bool>> predicate)

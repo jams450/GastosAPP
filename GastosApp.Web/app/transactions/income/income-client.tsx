@@ -7,7 +7,7 @@ import { IncomeSection } from "../_components/sections/income-section";
 import { useCreditAllocation } from "../_hooks/use-credit-allocation";
 import { useTransactionMutations } from "../_hooks/use-transaction-mutations";
 import { parseSelectedNumber } from "../_lib/transactions-utils";
-import type { TransactionKind } from "../_lib/transactions-types";
+import type { RepeatPrefill, TransactionKind } from "../_lib/transactions-types";
 import type { Account } from "@/lib/contracts/accounts";
 import type { Category } from "@/lib/contracts/categories";
 import type { Subcategory } from "@/lib/contracts/subcategories";
@@ -17,18 +17,19 @@ import { TransactionsToastStack, useTransactionsToasts } from "../_shared/transa
 
 type Props = {
   username: string;
+  initialRepeat?: RepeatPrefill | null;
 };
 
-export function IncomeClient({ username }: Props) {
+export function IncomeClient({ username, initialRepeat }: Props) {
   const { catalogs, catalogsLoading, catalogsError, loadCatalogs } = useTransactionsCatalogs();
   const defaults = useMemo(() => buildIncomeScreenDefaults(), []);
-  const [accountId, setAccountId] = useState<number | null>(null);
-  const [categoryId, setCategoryId] = useState<number | null>(null);
-  const [subcategoryId, setSubcategoryId] = useState<number | null>(null);
-  const [merchantId, setMerchantId] = useState<number | null>(null);
-  const [tagsText, setTagsText] = useState<string>(defaults.tagsText);
-  const [amount, setAmount] = useState<string>(defaults.amount);
-  const [description, setDescription] = useState<string>(defaults.description);
+  const [accountId, setAccountId] = useState<number | null>(initialRepeat?.accountId ?? null);
+  const [categoryId, setCategoryId] = useState<number | null>(initialRepeat?.categoryId ?? null);
+  const [subcategoryId, setSubcategoryId] = useState<number | null>(initialRepeat?.subcategoryId ?? null);
+  const [merchantId, setMerchantId] = useState<number | null>(initialRepeat?.merchantId ?? null);
+  const [tagsText, setTagsText] = useState<string>(initialRepeat?.tagsText ?? defaults.tagsText);
+  const [amount, setAmount] = useState<string>(initialRepeat?.amount ?? defaults.amount);
+  const [description, setDescription] = useState<string>(initialRepeat?.description ?? defaults.description);
   const [transactionDate, setTransactionDate] = useState<string>(defaults.transactionDate);
   const [submitLoading, setSubmitLoading] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);

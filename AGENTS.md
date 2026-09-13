@@ -1,12 +1,13 @@
 # AGENTS.md
 
 ## Repo reality check (read this first)
-- This repo is currently **backend-only in code**: `code.sln` includes `GastosApp.API`, `GastosApp.BusinessLogic`, `GastosApp.Models`.
-- `gastos-frontend/` is referenced by docs and `docker-compose.yml` but is **not present** in this checkout.
-- `GastosApp.Web/` exists but is empty and not part of the solution.
+- `code.sln` includes `GastosApp.API`, `GastosApp.BusinessLogic`, `GastosApp.Models` (backend).
+- `GastosApp.Web/` is a populated Next.js frontend (App Router). It is **not** in `code.sln`; it is built by the `frontend` service in `docker-compose.yml`.
+- Ignore any `gastos-frontend/` references in old docs; the real frontend is `GastosApp.Web/`.
 
 ## High-value entrypoints
 - API bootstrap/composition root: `GastosApp.API/Program.cs`
+- DI registration: `GastosApp.API/Extensions/ServiceCollectionExtensions.cs` (all services `AddScoped`)
 - HTTP endpoints: `GastosApp.API/Controllers/*.cs`
 - Domain/data services: `GastosApp.BusinessLogic/Services/*.cs`
 - EF DbContext/model wiring: `GastosApp.BusinessLogic/Context/ContextSqlGastos.cs`
@@ -32,17 +33,17 @@
   2. Start API (`dotnet run --project ...` or Docker)
   3. Smoke auth: `POST /api/auth/login`
 
-## Critical implementation quirks
-- `AccountsController.GetCurrentUserId()` currently falls back to `1` if `userId` claim is missing.
-- JWT generation (`JwtService`) adds `Name` (+ optional `Role`) but **does not add `userId` claim**.
-- Consequence: account scoping can silently use user `1` unless JWT/user-id handling is fixed end-to-end.
-- OpenAPI endpoint is only mapped in Development (`app.MapOpenApi()` inside `if (app.Environment.IsDevelopment())`).
+## Auth / user-scoping reality
+- `JwtService.GenerateToken` emits the user id as **both** `sub` and `ClaimTypes.NameIdentifier`, plus `Name`, `sessionVersion`, `jti`, optional `sid`, optional `Role`.
+- Every controller derives the user id from `ICurrentUserService` (reads JWT claims from `HttpContext`). There is **no fallback to `1`**; missing claims throw `UnauthorizedAccessException` → 401.
+- `AuthenticationExtensions` validates the JWT **against the DB** in `OnTokenValidated`: user must be active/not locked, `sessionVersion` must match, and the `sid` must exist as a non-revoked, non-expired `UserSession` row. A hand-minted token with a fixed user id is rejected unless a matching session row exists.
+- Controllers are gated by `[Authorize(Policy="UserWithId")]` (`"AdminWithId"` for `Users`). There is no API-key/bot/service-account auth path.
+- OpenAPI is mapped only in Development (`app.MapOpenApi()` inside `if (app.Environment.IsDevelopment())`).
 
 ## Config/security gotchas for agents
 - Secrets are present in tracked config files (`.env`, `GastosApp.API/appsettings.json`). Treat values as sensitive; do not copy them into PR text/issues/log summaries.
 - Runtime config precedence matters: Docker sets connection string/JWT/CORS via environment variables; local `dotnet run` uses `appsettings.json` + launch profile environment.
-- `Dockerfile.api` uses .NET **10.0** images while projects target **net9.0**. Keep this mismatch in mind when debugging build/runtime differences.
+- `Dockerfile.api` uses **.NET 9.0** images (`sdk:9.0`, `aspnet:9.0`), matching the projects' `net9.0`.
 
 ## Docs vs executable truth
-- `README_IMPLEMENTATION.md` and `IMPLEMENTATION_GUIDE.md` describe a broader (frontend+tunnel) deployment.
-- When docs conflict, trust current executable sources: `code.sln`, `.csproj`, `Program.cs`, `docker-compose.yml`, and files that actually exist.
+- Some docs may describe a broader (frontend+tunnel) deployment. When docs conflict, trust current executable sources: `code.sln`, `.csproj`, `Program.cs`, `docker-compose.yml`, and files that actually exist.

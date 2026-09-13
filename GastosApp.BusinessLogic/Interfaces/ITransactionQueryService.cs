@@ -15,6 +15,7 @@ namespace GastosApp.BusinessLogic.Interfaces
         Task<IEnumerable<Transaction>> GetByCategoryAsync(int categoryId);
         Task<IEnumerable<Transaction>> GetByCategoryForUserAsync(int categoryId, int userId);
         Task<PagedTransactions> QueryByAccountForUserAsync(int accountId, int userId, TransactionQuery query);
+        Task<TransactionAggregateResult> QueryAcrossAccountsForUserAsync(int userId, TransactionAggregateQuery query);
         Task<decimal> CalculateAccountBalanceAsync(int accountId);
         Task<IEnumerable<CreditInstallmentOpenItem>> GetOpenCreditInstallmentsAsync(int creditAccountId);
         Task<IEnumerable<CreditChargeSummaryItem>> GetCreditChargeSummariesAsync(IEnumerable<int> sourceTransactionIds);

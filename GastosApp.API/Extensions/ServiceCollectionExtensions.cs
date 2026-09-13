@@ -1,5 +1,6 @@
 using GastosApp.API.Interfaces;
 using GastosApp.API.Services;
+using GastosApp.API.Services.Telegram;
 using GastosApp.BusinessLogic.Interfaces;
 using GastosApp.BusinessLogic.Services;
 using IPasswordService = GastosApp.BusinessLogic.Interfaces.IPasswordService;
@@ -34,6 +35,9 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ITransactionService, TransactionService>();
         services.AddScoped<IBancoppelImportService, BancoppelImportService>();
         services.AddScoped<IDashboardService, DashboardService>();
+        services.AddScoped<TelegramToolService>();
+        services.AddScoped<ExpenseAgentService>();
+        services.AddScoped<ITelegramUpdateService, TelegramUpdateService>();
 
         return services;
     }

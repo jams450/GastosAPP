@@ -76,11 +76,11 @@ SELECT
         )
     )::timestamp AT TIME ZONE 'UTC') AS cutoff_at,
     (make_date(
-        EXTRACT(YEAR FROM gm.cycle_month)::int,
-        EXTRACT(MONTH FROM gm.cycle_month)::int,
+        EXTRACT(YEAR FROM CASE WHEN COALESCE(gm.payment_due_day, 31) <= LEAST(gm.due_day, EXTRACT(DAY FROM ((date_trunc('month', gm.cycle_month) + INTERVAL '1 month') - INTERVAL '1 day'))::int) THEN gm.cycle_month + INTERVAL '1 month' ELSE gm.cycle_month END)::int,
+        EXTRACT(MONTH FROM CASE WHEN COALESCE(gm.payment_due_day, 31) <= LEAST(gm.due_day, EXTRACT(DAY FROM ((date_trunc('month', gm.cycle_month) + INTERVAL '1 month') - INTERVAL '1 day'))::int) THEN gm.cycle_month + INTERVAL '1 month' ELSE gm.cycle_month END)::int,
         LEAST(
             COALESCE(gm.payment_due_day, 31),
-            EXTRACT(DAY FROM ((date_trunc('month', gm.cycle_month) + INTERVAL '1 month') - INTERVAL '1 day'))::int
+            EXTRACT(DAY FROM ((date_trunc('month', CASE WHEN COALESCE(gm.payment_due_day, 31) <= LEAST(gm.due_day, EXTRACT(DAY FROM ((date_trunc('month', gm.cycle_month) + INTERVAL '1 month') - INTERVAL '1 day'))::int) THEN gm.cycle_month + INTERVAL '1 month' ELSE gm.cycle_month END) + INTERVAL '1 month') - INTERVAL '1 day'))::int
         )
     )::timestamp AT TIME ZONE 'UTC') AS due_at,
     0,
@@ -293,21 +293,42 @@ month_agg AS (
     LEFT JOIN tx_with_impact t ON t.account_id = a.account_id
     GROUP BY a.account_id
 ),
-credit_bounds AS (
+credit_bounds_base AS (
     SELECT
         a.account_id,
         CASE WHEN a.is_credit THEN make_date(p_year_value, p_month_value, LEAST(GREATEST(coalesce(a.due_day, p_days_in_month), 1), p_days_in_month)) END AS period_end,
         CASE WHEN a.is_credit THEN (make_date(p_previous_year, p_previous_month, LEAST(GREATEST(coalesce(a.due_day, p_previous_days_in_month), 1), p_previous_days_in_month)) + INTERVAL '1 day')::date END AS period_start,
-        CASE WHEN a.is_credit THEN make_date(p_year_value, p_month_value, 1) END AS payment_start,
-        CASE WHEN a.is_credit THEN make_date(
-            p_year_value,
-            p_month_value,
-            LEAST(
-                GREATEST(coalesce(a.payment_due_day, p_days_in_month), 1),
-                p_days_in_month
-            )
-        ) END AS payment_end
+        CASE WHEN a.is_credit THEN GREATEST(coalesce(a.payment_due_day, p_days_in_month), 1) END AS payment_day,
+        CASE WHEN a.is_credit THEN LEAST(GREATEST(coalesce(a.due_day, p_days_in_month), 1), p_days_in_month) END AS cutoff_day
     FROM accounts_scope a
+),
+credit_bounds AS (
+    SELECT
+        b.account_id,
+        b.period_start,
+        b.period_end,
+        CASE WHEN b.period_end IS NOT NULL THEN (p.previous_due + INTERVAL '1 day')::date END AS payment_start,
+        CASE WHEN b.period_end IS NOT NULL THEN p.current_due END AS payment_end
+    FROM credit_bounds_base b
+    CROSS JOIN LATERAL (
+        SELECT CASE WHEN b.payment_day <= b.cutoff_day
+            THEN (b.period_end + INTERVAL '1 month')::date
+            ELSE b.period_end
+        END AS due_month
+    ) d
+    CROSS JOIN LATERAL (
+        SELECT
+            make_date(
+                EXTRACT(YEAR FROM due_month)::int,
+                EXTRACT(MONTH FROM due_month)::int,
+                LEAST(b.payment_day, EXTRACT(DAY FROM (date_trunc('month', due_month) + INTERVAL '1 month' - INTERVAL '1 day'))::int)
+            ) AS current_due,
+            make_date(
+                EXTRACT(YEAR FROM (due_month - INTERVAL '1 month'))::int,
+                EXTRACT(MONTH FROM (due_month - INTERVAL '1 month'))::int,
+                LEAST(b.payment_day, EXTRACT(DAY FROM (date_trunc('month', due_month - INTERVAL '1 month') + INTERVAL '1 month' - INTERVAL '1 day'))::int)
+            ) AS previous_due
+    ) p
 ),
 msi_source_transactions AS (
     SELECT DISTINCT
@@ -371,18 +392,23 @@ credit_spent AS (
     LEFT JOIN (
         SELECT
             cb3.account_id,
-            coalesce(sum(CASE
-                WHEN lower(t.type) = 'income' THEN t.amount
-                WHEN lower(t.type) = 'transfer' AND t.balance_impact > 0 THEN t.balance_impact
-                ELSE 0
-            END), 0) AS cutoff_payments
+            coalesce(sum(ia.allocated_amount), 0) AS cutoff_payments
         FROM credit_bounds cb3
-        LEFT JOIN transactions t
-            ON t.account_id = cb3.account_id
-           AND cb3.payment_start IS NOT NULL
-           AND cb3.payment_end IS NOT NULL
-           AND t.transaction_date >= cb3.payment_start
-           AND t.transaction_date < (cb3.payment_end + INTERVAL '1 day')
+        LEFT JOIN credit_installment_plans cip
+            ON cip.account_id = cb3.account_id
+           AND cip.plan_type IN ('MSI', 'Revolving')
+        LEFT JOIN credit_installments ci
+            ON ci.plan_id = cip.plan_id
+           AND ci.status IN ('Open', 'PartiallyPaid', 'Paid', 'Overdue')
+        LEFT JOIN credit_cycles dc
+            ON dc.cycle_id = ci.due_cycle_id
+        LEFT JOIN installment_allocations ia
+            ON ia.installment_id = ci.installment_id
+        INNER JOIN credit_payments cp
+            ON cp.payment_id = ia.payment_id
+           AND cp.status = 'Posted'
+        WHERE cb3.payment_end IS NOT NULL
+          AND (coalesce(dc.due_at, ci.due_date) AT TIME ZONE 'UTC')::date = cb3.payment_end
         GROUP BY cb3.account_id
     ) pay ON pay.account_id = cb.account_id
 ),

@@ -52,7 +52,7 @@ namespace GastosApp.BusinessLogic.Services
 
             var previousMonth = new DateTime(year, month, 1, 0, 0, 0, DateTimeKind.Utc).AddMonths(-1);
             var previousCutoff = CreateUtcDate(previousMonth.Year, previousMonth.Month, account.DueDay.Value);
-            var dueAt = CreateUtcDate(year, month, account.PaymentDueDay ?? 31);
+            var dueAt = CreatePaymentDueDate(year, month, account.DueDay.Value, account.PaymentDueDay);
 
             var cycle = new CreditCycle
             {
@@ -88,6 +88,16 @@ namespace GastosApp.BusinessLogic.Services
         {
             var safeDay = Math.Min(Math.Max(requestedDay, 1), DateTime.DaysInMonth(year, month));
             return new DateTime(year, month, safeDay, 0, 0, 0, DateTimeKind.Utc);
+        }
+
+        private static DateTime CreatePaymentDueDate(int cutoffYear, int cutoffMonth, int cutoffDay, int? paymentDay)
+        {
+            var effectivePaymentDay = paymentDay ?? DateTime.DaysInMonth(cutoffYear, cutoffMonth);
+            var dueMonth = effectivePaymentDay <= Math.Min(cutoffDay, DateTime.DaysInMonth(cutoffYear, cutoffMonth))
+                ? new DateTime(cutoffYear, cutoffMonth, 1, 0, 0, 0, DateTimeKind.Utc).AddMonths(1)
+                : new DateTime(cutoffYear, cutoffMonth, 1, 0, 0, 0, DateTimeKind.Utc);
+
+            return CreateUtcDate(dueMonth.Year, dueMonth.Month, effectivePaymentDay);
         }
 
         private static DateTime NormalizeToUtcDate(DateTime value)

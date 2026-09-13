@@ -6,22 +6,22 @@ import { Alert } from "@/components/ui/alert";
 import { ExpenseSection } from "../_components/sections/expense-section";
 import { useTransactionMutations } from "../_hooks/use-transaction-mutations";
 import { parseSelectedNumber, currentLocalDateTimeInput } from "../_lib/transactions-utils";
-import type { ExpenseAllocationFormState, TransactionKind } from "../_lib/transactions-types";
+import type { ExpenseAllocationFormState, RepeatPrefill, TransactionKind } from "../_lib/transactions-types";
 import { createAllocationRow, resolveDefaultSelfBillablePartyId } from "../_shared/transactions-screen-shared";
 import { useTransactionsCatalogs } from "../_shared/use-transactions-catalogs";
 import { TransactionsToastStack, useTransactionsToasts } from "../_shared/transactions-toasts";
 
-type Props = { username: string };
+type Props = { username: string; initialRepeat?: RepeatPrefill | null };
 
-export function ExpenseClient({ username }: Props) {
+export function ExpenseClient({ username, initialRepeat }: Props) {
   const { catalogs, catalogsLoading, catalogsError, loadCatalogs } = useTransactionsCatalogs();
-  const [accountId, setAccountId] = useState<number | null>(null);
-  const [categoryId, setCategoryId] = useState<number | null>(null);
-  const [subcategoryId, setSubcategoryId] = useState<number | null>(null);
-  const [merchantId, setMerchantId] = useState<number | null>(null);
-  const [tagsText, setTagsText] = useState("");
-  const [amount, setAmount] = useState("");
-  const [description, setDescription] = useState("");
+  const [accountId, setAccountId] = useState<number | null>(initialRepeat?.accountId ?? null);
+  const [categoryId, setCategoryId] = useState<number | null>(initialRepeat?.categoryId ?? null);
+  const [subcategoryId, setSubcategoryId] = useState<number | null>(initialRepeat?.subcategoryId ?? null);
+  const [merchantId, setMerchantId] = useState<number | null>(initialRepeat?.merchantId ?? null);
+  const [tagsText, setTagsText] = useState(initialRepeat?.tagsText ?? "");
+  const [amount, setAmount] = useState(initialRepeat?.amount ?? "");
+  const [description, setDescription] = useState(initialRepeat?.description ?? "");
   const [transactionDate, setTransactionDate] = useState(currentLocalDateTimeInput());
   const [msiMonths, setMsiMonths] = useState(1);
   const [openingCreditCharge, setOpeningCreditCharge] = useState(false);
@@ -31,9 +31,15 @@ export function ExpenseClient({ username }: Props) {
   const { toasts, dismissToast, success: successToast, error: errorToast } = useTransactionsToasts();
 
   const defaultSelfBillablePartyId = resolveDefaultSelfBillablePartyId(catalogs);
-  const [expenseAllocations, setExpenseAllocations] = useState<ExpenseAllocationFormState[]>([
-    createAllocationRow(defaultSelfBillablePartyId, "100")
-  ]);
+  const [expenseAllocations, setExpenseAllocations] = useState<ExpenseAllocationFormState[]>(() => {
+    if (initialRepeat?.allocations && initialRepeat.allocations.length > 0) {
+      return initialRepeat.allocations.map((a) => ({
+        ...a,
+        rowId: crypto.randomUUID()
+      }));
+    }
+    return [createAllocationRow(defaultSelfBillablePartyId, "100")];
+  });
 
   const kind: TransactionKind = "expense";
 

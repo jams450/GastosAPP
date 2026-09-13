@@ -38,6 +38,7 @@ type Params = {
   onConvertToMsi: (item: TransactionHistoryItem) => Promise<void>;
   onEditTransfer: (item: TransferGroupItem) => void;
   onDeleteTransfer: (item: TransferGroupItem) => Promise<void>;
+  onRepeat?: (item: TransactionHistoryItem) => void;
 };
 
 export function useHistoryColumns({
@@ -52,7 +53,8 @@ export function useHistoryColumns({
   onDelete,
   onConvertToMsi,
   onEditTransfer,
-  onDeleteTransfer
+  onDeleteTransfer,
+  onRepeat
 }: Params) {
   const historyColumns = useMemo<ColumnDef<TransactionHistoryItem>[]>(
     () => [
@@ -157,6 +159,11 @@ export function useHistoryColumns({
             && (item.creditMonths === null || item.creditMonths <= 1);
           return (
             <div className="flex gap-1">
+              {onRepeat && (item.type === "income" || item.type === "expense") ? (
+                <Button type="button" variant="secondary" className="h-6 px-2 text-[10px] font-semibold" onClick={() => onRepeat(item)}>
+                  Repetir
+                </Button>
+              ) : null}
               {!isOpeningCredit ? (
                 <Button type="button" variant="ghost" className={`h-6 px-1.5 text-[10px] ${tableActionStyles.edit}`} onClick={() => onEdit(item)}>
                   Editar
@@ -171,7 +178,7 @@ export function useHistoryColumns({
         }
       }
     ],
-    [accountById, selfBillablePartyId, categoryNameById, deleteLoadingId, merchantNameById, onConvertToMsi, onDelete, onEdit, subcategoryNameById]
+    [accountById, selfBillablePartyId, categoryNameById, deleteLoadingId, merchantNameById, onConvertToMsi, onDelete, onEdit, onRepeat, subcategoryNameById]
   );
 
   const transferColumns = useMemo<ColumnDef<TransferGroupItem>[]>(

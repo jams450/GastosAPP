@@ -120,3 +120,15 @@ export const historyTypeLabel: Record<HistoryTransactionType, string> = {
   ...typeLabel,
   opening_credit: "Gasto heredado"
 };
+
+export type RepeatPrefill = {
+  kind: TransactionKind;
+  accountId: number | null;
+  categoryId: number | null;
+  subcategoryId: number | null;
+  merchantId: number | null;
+  amount: string;
+  description: string;
+  tagsText: string;
+  allocations?: ExpenseAllocationFormState[];
+};

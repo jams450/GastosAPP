@@ -13,6 +13,7 @@ import { useHistoryColumns } from "../_hooks/use-history-columns";
 import { useTransactionMutations } from "../_hooks/use-transaction-mutations";
 import { useTransactionsHistory } from "../_hooks/use-transactions-history";
 import { currentLocalDateTimeInput, dateTimeLocalInputValue, parseSelectedNumber } from "../_lib/transactions-utils";
+import { buildRepeatPrefill, repeatSearchParams } from "../_lib/transactions-repeat";
 import type { EditFormState, ExpenseAllocationFormState, TransactionHistoryItem, TransferEditFormState, TransferGroupItem } from "../_lib/transactions-types";
 import { createAllocationRow, resolveDefaultSelfBillablePartyId } from "../_shared/transactions-screen-shared";
 import { useTransactionsCatalogs } from "../_shared/use-transactions-catalogs";
@@ -165,6 +166,13 @@ export function HistoryClient({ username, initialMonth }: Props) {
     });
   }, [catalogs]);
 
+  const openRepeat = useCallback((item: TransactionHistoryItem) => {
+    const prefill = buildRepeatPrefill(item);
+    if (!prefill) return;
+    const target = prefill.kind === "income" ? "/transactions/income" : "/transactions/expense";
+    router.push(`${target}?${repeatSearchParams(prefill)}`);
+  }, [router]);
+
   const {
     onSaveEdit,
     onSaveTransferEdit,
@@ -232,7 +240,8 @@ export function HistoryClient({ username, initialMonth }: Props) {
     onDelete,
     onConvertToMsi: onConvertChargeToMsi,
     onEditTransfer: openTransferEditModal,
-    onDeleteTransfer: onDeleteTransferGroup
+    onDeleteTransfer: onDeleteTransferGroup,
+    onRepeat: openRepeat
   });
 
   return (
