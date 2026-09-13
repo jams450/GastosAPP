@@ -56,6 +56,24 @@ public sealed class ExpenseAgentService
         {
             throw;
         }
+        catch (ClientResultException ex)
+        {
+            var response = ex.GetRawResponse();
+
+            _logger.LogError(
+                ex,
+                """
+                OmniRoute failed
+                Status: {Status}
+                Reason: {Reason}
+                Body: {Body}
+                """,
+                response?.Status,
+                response?.ReasonPhrase,
+                response?.Content?.ToString());
+
+            throw;
+        }
         catch (Exception exception)
         {
             _logger.LogError(exception, "Telegram expense agent request failed.");
