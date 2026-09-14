@@ -51,8 +51,22 @@
 
   --color-success: var(--tabler-success);
   --color-warning: #f59e0b;
+  --color-credit: #8b5cf6;
   --color-danger: var(--tabler-danger);
   --color-info: #0ea5e9;
+
+  --color-shell-bg: color-mix(in srgb, var(--color-sidebar-bg) 88%, var(--color-page-bg));
+  --color-shell-surface: color-mix(in srgb, var(--color-surface-1) 86%, var(--color-sidebar-bg));
+  --color-shell-raised: color-mix(in srgb, var(--color-surface-2) 88%, var(--color-sidebar-bg));
+  --color-shell-hover: color-mix(in srgb, var(--color-accent) 6%, transparent);
+  --color-shell-active: color-mix(in srgb, var(--color-accent) 12%, transparent);
+  --shell-sidebar-width: 15rem;
+  --shell-content-gap: 1.25rem;
+  --shell-control-size: 2.75rem;
+  --type-shell-kicker: 0.6875rem;
+  --type-shell-title: 1.125rem;
+  --type-shell-body: 0.875rem;
+  --motion-fast: 160ms;
 
   --radius-sm: var(--tabler-radius-sm);
   --radius-md: var(--tabler-radius-md);
@@ -135,8 +149,22 @@
 
   --color-success: var(--tabler-success);
   --color-warning: #f59e0b;
+  --color-credit: #a78bfa;
   --color-danger: var(--tabler-danger);
   --color-info: #38bdf8;
+
+  --color-shell-bg: color-mix(in srgb, var(--color-sidebar-bg) 88%, var(--color-page-bg));
+  --color-shell-surface: color-mix(in srgb, var(--color-surface-1) 86%, var(--color-sidebar-bg));
+  --color-shell-raised: color-mix(in srgb, var(--color-surface-2) 88%, var(--color-sidebar-bg));
+  --color-shell-hover: color-mix(in srgb, var(--color-accent) 6%, transparent);
+  --color-shell-active: color-mix(in srgb, var(--color-accent) 12%, transparent);
+  --shell-sidebar-width: 15rem;
+  --shell-content-gap: 1.25rem;
+  --shell-control-size: 2.75rem;
+  --type-shell-kicker: 0.6875rem;
+  --type-shell-title: 1.125rem;
+  --type-shell-body: 0.875rem;
+  --motion-fast: 160ms;
 
   --radius-sm: var(--tabler-radius-sm);
   --radius-md: var(--tabler-radius-md);
@@ -181,10 +209,63 @@ body {
   }
 
   .app-sidebar {
-    background: var(--color-sidebar-bg);
-    border-color: var(--color-border-strong);
-    box-shadow: var(--shadow-md);
-  }
+     background: var(--color-shell-bg);
+     border-color: var(--color-border-strong);
+     box-shadow: var(--shadow-md);
+   }
+
+   .shell-topbar,
+   .shell-page-header {
+     background: color-mix(in srgb, var(--color-shell-surface) 92%, transparent);
+     border: 1px solid var(--color-border);
+     border-radius: var(--radius-md);
+     box-shadow: var(--shadow-sm);
+   }
+
+   .shell-page-header {
+     background: var(--color-shell-raised);
+   }
+
+   .shell-nav-link {
+     min-height: var(--shell-control-size);
+     transition: color var(--motion-fast) ease, background-color var(--motion-fast) ease, border-color var(--motion-fast) ease;
+   }
+
+   .shell-nav-link:hover {
+     background: var(--color-shell-hover);
+   }
+
+   .shell-nav-link[data-active="true"] {
+     background: var(--color-shell-active);
+     border-color: var(--color-border-accent);
+   }
+
+   .shell-subnav-link {
+     min-height: 2.75rem;
+     transition: color var(--motion-fast) ease, background-color var(--motion-fast) ease;
+   }
+
+   .shell-subnav-link:hover,
+   .shell-subnav-link[data-active="true"] {
+     background: var(--color-shell-hover);
+     color: var(--color-text-primary);
+   }
+
+   .shell-control {
+     min-height: var(--shell-control-size);
+     min-width: var(--shell-control-size);
+   }
+
+   .shell-drawer {
+     background: var(--color-shell-bg);
+     border-right: 1px solid var(--color-border-strong);
+   }
+
+   .shell-session {
+     background: var(--color-shell-active);
+     border: 1px solid var(--color-border-accent);
+   }
+
 
   .app-card {
     background: var(--color-surface-1);
@@ -581,5 +662,51 @@ body {
     background:
       radial-gradient(circle at 0% 0%, rgb(59 130 246 / 0.16), transparent 30%),
       radial-gradient(circle at 100% 0%, rgb(37 99 235 / 0.24), transparent 34%);
+  }
+
+  .dashboard-card {
+    background: var(--color-surface-1);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+  }
+
+  .dashboard-card-interactive {
+    transition: border-color var(--motion-fast) ease, box-shadow var(--motion-fast) ease, transform var(--motion-fast) ease;
+  }
+
+  .dashboard-card-interactive:hover {
+    border-color: var(--color-border-accent);
+    box-shadow: var(--shadow-md);
+    transform: translateY(-1px);
+  }
+
+  .dashboard-subtle {
+    background: color-mix(in srgb, var(--color-surface-3) 72%, transparent);
+    border: 1px solid var(--color-border);
+  }
+
+  .dashboard-icon {
+    background: var(--color-accent-soft);
+    color: var(--color-accent);
+  }
+
+  .dashboard-money-income { color: var(--color-success); }
+  .dashboard-money-expense { color: var(--color-danger); }
+  .dashboard-money-credit { color: var(--color-credit); }
+  .dashboard-money-neutral { color: var(--color-text-primary); }
+
+  .dashboard-track {
+    background: color-mix(in srgb, var(--color-text-muted) 18%, transparent);
+  }
+
+  .dashboard-bar-accent { background: var(--color-accent); }
+  .dashboard-bar-income { background: var(--color-success); }
+  .dashboard-bar-expense { background: var(--color-danger); }
+  .dashboard-bar-credit { background: var(--color-credit); }
+
+  .dashboard-touch-target {
+    min-height: var(--shell-control-size);
+    min-width: var(--shell-control-size);
   }
 }

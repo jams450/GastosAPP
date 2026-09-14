@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "ESLINT_USE_FLAT_CONFIG=false eslint . --ext .js,.jsx,.ts,.tsx",
     "lint:fix": "ESLINT_USE_FLAT_CONFIG=false eslint . --ext .js,.jsx,.ts,.tsx --fix",
-    "test": "node --test app/transactions/_lib/transactions-repeat.test.ts"
+    "test": "node --experimental-strip-types --test 'app/(app)/transactions/_lib/transactions-repeat.test.ts'"
   },
   "dependencies": {
     "@tanstack/react-table": "^8.21.3",

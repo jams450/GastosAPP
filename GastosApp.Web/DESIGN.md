@@ -27,14 +27,37 @@ This contract was extracted from the existing app, not invented:
 
 1. **No component without a token.** Color, spacing, radius, shadow and motion values are
    tokens, never one-off literals.
-2. **Slate/warm neutrals, not pure black.** Dark surfaces use desaturated slate values so
-   large data screens do not read as a void. Pure `#000`/`#090909` is forbidden for surfaces.
+2. **Modern financial SaaS.** Dark is the default: calm slate surfaces, crisp blue navigation
+   and actions, and restrained elevation for dense money workflows.
 3. **Semantics over decoration.** Money direction is encoded by sign + token color, not by
-   ornament. Motion only communicates a real state change.
+   ornament. Green/red stay reserved for money and status; blue owns navigation and actions.
 4. **Additive compatibility.** Shared primitives (`DataGrid`) may gain optional props but
    never rename/remove existing props or column IDs — nine screens depend on them.
 5. **Accessible by default.** Every interactive element exposes a visible keyboard focus
-   state and a semantic role/label.
+   state and a semantic role/label, with touch targets of at least 44px.
+
+### Shell direction
+
+- Desktop shell uses a compact `15rem` sidebar (within the 240–256px target), with a future
+  collapsible-navigation intent. This phase does not add speculative collapse state.
+- Topbar is a quiet utility surface; `PageHeader` is the stronger page-level hierarchy.
+- Mobile uses a full-height drawer with a scrim, grouped navigation, safe close affordance and
+  preserved focus trap. Business screens remain unchanged; mobile cards are a later phase.
+- Use semantic shell classes (`.shell-*`) instead of raw color utilities in navigation components.
+
+### Shell tokens
+
+- Surfaces: `--color-shell-bg`, `--color-shell-surface`, `--color-shell-raised`,
+  `--color-shell-hover`, `--color-shell-active`.
+- Layout: `--shell-sidebar-width` (`15rem`), `--shell-content-gap`, `--shell-control-size`
+  (`2.75rem` / 44px minimum), and existing 4px-grid spacing.
+- Typography: `--type-shell-kicker`, `--type-shell-title`, `--type-shell-body`; use existing
+  system stack, tight titles, uppercase kickers with tracked labels.
+- Radius/elevation: existing `--radius-sm/md/lg`, `--shadow-sm/md`; shell surfaces use a
+  hairline border plus restrained shadow, not ornamental cards.
+- Focus/motion: existing focus ring token; transitions use `--motion-fast` and GPU-safe
+  `color`, `background`, `border-color`, `opacity`, `transform`. Respect
+  `prefers-reduced-motion` already defined by the global contract.
 
 ## 2. Color & Surfaces
 
@@ -85,6 +108,18 @@ Components use these classes; they never re-declare the mixins inline.
 - Shadow: `--shadow-sm` resting, `--shadow-md` raised/overlays. No bespoke box-shadows.
 
 ## 5. Primitives
+
+### App shell
+
+- `AppShell` owns desktop sidebar, utility topbar, mobile trigger and drawer composition.
+  It preserves route navigation, logout, auth/session behavior and URL structure.
+- `AdminNavigation` owns route links and active states. Existing child links remain visible;
+  collapsible navigation is intent only for a later behavior-safe phase.
+- `PageHeader` owns section kicker, title, subtitle, optional meta and actions. Actions may
+  wrap on narrow screens without horizontal page overflow.
+- `MobileNavigationDrawer` owns scrim, dialog semantics, close control and mobile navigation.
+  Focus trap and body-scroll lock remain in `useMobileNavigation`.
+- `AdminSession` and `AdminUserMenu` reuse semantic shell surfaces and 44px controls.
 
 ### DataGrid (`components/data-grid/data-grid.tsx`)
 - Props are additive-only. Existing: `columns, rows, mode, density, loading,
@@ -148,10 +183,17 @@ Components use these classes; they never re-declare the mixins inline.
 ## 10. Motion
 
 - Transitions only on interactive feedback (`transition`, `transition-colors`) using
-  default easing; GPU-safe properties (`color`, `opacity`, `background`, `transform`).
-- No animated decoration on non-interactive elements. Layout-property animation forbidden.
+  `--motion-fast`; GPU-safe properties (`color`, `opacity`, `background`, `border-color`,
+  `transform`).
+- Drawer transitions, when present, animate opacity/transform only and keep an instant path for
+  reduced motion. No animated decoration on non-interactive elements. Layout-property animation
+  forbidden.
 
 ## 11. Accepted Debt
+
+- This phase intentionally does not add sidebar collapse state, accordion behavior, mobile card
+  redesigns or business-screen changes. Add them only with explicit product requirements and
+  route/accessibility coverage.
 
 - `use-history-columns.tsx` sorts lookup columns by resolved display name instead of raw
   ID (e.g. category name) and exposes the display value to the global filter. If a future
