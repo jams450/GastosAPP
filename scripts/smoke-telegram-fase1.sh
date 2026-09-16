@@ -14,6 +14,7 @@
 #   API_URL=http://localhost:5000 \
 #   TELEGRAM_WEBHOOK_SECRET='<secreto de prueba>' \
 #   TELEGRAM_TEST_USER_ID=123456789 \
+#   TELEGRAM_TEST_CATEGORY='<categoría existente en el catálogo del usuario de prueba>' \
 #   ./scripts/smoke-telegram-fase1.sh
 #
 # Salida: PASS/FAIL por caso y exit code != 0 si algo falla.
@@ -23,6 +24,7 @@ set -euo pipefail
 BASE_URL="${API_URL:-http://localhost:5000}"
 SECRET="${TELEGRAM_WEBHOOK_SECRET:?Define TELEGRAM_WEBHOOK_SECRET (valor de prueba, no de producción)}"
 FROM_ID="${TELEGRAM_TEST_USER_ID:?Define TELEGRAM_TEST_USER_ID (id numérico autorizado en el entorno de prueba)}"
+CATEGORY="${TELEGRAM_TEST_CATEGORY:?Define TELEGRAM_TEST_CATEGORY (categoría existente en el entorno de prueba)}"
 UNKNOWN_ID="${TELEGRAM_UNKNOWN_USER_ID:-999999999}"
 PATH_WEBHOOK="/api/telegram/webhook"
 
@@ -79,9 +81,13 @@ check "usuario no autorizado" "403" "$LAST_HTTP"
 post_update "$(build_update 900004 "$FROM_ID" "$FROM_ID" group '/ayuda')" "$SECRET"
 check "chat no privado" "403" "$LAST_HTTP"
 
-# --- Caso 1: comando manual válido -> 200 (crea borrador, NO escribe transactions) --
-post_update "$(build_update 900005 "$FROM_ID" "$FROM_ID" private '/gasto 200 efectivo smoke')" "$SECRET"
-check "comando /gasto" "200" "$LAST_HTTP"
+# --- Caso 1a: /gasto sin categoría -> 200 (pide categoría, NO crea borrador) --------
+post_update "$(build_update 900005 "$FROM_ID" "$FROM_ID" private '/gasto 200 | efectivo')" "$SECRET"
+check "comando /gasto sin categoría" "200" "$LAST_HTTP"
+
+# --- Caso 1b: /gasto con campos delimitados -> 200 (crea borrador) ------------------
+post_update "$(build_update 900011 "$FROM_ID" "$FROM_ID" private "/gasto 200 | efectivo | ${CATEGORY} | | | smoke")" "$SECRET"
+check "comando /gasto con categoría" "200" "$LAST_HTTP"
 
 # --- Caso 2: confirmación -> 200 ----------------------------------------------------
 post_update "$(build_update 900006 "$FROM_ID" "$FROM_ID" private 'sí')" "$SECRET"
@@ -92,7 +98,7 @@ post_update "$(build_update 900007 "$FROM_ID" "$FROM_ID" private 'no')" "$SECRET
 check "cancelación (no)" "200" "$LAST_HTTP"
 
 # --- Caso 4: monto 0 -> 200 con mensaje funcional, sin escritura --------------------
-post_update "$(build_update 900008 "$FROM_ID" "$FROM_ID" private '/gasto 0 efectivo')" "$SECRET"
+post_update "$(build_update 900008 "$FROM_ID" "$FROM_ID" private '/gasto 0 | efectivo')" "$SECRET"
 check "monto 0" "200" "$LAST_HTTP"
 
 # --- Caso 9: comando manual con LLM caído -> 200 ------------------------------------
@@ -110,12 +116,13 @@ cat <<'SQL'
 
 Para comprobar efectos en DB (ajusta host/usuario/base; no incluir credenciales en el repo):
 
-  SELECT count(*) FROM telegram_processed_updates WHERE update_id IN (900005,900010);
+  SELECT count(*) FROM telegram_processed_updates WHERE update_id IN (900011,900010);
   SELECT status, count(*) FROM telegram_expense_drafts WHERE chat_id = <TELEGRAM_TEST_USER_ID> GROUP BY status;
   SELECT count(*) FROM transactions WHERE description = 'smoke';
 
-Esperado: los updates terminan en status 'done'; el borrador de /gasto queda 'confirmed' tras 'sí';
-el caso de monto 0 no crea borrador; el duplicado no incrementa filas.
+Esperado: los updates terminan en status 'done'; el borrador creado por el caso 1b (900011) queda
+'confirmed' tras 'sí'; el caso sin categoría (900005) y el de monto 0 no crean borrador;
+el duplicado (900010) no incrementa filas.
 
 SQL
 

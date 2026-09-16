@@ -63,20 +63,25 @@ public sealed class TelegramMessageRouter
         {
             var accounts = await _expenses.GetExpenseAccountsAsync(identity.UserId, cancellationToken);
             var categories = await _expenses.GetActiveCategoriesAsync(identity.UserId, cancellationToken);
+            var subcategories = await _expenses.GetActiveSubcategoriesAsync(identity.UserId, cancellationToken);
+            var merchants = await _expenses.GetActiveMerchantsAsync(identity.UserId, cancellationToken);
 
             var request = new IntentRequest(
                 text,
                 DateTimeOffset.UtcNow,
                 MexicoTimeZoneId,
                 accounts.Select(a => a.Name).Take(MaxCatalogNames).ToList(),
-                categories.Select(c => c.Name).Take(MaxCatalogNames).ToList());
+                categories.Select(c => c.Name).Take(MaxCatalogNames).ToList(),
+                subcategories.Select(s => s.Name).Take(MaxCatalogNames).ToList(),
+                merchants.Select(m => m.Name).Take(MaxCatalogNames).ToList());
 
             var intent = await _extractor.ExtractAsync(request, cancellationToken);
 
             switch (intent.Kind)
             {
                 case IntentKind.RegistrarGasto:
-                    return await _expenses.HandleExpenseIntentAsync(intent, identity, accounts, categories, cancellationToken);
+                    return await _expenses.HandleExpenseIntentAsync(
+                        intent, identity, accounts, categories, subcategories, merchants, cancellationToken);
 
                 case IntentKind.Consulta:
                     return await _queries.ConsultaAsync(text, identity, cancellationToken);

@@ -15,16 +15,27 @@ public sealed class TelegramExpenseService
 {
     private const string MexicoTimeZoneId = "America/Mexico_City";
     private const int MaxDescriptionLength = 500;
+    private const string SinValor = "—";
+    private const int ExpenseFieldCount = 6;
+
+    private const string ExpenseSyntax =
+        "Sintaxis: /gasto <monto> | <cuenta> | <categoría> [| <subcategoría>] [| <comercio>] [| <descripción>]\n" +
+        "Ejemplo: /gasto 200 | efectivo | mascotas | higiene | amazon | arena para gato";
 
     private const string HelpText = """
         Comandos disponibles:
         /ayuda, /start — esta ayuda
-        /gasto <monto> <cuenta> [descripción] — crea un borrador de gasto
+        /gasto <monto> | <cuenta> | <categoría> [| <subcategoría>] [| <comercio>] [| <descripción>] — crea un borrador de gasto
         /confirmar (sí, si) — confirma el borrador pendiente
         /cancelar (no) — cancela el borrador pendiente
         /pendiente — muestra el borrador pendiente
         /cuentas — lista tus cuentas activas
         /categorias — lista tus categorías activas
+
+        Ejemplo: /gasto 200 | efectivo | mascotas | higiene | amazon | arena para gato
+        Los campos van en ese orden. Puedes cortar la línea si los últimos no aplican; para saltar
+        uno intermedio déjalo vacío: /gasto 200 | efectivo | mascotas | | amazon
+        La categoría es obligatoria y la fecha/hora se toman del servidor si no las indicas.
 
         También puedes escribir el gasto en lenguaje natural, por ejemplo: "gasté 200 en comida ayer".
         Nada se registra hasta que confirmes.
@@ -36,17 +47,23 @@ public sealed class TelegramExpenseService
     private readonly ITransactionService _transactions;
     private readonly IAccountService _accounts;
     private readonly ICategoryService _categories;
+    private readonly ISubcategoryService _subcategories;
+    private readonly IMerchantService _merchants;
 
     public TelegramExpenseService(
         IExpenseDraftService drafts,
         ITransactionService transactions,
         IAccountService accounts,
-        ICategoryService categories)
+        ICategoryService categories,
+        ISubcategoryService subcategories,
+        IMerchantService merchants)
     {
         _drafts = drafts;
         _transactions = transactions;
         _accounts = accounts;
         _categories = categories;
+        _subcategories = subcategories;
+        _merchants = merchants;
     }
 
     public async Task<string> ExecuteCommandAsync(TelegramCommand command, TelegramIdentity identity, CancellationToken cancellationToken)
@@ -67,9 +84,25 @@ public sealed class TelegramExpenseService
 
     private async Task<string> HandleExpenseCommandAsync(TelegramCommand command, TelegramIdentity identity, CancellationToken cancellationToken)
     {
-        if (!TryParseAmount(command.Amount, out var amount))
+        // Campos posicionales separados por '|'. Los segmentos vacíos se tratan como ausentes.
+        var segments = (command.Arguments ?? string.Empty)
+            .Split('|', StringSplitOptions.TrimEntries)
+            .Select(segment => segment.Trim())
+            .ToList();
+
+        if (segments.Count > ExpenseFieldCount)
         {
-            return "Indica un monto mayor a cero. Ejemplo: /gasto 200 efectivo café";
+            return $"Usa como máximo {ExpenseFieldCount} campos separados por |.\n{ExpenseSyntax}";
+        }
+
+        while (segments.Count < ExpenseFieldCount)
+        {
+            segments.Add(string.Empty);
+        }
+
+        if (!TryParseAmount(segments[0], out var amount))
+        {
+            return $"Indica un monto mayor a cero.\n{ExpenseSyntax}";
         }
 
         var accounts = await GetExpenseAccountsAsync(identity.UserId, cancellationToken);
@@ -78,30 +111,46 @@ public sealed class TelegramExpenseService
             return "No tienes cuentas activas (no crédito) para registrar gastos.";
         }
 
-        var tokens = (command.Arguments ?? string.Empty)
-            .Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-        if (tokens.Length == 0)
-        {
-            return "Indica la cuenta. Ejemplo: /gasto 200 efectivo café";
-        }
-
-        var (account, error, description) = ResolveAccountWithRemainder(tokens, accounts);
+        var (account, accountError) = ResolveSingleAccount(segments[1], accounts);
         if (account is null)
         {
-            return error ?? "No encontré esa cuenta.";
+            return (accountError ?? "No encontré esa cuenta.") + "\n" + ExpenseSyntax;
+        }
+
+        var categories = await GetActiveCategoriesAsync(identity.UserId, cancellationToken);
+        var (category, categoryError) = ResolveSingleCategory(segments[2], categories);
+        if (category is null)
+        {
+            return (categoryError ?? "Falta la categoría del gasto.") + "\n" + ExpenseSyntax;
+        }
+
+        var subcategories = await GetActiveSubcategoriesAsync(identity.UserId, cancellationToken);
+        var (subcategory, subcategoryError) = ResolveSingleSubcategory(segments[3], category, subcategories);
+        if (subcategoryError is not null)
+        {
+            return subcategoryError;
+        }
+
+        var merchants = await GetActiveMerchantsAsync(identity.UserId, cancellationToken);
+        var (merchant, merchantError) = ResolveSingleMerchant(segments[4], merchants);
+        if (merchantError is not null)
+        {
+            return merchantError;
         }
 
         var draft = await CreateDraftAsync(
             identity,
             amount,
             account,
-            Truncate(description, MaxDescriptionLength),
-            null,
-            TodayInMexicoUtc(),
+            Truncate(segments[5], MaxDescriptionLength),
+            category,
+            subcategory,
+            merchant,
+            DateTime.UtcNow,
             TelegramExpenseDraftSource.Manual,
             cancellationToken);
 
-        return DescribeDraft(draft, account.Name);
+        return DescribeDraft(draft);
     }
 
     /// <summary>
@@ -113,6 +162,8 @@ public sealed class TelegramExpenseService
         TelegramIdentity identity,
         IReadOnlyList<Account> accounts,
         IReadOnlyList<Category> categories,
+        IReadOnlyList<Subcategory> subcategories,
+        IReadOnlyList<Merchant> merchants,
         CancellationToken cancellationToken)
     {
         if (intent.Monto is null || intent.Monto <= 0)
@@ -126,17 +177,30 @@ public sealed class TelegramExpenseService
             return error ?? "No encontré esa cuenta. Usa /cuentas para ver los nombres disponibles.";
         }
 
-        // Categoría presente pero inválida/ambigua: se pide aclaración y NO se crea borrador.
-        // (La categoría es opcional: solo cuando el usuario no mencionó ninguna se crea sin ella.)
+        // Categoría obligatoria: sin categoría resuelta no se crea borrador.
         var (category, categoryError) = ResolveSingleCategory(intent.Categoria, categories);
-        if (categoryError is not null)
+        if (category is null)
         {
-            return categoryError;
+            return categoryError ?? "Falta la categoría del gasto. Usa /categorias para ver las disponibles.";
+        }
+
+        // Subcategoría y comercio son opcionales, pero si el usuario los mencionó deben resolver
+        // dentro de su catálogo: nunca se sustituyen en silencio.
+        var (subcategory, subcategoryError) = ResolveSingleSubcategory(intent.Subcategoria, category, subcategories);
+        if (subcategoryError is not null)
+        {
+            return subcategoryError;
+        }
+
+        var (merchant, merchantError) = ResolveSingleMerchant(intent.Comercio, merchants);
+        if (merchantError is not null)
+        {
+            return merchantError;
         }
 
         // Fecha presente pero fuera de rango: se pide aclaración y NO se sustituye por hoy.
-        // Fecha ausente => hoy (en America/Mexico_City).
-        var (transactionDate, dateError) = ResolveDateUtc(intent.Fecha);
+        // Fecha u hora ausentes => fecha de hoy y hora actual del servidor (America/Mexico_City).
+        var (transactionDate, dateError) = ResolveDateUtc(intent.Fecha, intent.Hora);
         if (dateError is not null)
         {
             return dateError;
@@ -149,10 +213,11 @@ public sealed class TelegramExpenseService
                 account,
                 Truncate(intent.Descripcion, MaxDescriptionLength),
                 category,
+                subcategory,
+                merchant,
                 transactionDate!.Value,
                 TelegramExpenseDraftSource.Ai,
-                cancellationToken),
-            account.Name);
+                cancellationToken));
     }
 
     private async Task<string> ConfirmAsync(TelegramIdentity identity, CancellationToken cancellationToken)
@@ -177,7 +242,7 @@ public sealed class TelegramExpenseService
             return result.Outcome switch
             {
                 ExpenseDraftConfirmationOutcome.Confirmed =>
-                    $"Gasto registrado: {FormatMoney(result.Draft!.Amount)} en {result.Draft.RawAccountName ?? "la cuenta"}.",
+                    "Gasto registrado:\n" + FormatDraftValues(result.Draft!),
                 ExpenseDraftConfirmationOutcome.Expired =>
                     "El borrador expiró. Crea uno nuevo con /gasto.",
                 ExpenseDraftConfirmationOutcome.NotPending =>
@@ -227,8 +292,7 @@ public sealed class TelegramExpenseService
             return "No hay ningún gasto pendiente.";
         }
 
-        return $"Pendiente: {FormatMoney(pending.Amount)} en {pending.RawAccountName ?? "la cuenta"} ({FormatDate(pending.TransactionDate)}).\n" +
-               "Responde sí para confirmar o no para cancelar.";
+        return "Pendiente:\n" + FormatDraftValues(pending) + "\nResponde sí para confirmar o no para cancelar.";
     }
 
     private async Task<string> ListAccountsAsync(TelegramIdentity identity, CancellationToken cancellationToken)
@@ -261,6 +325,8 @@ public sealed class TelegramExpenseService
         Account account,
         string? description,
         Category? category,
+        Subcategory? subcategory,
+        Merchant? merchant,
         DateTime transactionDateUtc,
         string source,
         CancellationToken cancellationToken)
@@ -275,6 +341,10 @@ public sealed class TelegramExpenseService
             RawAccountName = account.Name,
             CategoryId = category?.CategoryId,
             RawCategoryName = category?.Name,
+            SubcategoryId = subcategory?.SubcategoryId,
+            RawSubcategoryName = subcategory?.Name,
+            MerchantId = merchant?.MerchantId,
+            RawMerchantName = merchant?.Name,
             Description = description,
             Source = source,
             Intent = TelegramExpenseDraftIntent.Expense
@@ -300,38 +370,23 @@ public sealed class TelegramExpenseService
         return categories.Where(c => c.Active).ToList();
     }
 
-    private static (Account? Account, string? Error, string? Description) ResolveAccountWithRemainder(
-        IReadOnlyList<string> tokens,
-        IReadOnlyList<Account> accounts)
+    public async Task<IReadOnlyList<Subcategory>> GetActiveSubcategoriesAsync(int userId, CancellationToken cancellationToken)
     {
-        // Los nombres de cuenta pueden tener espacios: se prueban prefijos de 1..4 tokens.
-        for (var length = 1; length <= Math.Min(4, tokens.Count); length++)
-        {
-            var candidate = string.Join(' ', tokens.Take(length));
-            var matches = accounts
-                .Where(a => string.Equals(a.Name.Trim(), candidate, StringComparison.OrdinalIgnoreCase))
-                .ToList();
+        cancellationToken.ThrowIfCancellationRequested();
+        return (await _subcategories.GetByUserIdAsync(userId, true)).ToList();
+    }
 
-            if (matches.Count > 1)
-            {
-                return (null, "Hay más de una cuenta con ese nombre. Usa /cuentas para ver los nombres exactos.", null);
-            }
-
-            if (matches.Count == 1)
-            {
-                var remainder = tokens.Count > length ? string.Join(' ', tokens.Skip(length)) : null;
-                return (matches[0], null, string.IsNullOrWhiteSpace(remainder) ? null : remainder);
-            }
-        }
-
-        return (null, "No encontré esa cuenta. Usa /cuentas para ver los nombres disponibles.", null);
+    public async Task<IReadOnlyList<Merchant>> GetActiveMerchantsAsync(int userId, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return (await _merchants.GetByUserIdAsync(userId, true)).ToList();
     }
 
     private static (Account? Account, string? Error) ResolveSingleAccount(string? name, IReadOnlyList<Account> accounts)
     {
         if (string.IsNullOrWhiteSpace(name))
         {
-            return (null, "¿En qué cuenta fue el gasto? Ejemplo: /gasto 200 efectivo café");
+            return (null, "Falta la cuenta en el segundo campo.");
         }
 
         var matches = accounts
@@ -348,8 +403,11 @@ public sealed class TelegramExpenseService
 
     private static (Category? Category, string? Error) ResolveSingleCategory(string? name, IReadOnlyList<Category> categories)
     {
-        // Categoría ausente: opcional, se crea sin ella.
-        if (string.IsNullOrWhiteSpace(name)) return (null, null);
+        // Categoría obligatoria: ausente se trata como error, no como "sin categoría".
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return (null, "Falta la categoría del gasto. Usa /categorias para ver las disponibles.");
+        }
 
         var matches = categories
             .Where(c => string.Equals(c.Name.Trim(), name.Trim(), StringComparison.OrdinalIgnoreCase))
@@ -359,6 +417,44 @@ public sealed class TelegramExpenseService
         {
             0 => (null, "No encontré esa categoría. Usa /categorias para ver los nombres disponibles."),
             > 1 => (null, "Hay más de una categoría con ese nombre. Usa /categorias para ver los nombres exactos."),
+            _ => (matches[0], null)
+        };
+    }
+
+    private static (Subcategory? Subcategory, string? Error) ResolveSingleSubcategory(
+        string? name,
+        Category category,
+        IReadOnlyList<Subcategory> subcategories)
+    {
+        // Subcategoría opcional: solo se resuelve si el usuario la mencionó, y siempre dentro de su categoría.
+        if (string.IsNullOrWhiteSpace(name)) return (null, null);
+
+        var matches = subcategories
+            .Where(s => s.CategoryId == category.CategoryId
+                && string.Equals(s.Name.Trim(), name.Trim(), StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        return matches.Count switch
+        {
+            0 => (null, $"No encontré la subcategoría \"{name.Trim()}\" en {category.Name}. Puedes registrarla sin subcategoría."),
+            > 1 => (null, $"Hay más de una subcategoría \"{name.Trim()}\" en {category.Name}."),
+            _ => (matches[0], null)
+        };
+    }
+
+    private static (Merchant? Merchant, string? Error) ResolveSingleMerchant(string? name, IReadOnlyList<Merchant> merchants)
+    {
+        // Comercio opcional: solo se resuelve si el usuario lo mencionó.
+        if (string.IsNullOrWhiteSpace(name)) return (null, null);
+
+        var matches = merchants
+            .Where(m => string.Equals(m.Name.Trim(), name.Trim(), StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        return matches.Count switch
+        {
+            0 => (null, $"No encontré el comercio \"{name.Trim()}\". Puedes registrarlo sin comercio."),
+            > 1 => (null, "Hay más de un comercio con ese nombre. Indica el nombre exacto."),
             _ => (matches[0], null)
         };
     }
@@ -376,42 +472,54 @@ public sealed class TelegramExpenseService
         return amount > 0;
     }
 
-    private static DateTime TodayInMexicoUtc()
+    private static (DateTime? DateUtc, string? Error) ResolveDateUtc(DateOnly? date, TimeOnly? hora)
     {
         var nowLocal = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, MexicoTimeZone);
-        var todayLocal = DateTime.SpecifyKind(nowLocal.Date, DateTimeKind.Unspecified);
-        return TimeZoneInfo.ConvertTimeToUtc(todayLocal, MexicoTimeZone);
-    }
+        var todayLocal = nowLocal.Date;
 
-    private static (DateTime? DateUtc, string? Error) ResolveDateUtc(DateOnly? date)
-    {
-        var todayLocal = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, MexicoTimeZone).Date;
-        if (date is null)
-        {
-            // Fecha ausente => hoy.
-            return (TodayInMexicoUtc(), null);
-        }
+        // Fecha ausente => hoy. Hora ausente => hora actual del servidor (America/Mexico_City).
+        var day = date ?? DateOnly.FromDateTime(todayLocal);
+        var time = hora ?? TimeOnly.FromDateTime(nowLocal);
 
-        var value = date.Value.ToDateTime(TimeOnly.MinValue);
-        if (value < todayLocal.AddDays(-366) || value > todayLocal.AddDays(1))
+        if (day < DateOnly.FromDateTime(todayLocal.AddDays(-366)) || day > DateOnly.FromDateTime(todayLocal.AddDays(1)))
         {
             // Fecha presente pero fuera de rango: aclarar, nunca sustituir por hoy en silencio.
             return (null, "La fecha está fuera del rango permitido. Indica una fecha de los últimos 12 meses (máximo mañana).");
         }
 
-        return (TimeZoneInfo.ConvertTimeToUtc(DateTime.SpecifyKind(value, DateTimeKind.Unspecified), MexicoTimeZone), null);
+        var value = DateTime.SpecifyKind(day.ToDateTime(time), DateTimeKind.Unspecified);
+        return (TimeZoneInfo.ConvertTimeToUtc(value, MexicoTimeZone), null);
     }
 
-    private static string DescribeDraft(TelegramExpenseDraft draft, string accountName) =>
-        $"Borrador: {FormatMoney(draft.Amount)} en {accountName} ({FormatDate(draft.TransactionDate)}).\n" +
-        "Responde sí para confirmar o no para cancelar.";
+    private static string DescribeDraft(TelegramExpenseDraft draft) =>
+        "Borrador:\n" + FormatDraftValues(draft) + "\nResponde sí para confirmar o no para cancelar.";
+
+    private static string FormatDraftValues(TelegramExpenseDraft draft)
+    {
+        var lines = new List<string>
+        {
+            $"- Monto: {FormatMoney(draft.Amount)}",
+            $"- Cuenta: {draft.RawAccountName ?? SinValor}",
+            $"- Categoría: {draft.RawCategoryName ?? SinValor}",
+            $"- Subcategoría: {draft.RawSubcategoryName ?? SinValor}",
+            $"- Comercio: {draft.RawMerchantName ?? SinValor}",
+            $"- Fecha: {FormatDate(draft.TransactionDate)}"
+        };
+
+        if (!string.IsNullOrWhiteSpace(draft.Description))
+        {
+            lines.Add($"- Descripción: {draft.Description}");
+        }
+
+        return string.Join('\n', lines);
+    }
 
     private static string FormatMoney(decimal amount) =>
         "$" + amount.ToString("0.00", CultureInfo.InvariantCulture);
 
     private static string FormatDate(DateTime utc) =>
         TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(utc, DateTimeKind.Utc), MexicoTimeZone)
-            .ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+            .ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture);
 
     private static string? Truncate(string? value, int maxLength)
     {

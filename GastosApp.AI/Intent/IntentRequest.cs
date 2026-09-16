@@ -5,4 +5,6 @@ public sealed record IntentRequest(
     DateTimeOffset Ahora,
     string ZonaHoraria,
     IReadOnlyList<string> Cuentas,
-    IReadOnlyList<string> Categorias);
+    IReadOnlyList<string> Categorias,
+    IReadOnlyList<string> Subcategorias,
+    IReadOnlyList<string> Comercios);

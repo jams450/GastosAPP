@@ -17,7 +17,7 @@ public enum TelegramCommandKind
     Categories
 }
 
-public sealed record TelegramCommand(TelegramCommandKind Kind, string? Amount = null, string? Arguments = null);
+public sealed record TelegramCommand(TelegramCommandKind Kind, string? Arguments = null);
 
 /// <summary>
 /// Parser determinista de comandos manuales y atajos. No invoca IA.
@@ -61,13 +61,10 @@ public static class TelegramCommandParser
 
     private static TelegramCommand ParseExpense(string rest)
     {
-        if (string.IsNullOrWhiteSpace(rest)) return new TelegramCommand(TelegramCommandKind.Expense);
-
-        var tokens = rest.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-        return tokens.Length switch
-        {
-            1 => new TelegramCommand(TelegramCommandKind.Expense, tokens[0]),
-            _ => new TelegramCommand(TelegramCommandKind.Expense, tokens[0], string.Join(' ', tokens[1..]))
-        };
+        // El parser no interpreta campos: TelegramExpenseService divide el contenido por '|'
+        // (monto | cuenta | categoría | subcategoría | comercio | descripción).
+        return new TelegramCommand(
+            TelegramCommandKind.Expense,
+            string.IsNullOrWhiteSpace(rest) ? null : rest);
     }
 }
