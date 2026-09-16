@@ -1,4 +1,4 @@
-namespace GastosApp.API.Configuration;
+namespace GastosApp.AI.Configuration;
 
 public sealed class LlmOptions
 {

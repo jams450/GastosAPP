@@ -34,6 +34,9 @@ namespace GastosApp.BusinessLogic.Context
         public DbSet<BillableParty> BillableParties { get; set; } = null!;
         public DbSet<TransactionAllocation> TransactionAllocations { get; set; } = null!;
         public DbSet<BancoppelImportedRow> BancoppelImportedRows { get; set; } = null!;
+        public DbSet<TelegramIdentity> TelegramIdentities { get; set; } = null!;
+        public DbSet<TelegramExpenseDraft> TelegramExpenseDrafts { get; set; } = null!;
+        public DbSet<TelegramProcessedUpdate> TelegramProcessedUpdates { get; set; } = null!;
 
         public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
         {
@@ -194,6 +197,33 @@ namespace GastosApp.BusinessLogic.Context
                 entity.HasIndex(e => new { e.AccountId, e.Fingerprint }).IsUnique();
                 entity.HasOne(e => e.Account).WithMany().HasForeignKey(e => e.AccountId).OnDelete(DeleteBehavior.Cascade);
                 entity.HasOne(e => e.Transaction).WithMany().HasForeignKey(e => e.TransactionId).OnDelete(DeleteBehavior.SetNull);
+            });
+
+            modelBuilder.Entity<TelegramIdentity>(entity =>
+            {
+                entity.HasIndex(e => e.TelegramUserId).IsUnique();
+                entity.HasIndex(e => new { e.UserId, e.Active });
+                entity.HasOne(e => e.User).WithMany().HasForeignKey(e => e.UserId).OnDelete(DeleteBehavior.Cascade);
+            });
+
+            modelBuilder.Entity<TelegramExpenseDraft>(entity =>
+            {
+                // UUID generado en C#: nunca por la base de datos.
+                entity.Property(e => e.DraftId).ValueGeneratedNever();
+                // Un solo borrador pendiente por chat (índice parcial).
+                entity.HasIndex(e => e.ChatId).IsUnique().HasFilter("status = 'pending'");
+                entity.HasIndex(e => e.ExpiresAt);
+                entity.HasIndex(e => new { e.TelegramIdentityId, e.Status });
+                entity.HasOne(e => e.TelegramIdentity).WithMany().HasForeignKey(e => e.TelegramIdentityId).OnDelete(DeleteBehavior.Cascade);
+                entity.HasOne(e => e.Transaction).WithMany().HasForeignKey(e => e.TransactionId).OnDelete(DeleteBehavior.SetNull);
+            });
+
+            modelBuilder.Entity<TelegramProcessedUpdate>(entity =>
+            {
+                // update_id viene de Telegram, jamás se genera por identidad.
+                entity.Property(e => e.UpdateId).ValueGeneratedNever();
+                entity.HasIndex(e => new { e.Status, e.ClaimedAt });
+                entity.HasOne(e => e.TelegramIdentity).WithMany().HasForeignKey(e => e.TelegramIdentityId).OnDelete(DeleteBehavior.SetNull);
             });
 
             modelBuilder.Entity<CreditCycle>(entity =>

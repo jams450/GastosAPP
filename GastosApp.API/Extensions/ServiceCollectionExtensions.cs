@@ -1,3 +1,4 @@
+using GastosApp.AI.Intent;
 using GastosApp.API.Interfaces;
 using GastosApp.API.Services;
 using GastosApp.API.Services.Telegram;
@@ -35,8 +36,18 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ITransactionService, TransactionService>();
         services.AddScoped<IBancoppelImportService, BancoppelImportService>();
         services.AddScoped<IDashboardService, DashboardService>();
+        services.AddScoped<ITelegramIdentityService, TelegramIdentityService>();
+        services.AddScoped<IExpenseDraftService, ExpenseDraftService>();
+        services.AddScoped<ITelegramUpdateLedger, TelegramUpdateLedger>();
+        services.AddScoped<ITelegramMaintenanceService, TelegramMaintenanceService>();
+        services.AddScoped<IExpenseIntentExtractor, ExpenseIntentExtractor>();
         services.AddScoped<TelegramToolService>();
         services.AddScoped<ExpenseAgentService>();
+        services.AddScoped<TelegramExpenseService>();
+        services.AddScoped<TelegramQueryService>();
+        services.AddScoped<TelegramMessageRouter>();
+        services.AddScoped<TelegramBotClientProvider>();
+        services.AddSingleton<TelegramRateLimiter>();
         services.AddScoped<ITelegramUpdateService, TelegramUpdateService>();
 
         return services;

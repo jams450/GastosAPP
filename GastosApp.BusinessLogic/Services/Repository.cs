@@ -348,6 +348,31 @@ namespace GastosApp.BusinessLogic.Services
                 """);
         }
 
+        public async Task<bool> ClaimTelegramProcessedUpdateAsync(long updateId, int? telegramIdentityId, string status, DateTime claimedAt, Guid claimToken)
+        {
+            var claimed = await _context.Database.SqlQuery<int>($"""
+                INSERT INTO telegram_processed_updates (update_id, telegram_identity_id, status, attempt_count, claimed_at, claim_token)
+                VALUES ({updateId}, {telegramIdentityId}, {status}, 1, {claimedAt}, {claimToken})
+                ON CONFLICT (update_id) DO NOTHING
+                RETURNING 1 AS "Value"
+                """).AnyAsync();
+            return claimed;
+        }
+
+        public async Task<TelegramExpenseDraft?> LockTelegramExpenseDraftAsync(Guid draftId)
+        {
+            return await _context.TelegramExpenseDrafts
+                .FromSqlInterpolated($"SELECT * FROM telegram_expense_drafts WHERE draft_id = {draftId} FOR UPDATE")
+                .FirstOrDefaultAsync();
+        }
+
+        public async Task LockTelegramDraftChatAsync(long chatId)
+        {
+            // Advisory lock por transacción. El namespace es exclusivo de borradores de Telegram:
+            // no hay otros usos de pg_advisory_xact_lock en la app.
+            await _context.Database.ExecuteSqlInterpolatedAsync($"SELECT pg_advisory_xact_lock({chatId})");
+        }
+
         public async Task<int> SaveChangesAsync()
         {
             return await _context.SaveChangesAsync();

@@ -40,6 +40,14 @@ namespace GastosApp.BusinessLogic.Interfaces
         Task<List<Transaction>> LockTransferTransactionsAsync(Guid transferGroupId);
         Task<bool> ClaimBancoppelImportedRowAsync(int accountId, string fingerprint);
         Task LinkBancoppelImportedRowAsync(int accountId, string fingerprint, int transactionId);
+        Task<bool> ClaimTelegramProcessedUpdateAsync(long updateId, int? telegramIdentityId, string status, DateTime claimedAt, Guid claimToken);
+        Task<TelegramExpenseDraft?> LockTelegramExpenseDraftAsync(Guid draftId);
+
+        /// <summary>
+        /// Toma un advisory lock de PostgreSQL por <paramref name="chatId"/> dentro de la transacción
+        /// actual: serializa la creación de borradores del mismo chat. Se libera al commit/rollback.
+        /// </summary>
+        Task LockTelegramDraftChatAsync(long chatId);
         Task<int> SaveChangesAsync();
         Task<T> ExecuteInTransactionAsync<T>(Func<Task<T>> operation);
     }

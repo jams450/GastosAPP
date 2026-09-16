@@ -1,15 +1,12 @@
 using System.Globalization;
-using GastosApp.API.Configuration;
 using GastosApp.BusinessLogic.Interfaces;
 using GastosApp.BusinessLogic.Models.Transactions;
-using Microsoft.Extensions.Options;
 
 namespace GastosApp.API.Services.Telegram;
 
 public sealed class TelegramToolService
 {
     private const int CatalogLimit = 100;
-    private readonly int _appUserId;
     private readonly ITransactionQueryService _transactions;
     private readonly IAccountService _accounts;
     private readonly ICategoryService _categories;
@@ -19,7 +16,6 @@ public sealed class TelegramToolService
     private readonly IDashboardService _dashboard;
 
     public TelegramToolService(
-        IOptions<TelegramOptions> options,
         ITransactionQueryService transactions,
         IAccountService accounts,
         ICategoryService categories,
@@ -28,7 +24,6 @@ public sealed class TelegramToolService
         ITagService tags,
         IDashboardService dashboard)
     {
-        _appUserId = options.Value.AppUserId;
         _transactions = transactions;
         _accounts = accounts;
         _categories = categories;
@@ -38,7 +33,8 @@ public sealed class TelegramToolService
         _dashboard = dashboard;
     }
 
-    public async Task<object> ResumenGastosAsync(ResumenGastosRequest request, CancellationToken cancellationToken)
+    // El userId siempre lo pasa el llamador (identidad persistida). Nunca sale de la configuración ni del LLM.
+    public async Task<object> ResumenGastosAsync(ResumenGastosRequest request, int userId, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         if (!TryParseDate(request.Desde, out var desde) || !TryParseDate(request.Hasta, out var hasta))
@@ -51,17 +47,17 @@ public sealed class TelegramToolService
         agruparPor ??= Normalize(request.AgruparPor, ["dia", "mes"]);
         if (agruparPor is null) return new ToolError("agruparPor inválido.");
 
-        var categoryId = await ResolveCategoryIdAsync(request.Categoria, tipo, cancellationToken);
+        var categoryId = await ResolveCategoryIdAsync(request.Categoria, tipo, userId, cancellationToken);
         if (categoryId.Error is not null) return new ToolError(categoryId.Error);
-        var subcategoryId = await ResolveSubcategoryIdAsync(request.Subcategoria, cancellationToken);
+        var subcategoryId = await ResolveSubcategoryIdAsync(request.Subcategoria, userId, cancellationToken);
         if (subcategoryId.Error is not null) return new ToolError(subcategoryId.Error);
-        var accountId = await ResolveAccountIdAsync(request.Cuenta, cancellationToken);
+        var accountId = await ResolveAccountIdAsync(request.Cuenta, userId, cancellationToken);
         if (accountId.Error is not null) return new ToolError(accountId.Error);
-        var merchantId = await ResolveMerchantIdAsync(request.Comercio, cancellationToken);
+        var merchantId = await ResolveMerchantIdAsync(request.Comercio, userId, cancellationToken);
         if (merchantId.Error is not null) return new ToolError(merchantId.Error);
 
         cancellationToken.ThrowIfCancellationRequested();
-        var result = await _transactions.QueryAcrossAccountsForUserAsync(_appUserId, new TransactionAggregateQuery
+        var result = await _transactions.QueryAcrossAccountsForUserAsync(userId, new TransactionAggregateQuery
         {
             Desde = desde.ToDateTime(TimeOnly.MinValue),
             Hasta = hasta.ToDateTime(TimeOnly.MinValue),
@@ -81,7 +77,7 @@ public sealed class TelegramToolService
             result.Buckets.Select(x => new AggregateBucket(x.Key, x.Expense, x.Income, x.Count)).ToList());
     }
 
-    public async Task<object> ListarCatalogosAsync(ListarCatalogosRequest request, CancellationToken cancellationToken)
+    public async Task<object> ListarCatalogosAsync(ListarCatalogosRequest request, int userId, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         var tipo = Normalize(request.Tipo, ["cuentas", "categorias", "subcategorias", "comercios", "etiquetas"]);
@@ -89,23 +85,23 @@ public sealed class TelegramToolService
 
         var items = tipo switch
         {
-            "cuentas" => (await _accounts.GetAllActiveByUserIdAsync(_appUserId)).Take(CatalogLimit).Select(x => new CatalogItem(x.AccountId, x.Name)),
-            "categorias" => (await _categories.GetAllActiveByUserIdAsync(_appUserId)).Take(CatalogLimit).Select(x => new CatalogItem(x.CategoryId, x.Name)),
-            "subcategorias" => await ListSubcategoriesAsync(request.Categoria, cancellationToken),
-            "comercios" => (await _merchants.GetByUserIdAsync(_appUserId, true)).Take(CatalogLimit).Select(x => new CatalogItem(x.MerchantId, x.Name)),
-            "etiquetas" => (await _tags.GetByUserIdAsync(_appUserId, true)).Take(CatalogLimit).Select(x => new CatalogItem(x.TagId, x.Name)),
+            "cuentas" => (await _accounts.GetAllActiveByUserIdAsync(userId)).Take(CatalogLimit).Select(x => new CatalogItem(x.AccountId, x.Name)),
+            "categorias" => (await _categories.GetAllActiveByUserIdAsync(userId)).Take(CatalogLimit).Select(x => new CatalogItem(x.CategoryId, x.Name)),
+            "subcategorias" => await ListSubcategoriesAsync(request.Categoria, userId, cancellationToken),
+            "comercios" => (await _merchants.GetByUserIdAsync(userId, true)).Take(CatalogLimit).Select(x => new CatalogItem(x.MerchantId, x.Name)),
+            "etiquetas" => (await _tags.GetByUserIdAsync(userId, true)).Take(CatalogLimit).Select(x => new CatalogItem(x.TagId, x.Name)),
             _ => []
         };
         return new CatalogResponse(items.ToList());
     }
 
-    public async Task<object> ResumenDashboardAsync(ResumenDashboardRequest request, CancellationToken cancellationToken)
+    public async Task<object> ResumenDashboardAsync(ResumenDashboardRequest request, int userId, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         if (!string.IsNullOrWhiteSpace(request.Mes) && !DateOnly.TryParseExact(request.Mes + "-01", "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out _))
             return new ToolError("mes debe tener formato yyyy-MM.");
 
-        var overview = await _dashboard.GetOverviewAsync(_appUserId, request.Mes, "America/Mexico_City");
+        var overview = await _dashboard.GetOverviewAsync(userId, request.Mes, "America/Mexico_City");
         return new DashboardResponse(
             overview.Month,
             overview.GeneralSummary.MonthIncome,
@@ -114,48 +110,48 @@ public sealed class TelegramToolService
             overview.Accounts.Take(50).Select(x => new DashboardAccount(x.Name, x.CurrentBalance, x.MonthIncome, x.MonthExpense)).ToList());
     }
 
-    private async Task<IEnumerable<CatalogItem>> ListSubcategoriesAsync(string? category, CancellationToken cancellationToken)
+    private async Task<IEnumerable<CatalogItem>> ListSubcategoriesAsync(string? category, int userId, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(category))
-            return (await _subcategories.GetByUserIdAsync(_appUserId, true)).Take(CatalogLimit).Select(x => new CatalogItem(x.SubcategoryId, x.Name));
+            return (await _subcategories.GetByUserIdAsync(userId, true)).Take(CatalogLimit).Select(x => new CatalogItem(x.SubcategoryId, x.Name));
 
-        var categoryId = await ResolveCategoryIdAsync(category, null, cancellationToken);
+        var categoryId = await ResolveCategoryIdAsync(category, null, userId, cancellationToken);
         return categoryId.Id is null
             ? []
-            : (await _subcategories.GetByCategoryIdAsync(_appUserId, categoryId.Id.Value, true)).Take(CatalogLimit).Select(x => new CatalogItem(x.SubcategoryId, x.Name));
+            : (await _subcategories.GetByCategoryIdAsync(userId, categoryId.Id.Value, true)).Take(CatalogLimit).Select(x => new CatalogItem(x.SubcategoryId, x.Name));
     }
 
-    private async Task<Resolution> ResolveCategoryIdAsync(string? name, string? type, CancellationToken cancellationToken)
+    private async Task<Resolution> ResolveCategoryIdAsync(string? name, string? type, int userId, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(name)) return new Resolution(null, null);
         var categories = type is "expense" or "income"
-            ? await _categories.GetByTypeAsync(_appUserId, type)
-            : await _categories.GetAllActiveByUserIdAsync(_appUserId);
+            ? await _categories.GetByTypeAsync(userId, type)
+            : await _categories.GetAllActiveByUserIdAsync(userId);
         cancellationToken.ThrowIfCancellationRequested();
         var item = categories.FirstOrDefault(x => x.Active && SameName(x.Name, name));
         return item is null ? new Resolution(null, "categoría no encontrada.") : new Resolution(item.CategoryId, null);
     }
 
-    private async Task<Resolution> ResolveSubcategoryIdAsync(string? name, CancellationToken cancellationToken)
+    private async Task<Resolution> ResolveSubcategoryIdAsync(string? name, int userId, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(name)) return new Resolution(null, null);
-        var item = (await _subcategories.GetByUserIdAsync(_appUserId, true)).FirstOrDefault(x => SameName(x.Name, name));
+        var item = (await _subcategories.GetByUserIdAsync(userId, true)).FirstOrDefault(x => SameName(x.Name, name));
         cancellationToken.ThrowIfCancellationRequested();
         return item is null ? new Resolution(null, "subcategoría no encontrada.") : new Resolution(item.SubcategoryId, null);
     }
 
-    private async Task<Resolution> ResolveAccountIdAsync(string? name, CancellationToken cancellationToken)
+    private async Task<Resolution> ResolveAccountIdAsync(string? name, int userId, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(name)) return new Resolution(null, null);
-        var item = (await _accounts.GetAllActiveByUserIdAsync(_appUserId)).FirstOrDefault(x => SameName(x.Name, name));
+        var item = (await _accounts.GetAllActiveByUserIdAsync(userId)).FirstOrDefault(x => SameName(x.Name, name));
         cancellationToken.ThrowIfCancellationRequested();
         return item is null ? new Resolution(null, "cuenta no encontrada.") : new Resolution(item.AccountId, null);
     }
 
-    private async Task<Resolution> ResolveMerchantIdAsync(string? name, CancellationToken cancellationToken)
+    private async Task<Resolution> ResolveMerchantIdAsync(string? name, int userId, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(name)) return new Resolution(null, null);
-        var item = (await _merchants.GetByUserIdAsync(_appUserId, true)).FirstOrDefault(x => SameName(x.Name, name));
+        var item = (await _merchants.GetByUserIdAsync(userId, true)).FirstOrDefault(x => SameName(x.Name, name));
         cancellationToken.ThrowIfCancellationRequested();
         return item is null ? new Resolution(null, "comercio no encontrado.") : new Resolution(item.MerchantId, null);
     }

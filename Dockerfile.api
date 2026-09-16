@@ -4,6 +4,7 @@ WORKDIR /src
 
 # Copy all project files first (for layer caching)
 COPY GastosApp.API/*.csproj GastosApp.API/
+COPY GastosApp.AI/*.csproj GastosApp.AI/
 COPY GastosApp.BusinessLogic/*.csproj GastosApp.BusinessLogic/
 COPY GastosApp.Models/*.csproj GastosApp.Models/
 
@@ -12,6 +13,7 @@ RUN dotnet restore GastosApp.API/GastosApp.API.csproj
 
 # Copy all source code
 COPY GastosApp.API/ GastosApp.API/
+COPY GastosApp.AI/ GastosApp.AI/
 COPY GastosApp.BusinessLogic/ GastosApp.BusinessLogic/
 COPY GastosApp.Models/ GastosApp.Models/
 
