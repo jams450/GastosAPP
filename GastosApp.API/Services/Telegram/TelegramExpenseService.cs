@@ -32,6 +32,8 @@ public sealed class TelegramExpenseService
         /pendiente — muestra el borrador pendiente
         /cuentas — lista tus cuentas activas
         /categorias — lista tus categorías activas
+        /subcategorias — lista tus subcategorías activas (con su categoría)
+        /comercios — lista tus comercios activos
 
         Ejemplo: /gasto 200 | efectivo | mascotas | higiene | amazon | arena para gato
         Los campos van en ese orden. Puedes cortar la línea si los últimos no aplican; para saltar
@@ -81,6 +83,8 @@ public sealed class TelegramExpenseService
             TelegramCommandKind.Pending => await DescribePendingAsync(identity, cancellationToken),
             TelegramCommandKind.Accounts => await ListAccountsAsync(identity, cancellationToken),
             TelegramCommandKind.Categories => await ListCategoriesAsync(identity, cancellationToken),
+            TelegramCommandKind.Subcategories => await ListSubcategoriesAsync(identity, cancellationToken),
+            TelegramCommandKind.Merchants => await ListMerchantsAsync(identity, cancellationToken),
             TelegramCommandKind.Expense => await HandleExpenseCommandAsync(command, identity, cancellationToken),
             _ => HelpText
         };
@@ -328,6 +332,34 @@ public sealed class TelegramExpenseService
 
         var lines = categories.Select(c => $"- {c.Name}");
         return "Categorías disponibles:\n" + string.Join('\n', lines);
+    }
+
+    private async Task<string> ListSubcategoriesAsync(TelegramIdentity identity, CancellationToken cancellationToken)
+    {
+        var subcategories = await GetActiveSubcategoriesAsync(identity.UserId, cancellationToken);
+        if (subcategories.Count == 0)
+        {
+            return "No tienes subcategorías activas.";
+        }
+
+        var categoryNames = (await GetActiveCategoriesAsync(identity.UserId, cancellationToken))
+            .ToDictionary(c => c.CategoryId, c => c.Name);
+
+        var lines = subcategories.Select(s =>
+            $"- {s.Name} ({(categoryNames.TryGetValue(s.CategoryId, out var categoryName) ? categoryName : "sin categoría")})");
+        return "Subcategorías disponibles:\n" + string.Join('\n', lines);
+    }
+
+    private async Task<string> ListMerchantsAsync(TelegramIdentity identity, CancellationToken cancellationToken)
+    {
+        var merchants = await GetActiveMerchantsAsync(identity.UserId, cancellationToken);
+        if (merchants.Count == 0)
+        {
+            return "No tienes comercios activos.";
+        }
+
+        var lines = merchants.Select(m => $"- {m.Name}");
+        return "Comercios disponibles:\n" + string.Join('\n', lines);
     }
 
     private async Task<TelegramExpenseDraft> CreateDraftAsync(

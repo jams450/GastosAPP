@@ -14,7 +14,9 @@ public enum TelegramCommandKind
     Cancel,
     Pending,
     Accounts,
-    Categories
+    Categories,
+    Subcategories,
+    Merchants
 }
 
 public sealed record TelegramCommand(TelegramCommandKind Kind, string? Arguments = null);
@@ -47,6 +49,8 @@ public static class TelegramCommandParser
                 "/pendiente" => new TelegramCommand(TelegramCommandKind.Pending),
                 "/cuentas" => new TelegramCommand(TelegramCommandKind.Accounts),
                 "/categorias" => new TelegramCommand(TelegramCommandKind.Categories),
+                "/subcategorias" or "/subs" => new TelegramCommand(TelegramCommandKind.Subcategories),
+                "/comercios" => new TelegramCommand(TelegramCommandKind.Merchants),
                 _ => new TelegramCommand(TelegramCommandKind.Unknown)
             };
         }

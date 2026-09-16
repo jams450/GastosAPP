@@ -105,6 +105,13 @@ check "monto 0" "200" "$LAST_HTTP"
 post_update "$(build_update 900009 "$FROM_ID" "$FROM_ID" private '/cuentas')" "$SECRET"
 check "comando /cuentas" "200" "$LAST_HTTP"
 
+# --- Caso 9b: listados de catálogos -> 200 ------------------------------------------
+post_update "$(build_update 900012 "$FROM_ID" "$FROM_ID" private '/subcategorias')" "$SECRET"
+check "comando /subcategorias" "200" "$LAST_HTTP"
+
+post_update "$(build_update 900013 "$FROM_ID" "$FROM_ID" private '/comercios')" "$SECRET"
+check "comando /comercios" "200" "$LAST_HTTP"
+
 # --- Caso 5: update duplicado -> 200 sin segundo efecto -----------------------------
 post_update "$(build_update 900010 "$FROM_ID" "$FROM_ID" private '/ayuda')" "$SECRET"
 check "update original" "200" "$LAST_HTTP"
