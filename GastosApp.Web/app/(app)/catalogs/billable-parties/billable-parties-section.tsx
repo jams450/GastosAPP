@@ -159,7 +159,7 @@ export function BillablePartiesSection({ billableParties, onCatalogChanged, onEr
 
   return (
     <>
-      <section className="overflow-hidden px-4 py-3 sm:px-5">
+      <section>
         <SectionFilterBar
           searchPlaceholder="Buscar responsable"
           searchValue={searchQuery}
@@ -183,8 +183,8 @@ export function BillablePartiesSection({ billableParties, onCatalogChanged, onEr
         />
       </section>
 
-      <section className="p-3 sm:p-4">
-        <div className="app-grid-skin overflow-hidden rounded-none p-0">
+      <section>
+        <div className="app-grid-skin app-grid-skin-flat overflow-hidden rounded-none p-0">
           <DataGrid
             columns={columns}
             rows={filteredRows}
@@ -197,12 +197,12 @@ export function BillablePartiesSection({ billableParties, onCatalogChanged, onEr
       </section>
 
       {open ? (
-        <div className="fixed inset-0 z-[70] flex items-end justify-end bg-[var(--color-overlay)] backdrop-blur-sm sm:items-stretch" role="presentation" onClick={() => setOpen(false)}>
-          <Card className="relative flex h-[100dvh] w-full max-w-none flex-col app-sidebar border-l p-0 sm:h-full sm:max-w-xl" onClick={(event) => event.stopPropagation()}>
+        <div className="drawer-enter-backdrop fixed inset-0 z-[70] flex items-end justify-end bg-[var(--color-overlay)] backdrop-blur-sm sm:items-stretch" role="presentation" onClick={() => setOpen(false)}>
+          <Card className="drawer-enter-panel relative flex h-[100dvh] w-full max-w-none flex-col app-sidebar border-l p-0 sm:h-full sm:max-w-xl" onClick={(event) => event.stopPropagation()}>
             <div className="drawer-header-semantic">
               <div className="mb-1 h-1 w-12 bg-[var(--color-accent)]/70 sm:hidden" />
               <div className="flex items-start justify-between gap-3">
-                <h3 className="text-lg font-semibold text-blue-700 dark:text-blue-300">{form.id ? "Editar responsable" : "Nuevo responsable"}</h3>
+                <h3 className="text-primary mt-1 text-lg font-semibold">{form.id ? "Editar responsable" : "Nuevo responsable"}</h3>
                 <Button type="button" variant="ghost" className="btn-close-semantic" onClick={() => setOpen(false)}>
                   <span>✕</span>
                   <span>Cerrar</span>
@@ -212,8 +212,8 @@ export function BillablePartiesSection({ billableParties, onCatalogChanged, onEr
 
             <form className="flex h-full flex-col" onSubmit={(event) => void submit(event)}>
               <div className="flex-1 space-y-4 overflow-y-auto px-4 py-4 sm:px-5">
-                <section className="space-y-2 rounded-2xl border border-blue-200/60 bg-blue-50/35 p-3 dark:border-blue-900/50 dark:bg-blue-950/20">
-                  <h4 className="text-xs font-semibold uppercase tracking-wide text-blue-700 dark:text-blue-300">General</h4>
+                <section className="drawer-section-semantic rounded-none border-[var(--color-border)] bg-[var(--color-surface-2)]">
+                  <h4 className="text-muted text-[11px] font-bold uppercase tracking-[0.14em]">General</h4>
                   <Input
                     label="Nombre"
                     value={form.displayName}
@@ -253,10 +253,10 @@ export function BillablePartiesSection({ billableParties, onCatalogChanged, onEr
 
               <div className="drawer-footer-semantic">
                 <div className="flex justify-end gap-2">
-                  <Button type="button" variant="ghost" className="h-8 rounded-md border-[var(--color-danger)]/50 bg-[var(--color-danger)]/15 px-3 text-xs font-bold text-[var(--color-danger)] hover:border-[var(--color-danger)]/70 hover:bg-[var(--color-danger)]/25" onClick={() => setOpen(false)}>
+                  <Button type="button" variant="secondary" className="h-8 rounded-none px-3 text-xs font-bold" onClick={() => setOpen(false)}>
                     Cancelar
                   </Button>
-                  <Button type="submit" variant="ghost" loading={saving} loadingText="Guardando..." className="h-8 rounded-md border-blue-400/60 bg-blue-500/15 px-3 text-xs font-bold text-blue-700 hover:border-blue-500/70 hover:bg-blue-500/25 hover:text-blue-800 dark:border-blue-700/60 dark:bg-blue-500/25 dark:text-blue-300 dark:hover:border-blue-500/70 dark:hover:bg-blue-500/35 dark:hover:text-blue-100">
+                  <Button type="submit" variant="primary" loading={saving} loadingText="Guardando..." className="h-8 rounded-none px-3 text-xs font-bold">
                     {form.id ? "Guardar cambios" : "Crear responsable"}
                   </Button>
                 </div>

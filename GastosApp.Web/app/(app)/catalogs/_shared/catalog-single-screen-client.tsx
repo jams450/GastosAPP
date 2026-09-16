@@ -60,10 +60,10 @@ export function CatalogSingleScreenClient<TData>({
 
   return (
     <>
-      <PageHeader section="Catálogos" title={title} subtitle={subtitle} />
+      <PageHeader section="Catálogos" title={title} subtitle={subtitle} variant="plain" />
       <CatalogToastStack toasts={toasts} onDismiss={dismissToast} />
 
-      <section className="space-y-2 md:space-y-2">
+      <section className="space-y-3">
         {loading || !data ? (
           <Card className="p-4">
             <p className="text-muted text-xs">Cargando catálogo...</p>

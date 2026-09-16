@@ -37,7 +37,7 @@ export function SectionFilterBar({
   const hasActiveFilters = Boolean(searchValue.trim()) || activeFilter !== "all" || Boolean(chips?.length);
 
   return (
-    <div className="space-y-2 p-0">
+    <div className="space-y-2 border border-default bg-[var(--color-surface-2)] p-3 sm:p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <span className="inline-flex h-7 w-7 items-center justify-center rounded-none border border-strong bg-[var(--color-surface-3)] text-primary">
@@ -53,7 +53,7 @@ export function SectionFilterBar({
           <Button
             type="button"
             variant="ghost"
-            className="btn-secondary-semantic h-8 px-2.5 text-[11px] font-bold"
+            className="btn-secondary-semantic h-8 rounded-none px-2.5 text-[11px] font-bold"
             onClick={onClearFilters}
           >
             <RotateCcw className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />

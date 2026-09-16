@@ -2,7 +2,7 @@ import { createPortal } from "react-dom";
 import { useEffect, useId, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import type { DashboardViewMode } from "@/app/(app)/dashboard/_components/dashboard-view-mode";
-import { formatAmount } from "@/app/(app)/dashboard/_components/dashboard-format";
+import { formatAmount, formatDate } from "@/app/(app)/dashboard/_components/dashboard-format";
 import type { DashboardAccountOverview } from "@/lib/contracts/dashboard";
 import { getBalanceToneClass } from "@/lib/accounts/metrics";
 import { Button } from "@/components/ui/button";
@@ -470,14 +470,14 @@ function CreditDetails({ account, timezone }: { account: DashboardAccountOvervie
 
   return (
     <>
-      <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <CreditSection title="Balance">
+      <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-2">
+        <CreditSection title="Balance" variant="balance" className="sm:col-span-2">
           <Kpi dense label="Apertura" value={account.openingBalance} plain />
           <Kpi dense label="Cierre" value={account.closingBalance} toneClass={getBalanceToneClass(account.closingBalance)} plain />
           <Kpi dense label="Neto" value={account.monthNet} toneClass={getBalanceToneClass(account.monthNet)} plain />
           <Kpi dense label="Deuda" value={debt} toneClass="dashboard-money-expense" plain />
         </CreditSection>
-        <CreditSection title="Movimiento">
+        <CreditSection title="Movimientos">
           <Kpi dense label="Ingresos +" value={incomeTotal} toneClass="dashboard-money-income" plain />
           <Kpi dense label="Gastos -" value={expenseTotal * -1} toneClass="dashboard-money-expense" plain />
         </CreditSection>
@@ -485,12 +485,12 @@ function CreditDetails({ account, timezone }: { account: DashboardAccountOvervie
           <Kpi dense label="Pend. MSI" value={account.msiOutstanding} toneClass="dashboard-money-credit" plain />
           <Kpi dense label="Pend. normal" value={account.normalOutstanding} toneClass="dashboard-money-credit" plain />
         </CreditSection>
-        <CreditSection title="Corte">
+        <CreditSection title="Corte" variant="cutoff" className="sm:col-span-2">
           <Kpi dense label="Día de corte" value={account.cutoffDay ?? "No definido"} plain formatAsCurrency={false} />
           <Kpi dense label="Pago límite" value={account.paymentDueDay ?? "No definido"} plain formatAsCurrency={false} />
           <Kpi dense label="Pago estimado" value={account.estimatedCutoffCharges} toneClass="dashboard-money-credit" plain />
           <Kpi dense label="Pagos realizados" value={account.cutoffPayments} toneClass="dashboard-money-income" plain />
-          <Kpi dense label="Pendiente del corte" value={account.cutoffPending * -1} toneClass="dashboard-money-expense" plain fullWidth />
+          <Kpi dense label="Pendiente del corte" value={account.cutoffPending * -1} toneClass="dashboard-money-expense" plain />
         </CreditSection>
       </div>
 
@@ -534,11 +534,21 @@ function CreditDetails({ account, timezone }: { account: DashboardAccountOvervie
   );
 }
 
-function CreditSection({ title, children }: { title: string; children: ReactNode }) {
+function CreditSection({
+  title,
+  children,
+  variant = "secondary",
+  className = ""
+}: {
+  title: string;
+  children: ReactNode;
+  variant?: "balance" | "secondary" | "cutoff";
+  className?: string;
+}) {
   return (
-    <section className="rounded-xl border border-slate-200 bg-slate-50/70 p-2.5 dark:border-slate-800 dark:bg-slate-900/40">
-      <p className="m-0 mb-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted">{title}</p>
-      <div className="grid grid-cols-2 gap-x-4 gap-y-2">{children}</div>
+    <section className={`dashboard-subtle dashboard-credit-section rounded-xl p-4 ${variant === "balance" ? "dashboard-credit-balance" : ""} ${variant === "cutoff" ? "dashboard-credit-cutoff" : ""} ${className}`}>
+      <p className="m-0 mb-3 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted">{title}</p>
+      <div className={`grid gap-x-4 gap-y-3 ${variant === "balance" ? "grid-cols-2 sm:grid-cols-4" : variant === "cutoff" ? "grid-cols-2 sm:grid-cols-5" : "grid-cols-2"}`}>{children}</div>
     </section>
   );
 }
@@ -595,28 +605,6 @@ function PendingGroup({
       <p className="text-primary text-right text-sm font-semibold">Total: {formatAmount(total)}</p>
     </section>
   );
-}
-
-function formatDate(value: string, timezone: string): string {
-  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
-    const [year, month, day] = value.split("-");
-    return `${day}/${month}/${year}`;
-  }
-
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "—";
-
-  const parts = new Intl.DateTimeFormat("en-GB", {
-    timeZone: timezone || "UTC",
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric"
-  }).formatToParts(date);
-  const day = parts.find((part) => part.type === "day")?.value;
-  const month = parts.find((part) => part.type === "month")?.value;
-  const year = parts.find((part) => part.type === "year")?.value;
-
-  return day && month && year ? `${day}/${month}/${year}` : "—";
 }
 
 function Kpi({

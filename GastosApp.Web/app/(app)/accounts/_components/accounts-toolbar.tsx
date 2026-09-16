@@ -31,7 +31,7 @@ export function AccountsToolbar({
   onCreate
 }: Props) {
   return (
-    <section className="p-0">
+    <section className="border border-default bg-[var(--color-surface-2)] p-3 sm:p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <span className="inline-flex h-7 w-7 items-center justify-center rounded-none border border-strong bg-[var(--color-surface-3)] text-primary">
@@ -48,7 +48,7 @@ export function AccountsToolbar({
           <Button
             type="button"
             variant="ghost"
-            className="btn-secondary-semantic h-8 px-2.5 text-[11px] font-bold"
+            className="btn-secondary-semantic h-8 rounded-none px-2.5 text-[11px] font-bold"
             onClick={onResetFilters}
           >
             <RotateCcw className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
@@ -57,7 +57,7 @@ export function AccountsToolbar({
         ) : null}
       </div>
 
-      <div className="grid gap-2 p-2 lg:grid-cols-[1fr_150px_150px_auto] lg:items-end">
+      <div className="mt-3 grid gap-2 lg:grid-cols-[1fr_150px_150px_auto] lg:items-end">
         <label className="text-secondary grid gap-1 text-xs font-medium uppercase tracking-wide">
           <span>Buscar</span>
           <div className="relative">
@@ -101,7 +101,7 @@ export function AccountsToolbar({
           <Button
             type="button"
             variant="ghost"
-            className={`h-8 rounded-md px-3 text-xs font-bold ${tableActionStyles.create}`}
+            className={`h-8 rounded-none px-3 text-xs font-bold ${tableActionStyles.create}`}
             onClick={onCreate}
           >
             <Plus className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />

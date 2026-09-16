@@ -1,18 +1,18 @@
 import { ArrowLeftRight, Home, Tags, Users, Wallet } from "lucide-react";
 
-type NavChild = {
-  href: string;
-  label: string;
+export type NavChild = {
+  readonly href: string;
+  readonly label: string;
 };
 
-type NavItem = {
-  href: string;
-  label: string;
-  icon: typeof Home;
-  children?: NavChild[];
+export type NavItem = {
+  readonly href: string;
+  readonly label: string;
+  readonly icon: typeof Home;
+  readonly children?: readonly NavChild[];
 };
 
-export const appNavItems: NavItem[] = [
+export const appNavItems: readonly NavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: Home },
   { href: "/accounts", label: "Cuentas", icon: Wallet },
   {

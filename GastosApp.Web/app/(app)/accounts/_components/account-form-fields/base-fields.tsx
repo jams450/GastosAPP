@@ -20,7 +20,7 @@ export function BaseFields({ form, errors, onChange }: Props) {
         <select
           value={form.active ? "active" : "inactive"}
           onChange={(event) => onChange("active", event.target.value === "active")}
-          className="input-semantic h-11 rounded-xl px-3 text-sm"
+          className="input-semantic h-10 px-3 text-sm"
         >
           <option value="active">Activa</option>
           <option value="inactive">Inactiva</option>

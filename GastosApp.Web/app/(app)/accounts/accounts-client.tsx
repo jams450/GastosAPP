@@ -85,25 +85,23 @@ export function AccountsClient({ username }: Props) {
 
   return (
     <>
-      <PageHeader section={ACCOUNTS_MODULE_META.section} title={ACCOUNTS_MODULE_META.title} />
+      <PageHeader section={ACCOUNTS_MODULE_META.section} title={ACCOUNTS_MODULE_META.title} variant="plain" />
       <AccountsToastStack toasts={toasts} onDismiss={dismissToast} />
 
-      <section className="space-y-2 md:space-y-2">
-        <section className="overflow-hidden px-4 py-3 sm:px-5">
-          <AccountsToolbar
-            total={accounts.length}
-            filtered={filteredAccounts.length}
-            search={search}
-            status={status}
-            type={type}
-            hasActiveFilters={hasActiveFilters}
-            onSearchChange={setSearch}
-            onStatusChange={setStatus}
-            onTypeChange={setType}
-            onResetFilters={resetFilters}
-            onCreate={openCreate}
-          />
-        </section>
+      <section className="space-y-3">
+        <AccountsToolbar
+          total={accounts.length}
+          filtered={filteredAccounts.length}
+          search={search}
+          status={status}
+          type={type}
+          hasActiveFilters={hasActiveFilters}
+          onSearchChange={setSearch}
+          onStatusChange={setStatus}
+          onTypeChange={setType}
+          onResetFilters={resetFilters}
+          onCreate={openCreate}
+        />
 
         <AccountsResults rows={filteredAccounts} loading={loading} errorMessage={error} onEdit={openEdit} onToggleActive={(account) => void toggleActive(account)} />
 

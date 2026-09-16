@@ -5,13 +5,20 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Alert } from "@/components/ui/alert";
 import { AccountsSection } from "@/app/(app)/dashboard/_components/accounts-section";
 import { BreakdownChart } from "@/app/(app)/dashboard/_components/breakdown-chart";
+import { CashProjectionSection } from "@/app/(app)/dashboard/_components/cash-projection-section";
 import { DashboardFoldSection } from "@/app/(app)/dashboard/_components/dashboard-fold-section";
 import { DashboardMetricCards } from "@/app/(app)/dashboard/_components/dashboard-metric-cards";
 import { DashboardToolbar } from "@/app/(app)/dashboard/_components/dashboard-toolbar";
 import type { DashboardViewMode } from "@/app/(app)/dashboard/_components/dashboard-view-mode";
-import { normalizeDashboardOverview, type DashboardOverviewResponse } from "@/lib/contracts/dashboard";
+import {
+  normalizeDashboardOverview,
+  normalizeDashboardProjection,
+  type DashboardOverviewResponse,
+  type DashboardProjectionResponse
+} from "@/lib/contracts/dashboard";
 
 const TIMEZONE = "America/Mexico_City";
+const PROJECTION_HORIZON_MONTHS = 6;
 
 function getMexicoCurrentMonth(): string {
   const formatter = new Intl.DateTimeFormat("en-CA", {
@@ -82,6 +89,9 @@ export function AccountsOverview() {
   const [data, setData] = useState<DashboardOverviewResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [projection, setProjection] = useState<DashboardProjectionResponse | null>(null);
+  const [projectionLoading, setProjectionLoading] = useState(true);
+  const [projectionError, setProjectionError] = useState<string | null>(null);
 
   useEffect(() => {
     const requestedMonth = searchParams.get("month");
@@ -131,6 +141,47 @@ export function AccountsOverview() {
       isMounted = false;
     };
   }, [month]);
+
+  // Carga independiente: la proyección no depende del mes seleccionado y su fallo no bloquea el resto.
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadProjection() {
+      setProjectionLoading(true);
+      setProjectionError(null);
+
+      try {
+        const response = await fetch(`/api/bff/dashboard/projection?months=${PROJECTION_HORIZON_MONTHS}`, { cache: "no-store" });
+        if (!response.ok) {
+          if (response.status === 401) {
+            window.location.href = "/login";
+            return;
+          }
+
+          throw new Error("No se pudo obtener la proyección");
+        }
+
+        const payload = await response.json();
+        if (isMounted) {
+          setProjection(normalizeDashboardProjection(payload));
+        }
+      } catch {
+        if (isMounted) {
+          setProjectionError("No se pudo cargar la proyección de efectivo");
+        }
+      } finally {
+        if (isMounted) {
+          setProjectionLoading(false);
+        }
+      }
+    }
+
+    void loadProjection();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const overview = data ?? emptyOverview;
   const accounts = overview.accounts;
@@ -297,6 +348,8 @@ export function AccountsOverview() {
       </DashboardFoldSection>
         </>
       )}
+
+      <CashProjectionSection data={projection} loading={projectionLoading} error={projectionError} />
     </div>
   );
 }

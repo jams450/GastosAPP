@@ -17,7 +17,7 @@ export function AccountsMobileList({ rows, loading, errorMessage, onEdit, onTogg
     return (
       <div className="space-y-2.5 md:hidden" role="status" aria-live="polite" aria-label="Cargando cuentas">
         {Array.from({ length: 3 }).map((_, index) => (
-          <div key={index} className="animate-pulse p-3">
+          <div key={index} className="animate-pulse border border-default bg-[var(--color-surface-2)] p-3">
             <div className="h-3 w-28 rounded-none bg-[var(--color-surface-3)]" />
             <div className="mt-2 h-2.5 w-44 rounded-none bg-[var(--color-surface-3)]" />
             <div className="mt-3 h-8 rounded-none bg-[var(--color-surface-3)]" />
@@ -54,7 +54,7 @@ export function AccountsMobileList({ rows, loading, errorMessage, onEdit, onTogg
   return (
     <div className="space-y-3 md:hidden">
       {rows.map((account) => (
-        <article key={account.accountId} className="p-3">
+        <article key={account.accountId} className="border border-default bg-[var(--color-surface-2)] p-3">
           <header className="flex items-start justify-between gap-2 pb-2">
             <div>
               <p className="text-primary text-sm font-extrabold">{account.name}</p>

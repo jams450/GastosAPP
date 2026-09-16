@@ -175,10 +175,12 @@ function normalizeBreakdownItem(input: unknown): DashboardBreakdownItem | null {
   };
 }
 
+function normalizeCollection<T>(input: unknown, normalize: (item: unknown) => T | null): T[] {
+  return Array.isArray(input) ? input.map((item) => normalize(item)).filter((item): item is T => item !== null) : [];
+}
+
 function normalizeBreakdownCollection(input: unknown): DashboardBreakdownItem[] {
-  return Array.isArray(input)
-    ? input.map((item) => normalizeBreakdownItem(item)).filter((item): item is DashboardBreakdownItem => item !== null)
-    : [];
+  return normalizeCollection(input, normalizeBreakdownItem);
 }
 
 export function normalizeDashboardOverview(input: unknown): DashboardOverviewResponse {
@@ -277,5 +279,159 @@ export function normalizeDashboardOverview(input: unknown): DashboardOverviewRes
       )
     },
     accounts
+  };
+}
+
+export type DashboardProjectionHistoricalMonth = {
+  month: string;
+  income: number;
+  expense: number;
+  net: number;
+};
+
+export type DashboardProjectionTrend = {
+  sampleMonths: number;
+  monthlyNetSlope: number;
+  projectedMonthlyNet: number;
+  hasSufficientHistory: boolean;
+};
+
+export type DashboardProjectionMonth = {
+  month: string;
+  projectedCashBalance: number;
+  projectedNet: number;
+  msiCommitment: number;
+  msiPaymentScenarioBalance: number;
+};
+
+export type DashboardProjectionMsiPlan = {
+  planId: string | null;
+  accountId: number | null;
+  accountName: string;
+  remainingAmount: number;
+  openInstallments: number | null;
+  nextDueDate: string | null;
+  nextDueAmount: number | null;
+  endsOn: string | null;
+  scheduleComplete: boolean;
+};
+
+export type DashboardProjectionResponse = {
+  asOfDate: string | null;
+  timezone: string;
+  horizonMonths: number;
+  cashRealBalance: number;
+  historicalMonths: DashboardProjectionHistoricalMonth[];
+  trend: DashboardProjectionTrend;
+  months: DashboardProjectionMonth[];
+  msiPlans: DashboardProjectionMsiPlan[];
+};
+
+function toStringId(value: unknown): string | null {
+  if (typeof value === "string" && value.trim().length > 0) {
+    return value.trim();
+  }
+
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return String(value);
+  }
+
+  return null;
+}
+
+function normalizeProjectionHistoricalMonth(input: unknown): DashboardProjectionHistoricalMonth | null {
+  if (!isRecord(input)) {
+    return null;
+  }
+
+  const month = typeof input.month === "string" ? input.month.trim() : "";
+  if (month.length === 0) {
+    return null;
+  }
+
+  return {
+    month,
+    income: toFiniteNumber(input.income),
+    expense: toFiniteNumber(input.expense),
+    net: toFiniteNumber(input.net ?? toFiniteNumber(input.income) - toFiniteNumber(input.expense))
+  };
+}
+
+function normalizeProjectionMonth(input: unknown): DashboardProjectionMonth | null {
+  if (!isRecord(input)) {
+    return null;
+  }
+
+  const month = typeof input.month === "string" ? input.month.trim() : "";
+  if (month.length === 0) {
+    return null;
+  }
+
+  const projectedCashBalance = toFiniteNumber(input.projectedCashBalance);
+
+  return {
+    month,
+    projectedCashBalance,
+    projectedNet: toFiniteNumber(input.projectedNet),
+    msiCommitment: toFiniteNumber(input.msiCommitment),
+    // Sin escenario explícito, el saldo base es el mejor sustituto: no inventa impacto MSI.
+    msiPaymentScenarioBalance: toFiniteNumber(input.msiPaymentScenarioBalance ?? projectedCashBalance)
+  };
+}
+
+function normalizeProjectionMsiPlan(input: unknown): DashboardProjectionMsiPlan | null {
+  if (!isRecord(input)) {
+    return null;
+  }
+
+  const planId = toStringId(input.planId);
+  const accountId = toOptionalInt(input.accountId);
+
+  if (planId === null && accountId === null) {
+    return null;
+  }
+
+  return {
+    planId,
+    accountId,
+    accountName:
+      typeof input.accountName === "string" && input.accountName.trim().length > 0
+        ? input.accountName.trim()
+        : "Cuenta sin nombre",
+    remainingAmount: toFiniteNumber(input.remainingAmount),
+    openInstallments: toOptionalInt(input.openInstallments),
+    nextDueDate: toOptionalDateString(input.nextDueDate),
+    nextDueAmount: toOptionalFiniteNumber(input.nextDueAmount),
+    endsOn: toOptionalDateString(input.endsOn),
+    // Ausente = sin evidencia de calendario incompleto; no se alarma sin dato.
+    scheduleComplete: input.scheduleComplete !== false
+  };
+}
+
+function normalizeProjectionTrend(input: unknown): DashboardProjectionTrend {
+  const source = isRecord(input) ? input : {};
+
+  return {
+    sampleMonths: toOptionalInt(source.sampleMonths) ?? 0,
+    monthlyNetSlope: toFiniteNumber(source.monthlyNetSlope),
+    projectedMonthlyNet: toFiniteNumber(source.projectedMonthlyNet),
+    hasSufficientHistory: source.hasSufficientHistory === true
+  };
+}
+
+export function normalizeDashboardProjection(input: unknown): DashboardProjectionResponse {
+  const source = isRecord(input) ? input : {};
+  const months = normalizeCollection(source.months, normalizeProjectionMonth);
+  const horizonMonths = toOptionalInt(source.horizonMonths);
+
+  return {
+    asOfDate: toOptionalDateString(source.asOfDate),
+    timezone: typeof source.timezone === "string" && source.timezone.trim().length > 0 ? source.timezone : "America/Mexico_City",
+    horizonMonths: horizonMonths !== null && horizonMonths > 0 ? horizonMonths : months.length,
+    cashRealBalance: toFiniteNumber(source.cashRealBalance),
+    historicalMonths: normalizeCollection(source.historicalMonths, normalizeProjectionHistoricalMonth),
+    trend: normalizeProjectionTrend(source.trend),
+    months,
+    msiPlans: normalizeCollection(source.msiPlans, normalizeProjectionMsiPlan)
   };
 }

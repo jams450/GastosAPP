@@ -9,6 +9,7 @@
   },
   "devDependencies": {
     "concurrently": "^9.1.2",
-    "dotenv-cli": "^7.4.4"
+    "dotenv-cli": "^7.4.4",
+    "shadcn": "^4.21.0"
   }
 }

@@ -4,29 +4,29 @@
 
 :root {
   color-scheme: light;
-  --tabler-page-bg: #0b1220;
-  --tabler-sidebar-bg: oklch(12.9% 0.042 264.695);
+  --tabler-page-bg: #f4f7f6;
+  --tabler-sidebar-bg: #eaf1ef;
   --tabler-surface-1: #ffffff;
-  --tabler-surface-2: #f8fafc;
-  --tabler-surface-3: #f1f5f9;
-  --tabler-border: #d9e1ec;
-  --tabler-border-strong: #c9d4e3;
-  --tabler-text: #1f2937;
-  --tabler-text-soft: #64748b;
-  --tabler-primary: #206bc4;
-  --tabler-primary-hover: #1c5da9;
-  --tabler-danger: #d63939;
-  --tabler-success: #2fb344;
-  --tabler-radius-sm: 0.5rem;
-  --tabler-radius-md: 0.75rem;
-  --tabler-radius-lg: 1rem;
-  --tabler-shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.06);
-  --tabler-shadow-md: 0 8px 24px rgba(15, 23, 42, 0.08);
+  --tabler-surface-2: #f7faf9;
+  --tabler-surface-3: #edf4f1;
+  --tabler-border: #d5e2dc;
+  --tabler-border-strong: #b8cec3;
+  --tabler-text: #10231e;
+  --tabler-text-soft: #5e746b;
+  --tabler-primary: #2563eb;
+  --tabler-primary-hover: #1d4ed8;
+  --tabler-danger: #c94d68;
+  --tabler-success: #16866a;
+  --tabler-radius-sm: 0.625rem;
+  --tabler-radius-md: 0.875rem;
+  --tabler-radius-lg: 1.25rem;
+  --tabler-shadow-sm: 0 1px 2px rgb(12 48 38 / 0.06), 0 8px 24px rgb(12 48 38 / 0.05);
+  --tabler-shadow-md: 0 18px 48px rgb(12 48 38 / 0.12);
 
   /* Semantic tokens - light */
   --color-page-bg: var(--tabler-page-bg);
-  --color-page-grad-a: oklch(12.9% 0.042 264.695 / 0.58);
-  --color-page-grad-b: oklch(12.9% 0.042 264.695 / 0.42);
+  --color-page-grad-a: rgb(59 130 246 / 0.12);
+  --color-page-grad-b: rgb(37 99 235 / 0.09);
   --color-sidebar-bg: var(--tabler-sidebar-bg);
   --color-overlay: rgb(2 6 23 / 0.62);
 
@@ -55,18 +55,41 @@
   --color-danger: var(--tabler-danger);
   --color-info: #0ea5e9;
 
+  --color-dashboard-balance-bg: color-mix(in srgb, #e8f0ff 88%, var(--color-surface-1));
+  --color-dashboard-balance-border: #b8cef5;
+  --color-dashboard-cutoff-bg: #dbeafe;
+  --color-dashboard-cutoff-border: #93b4ed;
+
   --color-shell-bg: color-mix(in srgb, var(--color-sidebar-bg) 88%, var(--color-page-bg));
   --color-shell-surface: color-mix(in srgb, var(--color-surface-1) 86%, var(--color-sidebar-bg));
   --color-shell-raised: color-mix(in srgb, var(--color-surface-2) 88%, var(--color-sidebar-bg));
-  --color-shell-hover: color-mix(in srgb, var(--color-accent) 6%, transparent);
-  --color-shell-active: color-mix(in srgb, var(--color-accent) 12%, transparent);
-  --shell-sidebar-width: 15rem;
-  --shell-content-gap: 1.25rem;
+   --color-shell-hover: color-mix(in srgb, var(--color-accent) 8%, transparent);
+   --color-shell-active: color-mix(in srgb, var(--color-accent) 15%, transparent);
+   --color-shell-muted: color-mix(in srgb, var(--color-shell-bg) 72%, var(--color-text-muted));
+   --color-shell-brand: color-mix(in srgb, var(--color-accent) 18%, var(--color-shell-surface));
+   --color-shell-divider: color-mix(in srgb, var(--color-border-strong) 72%, transparent);
+   --color-shell-glow: color-mix(in srgb, var(--color-accent) 34%, transparent);
+   --color-shell-ink: #07111f;
+   --shell-sidebar-width: 16rem;
+   --shell-sidebar-compact-width: 5.5rem;
+   --shell-content-gap: 1.25rem;
+   --shell-topbar-height: 4rem;
+   --shell-sidebar-padding: 0.75rem;
+
+  --shell-compact-rail-padding: 0.25rem;
+  --shell-compact-rail-gap: 0.375rem;
   --shell-control-size: 2.75rem;
+  /* Nav rows run tighter than a touch control on pointer devices. Coarse
+     pointers and the mobile drawer keep the 44px minimum. */
+  --shell-nav-item-size: 2.25rem;
+  --shell-nav-subitem-size: 1.875rem;
   --type-shell-kicker: 0.6875rem;
   --type-shell-title: 1.125rem;
   --type-shell-body: 0.875rem;
-  --motion-fast: 160ms;
+  --type-shell-nav: 0.8125rem;
+  --type-shell-subnav: 0.75rem;
+   --motion-fast: 160ms;
+   --motion-shell: 240ms cubic-bezier(0.32, 0.72, 0, 1);
 
   --radius-sm: var(--tabler-radius-sm);
   --radius-md: var(--tabler-radius-md);
@@ -105,17 +128,17 @@
 
 .dark {
   color-scheme: dark;
-  --tabler-page-bg: #0b0e14;
-  --tabler-sidebar-bg: oklch(12.9% 0.042 264.695);
-  --tabler-surface-1: #12151c;
-  --tabler-surface-2: #171b24;
-  --tabler-surface-3: #1e232e;
-  --tabler-border: #2a3040;
-  --tabler-border-strong: #3b4354;
-  --tabler-text: #f1f3f7;
-  --tabler-text-soft: #a6adbb;
-  --tabler-primary: #2563eb;
-  --tabler-primary-hover: #3b82f6;
+  --tabler-page-bg: #0f1115;
+  --tabler-sidebar-bg: #15181d;
+  --tabler-surface-1: #181b21;
+  --tabler-surface-2: #1e2229;
+  --tabler-surface-3: #262b34;
+  --tabler-border: #303640;
+  --tabler-border-strong: #46505c;
+  --tabler-text: #f1f3f5;
+  --tabler-text-soft: #aab4c0;
+  --tabler-primary: #3b82f6;
+  --tabler-primary-hover: #2563eb;
   --tabler-danger: #fb7185;
   --tabler-success: #4ade80;
   --tabler-shadow-sm: 0 2px 5px rgba(0, 0, 0, 0.55);
@@ -123,8 +146,8 @@
 
   /* Semantic tokens - dark */
   --color-page-bg: var(--tabler-page-bg);
-  --color-page-grad-a: oklch(12.9% 0.042 264.695 / 0.62);
-  --color-page-grad-b: oklch(12.9% 0.042 264.695 / 0.5);
+  --color-page-grad-a: rgb(59 130 246 / 0.16);
+  --color-page-grad-b: rgb(11 27 43 / 0.7);
   --color-sidebar-bg: var(--tabler-sidebar-bg);
   --color-overlay: rgb(1 4 10 / 0.74);
 
@@ -133,7 +156,7 @@
   --color-surface-3: var(--tabler-surface-3);
 
   --color-text-primary: var(--tabler-text);
-  --color-text-secondary: color-mix(in srgb, var(--tabler-text) 84%, black);
+  --color-text-secondary: color-mix(in srgb, var(--tabler-text) 82%, var(--tabler-text-soft));
   --color-text-muted: var(--tabler-text-soft);
   --color-text-inverse: #ffffff;
 
@@ -153,18 +176,41 @@
   --color-danger: var(--tabler-danger);
   --color-info: #38bdf8;
 
+  --color-dashboard-balance-bg: color-mix(in srgb, #172b4d 90%, var(--color-surface-1));
+  --color-dashboard-balance-border: #31598f;
+  --color-dashboard-cutoff-bg: #173b70;
+  --color-dashboard-cutoff-border: #3b82f6;
+
   --color-shell-bg: color-mix(in srgb, var(--color-sidebar-bg) 88%, var(--color-page-bg));
   --color-shell-surface: color-mix(in srgb, var(--color-surface-1) 86%, var(--color-sidebar-bg));
   --color-shell-raised: color-mix(in srgb, var(--color-surface-2) 88%, var(--color-sidebar-bg));
-  --color-shell-hover: color-mix(in srgb, var(--color-accent) 6%, transparent);
-  --color-shell-active: color-mix(in srgb, var(--color-accent) 12%, transparent);
-  --shell-sidebar-width: 15rem;
-  --shell-content-gap: 1.25rem;
+   --color-shell-hover: color-mix(in srgb, var(--color-accent) 8%, transparent);
+   --color-shell-active: color-mix(in srgb, var(--color-accent) 15%, transparent);
+   --color-shell-muted: color-mix(in srgb, var(--color-shell-bg) 72%, var(--color-text-muted));
+   --color-shell-brand: color-mix(in srgb, var(--color-accent) 18%, var(--color-shell-surface));
+   --color-shell-divider: color-mix(in srgb, var(--color-border-strong) 72%, transparent);
+   --color-shell-glow: color-mix(in srgb, var(--color-accent) 34%, transparent);
+   --color-shell-ink: #090b0f;
+   --shell-sidebar-width: 16rem;
+   --shell-sidebar-compact-width: 5.5rem;
+   --shell-content-gap: 1.25rem;
+   --shell-topbar-height: 4rem;
+   --shell-sidebar-padding: 0.75rem;
+
+  --shell-compact-rail-padding: 0.25rem;
+  --shell-compact-rail-gap: 0.375rem;
   --shell-control-size: 2.75rem;
+  /* Nav rows run tighter than a touch control on pointer devices. Coarse
+     pointers and the mobile drawer keep the 44px minimum. */
+  --shell-nav-item-size: 2.25rem;
+  --shell-nav-subitem-size: 1.875rem;
   --type-shell-kicker: 0.6875rem;
   --type-shell-title: 1.125rem;
   --type-shell-body: 0.875rem;
-  --motion-fast: 160ms;
+  --type-shell-nav: 0.8125rem;
+  --type-shell-subnav: 0.75rem;
+   --motion-fast: 160ms;
+   --motion-shell: 240ms cubic-bezier(0.32, 0.72, 0, 1);
 
   --radius-sm: var(--tabler-radius-sm);
   --radius-md: var(--tabler-radius-md);
@@ -209,47 +255,213 @@ body {
   }
 
   .app-sidebar {
-     background: var(--color-shell-bg);
-     border-color: var(--color-border-strong);
-     box-shadow: var(--shadow-md);
-   }
+      background: linear-gradient(155deg, color-mix(in srgb, var(--color-shell-bg) 96%, transparent), color-mix(in srgb, var(--color-page-bg) 76%, var(--color-shell-bg)));
+      border-color: var(--color-border-strong);
+      box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.06), var(--shadow-md);
+    }
 
-   .shell-topbar,
-   .shell-page-header {
-     background: color-mix(in srgb, var(--color-shell-surface) 92%, transparent);
-     border: 1px solid var(--color-border);
-     border-radius: var(--radius-md);
-     box-shadow: var(--shadow-sm);
-   }
+  .shell-topbar,
+     .shell-page-header {
+       background: linear-gradient(135deg, color-mix(in srgb, var(--color-shell-surface) 94%, transparent), color-mix(in srgb, var(--color-shell-raised) 82%, transparent));
+       border: 1px solid var(--color-border);
+       border-radius: var(--radius-md);
+       box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.05), var(--shadow-sm);
+     }
 
-   .shell-page-header {
-     background: var(--color-shell-raised);
-   }
+     .shell-topbar {
+       min-height: var(--shell-topbar-height);
+       backdrop-filter: blur(1rem);
+       border-color: color-mix(in srgb, var(--color-accent) 18%, var(--color-border));
+     }
 
-   .shell-nav-link {
-     min-height: var(--shell-control-size);
-     transition: color var(--motion-fast) ease, background-color var(--motion-fast) ease, border-color var(--motion-fast) ease;
-   }
+    .shell-page-header {
+      background: linear-gradient(135deg, var(--color-shell-raised), color-mix(in srgb, var(--color-shell-surface) 78%, transparent));
+      border-color: var(--color-shell-divider);
+    }
 
-   .shell-nav-link:hover {
-     background: var(--color-shell-hover);
-   }
+    /* Flat, edge-aligned header variant: no rounded shell, no card fill. Used by
+       pages that sit flush with their own panel/table edges (accounts). */
+    .shell-page-header-plain {
+      background: transparent;
+      border: 0;
+      border-bottom: 1px solid var(--color-border);
+      border-radius: 0;
+      box-shadow: none;
+    }
 
-   .shell-nav-link[data-active="true"] {
-     background: var(--color-shell-active);
-     border-color: var(--color-border-accent);
-   }
+     .shell-brand-mark {
+       background: radial-gradient(circle at 30% 20%, color-mix(in srgb, var(--color-accent) 92%, white), var(--color-accent));
+       border: 1px solid color-mix(in srgb, var(--color-accent) 70%, white);
+       box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-accent) 10%, transparent), 0 10px 24px var(--color-shell-glow);
+       color: var(--color-accent-contrast);
+     }
 
-   .shell-subnav-link {
-     min-height: 2.75rem;
-     transition: color var(--motion-fast) ease, background-color var(--motion-fast) ease;
-   }
+    .shell-workspace {
+      color: var(--color-text-primary);
+      font-size: var(--type-shell-body);
+      font-weight: 600;
+    }
 
-   .shell-subnav-link:hover,
-   .shell-subnav-link[data-active="true"] {
-     background: var(--color-shell-hover);
-     color: var(--color-text-primary);
-   }
+    .shell-workspace-meta {
+      color: var(--color-text-muted);
+      font-size: var(--type-shell-kicker);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .shell-page-kicker {
+      color: var(--color-accent);
+      font-size: var(--type-shell-kicker);
+      font-weight: 700;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+    }
+
+    .shell-sidebar-header {
+      border-color: var(--color-shell-divider);
+      background: color-mix(in srgb, var(--color-shell-surface) 48%, transparent);
+    }
+
+    .shell-nav-section-label {
+      color: var(--color-text-muted);
+      font-size: var(--type-shell-kicker);
+      font-weight: 700;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+    }
+
+
+    .shell-nav-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.125rem;
+      margin-block-start: 0.5rem;
+    }
+
+    .shell-nav-item {
+      position: relative;
+    }
+
+    .shell-nav-icon {
+      block-size: 1rem;
+      flex-shrink: 0;
+      inline-size: 1rem;
+    }
+
+    /* One row primitive for route links and group toggles: identical geometry
+       and feedback, so a group reads as a single disclosure row instead of a
+       link with a second button stuck to its side. */
+    .shell-nav-link,
+    .shell-nav-group-toggle {
+      align-items: center;
+      background: transparent;
+      border: 1px solid transparent;
+      border-radius: var(--radius-sm);
+      display: flex;
+      gap: 0.625rem;
+      inline-size: 100%;
+      min-height: var(--shell-nav-item-size);
+      padding-inline: 0.625rem;
+      position: relative;
+      text-align: start;
+      transition: color var(--motion-shell), background-color var(--motion-shell), border-color var(--motion-shell), transform var(--motion-shell);
+    }
+
+    .shell-nav-label {
+      font-size: var(--type-shell-nav);
+      font-weight: 600;
+      min-inline-size: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .shell-nav-chevron {
+      block-size: 0.875rem;
+      color: var(--color-text-muted);
+      inline-size: 0.875rem;
+      margin-inline-start: auto;
+      transition: transform var(--motion-fast) ease;
+    }
+
+    .shell-nav-chevron[data-open="true"] {
+      transform: rotate(180deg);
+    }
+
+    .shell-nav-link:hover,
+    .shell-nav-group-toggle:hover {
+      background: var(--color-shell-hover);
+      transform: translateX(2px);
+    }
+
+    .shell-nav-link:focus-visible,
+    .shell-nav-group-toggle:focus-visible {
+      background: var(--color-shell-hover);
+    }
+
+    .shell-nav-link[data-active="true"],
+    .shell-nav-group-toggle[data-active="true"] {
+      background: linear-gradient(90deg, var(--color-shell-active), transparent);
+      border-color: var(--color-border-accent);
+      box-shadow: inset 0 0 24px color-mix(in srgb, var(--color-accent) 8%, transparent);
+    }
+
+    .shell-nav-link[data-active="true"]::before,
+    .shell-nav-group-toggle[data-active="true"]::before {
+      background: var(--color-accent);
+      border-radius: var(--radius-sm);
+      content: "";
+      inline-size: 0.25rem;
+      inset-block: 0.5rem;
+      inset-inline-start: 0;
+      position: absolute;
+    }
+
+    /* Children hang off a guide rail so the hierarchy reads without extra chrome. */
+    .shell-nav-children {
+      border-inline-start: 1px solid var(--color-shell-divider);
+      display: flex;
+      flex-direction: column;
+      gap: 0.0625rem;
+      margin-block: 0.125rem 0.375rem;
+      margin-inline-start: 1.125rem;
+      padding-inline-start: 0.625rem;
+    }
+
+    .shell-subnav-link {
+      align-items: center;
+      border-radius: 0.375rem;
+      display: flex;
+      font-size: var(--type-shell-subnav);
+      font-weight: 500;
+      min-height: var(--shell-nav-subitem-size);
+      padding-inline: 0.5rem;
+      position: relative;
+      transition: color var(--motion-fast) ease, background-color var(--motion-fast) ease;
+    }
+
+    .shell-subnav-link:hover,
+    .shell-subnav-link[data-active="true"] {
+      background: var(--color-shell-hover);
+      color: var(--color-text-primary);
+    }
+
+    .shell-subnav-link[data-active="true"] {
+      color: var(--color-accent);
+      font-weight: 600;
+    }
+
+    .shell-subnav-link[data-active="true"]::before {
+      background: var(--color-accent);
+      block-size: 0.25rem;
+      border-radius: 50%;
+      content: "";
+      inline-size: 0.25rem;
+      inset-block-start: 50%;
+      inset-inline-start: -0.6875rem;
+      position: absolute;
+      transform: translateY(-50%);
+    }
 
    .shell-control {
      min-height: var(--shell-control-size);
@@ -261,13 +473,61 @@ body {
      border-right: 1px solid var(--color-border-strong);
    }
 
-   .shell-session {
-     background: var(--color-shell-active);
-     border: 1px solid var(--color-border-accent);
+   /* The drawer stacks brand header + nav with no wrapper between them, so the
+      nav list's own top margin doubled the header's bottom spacing. */
+   .shell-drawer .shell-nav-list {
+     margin-block-start: 0;
    }
 
+   /* Touch surfaces keep the 44px minimum target. */
+   .shell-drawer .shell-nav-link,
+   .shell-drawer .shell-nav-group-toggle,
+   .shell-drawer .shell-subnav-link {
+     min-height: var(--shell-control-size);
+   }
 
-  .app-card {
+   @media (pointer: coarse) {
+     .shell-nav-link,
+     .shell-nav-group-toggle,
+     .shell-subnav-link {
+       min-height: var(--shell-control-size);
+     }
+   }
+
+    .shell-session {
+      background: var(--color-shell-active);
+      border: 1px solid var(--color-border-accent);
+    }
+
+     .shell-sidebar-compact {
+       inline-size: var(--shell-sidebar-compact-width);
+       min-inline-size: var(--shell-sidebar-compact-width);
+     }
+
+     .shell-sidebar-brand,
+     .shell-sidebar-tools {
+       min-inline-size: 0;
+     }
+
+    .shell-sidebar-compact .shell-nav-link[title],
+    .shell-sidebar-compact .shell-nav-group-toggle[title] {
+      cursor: pointer;
+    }
+
+      @media (prefers-reduced-motion: reduce) {
+        .shell-sidebar-transition,
+        .shell-nav-link,
+        .shell-subnav-link,
+        .shell-nav-group-toggle {
+         transition-duration: 0ms;
+         transform: none;
+       }
+     }
+
+     .shell-drawer { background: linear-gradient(160deg, var(--color-shell-bg), var(--color-page-bg)); }
+     .shell-session { box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.06); }
+
+    .app-card {
     background: var(--color-surface-1);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-lg);
@@ -310,16 +570,34 @@ body {
     box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-accent) 30%, transparent);
   }
 
+  /* Shared button feel: one transition contract + consistent depth so every
+     semantic variant reacts the same way on hover, focus and press. Glow is
+     reserved for the primary action, per the design contract. */
+  .btn-primary-semantic,
+  .btn-secondary-semantic,
+  .btn-ghost-semantic,
+  .btn-danger-semantic {
+    transition:
+      color var(--motion-fast) ease,
+      background-color var(--motion-fast) ease,
+      border-color var(--motion-fast) ease,
+      box-shadow var(--motion-fast) ease;
+  }
+
   .btn-primary-semantic {
     background: var(--color-accent);
     color: var(--color-accent-contrast);
     border: 1px solid var(--color-accent);
     border-radius: var(--radius-sm);
+    box-shadow: inset 0 1px 0 color-mix(in srgb, white 18%, transparent);
   }
 
   .btn-primary-semantic:hover {
     background: var(--color-accent-hover);
     border-color: var(--color-accent-hover);
+    box-shadow:
+      inset 0 1px 0 color-mix(in srgb, white 18%, transparent),
+      0 8px 20px color-mix(in srgb, var(--color-accent) 28%, transparent);
   }
 
   .btn-secondary-semantic {
@@ -331,6 +609,7 @@ body {
 
   .btn-secondary-semantic:hover {
     background: color-mix(in srgb, var(--color-surface-3) 88%, transparent);
+    border-color: var(--color-border-focus);
   }
 
   .btn-danger-semantic {
@@ -338,6 +617,14 @@ body {
     color: var(--color-accent-contrast);
     border: 1px solid var(--color-danger);
     border-radius: var(--radius-sm);
+    box-shadow: inset 0 1px 0 color-mix(in srgb, white 18%, transparent);
+  }
+
+  .btn-danger-semantic:hover {
+    border-color: color-mix(in srgb, var(--color-danger) 78%, white);
+    box-shadow:
+      inset 0 1px 0 color-mix(in srgb, white 18%, transparent),
+      0 8px 20px color-mix(in srgb, var(--color-danger) 26%, transparent);
   }
 
   .btn-ghost-semantic {
@@ -351,6 +638,15 @@ body {
     background: var(--color-accent-soft);
     color: var(--color-text-primary);
     border-color: var(--color-border-accent);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .btn-primary-semantic,
+    .btn-secondary-semantic,
+    .btn-ghost-semantic,
+    .btn-danger-semantic {
+      transition-duration: 0ms;
+    }
   }
 
   .input-semantic {
@@ -496,6 +792,30 @@ body {
     background: color-mix(in srgb, var(--color-accent) 24%, transparent);
   }
 
+  /* Overlay/drawer entrance. The panel enters from the bottom on small screens
+     and from the side at `sm` and up; both animations are dropped entirely for
+     reduced-motion users. */
+  .drawer-enter-backdrop {
+    animation: drawer-backdrop-in 180ms ease-out both;
+  }
+
+  .drawer-enter-panel {
+    animation: drawer-panel-in 220ms cubic-bezier(0.32, 0.72, 0, 1) both;
+  }
+
+  @media (min-width: 640px) {
+    .drawer-enter-panel {
+      animation-name: drawer-panel-in-side;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .drawer-enter-backdrop,
+    .drawer-enter-panel {
+      animation: none;
+    }
+  }
+
   .tabler-badge {
     @apply inline-flex items-center gap-1 border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide;
     border-radius: var(--tabler-radius-sm);
@@ -509,7 +829,7 @@ body {
   }
 
   .tabler-badge-primary.tabler-badge-solid {
-    background: #2563eb;
+    background: var(--color-accent);
   }
 
   .tabler-badge-success.tabler-badge-solid {
@@ -661,7 +981,7 @@ body {
   .dark .tabler-page-gradient {
     background:
       radial-gradient(circle at 0% 0%, rgb(59 130 246 / 0.16), transparent 30%),
-      radial-gradient(circle at 100% 0%, rgb(37 99 235 / 0.24), transparent 34%);
+      radial-gradient(circle at 100% 0%, rgb(7 17 31 / 0.7), transparent 34%);
   }
 
   .dashboard-card {
@@ -677,13 +997,26 @@ body {
 
   .dashboard-card-interactive:hover {
     border-color: var(--color-border-accent);
-    box-shadow: var(--shadow-md);
     transform: translateY(-1px);
   }
 
   .dashboard-subtle {
     background: color-mix(in srgb, var(--color-surface-3) 72%, transparent);
     border: 1px solid var(--color-border);
+  }
+
+  .dashboard-credit-section {
+    color: var(--color-text-primary);
+  }
+
+  .dashboard-credit-balance {
+    background: var(--color-dashboard-balance-bg);
+    border-color: var(--color-dashboard-balance-border);
+  }
+
+  .dashboard-credit-cutoff {
+    background: var(--color-dashboard-cutoff-bg);
+    border-color: var(--color-dashboard-cutoff-border);
   }
 
   .dashboard-icon {
@@ -708,5 +1041,157 @@ body {
   .dashboard-touch-target {
     min-height: var(--shell-control-size);
     min-width: var(--shell-control-size);
+  }
+}
+
+/* Compact rail. These live in the utilities layer because Tailwind v4 utilities
+   outrank the components layer: a rule in `components` loses to `p-3`/`px-4` on
+   the same element no matter how specific it is. Keeping them here lets the rail
+   reclaim the padding it needs for 44px controls. */
+@layer utilities {
+  .shell-sidebar-compact {
+    padding: var(--shell-compact-rail-padding);
+  }
+
+  .shell-sidebar-compact .app-sidebar {
+    padding: var(--shell-compact-rail-padding);
+  }
+
+  .shell-sidebar-compact .shell-sidebar-header {
+    align-items: center;
+    gap: var(--shell-compact-rail-gap);
+    padding: var(--shell-compact-rail-padding);
+  }
+
+  .shell-sidebar-compact .shell-sidebar-brand,
+  .shell-sidebar-compact .shell-sidebar-tools {
+    justify-content: center;
+  }
+
+  .shell-sidebar-compact .app-sidebar > .flex-1 {
+    padding: var(--shell-compact-rail-padding);
+  }
+
+  .shell-sidebar-compact .app-sidebar > .m-3 {
+    /* The card gutter already supplies the rail inset; keep `mt-auto` intact so
+       the session block still sits at the bottom of the rail. */
+    margin-block-end: var(--shell-compact-rail-padding);
+    margin-inline: 0;
+  }
+
+  .shell-sidebar-compact .shell-nav-list {
+    gap: var(--shell-compact-rail-gap);
+    margin-block-start: 0;
+  }
+
+  .shell-sidebar-compact .shell-nav-link,
+  .shell-sidebar-compact .shell-nav-group-toggle,
+  .shell-sidebar-compact .shell-control {
+    justify-content: center;
+  }
+
+  .shell-sidebar-compact .shell-nav-link,
+  .shell-sidebar-compact .shell-nav-group-toggle {
+    flex: 0 0 auto;
+    inline-size: var(--shell-control-size);
+    min-block-size: var(--shell-control-size);
+    min-inline-size: var(--shell-control-size);
+    margin-inline: auto;
+    padding-inline: 0;
+  }
+
+  .shell-sidebar-compact .shell-nav-link:hover,
+  .shell-sidebar-compact .shell-nav-group-toggle:hover {
+    transform: none;
+  }
+
+  .shell-sidebar-compact .shell-nav-chevron {
+    display: none;
+  }
+
+  /* The rail has no room for labels, so an open group shows its children in a
+     side flyout. Hiding them (previous behavior) left /transactions/* and
+     /catalogs/* unreachable from the collapsed sidebar. */
+  .shell-sidebar-compact .shell-nav-children {
+    background: var(--color-shell-surface);
+    border: 1px solid var(--color-border-strong);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-md);
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
+    inline-size: max-content;
+    inset-block-start: -0.25rem;
+    inset-inline-start: calc(100% + 0.5rem);
+    margin: 0;
+    min-inline-size: 11.5rem;
+    padding: 0.375rem;
+    position: absolute;
+    z-index: 40;
+  }
+
+  .shell-sidebar-compact .shell-nav-children .shell-subnav-link {
+    min-height: 2rem;
+  }
+
+  @media (pointer: coarse) {
+    .shell-sidebar-compact .shell-nav-children .shell-subnav-link {
+      min-height: var(--shell-control-size);
+    }
+  }
+
+  .shell-sidebar-compact .shell-brand-copy,
+  .shell-sidebar-compact .shell-brand-subtitle,
+  .shell-sidebar-compact .shell-nav-section-label {
+    display: none;
+  }
+
+  /* Flat data-grid skin. The skin's radius, shadow and cell rounding live in the
+     components layer, so the square variant has to be declared here to win over
+     the DataGrid `rounded-*`/`shadow-*` utilities. Used by accounts so the
+     header, filter card and table share one straight edge. */
+  .app-grid-skin-flat .overflow-x-auto,
+  .app-grid-skin-flat .rounded-b-xl {
+    border-radius: 0;
+  }
+
+  .app-grid-skin-flat .overflow-x-auto {
+    border-color: var(--color-border);
+    box-shadow: none;
+  }
+
+  .app-grid-skin-flat table tbody tr td {
+    border-radius: 0;
+  }
+}
+
+@keyframes drawer-backdrop-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes drawer-panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(1.25rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes drawer-panel-in-side {
+  from {
+    opacity: 0;
+    transform: translateX(1.5rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
   }
 }

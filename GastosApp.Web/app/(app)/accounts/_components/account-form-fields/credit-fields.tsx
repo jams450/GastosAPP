@@ -11,7 +11,7 @@ export function CreditFields({ form, errors, onChange }: Props) {
   return (
     <div className="space-y-3">
       <label className="text-secondary flex items-center gap-2 text-sm font-medium">
-        <input type="checkbox" checked={form.isCredit} onChange={(event) => onChange("isCredit", event.target.checked)} />
+        <input type="checkbox" className="h-4 w-4 accent-[var(--color-accent)]" checked={form.isCredit} onChange={(event) => onChange("isCredit", event.target.checked)} />
         Es cuenta de crédito
       </label>
 

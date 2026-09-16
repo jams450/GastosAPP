@@ -218,7 +218,7 @@ export function CategoriesSection({ categories, onCatalogChanged, onError, onSuc
 
   return (
     <>
-      <section className="overflow-hidden px-4 py-3 sm:px-5">
+      <section>
         <SectionFilterBar
           searchPlaceholder="Buscar por nombre o tag"
           searchValue={searchQuery}
@@ -266,8 +266,8 @@ export function CategoriesSection({ categories, onCatalogChanged, onError, onSuc
         />
       </section>
 
-      <section className="p-3 sm:p-4">
-        <div className="app-grid-skin overflow-hidden rounded-none p-0">
+      <section>
+        <div className="app-grid-skin app-grid-skin-flat overflow-hidden rounded-none p-0">
           <DataGrid
             columns={categoryColumns}
             rows={filteredRows}
@@ -280,16 +280,26 @@ export function CategoriesSection({ categories, onCatalogChanged, onError, onSuc
       </section>
 
       {categoryModalOpen ? (
-        <div className="fixed inset-0 z-[70] flex items-end justify-end bg-[var(--color-overlay)] p-0 backdrop-blur-sm sm:items-stretch">
-          <Card className="app-sidebar relative flex h-[100dvh] w-full flex-col border-l p-0 sm:h-full sm:max-w-xl">
+        <div className="drawer-enter-backdrop fixed inset-0 z-[70] flex items-end justify-end bg-[var(--color-overlay)] p-0 backdrop-blur-sm sm:items-stretch">
+          <Card className="drawer-enter-panel app-sidebar relative flex h-[100dvh] w-full flex-col border-l p-0 sm:h-full sm:max-w-xl">
             <form className="flex h-full flex-col" onSubmit={(event) => void submitCategory(event)}>
               <div className="drawer-header-semantic">
-                <h3 className="text-base font-semibold tracking-wide text-blue-700 dark:text-blue-300 sm:text-lg">{categoryForm.id ? "Editar categoría" : "Nueva categoría"}</h3>
+                <div className="mb-1 h-1 w-12 bg-[var(--color-accent)]/70 sm:hidden" />
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="shell-page-kicker">Catálogos</p>
+                    <h3 className="text-primary mt-1 text-base font-semibold tracking-wide sm:text-lg">{categoryForm.id ? "Editar categoría" : "Nueva categoría"}</h3>
+                  </div>
+                  <Button type="button" variant="ghost" className="btn-close-semantic" onClick={() => setCategoryModalOpen(false)}>
+                    <span aria-hidden="true">✕</span>
+                    <span>Cerrar</span>
+                  </Button>
+                </div>
               </div>
 
               <div className="flex-1 overflow-y-auto px-4 py-4 sm:px-5">
-                <section className="drawer-section-semantic space-y-3">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-blue-700 dark:text-blue-300">General</p>
+                <section className="drawer-section-semantic space-y-3 rounded-none border-[var(--color-border)] bg-[var(--color-surface-2)]">
+                  <p className="text-muted text-[11px] font-bold uppercase tracking-[0.14em]">General</p>
                   <Input
                     label="Nombre *"
                     value={categoryForm.name}
@@ -333,10 +343,10 @@ export function CategoriesSection({ categories, onCatalogChanged, onError, onSuc
 
               <div className="drawer-footer-semantic">
                 <div className="flex justify-end gap-2">
-                  <Button type="button" variant="ghost" className="h-9 rounded-md border-[var(--color-danger)]/50 bg-[var(--color-danger)]/15 text-[var(--color-danger)] hover:border-[var(--color-danger)]/70 hover:bg-[var(--color-danger)]/25" onClick={() => setCategoryModalOpen(false)}>
+                  <Button type="button" variant="secondary" className="h-9 rounded-none" onClick={() => setCategoryModalOpen(false)}>
                     Cancelar
                   </Button>
-                  <Button type="submit" variant="ghost" loading={saving} loadingText="Guardando..." className="h-9 rounded-md border-blue-400/60 bg-blue-500/15 text-blue-700 hover:border-blue-500/70 hover:bg-blue-500/25 hover:text-blue-800 dark:border-blue-700/60 dark:bg-blue-500/25 dark:text-blue-300 dark:hover:border-blue-500/70 dark:hover:bg-blue-500/35 dark:hover:text-blue-100">
+                  <Button type="submit" variant="primary" loading={saving} loadingText="Guardando..." className="h-9 rounded-none">
                     Guardar
                   </Button>
                 </div>

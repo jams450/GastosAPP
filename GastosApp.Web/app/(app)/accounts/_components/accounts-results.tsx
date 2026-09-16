@@ -12,7 +12,7 @@ type Props = {
 
 export function AccountsResults({ rows, loading, errorMessage, onEdit, onToggleActive }: Props) {
   return (
-    <section className="p-3 sm:p-4" aria-busy={loading}>
+    <section aria-busy={loading}>
       <AccountsMobileList rows={rows} loading={loading} errorMessage={errorMessage} onEdit={onEdit} onToggleActive={onToggleActive} />
       <div className="hidden md:block">
         <AccountsTable rows={rows} loading={loading} errorMessage={errorMessage} onEdit={onEdit} onToggleActive={onToggleActive} />

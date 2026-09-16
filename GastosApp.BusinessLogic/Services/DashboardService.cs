@@ -13,6 +13,11 @@ namespace GastosApp.BusinessLogic.Services
         private const int CategoryTopLimit = 8;
         private const int SubcategoryTopLimit = 12;
         private const int AccountTopLimit = 8;
+        private const int HistoricalMonths = 6;
+        private const int DefaultProjectionMonths = 6;
+        private const int MinProjectionMonths = 1;
+        private const int MaxProjectionMonths = 24;
+        private const int MinTrendSampleMonths = 3;
         private readonly IRepository _repository;
 
         public DashboardService(IRepository repository)
@@ -144,6 +149,239 @@ namespace GastosApp.BusinessLogic.Services
                 },
                 Accounts = accounts
             };
+        }
+
+        public async Task<DashboardProjectionResponse> GetProjectionAsync(int userId, int? months, string timezoneId = MonthRangeResolver.DefaultTimezoneId)
+        {
+            var timezone = MonthRangeResolver.ResolveTimeZone(timezoneId);
+            var horizonMonths = Math.Clamp(months ?? DefaultProjectionMonths, MinProjectionMonths, MaxProjectionMonths);
+            var localNow = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, timezone);
+            var asOfDate = DateOnly.FromDateTime(localNow);
+
+            var (currentYear, currentMonth, _, _) = MonthRangeResolver.ResolveUtcRange(null, timezoneId);
+
+            // Últimos HistoricalMonths meses calendario completos anteriores al mes en curso.
+            var historyBuckets = new List<(int Year, int Month)>(HistoricalMonths);
+            for (var offset = HistoricalMonths; offset >= 1; offset--)
+            {
+                var bucket = new DateTime(currentYear, currentMonth, 1).AddMonths(-offset);
+                historyBuckets.Add((bucket.Year, bucket.Month));
+            }
+
+            var historyStartUtc = TimeZoneInfo.ConvertTimeToUtc(
+                new DateTime(historyBuckets[0].Year, historyBuckets[0].Month, 1, 0, 0, 0, DateTimeKind.Unspecified), timezone);
+            var historyEndUtc = TimeZoneInfo.ConvertTimeToUtc(
+                new DateTime(currentYear, currentMonth, 1, 0, 0, 0, DateTimeKind.Unspecified), timezone);
+
+            var cashRealBalance = await _repository.Get<Account>(a => a.UserId == userId && !a.IsCredit && a.Active)
+                .SumAsync(a => a.CurrentBalance);
+
+            var transactions = await _repository.Get<Transaction>(t =>
+                    t.Account.UserId == userId &&
+                    t.TransactionDate >= historyStartUtc &&
+                    t.TransactionDate < historyEndUtc)
+                .Include(t => t.Account)
+                .ToListAsync();
+
+            var accountCreditTypes = await QueryUserAccountCreditTypesAsync(userId);
+
+            var transactionsByMonth = transactions
+                .GroupBy(t => ResolveMonthKey(t.TransactionDate, timezone))
+                .ToDictionary(g => g.Key, g => g.ToList());
+
+            var historicalMonths = new List<DashboardHistoricalMonth>(HistoricalMonths);
+            foreach (var bucket in historyBuckets)
+            {
+                var monthKey = FormatMonthKey(bucket.Year, bucket.Month);
+                var summary = transactionsByMonth.TryGetValue(monthKey, out var monthTransactions)
+                    ? CalculateFinancialSummary(monthTransactions, accountCreditTypes)
+                    : new DashboardFinancialSummary();
+
+                // Sólo flujo de efectivo: income/expense en cuentas no crédito y el lado cash→credit
+                // de las transferencias (mismas reglas que CalculateFinancialSummary del overview).
+                var income = RoundMoney(summary.CashIncome);
+                var expense = RoundMoney(summary.CashExpense);
+                historicalMonths.Add(new DashboardHistoricalMonth
+                {
+                    Month = monthKey,
+                    Income = income,
+                    Expense = expense,
+                    Net = RoundMoney(income - expense)
+                });
+            }
+
+            var trend = CalculateProjectionTrend(historicalMonths);
+            var msiInstallments = await QueryOpenMsiInstallmentsAsync(userId);
+
+            var monthsProjection = new List<DashboardProjectionMonth>(horizonMonths);
+            var runningBalance = cashRealBalance;
+            var cumulativeMsiCommitment = 0m;
+            for (var offset = 1; offset <= horizonMonths; offset++)
+            {
+                var bucket = new DateTime(currentYear, currentMonth, 1).AddMonths(offset);
+                var monthKey = FormatMonthKey(bucket.Year, bucket.Month);
+
+                if (trend.HasSufficientHistory)
+                {
+                    runningBalance += trend.ProjectedMonthlyNet;
+                }
+
+                var msiCommitment = RoundMoney(msiInstallments
+                    .Where(i => ResolveMonthKey(i.DueDate, timezone) == monthKey)
+                    .Sum(i => i.RemainingAmount));
+                cumulativeMsiCommitment += msiCommitment;
+
+                monthsProjection.Add(new DashboardProjectionMonth
+                {
+                    Month = monthKey,
+                    ProjectedCashBalance = RoundMoney(runningBalance),
+                    ProjectedNet = trend.HasSufficientHistory ? trend.ProjectedMonthlyNet : 0m,
+                    MsiCommitment = msiCommitment,
+                    MsiPaymentScenarioBalance = RoundMoney(runningBalance - cumulativeMsiCommitment)
+                });
+            }
+
+            return new DashboardProjectionResponse
+            {
+                AsOfDate = asOfDate,
+                Timezone = timezoneId,
+                HorizonMonths = horizonMonths,
+                CashRealBalance = RoundMoney(cashRealBalance),
+                HistoricalMonths = historicalMonths,
+                Trend = trend,
+                Months = monthsProjection,
+                MsiPlans = BuildMsiPlans(msiInstallments)
+            };
+        }
+
+        private static DashboardProjectionTrend CalculateProjectionTrend(IReadOnlyList<DashboardHistoricalMonth> historicalMonths)
+        {
+            var sampleMonths = historicalMonths.Count(m => m.Income != 0 || m.Expense != 0);
+            if (sampleMonths < MinTrendSampleMonths)
+            {
+                return new DashboardProjectionTrend
+                {
+                    SampleMonths = sampleMonths,
+                    MonthlyNetSlope = 0m,
+                    ProjectedMonthlyNet = 0m,
+                    HasSufficientHistory = false
+                };
+            }
+
+            // Regresión lineal ordinaria de net mensual sobre el índice temporal de los seis buckets.
+            var count = historicalMonths.Count;
+            decimal sumX = 0m, sumY = 0m, sumXY = 0m, sumXX = 0m;
+            for (var index = 0; index < count; index++)
+            {
+                decimal x = index;
+                var y = historicalMonths[index].Net;
+                sumX += x;
+                sumY += y;
+                sumXY += x * y;
+                sumXX += x * x;
+            }
+
+            var denominator = count * sumXX - sumX * sumX;
+            var slope = denominator == 0m ? 0m : (count * sumXY - sumX * sumY) / denominator;
+            var intercept = (sumY - slope * sumX) / count;
+            var projectedMonthlyNet = intercept + slope * count;
+
+            return new DashboardProjectionTrend
+            {
+                SampleMonths = sampleMonths,
+                MonthlyNetSlope = RoundMoney(slope),
+                ProjectedMonthlyNet = RoundMoney(projectedMonthlyNet),
+                HasSufficientHistory = true
+            };
+        }
+
+        private async Task<List<MsiOpenInstallmentRow>> QueryOpenMsiInstallmentsAsync(int userId)
+        {
+            var rows = await _repository.Get<CreditInstallment>(i =>
+                    i.Plan.Account.UserId == userId &&
+                    i.Plan.PlanType == TransactionDomainConstants.CreditPlanType.Msi)
+                .Include(i => i.Plan)
+                .ThenInclude(p => p.Account)
+                .ToListAsync();
+
+            rows = rows
+                .Where(i => !string.Equals(i.Status, TransactionDomainConstants.CreditStatus.Paid, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+
+            if (rows.Count == 0)
+            {
+                return [];
+            }
+
+            // Mismo cálculo que TransactionQueryService.GetOpenCreditInstallmentsAsync:
+            // el pendiente es TotalDue menos las allocations aplicadas, nunca TotalDue a secas.
+            var installmentIds = rows.Select(i => i.InstallmentId).ToList();
+            var paidRows = await _repository.Get<InstallmentAllocation>(a => installmentIds.Contains(a.InstallmentId))
+                .GroupBy(a => a.InstallmentId)
+                .Select(g => new { InstallmentId = g.Key, Paid = g.Sum(x => x.AllocatedAmount) })
+                .ToListAsync();
+            var paidByInstallment = paidRows.ToDictionary(x => x.InstallmentId, x => x.Paid);
+
+            return rows
+                .Select(row =>
+                {
+                    var paid = paidByInstallment.TryGetValue(row.InstallmentId, out var value) ? value : 0m;
+                    return new MsiOpenInstallmentRow
+                    {
+                        InstallmentId = row.InstallmentId,
+                        PlanId = row.PlanId,
+                        AccountId = row.Plan.AccountId,
+                        AccountName = row.Plan.Account.Name,
+                        DueDate = row.DueDate,
+                        TotalDue = row.TotalDue,
+                        RemainingAmount = Math.Max(row.TotalDue - paid, 0m)
+                    };
+                })
+                .Where(x => x.RemainingAmount > 0)
+                .ToList();
+        }
+
+        private static List<DashboardMsiPlan> BuildMsiPlans(IReadOnlyList<MsiOpenInstallmentRow> installments)
+        {
+            return installments
+                .GroupBy(i => i.PlanId)
+                .Select(group =>
+                {
+                    var rows = group.ToList();
+                    var scheduleComplete = rows.All(r => r.DueDate != default && r.TotalDue > 0m);
+                    var next = rows.OrderBy(r => r.DueDate).ThenBy(r => r.InstallmentId).First();
+                    return new DashboardMsiPlan
+                    {
+                        PlanId = group.Key,
+                        AccountId = rows[0].AccountId,
+                        AccountName = rows[0].AccountName,
+                        RemainingAmount = RoundMoney(rows.Sum(r => r.RemainingAmount)),
+                        OpenInstallments = rows.Count,
+                        NextDueDate = next.DueDate == default ? null : next.DueDate,
+                        NextDueAmount = RoundMoney(next.RemainingAmount),
+                        EndsOn = scheduleComplete ? rows.Max(r => r.DueDate) : null,
+                        ScheduleComplete = scheduleComplete
+                    };
+                })
+                .OrderBy(p => p.NextDueDate ?? DateTime.MaxValue)
+                .ThenBy(p => p.PlanId)
+                .ToList();
+        }
+
+        private static string ResolveMonthKey(DateTime utcDate, TimeZoneInfo timezone)
+        {
+            var local = TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(utcDate, DateTimeKind.Utc), timezone);
+            return FormatMonthKey(local.Year, local.Month);
+        }
+
+        private static string FormatMonthKey(int year, int month)
+        {
+            return $"{year:D4}-{month:D2}";
+        }
+
+        private static decimal RoundMoney(decimal value)
+        {
+            return Math.Round(value, 2, MidpointRounding.AwayFromZero);
         }
 
         private async Task<List<DashboardAccountSqlRow>> QueryAccountOverviewRowsAsync(
@@ -424,6 +662,17 @@ namespace GastosApp.BusinessLogic.Services
             public int AccountId { get; set; }
             public decimal Amount { get; set; }
             public string PlanType { get; set; } = TransactionDomainConstants.CreditPlanType.Revolving;
+        }
+
+        private sealed class MsiOpenInstallmentRow
+        {
+            public int InstallmentId { get; set; }
+            public int PlanId { get; set; }
+            public int AccountId { get; set; }
+            public string AccountName { get; set; } = string.Empty;
+            public DateTime DueDate { get; set; }
+            public decimal TotalDue { get; set; }
+            public decimal RemainingAmount { get; set; }
         }
 
         private sealed class DashboardFinancialSummary

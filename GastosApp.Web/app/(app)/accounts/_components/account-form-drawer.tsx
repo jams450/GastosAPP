@@ -114,10 +114,10 @@ export function AccountFormDrawer({ open, account, form, errors, submitError, su
   }
 
   return (
-    <div className="fixed inset-0 z-[70] flex items-end justify-end bg-[var(--color-overlay)] backdrop-blur-sm sm:items-stretch" role="presentation" onClick={onClose}>
+    <div className="drawer-enter-backdrop fixed inset-0 z-[70] flex items-end justify-end bg-[var(--color-overlay)] backdrop-blur-sm sm:items-stretch" role="presentation" onClick={onClose}>
       <div
         ref={drawerRef}
-        className="app-sidebar relative flex h-[100dvh] w-full flex-col border-l sm:h-full sm:max-w-xl"
+        className="drawer-enter-panel app-sidebar relative flex h-[100dvh] w-full flex-col border-l sm:h-full sm:max-w-xl"
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
@@ -126,9 +126,12 @@ export function AccountFormDrawer({ open, account, form, errors, submitError, su
         <div className="drawer-header-semantic">
           <div className="mb-1 h-1 w-12 bg-[var(--color-accent)]/70 sm:hidden" />
           <div className="flex items-start justify-between gap-3">
-            <h3 id={titleId} className="text-primary text-lg font-semibold">
-            {account ? `Editar cuenta: ${account.name}` : "Nueva cuenta"}
-            </h3>
+            <div className="min-w-0">
+              <p className="shell-page-kicker">Cuentas</p>
+              <h3 id={titleId} className="text-primary mt-1 text-lg font-semibold">
+                {account ? `Editar cuenta: ${account.name}` : "Nueva cuenta"}
+              </h3>
+            </div>
             <Button ref={closeButtonRef} type="button" variant="ghost" className="btn-close-semantic" onClick={onClose}>
               <X className="h-3.5 w-3.5" aria-hidden="true" />
               <span>Cerrar</span>
@@ -138,18 +141,18 @@ export function AccountFormDrawer({ open, account, form, errors, submitError, su
 
         <div className="flex-1 overflow-y-auto px-4 py-4 sm:px-5">
           <div className="space-y-4">
-          <section className="drawer-section-semantic">
-            <h4 className="text-muted text-xs font-semibold uppercase tracking-wide">General</h4>
+          <section className="drawer-section-semantic rounded-none border-[var(--color-border)] bg-[var(--color-surface-2)]">
+            <h4 className="text-muted text-[11px] font-bold uppercase tracking-[0.14em]">General</h4>
             <BaseFields form={form} errors={errors} onChange={onChange} />
           </section>
 
-          <section className="drawer-section-semantic">
-            <h4 className="text-muted text-xs font-semibold uppercase tracking-wide">Crédito</h4>
+          <section className="drawer-section-semantic rounded-none border-[var(--color-border)] bg-[var(--color-surface-2)]">
+            <h4 className="text-muted text-[11px] font-bold uppercase tracking-[0.14em]">Crédito</h4>
             <CreditFields form={form} errors={errors} onChange={onChange} />
           </section>
 
-          <section className="drawer-section-semantic">
-            <h4 className="text-muted text-xs font-semibold uppercase tracking-wide">Saldos e interés</h4>
+          <section className="drawer-section-semantic rounded-none border-[var(--color-border)] bg-[var(--color-surface-2)]">
+            <h4 className="text-muted text-[11px] font-bold uppercase tracking-[0.14em]">Saldos e interés</h4>
             <BalanceFields form={form} errors={errors} onChange={onChange} />
           </section>
 
@@ -159,10 +162,12 @@ export function AccountFormDrawer({ open, account, form, errors, submitError, su
 
           <div className="drawer-footer-semantic">
             <div className="flex justify-end gap-2">
-            <Button type="button" variant="ghost" className="h-8 rounded-md border-[var(--color-danger)]/50 bg-[var(--color-danger)]/15 px-3 text-xs font-bold text-[var(--color-danger)] hover:border-[var(--color-danger)]/70 hover:bg-[var(--color-danger)]/25" onClick={onClose}>Cancelar</Button>
-            <Button type="button" variant="ghost" loading={submitting} loadingText="Guardando..." className="h-8 rounded-md border-blue-400/60 bg-blue-500/15 px-3 text-xs font-bold text-blue-700 hover:border-blue-500/70 hover:bg-blue-500/25 hover:text-blue-800 dark:border-blue-700/60 dark:bg-blue-500/25 dark:text-blue-300 dark:hover:border-blue-500/70 dark:hover:bg-blue-500/35 dark:hover:text-blue-100" onClick={onSubmit}>
-              {account ? "Guardar cambios" : "Crear cuenta"}
-            </Button>
+              <Button type="button" variant="secondary" className="h-8 rounded-none px-3 text-xs font-bold" onClick={onClose}>
+                Cancelar
+              </Button>
+              <Button type="button" variant="primary" loading={submitting} loadingText="Guardando..." className="h-8 rounded-none px-3 text-xs font-bold" onClick={onSubmit}>
+                {account ? "Guardar cambios" : "Crear cuenta"}
+              </Button>
             </div>
           </div>
       </div>

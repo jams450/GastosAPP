@@ -29,6 +29,14 @@ namespace GastosApp.API.Controllers
             return Ok(result);
         }
 
+        [HttpGet("projection")]
+        public async Task<IActionResult> GetProjection([FromQuery] int? months)
+        {
+            var userId = GetCurrentUserId();
+            var result = await _dashboardService.GetProjectionAsync(userId, months, DashboardTimezone);
+            return Ok(result);
+        }
+
         private int GetCurrentUserId()
         {
             return _currentUserService.GetUserId()
