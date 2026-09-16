@@ -45,11 +45,11 @@ services:
       - Llm__Model=${Llm__Model}
     networks:
       - gastos-network
-      - shared-db-network
+      - server-data
     restart: "no"
 
 networks:
   gastos-network:
     driver: bridge
-  shared-db-network:
+  server-data:
     external: true
