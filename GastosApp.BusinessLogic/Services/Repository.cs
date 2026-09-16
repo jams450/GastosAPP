@@ -330,13 +330,14 @@ namespace GastosApp.BusinessLogic.Services
 
         public async Task<bool> ClaimBancoppelImportedRowAsync(int accountId, string fingerprint)
         {
-            var claimed = await _context.Database.SqlQuery<int>($"""
+            // Sin RETURNING: ExecuteSqlInterpolatedAsync reporta filas afectadas (1 = insertado,
+            // 0 = conflicto). No se puede componer sobre Database.SqlQuery (root no componible).
+            var affected = await _context.Database.ExecuteSqlInterpolatedAsync($"""
                 INSERT INTO bancoppel_imported_rows (account_id, fingerprint)
                 VALUES ({accountId}, {fingerprint})
                 ON CONFLICT (account_id, fingerprint) DO NOTHING
-                RETURNING 1 AS "Value"
-                """).AnyAsync();
-            return claimed;
+                """);
+            return affected == 1;
         }
 
         public async Task LinkBancoppelImportedRowAsync(int accountId, string fingerprint, int transactionId)
@@ -350,13 +351,14 @@ namespace GastosApp.BusinessLogic.Services
 
         public async Task<bool> ClaimTelegramProcessedUpdateAsync(long updateId, int? telegramIdentityId, string status, DateTime claimedAt, Guid claimToken)
         {
-            var claimed = await _context.Database.SqlQuery<int>($"""
+            // Sin RETURNING: ExecuteSqlInterpolatedAsync reporta filas afectadas (1 = reclamado,
+            // 0 = ya existía). Componer .AnyAsync() sobre Database.SqlQuery lanza InvalidOperationException.
+            var affected = await _context.Database.ExecuteSqlInterpolatedAsync($"""
                 INSERT INTO telegram_processed_updates (update_id, telegram_identity_id, status, attempt_count, claimed_at, claim_token)
                 VALUES ({updateId}, {telegramIdentityId}, {status}, 1, {claimedAt}, {claimToken})
                 ON CONFLICT (update_id) DO NOTHING
-                RETURNING 1 AS "Value"
-                """).AnyAsync();
-            return claimed;
+                """);
+            return affected == 1;
         }
 
         public async Task<TelegramExpenseDraft?> LockTelegramExpenseDraftAsync(Guid draftId)
