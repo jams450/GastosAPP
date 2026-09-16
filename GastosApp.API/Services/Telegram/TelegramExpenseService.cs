@@ -2,6 +2,7 @@ using System.Globalization;
 using GastosApp.AI.Intent;
 using GastosApp.BusinessLogic.Interfaces;
 using GastosApp.Models.Entities;
+using Microsoft.Extensions.Logging;
 
 namespace GastosApp.API.Services.Telegram;
 
@@ -49,6 +50,7 @@ public sealed class TelegramExpenseService
     private readonly ICategoryService _categories;
     private readonly ISubcategoryService _subcategories;
     private readonly IMerchantService _merchants;
+    private readonly ILogger<TelegramExpenseService> _logger;
 
     public TelegramExpenseService(
         IExpenseDraftService drafts,
@@ -56,7 +58,8 @@ public sealed class TelegramExpenseService
         IAccountService accounts,
         ICategoryService categories,
         ISubcategoryService subcategories,
-        IMerchantService merchants)
+        IMerchantService merchants,
+        ILogger<TelegramExpenseService> logger)
     {
         _drafts = drafts;
         _transactions = transactions;
@@ -64,6 +67,7 @@ public sealed class TelegramExpenseService
         _categories = categories;
         _subcategories = subcategories;
         _merchants = merchants;
+        _logger = logger;
     }
 
     public async Task<string> ExecuteCommandAsync(TelegramCommand command, TelegramIdentity identity, CancellationToken cancellationToken)
@@ -108,7 +112,7 @@ public sealed class TelegramExpenseService
         var accounts = await GetExpenseAccountsAsync(identity.UserId, cancellationToken);
         if (accounts.Count == 0)
         {
-            return "No tienes cuentas activas (no crédito) para registrar gastos.";
+            return "No tienes cuentas activas para registrar gastos.";
         }
 
         var (account, accountError) = ResolveSingleAccount(segments[1], accounts);
@@ -255,6 +259,13 @@ public sealed class TelegramExpenseService
             // Validación de BusinessLogic: mensaje funcional y el borrador permanece pendiente.
             return exception.Message;
         }
+        catch (Exception exception)
+        {
+            // La transacción de confirmación ya hizo rollback: el borrador sigue pendiente.
+            // Nunca se deja al usuario sin respuesta (p. ej. fallo al resolver el ciclo de una cuenta crédito).
+            _logger.LogError("Telegram expense confirmation failed: {ErrorType}", exception.GetType().Name);
+            return "No pude registrar el gasto. El borrador sigue pendiente: reintenta con /confirmar o cancelar con /cancelar.";
+        }
     }
 
     private Task<Transaction> CreateExpenseAsync(TelegramExpenseDraft draft, int userId, CancellationToken cancellationToken)
@@ -300,7 +311,7 @@ public sealed class TelegramExpenseService
         var accounts = await GetExpenseAccountsAsync(identity.UserId, cancellationToken);
         if (accounts.Count == 0)
         {
-            return "No tienes cuentas activas (no crédito).";
+            return "No tienes cuentas activas.";
         }
 
         var lines = accounts.Select(a => $"- {a.Name}");
@@ -354,12 +365,13 @@ public sealed class TelegramExpenseService
     }
 
     // Catálogos usados por los comandos y por el orquestador (texto libre) antes de extraer la intención.
+    // Incluye cuentas crédito: el gasto se registra como cargo revolvente (sin MSI).
     public async Task<IReadOnlyList<Account>> GetExpenseAccountsAsync(int userId, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         var accounts = await _accounts.GetAllActiveByUserIdAsync(userId);
         return accounts
-            .Where(a => a.Active && !a.IsCredit && a.UserId == userId)
+            .Where(a => a.Active && a.UserId == userId)
             .ToList();
     }
 
