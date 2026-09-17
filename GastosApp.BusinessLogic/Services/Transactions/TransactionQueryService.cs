@@ -15,14 +15,6 @@ namespace GastosApp.BusinessLogic.Services
             _repository = repository;
         }
 
-        public async Task<Transaction?> GetByIdAsync(int id)
-        {
-            // Lectura de una sola fila: un único JOIN es más barato que las 3 consultas del modo split.
-            return await BuildBaseQuery(t => t.TransactionId == id)
-                .AsSingleQuery()
-                .FirstOrDefaultAsync();
-        }
-
         public async Task<Transaction?> GetByIdForUserAsync(int id, int userId)
         {
             // Lectura de una sola fila: un único JOIN es más barato que las 3 consultas del modo split.
@@ -43,23 +35,9 @@ namespace GastosApp.BusinessLogic.Services
             return existing.ToHashSet();
         }
 
-        public async Task<IEnumerable<Transaction>> GetAllByAccountIdAsync(int accountId)
-        {
-            return await BuildBaseQuery(t => t.AccountId == accountId)
-                .OrderByDescending(t => t.TransactionDate)
-                .ToListAsync();
-        }
-
         public async Task<IEnumerable<Transaction>> GetAllByAccountIdForUserAsync(int accountId, int userId)
         {
             return await BuildBaseQuery(t => t.AccountId == accountId && t.Account.UserId == userId)
-                .OrderByDescending(t => t.TransactionDate)
-                .ToListAsync();
-        }
-
-        public async Task<IEnumerable<Transaction>> GetByDateRangeAsync(int accountId, DateTime startDate, DateTime endDate)
-        {
-            return await BuildBaseQuery(t => t.AccountId == accountId && t.TransactionDate >= startDate && t.TransactionDate <= endDate)
                 .OrderByDescending(t => t.TransactionDate)
                 .ToListAsync();
         }
@@ -102,13 +80,6 @@ namespace GastosApp.BusinessLogic.Services
                 .ToListAsync();
 
             return new PagedTransactions { TotalCount = totalCount, Items = items };
-        }
-
-        public async Task<IEnumerable<Transaction>> GetByCategoryAsync(int categoryId)
-        {
-            return await BuildBaseQuery(t => t.CategoryId == categoryId)
-                .OrderByDescending(t => t.TransactionDate)
-                .ToListAsync();
         }
 
         public async Task<IEnumerable<Transaction>> GetByCategoryForUserAsync(int categoryId, int userId)
@@ -252,9 +223,10 @@ namespace GastosApp.BusinessLogic.Services
             };
         }
 
-        public async Task<decimal> CalculateAccountBalanceAsync(int accountId)
+        public async Task<decimal> CalculateAccountBalanceAsync(int accountId, int userId)
         {
-            return await _repository.Get<Transaction>(t => t.AccountId == accountId).SumAsync(t => t.BalanceImpact);
+            // Cuenta ajena/inexistente suma sobre conjunto vacío => 0m, sin oráculo de existencia.
+            return await _repository.Get<Transaction>(t => t.AccountId == accountId && t.Account.UserId == userId).SumAsync(t => t.BalanceImpact);
         }
 
         public async Task<AccountAnnualSummary?> GetAccountAnnualSummaryAsync(int accountId, int userId, int? year)
@@ -359,13 +331,13 @@ namespace GastosApp.BusinessLogic.Services
             };
         }
 
-        public async Task<IEnumerable<CreditInstallmentOpenItem>> GetOpenCreditInstallmentsAsync(int creditAccountId)
+        public async Task<IEnumerable<CreditInstallmentOpenItem>> GetOpenCreditInstallmentsAsync(int creditAccountId, int userId)
         {
             var rows = await _repository.Get<CreditInstallment>()
                 .Include(i => i.Plan)
                 .ThenInclude(p => p.SourceCharge)
                 .ThenInclude(c => c.SourceTransaction)
-                .Where(i => i.Plan.AccountId == creditAccountId && i.Status != TransactionDomainConstants.CreditStatus.Paid)
+                .Where(i => i.Plan.AccountId == creditAccountId && i.Plan.Account.UserId == userId && i.Status != TransactionDomainConstants.CreditStatus.Paid)
                 .OrderBy(i => i.DueDate)
                 .ToListAsync();
 
@@ -398,7 +370,7 @@ namespace GastosApp.BusinessLogic.Services
             }).Where(x => x.RemainingAmount > 0).ToList();
         }
 
-        public async Task<IEnumerable<CreditChargeSummaryItem>> GetCreditChargeSummariesAsync(IEnumerable<int> sourceTransactionIds)
+        public async Task<IEnumerable<CreditChargeSummaryItem>> GetCreditChargeSummariesAsync(IEnumerable<int> sourceTransactionIds, int userId)
         {
             var ids = sourceTransactionIds.Distinct().ToList();
             if (ids.Count == 0) return [];
@@ -406,7 +378,7 @@ namespace GastosApp.BusinessLogic.Services
             var plans = await _repository.Get<CreditInstallmentPlan>()
                 .Include(p => p.SourceCharge)
                 .Include(p => p.Installments)
-                .Where(p => ids.Contains(p.SourceCharge.SourceTransactionId))
+                .Where(p => p.SourceCharge.Account.UserId == userId && ids.Contains(p.SourceCharge.SourceTransactionId))
                 .ToListAsync();
 
             if (plans.Count == 0) return [];

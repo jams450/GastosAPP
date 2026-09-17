@@ -14,11 +14,6 @@ namespace GastosApp.BusinessLogic.Services
             _repository = repository;
         }
 
-        public async Task<Category?> GetByIdAsync(int id)
-        {
-            return await _repository.GetByIdAsync<Category>(id);
-        }
-
         public async Task<Category?> GetByIdWithTagsAsync(int id, int userId)
         {
             return await _repository.Get<Category>(c => c.CategoryId == id && (c.UserId == userId || c.UserId == null))

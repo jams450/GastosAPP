@@ -40,7 +40,7 @@ namespace GastosApp.BusinessLogic.Services
                 .ToListAsync();
         }
 
-        public async Task<Account> CreateAsync(Account account)
+        public async Task<Account> CreateAsync(Account account, int userId)
         {
             var validation = ValidateAccount(account);
             if (!validation.IsValid)
@@ -48,6 +48,7 @@ namespace GastosApp.BusinessLogic.Services
                 throw new ArgumentException(validation.ErrorMessage);
             }
 
+            account.UserId = userId;
             account.Active = true;
             return await _repository.Save<Account>(account);
         }

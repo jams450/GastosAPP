@@ -5,7 +5,6 @@ using System.Linq.Expressions;
 using System.Threading.Tasks;
 using GastosApp.BusinessLogic.Interfaces;
 using Microsoft.EntityFrameworkCore;
-using System.Reflection;
 using GastosApp.BusinessLogic.Context;
 using GastosApp.Models.Entities;
 
@@ -88,100 +87,6 @@ namespace GastosApp.BusinessLogic.Services
             return model;
         }
 
-        public async Task<T> AddOrUpdate<T>(T obj) where T : class
-        {
-            _context.Set<T>().Update(obj);
-            await _context.SaveChangesAsync();
-            return obj;
-        }
-
-        #endregion
-
-        #region Dynamic Field Update Methods
-
-        public async Task<bool> UpdateFieldAsync<T>(int id, string propertyName, object value) where T : class
-        {
-            var entity = await _context.Set<T>().FindAsync(id);
-            if (entity == null) return false;
-
-            var property = typeof(T).GetProperty(propertyName, BindingFlags.Public | BindingFlags.Instance | BindingFlags.IgnoreCase);
-            if (property == null || !property.CanWrite) return false;
-
-            var convertedValue = Convert.ChangeType(value, property.PropertyType);
-            property.SetValue(entity, convertedValue);
-
-            await _context.SaveChangesAsync();
-            return true;
-        }
-
-        public async Task<bool> UpdateFieldAsync<T, TValue>(int id, Expression<Func<T, TValue>> propertySelector, TValue value) where T : class
-        {
-            var entity = await _context.Set<T>().FindAsync(id);
-            if (entity == null) return false;
-
-            if (propertySelector.Body is MemberExpression memberExpr)
-            {
-                var propertyName = memberExpr.Member.Name;
-                var property = typeof(T).GetProperty(propertyName);
-                if (property != null && property.CanWrite)
-                {
-                    property.SetValue(entity, value);
-                    await _context.SaveChangesAsync();
-                    return true;
-                }
-            }
-            return false;
-        }
-
-        public async Task<int> UpdateFieldsAsync<T>(int id, Dictionary<string, object> fields) where T : class
-        {
-            var entity = await _context.Set<T>().FindAsync(id);
-            if (entity == null) return 0;
-
-            var properties = typeof(T).GetProperties(BindingFlags.Public | BindingFlags.Instance)
-                .ToDictionary(p => p.Name, StringComparer.OrdinalIgnoreCase);
-
-            int updatedCount = 0;
-            foreach (var field in fields)
-            {
-                if (properties.TryGetValue(field.Key, out var property) && property.CanWrite)
-                {
-                    var convertedValue = Convert.ChangeType(field.Value, property.PropertyType);
-                    property.SetValue(entity, convertedValue);
-                    updatedCount++;
-                }
-            }
-
-            if (updatedCount > 0)
-            {
-                await _context.SaveChangesAsync();
-            }
-            return updatedCount;
-        }
-
-        public async Task<int> UpdateFieldsAsync<T>(T entity, Dictionary<string, object> fields) where T : class
-        {
-            var properties = typeof(T).GetProperties(BindingFlags.Public | BindingFlags.Instance)
-                .ToDictionary(p => p.Name, StringComparer.OrdinalIgnoreCase);
-
-            int updatedCount = 0;
-            foreach (var field in fields)
-            {
-                if (properties.TryGetValue(field.Key, out var property) && property.CanWrite)
-                {
-                    var convertedValue = Convert.ChangeType(field.Value, property.PropertyType);
-                    property.SetValue(entity, convertedValue);
-                    updatedCount++;
-                }
-            }
-
-            if (updatedCount > 0)
-            {
-                await _context.SaveChangesAsync();
-            }
-            return updatedCount;
-        }
-
         #endregion
 
         #region Delete Methods
@@ -204,24 +109,6 @@ namespace GastosApp.BusinessLogic.Services
         {
             _context.Set<T>().RemoveRange(entities);
             return await _context.SaveChangesAsync();
-        }
-
-        #endregion
-
-        #region Collection Sync Methods
-
-        public (List<T> ToAdd, List<T> ToRemove) DiffList<T, TKey>(IEnumerable<T> original, IEnumerable<T> updated, Func<T, TKey> keySelector) where TKey : notnull
-        {
-            var oldDict = original.ToDictionary(keySelector);
-            var newDict = updated.ToDictionary(keySelector);
-
-            var addKeys = newDict.Keys.Except(oldDict.Keys);
-            var removeKeys = oldDict.Keys.Except(newDict.Keys);
-
-            var toAdd = addKeys.Select(k => newDict[k]).ToList();
-            var toRemove = removeKeys.Select(k => oldDict[k]).ToList();
-
-            return (toAdd, toRemove);
         }
 
         #endregion
@@ -274,16 +161,6 @@ namespace GastosApp.BusinessLogic.Services
             return await _context.Transactions
                 .FromSqlInterpolated($"SELECT * FROM transactions WHERE transaction_id = {transactionId} FOR UPDATE")
                 .FirstOrDefaultAsync();
-        }
-
-        public async Task<List<Transaction>> LockTransactionsAsync(IEnumerable<int> transactionIds)
-        {
-            var ids = transactionIds.Distinct().OrderBy(id => id).ToArray();
-            if (ids.Length == 0) return [];
-
-            return await _context.Transactions
-                .FromSqlInterpolated($"SELECT * FROM transactions WHERE transaction_id = ANY({ids}) ORDER BY transaction_id FOR UPDATE")
-                .ToListAsync();
         }
 
         public async Task<List<Transaction>> LockTransferTransactionsAsync(Guid transferGroupId)

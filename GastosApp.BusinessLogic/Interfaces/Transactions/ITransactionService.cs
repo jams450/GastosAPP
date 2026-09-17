@@ -5,14 +5,10 @@ namespace GastosApp.BusinessLogic.Interfaces
 {
     public interface ITransactionService
     {
-        Task<Transaction?> GetByIdAsync(int id);
         Task<Transaction?> GetByIdForUserAsync(int id, int userId);
-        Task<IEnumerable<Transaction>> GetAllByAccountIdAsync(int accountId);
         Task<IEnumerable<Transaction>> GetAllByAccountIdForUserAsync(int accountId, int userId);
-        Task<IEnumerable<Transaction>> GetByDateRangeAsync(int accountId, DateTime startDate, DateTime endDate);
         Task<IEnumerable<Transaction>> GetByDateRangeForUserAsync(int accountId, int userId, DateTime startDate, DateTime endDate);
         Task<IEnumerable<Transaction>> GetByMonthForUserAsync(int accountId, int userId, string? month);
-        Task<IEnumerable<Transaction>> GetByCategoryAsync(int categoryId);
         Task<IEnumerable<Transaction>> GetByCategoryForUserAsync(int categoryId, int userId);
         Task<PagedTransactions> QueryByAccountForUserAsync(int accountId, int userId, TransactionQuery query);
         
@@ -55,7 +51,7 @@ namespace GastosApp.BusinessLogic.Interfaces
             bool clearAnalytics);
         
         // Recalcular saldo de cuenta basado en transacciones
-        Task<decimal> CalculateAccountBalanceAsync(int accountId);
+        Task<decimal> CalculateAccountBalanceAsync(int accountId, int userId);
         Task<(bool IsValid, string? ErrorMessage)> ValidateAnalyticsDimensionsAsync(int userId, int? categoryId, int? subcategoryId, int? merchantId);
         Task SyncTransactionTagsAsync(int transactionId, int userId, IEnumerable<string>? tagNames);
         Task<(bool Success, string? ErrorMessage)> ReplaceExpenseAllocationsAsync(int transactionId, int userId, IEnumerable<ExpenseAllocationInput>? allocations, bool fallbackToSelfWhenEmpty = true);
@@ -67,8 +63,8 @@ namespace GastosApp.BusinessLogic.Interfaces
             decimal amount,
             IEnumerable<(int InstallmentId, decimal Amount)> allocations);
         Task<(bool Success, string? ErrorMessage)> ConvertChargeToMsiAsync(int userId, int sourceTransactionId, int months);
-        Task<IEnumerable<CreditInstallmentOpenItem>> GetOpenCreditInstallmentsAsync(int creditAccountId);
-        Task<IEnumerable<CreditChargeSummaryItem>> GetCreditChargeSummariesAsync(IEnumerable<int> sourceTransactionIds);
+        Task<IEnumerable<CreditInstallmentOpenItem>> GetOpenCreditInstallmentsAsync(int creditAccountId, int userId);
+        Task<IEnumerable<CreditChargeSummaryItem>> GetCreditChargeSummariesAsync(IEnumerable<int> sourceTransactionIds, int userId);
         Task<(bool Success, string? ErrorMessage, int CreatedCount)> CreateOpeningCreditChargesAsync(
             int userId,
             int creditAccountId,

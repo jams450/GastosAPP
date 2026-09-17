@@ -7,6 +7,9 @@ namespace GastosApp.BusinessLogic.Services
 {
     public class CreditLifecycleService : ICreditLifecycleService
     {
+        // Cota anti-abuso: cada ítem genera un cargo, un plan y sus mensualidades.
+        private const int MaxOpeningChargeItems = 50;
+
         private readonly IRepository _repository;
         private readonly IAccountService _accountService;
         private readonly ITransactionValidationService _validation;
@@ -205,6 +208,8 @@ namespace GastosApp.BusinessLogic.Services
         {
             var inputItems = items.ToList();
             if (inputItems.Count == 0) return (false, "Debes enviar al menos un cargo con monto mayor a cero", 0);
+            // Cota anti-abuso, coherente con MaxAllocationsPerTransaction de ExpenseAllocationService.
+            if (inputItems.Count > MaxOpeningChargeItems) return (false, $"Too many items: maximum {MaxOpeningChargeItems} allowed", 0);
 
             var normalized = inputItems.Select(i => new OpeningCreditChargeInput
             {
@@ -242,22 +247,30 @@ namespace GastosApp.BusinessLogic.Services
 
             var dueCycleCache = new Dictionary<(DateTime Date, int Months), IReadOnlyList<CreditCycle>>();
 
-            foreach (var input in normalized)
+            // Un solo flush para las transacciones del lote: EF asigna los ids generados antes de crear cargos y planes,
+            // preservando el orden de inserción de `normalized`.
+            var syntheticTransactions = normalized.Select(input => new Transaction
             {
-                var occurredAt = _validation.EnsureUtc(input.OccurredAt ?? DateTime.UtcNow);
-                var syntheticTransaction = await _repository.Save(new Transaction
-                {
-                    AccountId = creditAccountId,
-                    CategoryId = input.CategoryId,
-                    Type = TransactionDomainConstants.TransactionType.OpeningCredit,
-                    Amount = input.Amount,
-                    BalanceImpact = 0m,
-                    Direction = TransactionDomainConstants.Direction.Credit,
-                    Description = input.Description,
-                    TransactionDate = occurredAt
-                });
+                AccountId = creditAccountId,
+                CategoryId = input.CategoryId,
+                Type = TransactionDomainConstants.TransactionType.OpeningCredit,
+                Amount = input.Amount,
+                BalanceImpact = 0m,
+                Direction = TransactionDomainConstants.Direction.Credit,
+                Description = input.Description,
+                TransactionDate = _validation.EnsureUtc(input.OccurredAt ?? DateTime.UtcNow)
+            }).ToList();
 
-                await CreateCreditChargeWithPlanCoreAsync(syntheticTransaction, input.Months, input.Months > 1 ? TransactionDomainConstants.CreditPlanType.Msi : TransactionDomainConstants.CreditPlanType.Revolving, dueCycleCache);
+            _repository.GetTrack<Transaction>().AddRange(syntheticTransactions);
+            await _repository.SaveChangesAsync();
+
+            // ponytail: cargos, planes y mensualidades conservan su flush por ítem porque sus FKs se asignan por id
+            // escalar (SourceTransactionId/SourceChargeId/PlanId) y el id solo existe tras el flush; batchearlos exige
+            // reescribir CreateCreditChargeWithPlanCoreAsync con navegaciones (compartido con el camino de 1 transacción).
+            for (var index = 0; index < normalized.Count; index++)
+            {
+                var input = normalized[index];
+                await CreateCreditChargeWithPlanCoreAsync(syntheticTransactions[index], input.Months, input.Months > 1 ? TransactionDomainConstants.CreditPlanType.Msi : TransactionDomainConstants.CreditPlanType.Revolving, dueCycleCache);
             }
 
             return (true, null, normalized.Count);

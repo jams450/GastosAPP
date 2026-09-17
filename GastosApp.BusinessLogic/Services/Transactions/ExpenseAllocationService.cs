@@ -16,6 +16,10 @@ namespace GastosApp.BusinessLogic.Services
             _billablePartyService = billablePartyService;
         }
 
+        // Cota anti-abuso: el número real de responsables por usuario es pequeño; 50 deja margen de sobra
+        // sin permitir que un cliente envíe una lista arbitrariamente grande.
+        private const int MaxAllocationsPerTransaction = 50;
+
         public async Task<(bool Success, string? ErrorMessage)> ReplaceExpenseAllocationsAsync(int transactionId, int userId, IEnumerable<ExpenseAllocationInput>? allocations, bool fallbackToSelfWhenEmpty = true)
         {
             var transaction = await _repository.Get<Transaction>(t => t.TransactionId == transactionId)
@@ -24,7 +28,11 @@ namespace GastosApp.BusinessLogic.Services
             if (transaction == null || transaction.UserId != userId) return (false, "Transaction not found");
             if (!string.Equals(transaction.Type, TransactionDomainConstants.TransactionType.Expense, StringComparison.OrdinalIgnoreCase)) return (true, null);
 
-            var normalizedInputs = (allocations ?? [])
+            var requestedInputs = (allocations ?? []).ToList();
+            if (requestedInputs.Count > MaxAllocationsPerTransaction)
+                return (false, $"Too many allocations: maximum {MaxAllocationsPerTransaction} allowed");
+
+            var normalizedInputs = requestedInputs
                 .Where(a => a != null && a.BillablePartyId > 0 && a.Value > 0)
                 .Select(a => new ExpenseAllocationInput
                 {
@@ -53,29 +61,13 @@ namespace GastosApp.BusinessLogic.Services
             if (hasPercentage && hasAmount) return (false, "Allocations cannot mix percentage and amount modes");
             if (!hasPercentage && !hasAmount) return (false, "Allocation type must be percentage or amount");
 
-            var computedAmounts = new List<decimal>();
-            if (hasPercentage)
-            {
-                var totalPercent = normalizedInputs.Sum(a => a.Value);
-                if (Math.Abs(totalPercent - 100m) > 0.0001m) return (false, "Percentage allocations must sum exactly 100");
+            var allocationBasis = normalizedInputs.Sum(a => a.Value);
+            if (hasPercentage && Math.Abs(allocationBasis - 100m) > 0.0001m) return (false, "Percentage allocations must sum exactly 100");
+            if (hasAmount && Math.Abs(allocationBasis - transaction.Amount) > 0.01m) return (false, "Amount allocations must sum exactly transaction amount");
 
-                decimal accumulated = 0m;
-                for (var i = 0; i < normalizedInputs.Count; i++)
-                {
-                    var isLast = i == normalizedInputs.Count - 1;
-                    var amount = isLast
-                        ? Math.Round(transaction.Amount - accumulated, 2, MidpointRounding.AwayFromZero)
-                        : Math.Round(transaction.Amount * (normalizedInputs[i].Value / 100m), 2, MidpointRounding.AwayFromZero);
-                    computedAmounts.Add(amount);
-                    accumulated += amount;
-                }
-            }
-            else
-            {
-                var totalAmount = normalizedInputs.Sum(a => a.Value);
-                if (Math.Abs(totalAmount - transaction.Amount) > 0.01m) return (false, "Amount allocations must sum exactly transaction amount");
-                computedAmounts.AddRange(normalizedInputs.Select(a => Math.Round(a.Value, 2, MidpointRounding.AwayFromZero)));
-            }
+            if (transaction.Amount <= 0) return (false, "Transaction amount must be greater than zero");
+
+            var computedAmounts = DistributeCentsExact(transaction.Amount, normalizedInputs.Select(a => a.Value).ToList());
 
             var existing = await _repository.Get<TransactionAllocation>(a => a.TransactionId == transactionId).ToListAsync();
             if (existing.Count > 0)
@@ -103,6 +95,43 @@ namespace GastosApp.BusinessLogic.Services
             await _repository.SaveChangesAsync();
 
             return (true, null);
+        }
+
+        // Reparto determinista en céntimos por mayor residuo: suma exacta == total, nunca negativo y
+        // desempate por índice de entrada. Se eligió frente a "último = total - anteriores" porque este
+        // último puede quedar negativo cuando el redondeo por ítem acumula de más (p. ej. 20 × 5% de 0.10).
+        private static List<decimal> DistributeCentsExact(decimal total, IReadOnlyList<decimal> weights)
+        {
+            var result = new List<decimal>(weights.Count);
+            var totalCents = decimal.Round(total * 100m, 0, MidpointRounding.AwayFromZero);
+            if (totalCents <= 0m || weights.Count == 0)
+            {
+                for (var i = 0; i < weights.Count; i++) result.Add(0m);
+                return result;
+            }
+
+            var totalWeight = weights.Sum();
+            var cents = new decimal[weights.Count];
+            var fractions = new decimal[weights.Count];
+            decimal assignedCents = 0m;
+            for (var i = 0; i < weights.Count; i++)
+            {
+                var exactCents = weights[i] / totalWeight * totalCents;
+                var floorCents = Math.Floor(exactCents);
+                cents[i] = floorCents;
+                fractions[i] = exactCents - floorCents;
+                assignedCents += floorCents;
+            }
+
+            var remainder = (int)(totalCents - assignedCents);
+            var order = Enumerable.Range(0, weights.Count)
+                .OrderByDescending(i => fractions[i])
+                .ThenBy(i => i)
+                .ToList();
+            for (var i = 0; i < remainder; i++) cents[order[i]] += 1m;
+
+            for (var i = 0; i < weights.Count; i++) result.Add(cents[i] / 100m);
+            return result;
         }
     }
 }

@@ -4,7 +4,6 @@ namespace GastosApp.BusinessLogic.Interfaces
 {
     public interface ICategoryService
     {
-        Task<Category?> GetByIdAsync(int id);
         Task<IEnumerable<Category>> GetAllByUserIdAsync(int userId);
         Task<IEnumerable<Category>> GetAllActiveByUserIdAsync(int userId);
         Task<IEnumerable<Category>> GetByTypeAsync(int userId, string type);

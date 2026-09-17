@@ -124,7 +124,7 @@ namespace GastosApp.API.Controllers
                     CreditLimit = request.CreditLimit
                 };
 
-                var createdAccount = await _accountService.CreateAsync(account);
+                var createdAccount = await _accountService.CreateAsync(account, userId);
                 _logger.LogInformation("Account created successfully: {AccountId}", createdAccount.AccountId);
 
                 return CreatedAtAction(nameof(GetById), new { id = createdAccount.AccountId }, createdAccount.Adapt<AccountResponse>());

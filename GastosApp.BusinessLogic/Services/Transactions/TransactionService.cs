@@ -32,14 +32,10 @@ namespace GastosApp.BusinessLogic.Services
             _creditLifecycleService = creditLifecycleService;
         }
 
-        public Task<Transaction?> GetByIdAsync(int id) => _queryService.GetByIdAsync(id);
         public Task<Transaction?> GetByIdForUserAsync(int id, int userId) => _queryService.GetByIdForUserAsync(id, userId);
-        public Task<IEnumerable<Transaction>> GetAllByAccountIdAsync(int accountId) => _queryService.GetAllByAccountIdAsync(accountId);
         public Task<IEnumerable<Transaction>> GetAllByAccountIdForUserAsync(int accountId, int userId) => _queryService.GetAllByAccountIdForUserAsync(accountId, userId);
-        public Task<IEnumerable<Transaction>> GetByDateRangeAsync(int accountId, DateTime startDate, DateTime endDate) => _queryService.GetByDateRangeAsync(accountId, startDate, endDate);
         public Task<IEnumerable<Transaction>> GetByDateRangeForUserAsync(int accountId, int userId, DateTime startDate, DateTime endDate) => _queryService.GetByDateRangeForUserAsync(accountId, userId, startDate, endDate);
         public Task<IEnumerable<Transaction>> GetByMonthForUserAsync(int accountId, int userId, string? month) => _queryService.GetByMonthForUserAsync(accountId, userId, month);
-        public Task<IEnumerable<Transaction>> GetByCategoryAsync(int categoryId) => _queryService.GetByCategoryAsync(categoryId);
         public Task<IEnumerable<Transaction>> GetByCategoryForUserAsync(int categoryId, int userId) => _queryService.GetByCategoryForUserAsync(categoryId, userId);
         public Task<PagedTransactions> QueryByAccountForUserAsync(int accountId, int userId, TransactionQuery query) => _queryService.QueryByAccountForUserAsync(accountId, userId, query);
         public Task<Transaction> CreateIncomeAsync(Transaction transaction, int userId, IEnumerable<(int InstallmentId, decimal Amount)>? creditAllocations = null, IEnumerable<string>? tags = null)
@@ -60,7 +56,7 @@ namespace GastosApp.BusinessLogic.Services
         public Task<bool> DeleteTransferAsync(Guid transferGroupId, int userId) => _transferService.DeleteTransferAsync(transferGroupId, userId);
         public Task<(bool Success, string? ErrorMessage)> UpdateTransferMetadataAsync(Guid transferGroupId, int userId, int? categoryId, int? subcategoryId, int? merchantId, string? description, DateTime? transactionDate, IEnumerable<string>? tags, bool clearAnalytics)
             => _transferService.UpdateTransferMetadataAsync(transferGroupId, userId, categoryId, subcategoryId, merchantId, description, transactionDate, tags, clearAnalytics);
-        public Task<decimal> CalculateAccountBalanceAsync(int accountId) => _queryService.CalculateAccountBalanceAsync(accountId);
+        public Task<decimal> CalculateAccountBalanceAsync(int accountId, int userId) => _queryService.CalculateAccountBalanceAsync(accountId, userId);
         public Task<(bool IsValid, string? ErrorMessage)> ValidateAnalyticsDimensionsAsync(int userId, int? categoryId, int? subcategoryId, int? merchantId)
             => _validationService.ValidateAnalyticsDimensionsAsync(userId, categoryId, subcategoryId, merchantId);
         public Task SyncTransactionTagsAsync(int transactionId, int userId, IEnumerable<string>? tagNames) => _tagService.SyncTransactionTagsAsync(transactionId, userId, tagNames);
@@ -70,10 +66,10 @@ namespace GastosApp.BusinessLogic.Services
             => _creditLifecycleService.RegisterCreditPaymentAsync(userId, creditAccountId, sourceTransactionId, paidAt, amount, allocations);
         public Task<(bool Success, string? ErrorMessage)> ConvertChargeToMsiAsync(int userId, int sourceTransactionId, int months)
             => _creditLifecycleService.ConvertChargeToMsiAsync(userId, sourceTransactionId, months);
-        public Task<IEnumerable<CreditInstallmentOpenItem>> GetOpenCreditInstallmentsAsync(int creditAccountId)
-            => _queryService.GetOpenCreditInstallmentsAsync(creditAccountId);
-        public Task<IEnumerable<CreditChargeSummaryItem>> GetCreditChargeSummariesAsync(IEnumerable<int> sourceTransactionIds)
-            => _queryService.GetCreditChargeSummariesAsync(sourceTransactionIds);
+        public Task<IEnumerable<CreditInstallmentOpenItem>> GetOpenCreditInstallmentsAsync(int creditAccountId, int userId)
+            => _queryService.GetOpenCreditInstallmentsAsync(creditAccountId, userId);
+        public Task<IEnumerable<CreditChargeSummaryItem>> GetCreditChargeSummariesAsync(IEnumerable<int> sourceTransactionIds, int userId)
+            => _queryService.GetCreditChargeSummariesAsync(sourceTransactionIds, userId);
         public Task<(bool Success, string? ErrorMessage, int CreatedCount)> CreateOpeningCreditChargesAsync(int userId, int creditAccountId, IEnumerable<OpeningCreditChargeInput> items)
             => _creditLifecycleService.CreateOpeningCreditChargesAsync(userId, creditAccountId, items);
     }

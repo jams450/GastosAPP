@@ -154,16 +154,10 @@ public class BancoppelImportService : IBancoppelImportService
     public async Task<BancoppelImportCommitResult> CommitAsync(int userId, int accountId, IEnumerable<BancoppelImportCommitRow> rows, CancellationToken cancellationToken = default)
     {
         var result = new BancoppelImportCommitResult();
-        var account = await _accountService.GetByIdAsync(accountId);
-        if (account == null)
+        // Cuenta inexistente y cuenta ajena responden igual: sin oráculo de existencia.
+        if (await _accountService.GetByIdForUserAsync(accountId, userId) == null)
         {
             result.Errors.Add($"Account with ID {accountId} not found.");
-            return result;
-        }
-
-        if (account.UserId != userId)
-        {
-            result.Errors.Add("La cuenta no pertenece al usuario autenticado.");
             return result;
         }
 

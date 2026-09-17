@@ -223,14 +223,11 @@ namespace GastosApp.API.Controllers
         [HttpPost("income")]
         public async Task<IActionResult> CreateIncome([FromBody] CreateTransactionRequest request)
         {
-            // Validar que la cuenta existe
-            var account = await _accountService.GetByIdAsync(request.AccountId);
-            if (account == null)
-                return NotFound(new { Message = $"Account with ID {request.AccountId} not found" });
-
             var userId = GetCurrentUserId();
-            if (account.UserId != userId)
-                return Forbid();
+
+            // Cuenta inexistente y cuenta ajena responden igual: sin oráculo de existencia.
+            if (await _accountService.GetByIdForUserAsync(request.AccountId, userId) == null)
+                return NotFound(new { Message = $"Account with ID {request.AccountId} not found" });
 
             var dimensionsValidation = await _transactionService.ValidateAnalyticsDimensionsAsync(
                 userId,
@@ -274,14 +271,12 @@ namespace GastosApp.API.Controllers
         [HttpPost("expense")]
         public async Task<IActionResult> CreateExpense([FromBody] CreateTransactionRequest request)
         {
-            // Validar que la cuenta existe
-            var account = await _accountService.GetByIdAsync(request.AccountId);
+            var userId = GetCurrentUserId();
+
+            // Cuenta inexistente y cuenta ajena responden igual: sin oráculo de existencia.
+            var account = await _accountService.GetByIdForUserAsync(request.AccountId, userId);
             if (account == null)
                 return NotFound(new { Message = $"Account with ID {request.AccountId} not found" });
-
-            var userId = GetCurrentUserId();
-            if (account.UserId != userId)
-                return Forbid();
 
             var dimensionsValidation = await _transactionService.ValidateAnalyticsDimensionsAsync(
                 userId,
@@ -525,7 +520,7 @@ namespace GastosApp.API.Controllers
             if (account == null)
                 return NotFound(new { Message = $"Account with ID {accountId} not found" });
 
-            var balance = await _transactionService.CalculateAccountBalanceAsync(accountId);
+            var balance = await _transactionService.CalculateAccountBalanceAsync(accountId, userId);
             _logger.LogInformation("Balance recalculated for account {AccountId}: {Balance}", accountId, balance);
             return Ok(new { Balance = balance });
         }
@@ -538,7 +533,7 @@ namespace GastosApp.API.Controllers
             if (account == null)
                 return NotFound(new { Message = $"Account with ID {accountId} not found" });
 
-            var installments = await _transactionService.GetOpenCreditInstallmentsAsync(accountId);
+            var installments = await _transactionService.GetOpenCreditInstallmentsAsync(accountId, userId);
             return Ok(installments);
         }
 
@@ -581,7 +576,7 @@ namespace GastosApp.API.Controllers
                 return NotFound(new { Message = "Una o más transacciones no existen" });
             }
 
-            var summaries = await _transactionService.GetCreditChargeSummariesAsync(sourceIds);
+            var summaries = await _transactionService.GetCreditChargeSummariesAsync(sourceIds, userId);
             return Ok(summaries);
         }
 
@@ -628,7 +623,7 @@ namespace GastosApp.API.Controllers
                 return BadRequest(new { Message = "Monto a aplicar inválido" });
             }
 
-            var installments = (await _transactionService.GetOpenCreditInstallmentsAsync(request.CreditAccountId))
+            var installments = (await _transactionService.GetOpenCreditInstallmentsAsync(request.CreditAccountId, userId))
                 .OrderBy(i => i.DueDate)
                 .ToList();
 

@@ -78,27 +78,27 @@ namespace GastosApp.BusinessLogic.Services
                     ExpenseByCategory = BuildBreakdown(
                         monthTransactions
                             .Where(t => IsTransactionType(t.Type, TransactionDomainConstants.TransactionType.Expense))
-                            .GroupBy(t => new { t.CategoryId, CategoryName = t.Category != null && !string.IsNullOrWhiteSpace(t.Category.Name) ? t.Category.Name : "Sin categoría" })
+                            .GroupBy(t => new { t.CategoryId, CategoryName = !string.IsNullOrWhiteSpace(t.CategoryName) ? t.CategoryName : "Sin categoría" })
                             .Select(g => new DashboardBreakdownItem
                             {
                                 Id = g.Key.CategoryId,
                                 Name = g.Key.CategoryName,
                                 Amount = g.Sum(t => t.Amount),
-                                CashAmount = g.Where(t => !t.Account.IsCredit).Sum(t => t.Amount),
-                                CreditAmount = g.Where(t => t.Account.IsCredit).Sum(t => t.Amount)
+                                CashAmount = g.Where(t => !t.AccountIsCredit).Sum(t => t.Amount),
+                                CreditAmount = g.Where(t => t.AccountIsCredit).Sum(t => t.Amount)
                             }),
                         CategoryTopLimit),
                     ExpenseBySubcategory = BuildBreakdown(
                         monthTransactions
                             .Where(t => IsTransactionType(t.Type, TransactionDomainConstants.TransactionType.Expense))
-                            .GroupBy(t => new { t.SubcategoryId, SubcategoryName = t.Subcategory != null && !string.IsNullOrWhiteSpace(t.Subcategory.Name) ? t.Subcategory.Name : "Sin subcategoría" })
+                            .GroupBy(t => new { t.SubcategoryId, SubcategoryName = !string.IsNullOrWhiteSpace(t.SubcategoryName) ? t.SubcategoryName : "Sin subcategoría" })
                             .Select(g => new DashboardBreakdownItem
                             {
                                 Id = g.Key.SubcategoryId,
                                 Name = g.Key.SubcategoryName,
                                 Amount = g.Sum(t => t.Amount),
-                                CashAmount = g.Where(t => !t.Account.IsCredit).Sum(t => t.Amount),
-                                CreditAmount = g.Where(t => t.Account.IsCredit).Sum(t => t.Amount)
+                                CashAmount = g.Where(t => !t.AccountIsCredit).Sum(t => t.Amount),
+                                CreditAmount = g.Where(t => t.AccountIsCredit).Sum(t => t.Amount)
                             }),
                         SubcategoryTopLimit),
                     IncomeByAccount = BuildAccountBreakdown(financialSummary.IncomeByAccount, accounts),
@@ -107,7 +107,7 @@ namespace GastosApp.BusinessLogic.Services
                     TransferInByAccount = BuildBreakdown(
                         monthTransactions
                             .Where(t => IsTransactionType(t.Type, TransactionDomainConstants.TransactionType.Transfer) && t.BalanceImpact > 0)
-                            .GroupBy(t => new { t.AccountId, t.Account.Name })
+                            .GroupBy(t => new { t.AccountId, Name = t.AccountName })
                             .Select(g => new DashboardBreakdownItem
                             {
                                 Id = g.Key.AccountId,
@@ -119,7 +119,7 @@ namespace GastosApp.BusinessLogic.Services
                     TransferOutByAccount = BuildBreakdown(
                         monthTransactions
                             .Where(t => IsTransactionType(t.Type, TransactionDomainConstants.TransactionType.Transfer) && t.BalanceImpact < 0)
-                            .GroupBy(t => new { t.AccountId, t.Account.Name })
+                            .GroupBy(t => new { t.AccountId, Name = t.AccountName })
                             .Select(g => new DashboardBreakdownItem
                             {
                                 Id = g.Key.AccountId,
@@ -140,10 +140,10 @@ namespace GastosApp.BusinessLogic.Services
                     MonthNet = creditAccounts.Sum(a => a.MonthNet),
                     MonthFinancialNet = financialSummary.CreditFinancialNet,
                     TransferIn = monthTransactions
-                        .Where(t => t.Account.IsCredit && IsTransactionType(t.Type, TransactionDomainConstants.TransactionType.Transfer) && t.BalanceImpact > 0)
+                        .Where(t => t.AccountIsCredit && IsTransactionType(t.Type, TransactionDomainConstants.TransactionType.Transfer) && t.BalanceImpact > 0)
                         .Sum(t => t.BalanceImpact),
                     TransferOut = monthTransactions
-                        .Where(t => t.Account.IsCredit && IsTransactionType(t.Type, TransactionDomainConstants.TransactionType.Transfer) && t.BalanceImpact < 0)
+                        .Where(t => t.AccountIsCredit && IsTransactionType(t.Type, TransactionDomainConstants.TransactionType.Transfer) && t.BalanceImpact < 0)
                         .Sum(t => Math.Abs(t.BalanceImpact)),
                     MonthMsiExpense = monthCreditCharges
                         .Where(c => string.Equals(c.PlanType, TransactionDomainConstants.CreditPlanType.Msi, StringComparison.OrdinalIgnoreCase))
@@ -196,6 +196,19 @@ namespace GastosApp.BusinessLogic.Services
                     t.Account.Active &&
                     t.TransactionDate >= historyStartUtc &&
                     t.TransactionDate < historyEndUtc)
+                .AsNoTracking()
+                .Select(t => new MonthTransactionRow
+                {
+                    TransactionId = t.TransactionId,
+                    AccountId = t.AccountId,
+                    TransactionDate = t.TransactionDate,
+                    Type = t.Type,
+                    Amount = t.Amount,
+                    BalanceImpact = t.BalanceImpact,
+                    Direction = t.Direction,
+                    CounterpartyAccountId = t.CounterpartyAccountId,
+                    TransferGroupId = t.TransferGroupId
+                })
                 .ToListAsync();
 
             var accountCreditTypes = await QueryUserAccountCreditTypesAsync(userId);
@@ -321,16 +334,26 @@ namespace GastosApp.BusinessLogic.Services
             // Filtro de "no pagada" en SQL, mismo criterio que TransactionQueryService.GetOpenCreditInstallmentsAsync.
             // El CHECK de credit_installments.status fija los valores exactos, por lo que != Paid cubre el
             // OrdinalIgnoreCase que antes se aplicaba en memoria.
+            // El consumidor (BuildMsiPlans) sólo lee escalares: proyección en vez de materializar
+            // Installment/Plan/Account/SourceCharge/SourceTransaction completos.
             var rows = await _repository.Get<CreditInstallment>(i =>
                     i.Plan.Account.UserId == userId &&
                     i.Plan.Account.Active &&
                     i.Plan.PlanType == TransactionDomainConstants.CreditPlanType.Msi &&
                     i.Status != TransactionDomainConstants.CreditStatus.Paid)
-                .Include(i => i.Plan)
-                .ThenInclude(p => p.Account)
-                .Include(i => i.Plan)
-                .ThenInclude(p => p.SourceCharge)
-                .ThenInclude(c => c.SourceTransaction)
+                .AsNoTracking()
+                .Select(i => new
+                {
+                    i.InstallmentId,
+                    i.PlanId,
+                    i.Plan.AccountId,
+                    AccountName = i.Plan.Account.Name,
+                    Description = i.Plan.SourceCharge != null && i.Plan.SourceCharge.SourceTransaction != null
+                        ? i.Plan.SourceCharge.SourceTransaction.Description
+                        : null,
+                    i.DueDate,
+                    i.TotalDue
+                })
                 .ToListAsync();
 
             if (rows.Count == 0)
@@ -355,9 +378,9 @@ namespace GastosApp.BusinessLogic.Services
                     {
                         InstallmentId = row.InstallmentId,
                         PlanId = row.PlanId,
-                        AccountId = row.Plan.AccountId,
-                        AccountName = row.Plan.Account.Name,
-                        Description = NormalizeMsiSourceDescription(row.Plan.SourceCharge?.SourceTransaction?.Description),
+                        AccountId = row.AccountId,
+                        AccountName = row.AccountName,
+                        Description = NormalizeMsiSourceDescription(row.Description),
                         DueDate = row.DueDate,
                         TotalDue = row.TotalDue,
                         RemainingAmount = Math.Max(row.TotalDue - paid, 0m)
@@ -463,16 +486,34 @@ namespace GastosApp.BusinessLogic.Services
                 new NpgsqlParameter("previousDaysInMonth", previousDaysInMonth));
         }
 
-        private async Task<List<Transaction>> QueryMonthTransactionsAsync(int userId, DateTime monthStart, DateTime nextMonthStart)
+        private async Task<List<MonthTransactionRow>> QueryMonthTransactionsAsync(int userId, DateTime monthStart, DateTime nextMonthStart)
         {
+            // Proyección de sólo las columnas que consumen CalculateFinancialSummary y los breakdowns
+            // (categoría/subcategoría/cuenta). Antes se cargaban las entidades completas con 3 Include.
             return await _repository.Get<Transaction>(t =>
                     t.Account.UserId == userId &&
                     t.Account.Active &&
                     t.TransactionDate >= monthStart &&
                     t.TransactionDate < nextMonthStart)
-                .Include(t => t.Account)
-                .Include(t => t.Category)
-                .Include(t => t.Subcategory)
+                .AsNoTracking()
+                .Select(t => new MonthTransactionRow
+                {
+                    TransactionId = t.TransactionId,
+                    AccountId = t.AccountId,
+                    TransactionDate = t.TransactionDate,
+                    Type = t.Type,
+                    Amount = t.Amount,
+                    BalanceImpact = t.BalanceImpact,
+                    Direction = t.Direction,
+                    CounterpartyAccountId = t.CounterpartyAccountId,
+                    TransferGroupId = t.TransferGroupId,
+                    CategoryId = t.CategoryId,
+                    CategoryName = t.Category != null ? t.Category.Name : null,
+                    SubcategoryId = t.SubcategoryId,
+                    SubcategoryName = t.Subcategory != null ? t.Subcategory.Name : null,
+                    AccountIsCredit = t.Account.IsCredit,
+                    AccountName = t.Account.Name
+                })
                 .ToListAsync();
         }
 
@@ -484,7 +525,7 @@ namespace GastosApp.BusinessLogic.Services
         }
 
         private static DashboardFinancialSummary CalculateFinancialSummary(
-            IEnumerable<Transaction> transactions,
+            IEnumerable<MonthTransactionRow> transactions,
             IReadOnlyDictionary<int, bool> accountCreditTypes)
         {
             var summary = new DashboardFinancialSummary();
@@ -530,8 +571,8 @@ namespace GastosApp.BusinessLogic.Services
 
         private static void AddTransferFinancialImpact(
             DashboardFinancialSummary summary,
-            Transaction first,
-            Transaction second,
+            MonthTransactionRow first,
+            MonthTransactionRow second,
             IReadOnlyDictionary<int, bool> accountCreditTypes)
         {
             if (!accountCreditTypes.TryGetValue(first.AccountId, out var firstIsCredit) ||
@@ -541,8 +582,8 @@ namespace GastosApp.BusinessLogic.Services
                 return;
             }
 
-            Transaction source;
-            Transaction destination;
+            MonthTransactionRow source;
+            MonthTransactionRow destination;
             if (first.BalanceImpact < 0)
             {
                 source = first;
@@ -574,7 +615,7 @@ namespace GastosApp.BusinessLogic.Services
 
         private static void AddTransferFinancialImpact(
             DashboardFinancialSummary summary,
-            Transaction transaction,
+            MonthTransactionRow transaction,
             IReadOnlyDictionary<int, bool> accountCreditTypes)
         {
             if (!transaction.CounterpartyAccountId.HasValue)
@@ -637,7 +678,6 @@ namespace GastosApp.BusinessLogic.Services
                     c.Account.Active &&
                     c.OccurredAt >= monthStart &&
                     c.OccurredAt < nextMonthStart)
-                .Include(c => c.InstallmentPlan)
                 .Select(c => new DashboardCreditChargeRow
                 {
                     AccountId = c.AccountId,
@@ -704,6 +744,26 @@ namespace GastosApp.BusinessLogic.Services
             public int AccountId { get; set; }
             public decimal Amount { get; set; }
             public string PlanType { get; set; } = TransactionDomainConstants.CreditPlanType.Revolving;
+        }
+
+        /// <summary>Columnas leídas de <c>transactions</c> por el dashboard: evita materializar la entidad completa.</summary>
+        private sealed class MonthTransactionRow
+        {
+            public int TransactionId { get; set; }
+            public int AccountId { get; set; }
+            public DateTime TransactionDate { get; set; }
+            public string Type { get; set; } = string.Empty;
+            public decimal Amount { get; set; }
+            public decimal BalanceImpact { get; set; }
+            public string? Direction { get; set; }
+            public int? CounterpartyAccountId { get; set; }
+            public Guid? TransferGroupId { get; set; }
+            public int? CategoryId { get; set; }
+            public string? CategoryName { get; set; }
+            public int? SubcategoryId { get; set; }
+            public string? SubcategoryName { get; set; }
+            public bool AccountIsCredit { get; set; }
+            public string AccountName { get; set; } = string.Empty;
         }
 
         private sealed class MsiOpenInstallmentRow

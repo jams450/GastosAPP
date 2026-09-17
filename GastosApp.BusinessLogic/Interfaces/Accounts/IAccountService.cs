@@ -8,7 +8,7 @@ namespace GastosApp.BusinessLogic.Interfaces
         Task<Account?> GetByIdForUserAsync(int id, int userId);
         Task<IEnumerable<Account>> GetAllByUserIdAsync(int userId);
         Task<IEnumerable<Account>> GetAllActiveByUserIdAsync(int userId);
-        Task<Account> CreateAsync(Account account);
+        Task<Account> CreateAsync(Account account, int userId);
         Task<Account?> UpdateForUserAsync(int id, int userId, Account account);
         Task<bool> DeleteForUserAsync(int id, int userId);
         Task<bool> UpdateActiveStatusForUserAsync(int id, int userId, bool active);
