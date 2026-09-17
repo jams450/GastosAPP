@@ -1,12 +1,15 @@
-import { ArrowDownRight, ArrowUpRight, CreditCard, Wallet } from "lucide-react";
+import { ArrowDownRight, ArrowUpRight, CreditCard, TriangleAlert, Wallet } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { getBalanceToneClass } from "@/lib/accounts/metrics";
 import { formatAmount } from "@/app/(app)/dashboard/_components/dashboard-format";
 
 export type DashboardMetricCardItem = {
   title: string;
-  amount: number;
+  /** `null` = dato ausente; nunca se muestra como $0. */
+  amount: number | null;
   subtitle?: string;
+  /** Advertencia breve sobre cómo leer la métrica. Se muestra como aviso, no como subtítulo. */
+  note?: string;
   toneClass?: string;
 };
 
@@ -28,10 +31,12 @@ export function DashboardMetricCards({
   );
 }
 
-function MetricCard({ title, amount, subtitle, toneClass }: DashboardMetricCardItem) {
+function MetricCard({ title, amount, subtitle, note, toneClass }: DashboardMetricCardItem) {
   const isIncome = /ingreso|suma/i.test(title);
   const isExpense = /gasto|resta|deuda|pendiente/i.test(title);
   const Icon = /crédito/i.test(title) ? CreditCard : /efectivo/i.test(title) ? Wallet : isIncome ? ArrowUpRight : isExpense ? ArrowDownRight : Wallet;
+  const hasValue = amount !== null;
+  const valueTone = !hasValue ? "text-muted" : toneClass ?? getBalanceToneClass(amount);
 
   return (
       <Card className="dashboard-card dashboard-card-interactive group relative overflow-hidden p-4">
@@ -44,7 +49,15 @@ function MetricCard({ title, amount, subtitle, toneClass }: DashboardMetricCardI
           <Icon className="h-4 w-4" aria-hidden="true" />
         </span>
       </div>
-      <p className={`mt-4 truncate text-2xl font-semibold tabular-nums tracking-tight ${toneClass ?? getBalanceToneClass(amount)}`}>{formatAmount(amount)}</p>
+      <p className={`mt-4 truncate text-2xl font-semibold tabular-nums tracking-tight ${valueTone}`}>
+        {hasValue ? formatAmount(amount) : "No disponible"}
+      </p>
+      {note ? (
+        <p className="dashboard-metric-note m-0 mt-3 flex items-start gap-1.5 rounded-[var(--radius-sm)] px-2 py-1.5 text-[11px] font-medium leading-snug text-secondary">
+          <TriangleAlert className="mt-px h-3.5 w-3.5 shrink-0 text-[var(--color-warning)]" aria-hidden="true" />
+          <span>{note}</span>
+        </p>
+      ) : null}
     </Card>
   );
 }

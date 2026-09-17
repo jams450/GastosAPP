@@ -55,7 +55,7 @@ public class AccountCreateRequest
                 new[] { nameof(DueDay) });
         }
 
-        if (IsCredit && CreditLimit <= 0)
+        if (IsCredit && (!CreditLimit.HasValue || CreditLimit.Value <= 0))
         {
             yield return new ValidationResult(
                 "CreditLimit must be greater than 0 when IsCredit is true",

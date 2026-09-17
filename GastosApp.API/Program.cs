@@ -12,6 +12,7 @@ builder.Services
     .AddApiHttpContext()
     .AddApiCors(builder.Configuration)
     .AddApiTelegramConfiguration(builder.Configuration)
+    .AddApiAlertsConfiguration(builder.Configuration)
     .AddApiDatabase(builder.Configuration)
     .AddApiAuthentication(builder.Configuration)
     .AddApiAuthorization()

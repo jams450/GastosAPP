@@ -1,15 +1,20 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Alert } from "@/components/ui/alert";
-import { AccountsSection } from "@/app/(app)/dashboard/_components/accounts-section";
-import { BreakdownChart } from "@/app/(app)/dashboard/_components/breakdown-chart";
-import { CashProjectionSection } from "@/app/(app)/dashboard/_components/cash-projection-section";
-import { DashboardFoldSection } from "@/app/(app)/dashboard/_components/dashboard-fold-section";
-import { DashboardMetricCards } from "@/app/(app)/dashboard/_components/dashboard-metric-cards";
+import { DashboardTabs } from "@/app/(app)/dashboard/_components/dashboard-tabs";
 import { DashboardToolbar } from "@/app/(app)/dashboard/_components/dashboard-toolbar";
+import { CreditoTab } from "@/app/(app)/dashboard/_components/tabs/credito-tab";
+import { EfectivoTab } from "@/app/(app)/dashboard/_components/tabs/efectivo-tab";
+import { ProyeccionTab } from "@/app/(app)/dashboard/_components/tabs/proyeccion-tab";
+import { ResumenTab } from "@/app/(app)/dashboard/_components/tabs/resumen-tab";
 import type { DashboardViewMode } from "@/app/(app)/dashboard/_components/dashboard-view-mode";
+import {
+  isMonthScopedTab,
+  parseDashboardTab,
+  parseHorizonMonths
+} from "@/app/(app)/dashboard/_lib/dashboard-tabs";
+import { redirectToLoginOnSessionExpired } from "@/lib/bff/client-session";
 import {
   normalizeDashboardOverview,
   normalizeDashboardProjection,
@@ -18,7 +23,6 @@ import {
 } from "@/lib/contracts/dashboard";
 
 const TIMEZONE = "America/Mexico_City";
-const PROJECTION_HORIZON_MONTHS = 6;
 
 function getMexicoCurrentMonth(): string {
   const formatter = new Intl.DateTimeFormat("en-CA", {
@@ -57,6 +61,10 @@ const emptyOverview: DashboardOverviewResponse = {
   },
   creditSummary: {
     totalAvailable: 0,
+    totalLimit: 0,
+    totalDebt: 0,
+    totalNormalDebt: 0,
+    totalMsiDebt: 0,
     monthIncome: 0,
     monthExpense: 0,
     monthNet: 0,
@@ -82,8 +90,15 @@ export function AccountsOverview() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+
+  const tab = parseDashboardTab(searchParams.get("tab"));
+  const horizon = parseHorizonMonths(searchParams.get("horizon"));
+  const monthScoped = isMonthScopedTab(tab);
+  const currentMonth = getMexicoCurrentMonth();
+
   const requestedMonth = searchParams.get("month");
-  const initialMonth = requestedMonth && /^\d{4}-\d{2}$/.test(requestedMonth) ? requestedMonth : getMexicoCurrentMonth();
+  const initialMonth = requestedMonth && /^\d{4}-\d{2}$/.test(requestedMonth) ? requestedMonth : currentMonth;
+
   const [month, setMonth] = useState<string>(initialMonth);
   const [viewMode, setViewMode] = useState<DashboardViewMode>("detail");
   const [data, setData] = useState<DashboardOverviewResponse | null>(null);
@@ -94,13 +109,16 @@ export function AccountsOverview() {
   const [projectionError, setProjectionError] = useState<string | null>(null);
 
   useEffect(() => {
-    const requestedMonth = searchParams.get("month");
-    const resolvedMonth = requestedMonth && /^\d{4}-\d{2}$/.test(requestedMonth) ? requestedMonth : getMexicoCurrentMonth();
+    const requested = searchParams.get("month");
+    const resolved = requested && /^\d{4}-\d{2}$/.test(requested) ? requested : getMexicoCurrentMonth();
 
-    if (resolvedMonth !== month) {
-      setMonth(resolvedMonth);
+    if (resolved !== month) {
+      setMonth(resolved);
     }
   }, [searchParams, month]);
+
+  // Crédito y proyección son snapshot actual: el mes seleccionado sólo aplica a Resumen y Efectivo.
+  const overviewMonth = monthScoped ? month : currentMonth;
 
   useEffect(() => {
     let isMounted = true;
@@ -110,10 +128,9 @@ export function AccountsOverview() {
       setError(null);
 
       try {
-        const response = await fetch(`/api/bff/dashboard/overview?month=${encodeURIComponent(month)}`, { cache: "no-store" });
+        const response = await fetch(`/api/bff/dashboard/overview?month=${encodeURIComponent(overviewMonth)}`, { cache: "no-store" });
         if (!response.ok) {
-          if (response.status === 401) {
-            window.location.href = "/login";
+          if (redirectToLoginOnSessionExpired(response)) {
             return;
           }
 
@@ -140,9 +157,9 @@ export function AccountsOverview() {
     return () => {
       isMounted = false;
     };
-  }, [month]);
+  }, [overviewMonth]);
 
-  // Carga independiente: la proyección no depende del mes seleccionado y su fallo no bloquea el resto.
+  // La proyección no depende del mes seleccionado; sí del horizonte (3/6/12).
   useEffect(() => {
     let isMounted = true;
 
@@ -151,10 +168,9 @@ export function AccountsOverview() {
       setProjectionError(null);
 
       try {
-        const response = await fetch(`/api/bff/dashboard/projection?months=${PROJECTION_HORIZON_MONTHS}`, { cache: "no-store" });
+        const response = await fetch(`/api/bff/dashboard/projection?months=${horizon}`, { cache: "no-store" });
         if (!response.ok) {
-          if (response.status === 401) {
-            window.location.href = "/login";
+          if (redirectToLoginOnSessionExpired(response)) {
             return;
           }
 
@@ -181,201 +197,82 @@ export function AccountsOverview() {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [horizon]);
+
+  function updateUrl(next: { tab: string; month: string; horizon: number }) {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("tab", next.tab);
+    params.set("month", next.month);
+    params.set("horizon", String(next.horizon));
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+  }
 
   const overview = data ?? emptyOverview;
-  const accounts = overview.accounts;
-  const creditAccounts = useMemo(() => accounts.filter((account) => account.isCredit), [accounts]);
-  const cashAccounts = useMemo(() => accounts.filter((account) => !account.isCredit), [accounts]);
-  const cashTotals = useMemo(
-    () =>
-      cashAccounts.reduce(
-        (totals, account) => ({
-          transferIn: totals.transferIn + account.monthTransferIn,
-          transferOut: totals.transferOut + account.monthTransferOut
-        }),
-        { transferIn: 0, transferOut: 0 }
-      ),
-    [cashAccounts]
-  );
   const timezone = overview.timezone || TIMEZONE;
 
   return (
     <div className="grid min-w-0 gap-5 sm:gap-6">
+      <DashboardTabs activeTab={tab} onChange={(nextTab) => updateUrl({ tab: nextTab, month, horizon })} />
+
       <DashboardToolbar
         month={month}
         timezone={timezone}
         viewMode={viewMode}
         onMonthChange={(value) => {
           setMonth(value);
-          const params = new URLSearchParams(searchParams.toString());
-          params.set("month", value);
-          router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+          updateUrl({ tab, month: value, horizon });
         }}
         onViewModeChange={setViewMode}
+        showMonth={monthScoped}
+        showViewMode={tab !== "proyeccion"}
+        snapshotLabel={
+          tab === "credito"
+            ? "Snapshot al día de hoy: no depende del mes seleccionado"
+            : tab === "proyeccion"
+              ? "Escenario al día de hoy: no depende del mes seleccionado"
+              : null
+        }
       />
 
-      {loading ? (
-        <DashboardOverviewSkeleton />
-      ) : error ? (
-        <Alert variant="danger">{error}</Alert>
-      ) : (
-        <>
-      <DashboardFoldSection
-        title="Resumen general"
-        description="Vista mensual de ingresos, gastos y distribución operativa."
-        defaultCollapsed
-        storageKey="dashboard:general-section"
+      <div
+        role="tabpanel"
+        id={`dashboard-panel-${tab}`}
+        aria-labelledby={`dashboard-tab-${tab}`}
+        tabIndex={0}
+        className="min-w-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-border-focus)]"
       >
-        <div className="grid gap-4">
-          <DashboardMetricCards
-            items={[
-              { title: "Ingresos del mes efectivo", subtitle: "Ingreso real", amount: overview.cashSummary.monthIncome, toneClass: "text-emerald-700 dark:text-emerald-400" },
-              { title: "Gastos del mes efectivo", subtitle: "Gasto real + efectivo→crédito", amount: overview.cashSummary.monthExpense * -1, toneClass: "text-rose-700 dark:text-rose-400" },
-              { title: "Neto del mes efectivo", subtitle: "Balance financiero", amount: overview.cashSummary.monthFinancialNet },
-              { title: "Ingresos del mes crédito", subtitle: "Ingreso real + efectivo→crédito", amount: overview.creditSummary.monthIncome, toneClass: "text-emerald-700 dark:text-emerald-400" },
-              { title: "Gastos del mes crédito", subtitle: "Gasto real + transferencias", amount: overview.creditSummary.monthExpense * -1, toneClass: "text-rose-700 dark:text-rose-400" },
-              { title: "Neto del mes crédito", subtitle: "Balance financiero", amount: overview.creditSummary.monthFinancialNet }
-            ]}
-            columns="sm:grid-cols-2 xl:grid-cols-3"
+        {tab === "resumen" ? (
+          <ResumenTab overview={data} loading={loading} error={error} viewMode={viewMode} timezone={timezone} />
+        ) : null}
+
+        {tab === "efectivo" ? (
+          <EfectivoTab overview={data} loading={loading} error={error} viewMode={viewMode} timezone={timezone} />
+        ) : null}
+
+        {tab === "credito" ? (
+          <CreditoTab
+            overview={data}
+            loading={loading}
+            error={error}
+            projection={projection}
+            projectionLoading={projectionLoading}
+            projectionError={projectionError}
+            viewMode={viewMode}
+            timezone={timezone}
           />
+        ) : null}
 
-           <section className="grid gap-4">
-             <BreakdownChart
-               title="Gastos por categoría"
-               description="Top de egresos mensuales agrupados por categoría, dividido entre efectivo y crédito."
-               showFundingSplit
-              items={overview.charts.expenseByCategory}
-              emptyMessage="No hay gastos del mes por categoría."
-            />
-            <BreakdownChart
-               title="Gastos por subcategoría"
-               description="Top de egresos mensuales agrupados por subcategoría, dividido entre efectivo y crédito."
-               showFundingSplit
-              items={overview.charts.expenseBySubcategory}
-              emptyMessage="No hay gastos del mes por subcategoría."
-            />
-           </section>
-           <section className="grid gap-4">
-             <BreakdownChart
-               title="Ingresos por cuenta"
-              description="Ingresos reales y transferencias de efectivo a crédito, por cuenta."
-              items={overview.charts.incomeByAccount}
-              emptyMessage="No hay ingresos del mes por cuenta."
-              tone="emerald"
-            />
-            <BreakdownChart
-              title="Gastos por cuenta"
-              description="Gastos reales y transferencias hacia crédito o efectivo, por cuenta."
-              items={overview.charts.expenseByAccount}
-              emptyMessage="No hay gastos por cuenta del mes."
-              tone="sky"
-            />
-          </section>
-        </div>
-      </DashboardFoldSection>
-
-      <DashboardFoldSection
-        title="Crédito"
-        description="Tarjetas y líneas de crédito con resumen financiero mensual."
-        badge={`${creditAccounts.length} cuentas`}
-        defaultCollapsed
-        storageKey="dashboard:credit-section"
-      >
-        <div className="grid gap-4">
-          <DashboardMetricCards
-            items={[
-              { title: "Crédito disponible", amount: overview.creditSummary.totalAvailable },
-              { title: "Gastos MSI", amount: overview.creditSummary.monthMsiExpense, toneClass: "dashboard-money-credit" },
-              { title: "Gastos normales", amount: overview.creditSummary.monthNormalExpense, toneClass: "dashboard-money-credit" }
-            ]}
-            columns="sm:grid-cols-3"
+        {tab === "proyeccion" ? (
+          <ProyeccionTab
+            projection={projection}
+            loading={projectionLoading}
+            error={projectionError}
+            horizon={horizon}
+            onHorizonChange={(months) => updateUrl({ tab, month, horizon: months })}
+            timezone={timezone}
           />
-
-          <DashboardMetricCards
-            items={[
-              { title: "Pendiente MSI", amount: overview.creditSummary.pendingMsi, toneClass: "dashboard-money-credit" },
-              { title: "Pendiente normal", amount: overview.creditSummary.pendingNormal, toneClass: "dashboard-money-credit" }
-            ]}
-            columns="sm:grid-cols-2"
-          />
-
-          <AccountsSection
-            title="Cuentas de crédito"
-            description="Detalle por cuenta con corte, pago y comportamiento del periodo."
-             accounts={creditAccounts}
-             viewMode={viewMode}
-             timezone={timezone}
-             emptyMessage="No hay cuentas de crédito registradas."
-          />
-        </div>
-      </DashboardFoldSection>
-
-      <DashboardFoldSection
-        title="Efectivo"
-        description="Cuentas de débito, ahorro y efectivo con flujo mensual."
-        badge={`${cashAccounts.length} cuentas`}
-        defaultCollapsed
-        storageKey="dashboard:cash-section"
-      >
-        <div className="grid gap-4">
-          <DashboardMetricCards
-            items={[
-              { title: "Ingresos", amount: overview.cashSummary.monthIncome, toneClass: "text-emerald-700 dark:text-emerald-400" },
-              { title: "Gastos", amount: overview.cashSummary.monthExpense * -1, toneClass: "text-rose-700 dark:text-rose-400" },
-              { title: "Transferencias ingreso", amount: cashTotals.transferIn, toneClass: "text-emerald-700 dark:text-emerald-400" }
-            ]}
-            columns="sm:grid-cols-3"
-          />
-
-          <DashboardMetricCards
-            items={[
-              { title: "Transferencias gasto", amount: cashTotals.transferOut * -1, toneClass: "text-rose-700 dark:text-rose-400" },
-              { title: "Total efectivo", amount: overview.cashSummary.total }
-            ]}
-            columns="sm:grid-cols-2"
-          />
-
-          <AccountsSection
-            title="Cuentas de efectivo"
-            description="Detalle por cuenta de débito, ahorro o disponible mensual."
-             accounts={cashAccounts}
-             viewMode={viewMode}
-             timezone={timezone}
-             emptyMessage="No hay cuentas de efectivo registradas."
-          />
-        </div>
-      </DashboardFoldSection>
-        </>
-      )}
-
-      <CashProjectionSection data={projection} loading={projectionLoading} error={projectionError} />
+        ) : null}
+      </div>
     </div>
-  );
-}
-
-function DashboardOverviewSkeleton() {
-  return (
-    <section className="grid gap-4" aria-busy="true">
-      <span className="sr-only">Cargando resumen del dashboard</span>
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-        {Array.from({ length: 6 }).map((_, index) => (
-          <div
-            key={index}
-            className="h-28 animate-pulse rounded-2xl border border-default bg-[var(--color-surface-1)]"
-            aria-hidden="true"
-          />
-        ))}
-      </div>
-      <div className="grid gap-4">
-        {Array.from({ length: 4 }).map((_, index) => (
-          <div
-            key={index}
-            className="h-72 animate-pulse rounded-2xl border border-default bg-[var(--color-surface-1)]"
-            aria-hidden="true"
-          />
-        ))}
-      </div>
-    </section>
   );
 }

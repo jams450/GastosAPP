@@ -361,6 +361,35 @@ namespace GastosApp.BusinessLogic.Services
             return affected == 1;
         }
 
+        public async Task<bool> ClaimAlertDeliveryAsync(
+            int budgetId,
+            int thresholdId,
+            int userId,
+            string periodKey,
+            decimal thresholdPercent,
+            decimal budgetAmount,
+            decimal spentAmount,
+            decimal percentUsed,
+            string payload,
+            DateTimeOffset nextAttemptAt)
+        {
+            // Una sola sentencia atómica: el CTE reclama la entrega con ON CONFLICT DO NOTHING y el
+            // INSERT final encola el outbox SOLO si el CTE devolvió fila. Sin RETURNING hacia EF:
+            // ExecuteSqlInterpolatedAsync reporta las filas afectadas del último INSERT (0 = ya existía).
+            var affected = await _context.Database.ExecuteSqlInterpolatedAsync($"""
+                WITH inserted AS (
+                    INSERT INTO alert_deliveries (budget_id, threshold_id, user_id, period_key, threshold_percent, budget_amount, spent_amount, percent_used)
+                    VALUES ({budgetId}, {thresholdId}, {userId}, {periodKey}, {thresholdPercent}, {budgetAmount}, {spentAmount}, {percentUsed})
+                    ON CONFLICT (budget_id, threshold_id, period_key) DO NOTHING
+                    RETURNING delivery_id
+                )
+                INSERT INTO alert_outbox (delivery_id, channel, payload, status, attempts, next_attempt_at)
+                SELECT delivery_id, {AlertOutboxChannel.Telegram}, {payload}, {AlertOutboxStatus.Pending}, 0, {nextAttemptAt}
+                FROM inserted
+                """);
+            return affected == 1;
+        }
+
         public async Task<TelegramExpenseDraft?> LockTelegramExpenseDraftAsync(Guid draftId)
         {
             return await _context.TelegramExpenseDrafts

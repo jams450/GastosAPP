@@ -1,8 +1,9 @@
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/ui/cn";
 import { tableActionBaseClass, tableActionStyles } from "@/lib/ui/table-action-styles";
 import type { Account } from "@/lib/contracts/accounts";
-import { Pencil, Power } from "lucide-react";
+import { LineChart, Pencil, Power } from "lucide-react";
 
 type Props = {
   account: Account;
@@ -42,6 +43,20 @@ export function AccountActionsMenu({ account, mobile = false, onEdit, onToggleAc
         <Power className="h-3.5 w-3.5" aria-hidden="true" />
         <span>{account.active ? "Desactivar" : "Activar"}</span>
       </Button>
+
+      {/* En móvil ocupa la fila completa para no partir la etiqueta en dos columnas. */}
+      <Link
+        href={`/accounts/${account.accountId}`}
+        className={cn(
+          baseClass,
+          "btn-ghost-semantic focus-ring inline-flex items-center justify-center gap-1.5",
+          mobile && "col-span-2"
+        )}
+        aria-label={`Ver histórico anual de la cuenta ${account.name}`}
+      >
+        <LineChart className="h-3.5 w-3.5" aria-hidden="true" />
+        <span>Ver histórico</span>
+      </Link>
     </div>
   );
 }

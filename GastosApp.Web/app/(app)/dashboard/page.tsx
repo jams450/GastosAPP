@@ -7,7 +7,7 @@ export default async function DashboardPage() {
 
   return (
     <>
-      <PageHeader section="Panel principal" title="Dashboard" subtitle="Resumen operativo y financiero" />
+      <PageHeader section="Panel principal" title="Dashboard" subtitle="Resumen, efectivo, crédito y proyección" />
       <AccountsOverview />
     </>
   );

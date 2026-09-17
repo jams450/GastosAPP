@@ -37,6 +37,11 @@ namespace GastosApp.BusinessLogic.Context
         public DbSet<TelegramIdentity> TelegramIdentities { get; set; } = null!;
         public DbSet<TelegramExpenseDraft> TelegramExpenseDrafts { get; set; } = null!;
         public DbSet<TelegramProcessedUpdate> TelegramProcessedUpdates { get; set; } = null!;
+        public DbSet<CatalogRule> CatalogRules { get; set; } = null!;
+        public DbSet<Budget> Budgets { get; set; } = null!;
+        public DbSet<BudgetThreshold> BudgetThresholds { get; set; } = null!;
+        public DbSet<AlertDelivery> AlertDeliveries { get; set; } = null!;
+        public DbSet<AlertOutbox> AlertOutbox { get; set; } = null!;
 
         public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
         {
@@ -296,6 +301,82 @@ namespace GastosApp.BusinessLogic.Context
                 entity.HasOne(e => e.Installment)
                     .WithMany(e => e.Allocations)
                     .HasForeignKey(e => e.InstallmentId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            modelBuilder.Entity<CatalogRule>(entity =>
+            {
+                entity.HasIndex(e => new { e.UserId, e.Active, e.Priority });
+                entity.HasOne(e => e.User)
+                    .WithMany()
+                    .HasForeignKey(e => e.UserId)
+                    .OnDelete(DeleteBehavior.Cascade);
+                entity.HasOne(e => e.TargetCategory)
+                    .WithMany()
+                    .HasForeignKey(e => e.TargetCategoryId)
+                    .OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(e => e.TargetSubcategory)
+                    .WithMany()
+                    .HasForeignKey(e => e.TargetSubcategoryId)
+                    .OnDelete(DeleteBehavior.Restrict);
+                // El XOR de targets lo garantiza la BD: ck_catalog_rules_target_xor.
+            });
+
+            modelBuilder.Entity<Budget>(entity =>
+            {
+                entity.HasOne(e => e.User)
+                    .WithMany()
+                    .HasForeignKey(e => e.UserId)
+                    .OnDelete(DeleteBehavior.Cascade);
+                entity.HasOne(e => e.Category)
+                    .WithMany()
+                    .HasForeignKey(e => e.CategoryId)
+                    .OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(e => e.Subcategory)
+                    .WithMany()
+                    .HasForeignKey(e => e.SubcategoryId)
+                    .OnDelete(DeleteBehavior.Restrict);
+                // XOR de scope y unicidad (user_id, period_key, scope) son solo SQL
+                // (ck_budgets_scope y ux_budgets_user_period_scope: índice de expresión).
+            });
+
+            modelBuilder.Entity<BudgetThreshold>(entity =>
+            {
+                entity.HasIndex(e => new { e.BudgetId, e.Percent }).IsUnique();
+                entity.HasOne(e => e.Budget)
+                    .WithMany(e => e.Thresholds)
+                    .HasForeignKey(e => e.BudgetId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            modelBuilder.Entity<AlertDelivery>(entity =>
+            {
+                // Candado de idempotencia del evaluador.
+                entity.HasIndex(e => new { e.BudgetId, e.ThresholdId, e.PeriodKey }).IsUnique();
+                entity.HasIndex(e => new { e.UserId, e.PeriodKey });
+                // RESTRICT: preserva el historial de entregas ya notificadas.
+                entity.HasOne(e => e.Budget)
+                    .WithMany()
+                    .HasForeignKey(e => e.BudgetId)
+                    .OnDelete(DeleteBehavior.Restrict);
+                // RESTRICT: preserva el historial de umbrales ya notificados.
+                entity.HasOne(e => e.Threshold)
+                    .WithMany(e => e.Deliveries)
+                    .HasForeignKey(e => e.ThresholdId)
+                    .OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(e => e.User)
+                    .WithMany()
+                    .HasForeignKey(e => e.UserId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            modelBuilder.Entity<AlertOutbox>(entity =>
+            {
+                entity.HasIndex(e => e.DeliveryId).IsUnique();
+                entity.HasIndex(e => new { e.Status, e.NextAttemptAt });
+                entity.HasOne(e => e.Delivery)
+                    .WithOne(e => e.Outbox)
+                    .HasForeignKey<AlertOutbox>(e => e.DeliveryId)
                     .OnDelete(DeleteBehavior.Cascade);
             });
         }

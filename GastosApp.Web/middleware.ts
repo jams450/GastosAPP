@@ -4,7 +4,7 @@ import { decryptSession, isSessionUsable, SESSION_COOKIE_NAME } from "@/lib/auth
 import { getTraceId } from "@/lib/bff/http";
 import { CSRF_COOKIE_NAME, CSRF_HEADER_NAME, isCsrfEnforced, isMutatingMethod, isTrustedOrigin } from "@/lib/security/csrf";
 
-const privateRoutes = ["/dashboard", "/accounts", "/transactions", "/catalogs", "/users"];
+const privateRoutes = ["/dashboard", "/accounts", "/transactions", "/catalogs", "/users", "/budgets"];
 
 function redirectToLogin(request: NextRequest) {
   const url = new URL("/login", request.url);
@@ -75,6 +75,7 @@ export const config = {
     "/transactions/:path*",
     "/catalogs/:path*",
     "/users/:path*",
+    "/budgets/:path*",
     "/api/bff/:path*",
     "/api/auth/logout"
   ]

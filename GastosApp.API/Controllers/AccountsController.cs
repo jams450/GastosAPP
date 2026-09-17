@@ -14,15 +14,18 @@ namespace GastosApp.API.Controllers
     public class AccountsController : ControllerBase
     {
         private readonly IAccountService _accountService;
+        private readonly ITransactionQueryService _transactionQueryService;
         private readonly ICurrentUserService _currentUserService;
         private readonly ILogger<AccountsController> _logger;
 
         public AccountsController(
             IAccountService accountService,
+            ITransactionQueryService transactionQueryService,
             ICurrentUserService currentUserService,
             ILogger<AccountsController> logger)
         {
             _accountService = accountService;
+            _transactionQueryService = transactionQueryService;
             _currentUserService = currentUserService;
             _logger = logger;
         }
@@ -205,6 +208,10 @@ namespace GastosApp.API.Controllers
                 _logger.LogInformation("Account {Id} active status updated to {Active}", id, active);
                 return Ok(new { Message = $"Account active status updated to {active}" });
             }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new { Message = ex.Message });
+            }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error updating active status for account with ID {Id}", id);
@@ -296,6 +303,29 @@ namespace GastosApp.API.Controllers
             {
                 _logger.LogError(ex, "Error getting credit card expenses for account {Id}", id);
                 return StatusCode(500, new { Message = "An error occurred while retrieving credit card expenses" });
+            }
+        }
+
+        [HttpGet("{id}/annual-summary")]
+        public async Task<IActionResult> GetAnnualSummary(int id, [FromQuery] int? year)
+        {
+            try
+            {
+                var userId = GetCurrentUserId();
+                var summary = await _transactionQueryService.GetAccountAnnualSummaryAsync(id, userId, year);
+                if (summary == null)
+                    return NotFound(new { Message = $"Account with ID {id} not found" });
+
+                return Ok(summary);
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new { Message = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting annual summary for account {Id}", id);
+                return StatusCode(500, new { Message = "An error occurred while retrieving the annual summary" });
             }
         }
 

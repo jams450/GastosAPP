@@ -5,6 +5,7 @@ import type { DashboardViewMode } from "@/app/(app)/dashboard/_components/dashbo
 import { formatAmount, formatDate } from "@/app/(app)/dashboard/_components/dashboard-format";
 import type { DashboardAccountOverview } from "@/lib/contracts/dashboard";
 import { getBalanceToneClass } from "@/lib/accounts/metrics";
+import { resolveAccountCredit } from "@/app/(app)/dashboard/_lib/dashboard-metrics";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 
@@ -247,18 +248,19 @@ function CompactContent({ account, viewMode }: { account: DashboardAccountOvervi
 
   return (
     <div className={isThreeColumns ? "grid grid-cols-1 gap-3" : "grid gap-2 sm:grid-cols-2"}>
-      <Kpi label="Saldo actual" value={account.currentBalance} compact toneClass={getBalanceToneClass(account.currentBalance)} />
+      <Kpi label="Saldo actual" value={account.currentBalance} compact variant="accent" toneClass={getBalanceToneClass(account.currentBalance)} />
       <Kpi label="Apertura" value={account.openingBalance} compact />
 
       {account.isCredit ? (
         <Kpi
           label={isThreeColumns ? "Deuda" : "Deuda total"}
-          value={(account.creditLimit ?? 0) - account.currentBalance}
+          value={resolveAccountCredit(account).debt}
           toneClass="dashboard-money-expense"
           compact
+          variant="expense"
         />
       ) : (
-        <div className="dashboard-subtle rounded-[var(--radius-sm)] px-3 py-2">
+        <div className="dashboard-subtle dashboard-subtle-neutral rounded-[var(--radius-sm)] px-3 py-2">
           <p className="m-0 text-[11px] uppercase tracking-wide text-muted">{isThreeColumns ? "Ing/Gto" : "Ingresos / Gastos"}</p>
           <p className="m-0 text-xs font-semibold text-primary">
             {formatAmount(account.monthIncome)} / {formatAmount(account.monthExpense)}
@@ -282,12 +284,12 @@ function TopHeaderMetrics({
   const isThreeColumns = viewMode === "grid3";
 
   return account.isCredit ? (
-    <div className={isDetail ? "grid w-full gap-2 sm:grid-cols-2 lg:min-w-[28rem]" : isTwoColumns || isThreeColumns ? "grid w-full grid-cols-1 gap-2 sm:grid-cols-2" : "grid w-full gap-2 sm:w-auto sm:grid-cols-2"}>
-      <HeaderMetric label="Límite de crédito" value={account.creditLimit ?? 0} toneClass={getBalanceToneClass(account.creditLimit ?? 0)} large={isDetail} />
+    <div className={isDetail ? "grid w-full gap-2 sm:grid-cols-[repeat(2,minmax(10.5rem,1fr))] sm:gap-4 lg:min-w-[28rem]" : isTwoColumns || isThreeColumns ? "grid w-full grid-cols-1 gap-2 sm:grid-cols-2" : "grid w-full gap-2 sm:w-auto sm:grid-cols-2"}>
+      <HeaderMetric label="Límite de crédito" value={account.creditLimit} large={isDetail} />
       <HeaderMetric label="Saldo actual" value={account.currentBalance} toneClass={getBalanceToneClass(account.currentBalance)} large={isDetail} />
     </div>
   ) : (
-    <div className={isCashDetail ? "grid w-full gap-1.5 sm:grid-cols-2 lg:min-w-[16rem]" : isTwoColumns ? "grid w-full grid-cols-2 gap-2" : isThreeColumns ? "grid w-full grid-cols-2 gap-2" : "grid w-full gap-2 sm:w-auto sm:grid-cols-2"}>
+    <div className={isCashDetail ? "grid w-full gap-2 sm:grid-cols-[repeat(2,minmax(10.5rem,1fr))] sm:gap-4 lg:min-w-[22.5rem]" : isTwoColumns ? "grid w-full grid-cols-2 gap-2" : isThreeColumns ? "grid w-full grid-cols-2 gap-2" : "grid w-full gap-2 sm:w-auto sm:grid-cols-2"}>
       <HeaderMetric label="Cierre" value={account.closingBalance} toneClass={getBalanceToneClass(account.closingBalance)} large={isDetail} />
       <HeaderMetric label="Neto mes" value={account.monthNet} toneClass={getBalanceToneClass(account.monthNet)} large={isDetail} />
     </div>
@@ -301,23 +303,29 @@ function HeaderMetric({
   large = false
 }: {
   label: string;
-  value: number;
-  toneClass: string;
+  value: number | null;
+  toneClass?: string;
   large?: boolean;
 }) {
+  const formatted = value === null ? "No disponible" : formatAmount(value);
+  const tone = value === null ? "text-muted" : toneClass ?? "text-primary";
+
+  // En detalle los dos importes van sin caja, así que se separan con un divisor
+  // vertical solo cuando quedan lado a lado (de `sm` en adelante).
+  const containerClass = large
+    ? "px-0 py-1 sm:border-l sm:border-[var(--color-border)] sm:pl-4 sm:first:border-l-0 sm:first:pl-0"
+    : "rounded-xl bg-slate-50 px-3 py-2 dark:bg-slate-900 sm:min-w-28";
+
   return (
-    <div className={large
-      ? "px-0 py-1"
-      : "rounded-xl bg-slate-50 px-3 py-2 dark:bg-slate-900 sm:min-w-28"}
-    >
+    <div className={containerClass}>
       <p className={large ? "m-0 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted" : "m-0 text-[11px] uppercase tracking-wide text-muted"}>{label}</p>
-       <p className={`m-0 ${large ? "text-2xl leading-tight" : "text-base"} font-semibold tabular-nums ${toneClass}`}>{formatAmount(value)}</p>
+       <p className={`m-0 ${large ? "text-2xl leading-tight" : "text-base"} font-semibold tabular-nums ${tone}`}>{formatted}</p>
     </div>
   );
 }
 
 function CreditDetails({ account, timezone }: { account: DashboardAccountOverview; timezone: string }) {
-  const debt = (account.creditLimit ?? 0) - account.currentBalance;
+  const debt = resolveAccountCredit(account).debt;
   const incomeTotal = account.monthIncome + account.monthTransferIn;
   const expenseTotal = account.monthExpense + account.monthTransferOut;
   const [open, setOpen] = useState(false);
@@ -477,11 +485,11 @@ function CreditDetails({ account, timezone }: { account: DashboardAccountOvervie
           <Kpi dense label="Neto" value={account.monthNet} toneClass={getBalanceToneClass(account.monthNet)} plain />
           <Kpi dense label="Deuda" value={debt} toneClass="dashboard-money-expense" plain />
         </CreditSection>
-        <CreditSection title="Movimientos">
+        <CreditSection title="Movimientos" variant="movements">
           <Kpi dense label="Ingresos +" value={incomeTotal} toneClass="dashboard-money-income" plain />
           <Kpi dense label="Gastos -" value={expenseTotal * -1} toneClass="dashboard-money-expense" plain />
         </CreditSection>
-        <CreditSection title="Compromisos">
+        <CreditSection title="Compromisos" variant="commitments">
           <Kpi dense label="Pend. MSI" value={account.msiOutstanding} toneClass="dashboard-money-credit" plain />
           <Kpi dense label="Pend. normal" value={account.normalOutstanding} toneClass="dashboard-money-credit" plain />
         </CreditSection>
@@ -537,18 +545,28 @@ function CreditDetails({ account, timezone }: { account: DashboardAccountOvervie
 function CreditSection({
   title,
   children,
-  variant = "secondary",
+  variant = "movements",
   className = ""
 }: {
   title: string;
   children: ReactNode;
-  variant?: "balance" | "secondary" | "cutoff";
+  variant?: "balance" | "movements" | "commitments" | "cutoff";
   className?: string;
 }) {
+  const variantClass = variant === "balance"
+    ? "dashboard-credit-balance"
+    : variant === "cutoff"
+      ? "dashboard-credit-cutoff"
+      : variant === "commitments"
+        ? "dashboard-subtle-credit"
+        : "dashboard-subtle-neutral";
+
   return (
-    <section className={`dashboard-subtle dashboard-credit-section rounded-xl p-4 ${variant === "balance" ? "dashboard-credit-balance" : ""} ${variant === "cutoff" ? "dashboard-credit-cutoff" : ""} ${className}`}>
+    <section className={`dashboard-subtle dashboard-credit-section ${variantClass} rounded-xl p-4 ${className}`}>
       <p className="m-0 mb-3 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted">{title}</p>
-      <div className={`grid gap-x-4 gap-y-3 ${variant === "balance" ? "grid-cols-2 sm:grid-cols-4" : variant === "cutoff" ? "grid-cols-2 sm:grid-cols-5" : "grid-cols-2"}`}>{children}</div>
+      {/* `auto-fit` + mínimo por celda: si el panel no da para todas las columnas,
+          los importes bajan a la fila siguiente en vez de quedar pegados. */}
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(6.5rem,1fr))] gap-x-4 gap-y-3">{children}</div>
     </section>
   );
 }
@@ -611,6 +629,7 @@ function Kpi({
   label,
   value,
   toneClass,
+  variant = "neutral",
   compact = false,
   plain = false,
   dense = false,
@@ -620,6 +639,8 @@ function Kpi({
   label: string;
   value: number | string;
   toneClass?: string;
+  /** Rol del panel dentro de la tarjeta; solo aplica a la variante compact. */
+  variant?: "neutral" | "accent" | "income" | "expense" | "credit";
   compact?: boolean;
   plain?: boolean;
   dense?: boolean;
@@ -627,13 +648,10 @@ function Kpi({
   formatAsCurrency?: boolean;
 }) {
   const formattedValue = typeof value === "number" ? (formatAsCurrency ? formatAmount(value) : String(value)) : value;
+  const subtleClass = variant === "neutral" ? "dashboard-subtle" : `dashboard-subtle dashboard-subtle-${variant}`;
 
   return (
-    <div className={`${plain
-      ? "px-0 py-0"
-      : compact
-        ? "dashboard-subtle rounded-[var(--radius-sm)] px-3 py-2"
-        : "dashboard-subtle rounded-[var(--radius-sm)] px-3 py-2"}${fullWidth ? " col-span-2" : ""}`}
+    <div className={`${plain ? "px-0 py-0" : `${subtleClass} rounded-[var(--radius-sm)] px-3 py-2`}${fullWidth ? " col-span-2" : ""}`}
     >
       <p className={dense
         ? "m-0 text-[10px] uppercase tracking-wide text-muted"

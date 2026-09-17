@@ -2,6 +2,7 @@ using GastosApp.BusinessLogic.Interfaces;
 using GastosApp.BusinessLogic.Models.Transactions;
 using GastosApp.Models.Entities;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace GastosApp.BusinessLogic.Services
 {
@@ -13,6 +14,8 @@ namespace GastosApp.BusinessLogic.Services
         private readonly ICreditLifecycleService _creditLifecycleService;
         private readonly ITransactionValidationService _validation;
         private readonly ITransactionTagService _tagService;
+        private readonly ICatalogRuleService _catalogRuleService;
+        private readonly ILogger<TransactionCommandService> _logger;
 
         public TransactionCommandService(
             IRepository repository,
@@ -20,7 +23,9 @@ namespace GastosApp.BusinessLogic.Services
             IExpenseAllocationService allocationService,
             ICreditLifecycleService creditLifecycleService,
             ITransactionValidationService validation,
-            ITransactionTagService tagService)
+            ITransactionTagService tagService,
+            ICatalogRuleService catalogRuleService,
+            ILogger<TransactionCommandService> logger)
         {
             _repository = repository;
             _accountService = accountService;
@@ -28,6 +33,8 @@ namespace GastosApp.BusinessLogic.Services
             _creditLifecycleService = creditLifecycleService;
             _validation = validation;
             _tagService = tagService;
+            _catalogRuleService = catalogRuleService;
+            _logger = logger;
         }
 
         public Task<Transaction> CreateIncomeAsync(Transaction transaction, int userId, IEnumerable<(int InstallmentId, decimal Amount)>? creditAllocations = null, IEnumerable<string>? tags = null)
@@ -105,6 +112,11 @@ namespace GastosApp.BusinessLogic.Services
                 if (account == null || account.UserId != userId)
                 {
                     throw new ArgumentException("La cuenta indicada no existe");
+                }
+
+                if (transaction.CategoryId == null && transaction.SubcategoryId == null)
+                {
+                    await TryApplyCatalogRuleAsync(transaction, userId);
                 }
 
                 var dimensionsValidation = await _validation.ValidateAnalyticsDimensionsAsync(
@@ -301,6 +313,29 @@ namespace GastosApp.BusinessLogic.Services
         private static bool IsTransfer(Transaction transaction)
         {
             return string.Equals(transaction.Type, TransactionDomainConstants.TransactionType.Transfer, StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
+        /// Categorización best-effort: si una regla falla o el destino ya no es válido, el gasto
+        /// se registra sin categoría. Un error aquí nunca debe interpretarse como pérdida de escritura.
+        /// </summary>
+        private async Task TryApplyCatalogRuleAsync(Transaction transaction, int userId)
+        {
+            try
+            {
+                var resolution = await _catalogRuleService.ResolveAsync(userId, transaction.Description);
+                if (resolution == null)
+                {
+                    return;
+                }
+
+                transaction.CategoryId = resolution.CategoryId;
+                transaction.SubcategoryId = resolution.SubcategoryId;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "No se pudo resolver la regla de categorización para el usuario {UserId}", userId);
+            }
         }
 
         private async Task<Transaction?> UpdateInternalAsync(int id, Transaction transaction, Transaction existing)

@@ -59,6 +59,29 @@
   --color-dashboard-balance-border: #b8cef5;
   --color-dashboard-cutoff-bg: #dbeafe;
   --color-dashboard-cutoff-border: #93b4ed;
+  /* Transferencias: movimiento neutral entre cuentas propias, con color propio
+     para no leerse como ingreso ni como gasto. */
+  --color-dashboard-transfer-in: #0e7490;
+  --color-dashboard-transfer-out: #64748b;
+
+  /* Paneles internos de las tarjetas de cuenta. Cada rol tiene fondo, borde y
+     raíl propios para que los bloques no se confundan entre sí ni con la
+     tarjeta que los contiene. */
+  --color-dashboard-subtle-bg: color-mix(in srgb, var(--color-surface-3) 94%, var(--color-border-strong));
+  --color-dashboard-subtle-border: var(--color-border-strong);
+  --color-dashboard-subtle-rail: color-mix(in srgb, var(--color-text-muted) 55%, transparent);
+  --color-dashboard-subtle-accent-bg: color-mix(in srgb, var(--color-accent) 10%, var(--color-surface-1));
+  --color-dashboard-subtle-accent-border: color-mix(in srgb, var(--color-accent) 38%, var(--color-border-strong));
+  --color-dashboard-subtle-accent-rail: color-mix(in srgb, var(--color-accent) 78%, transparent);
+  --color-dashboard-subtle-income-bg: color-mix(in srgb, var(--color-success) 12%, var(--color-surface-1));
+  --color-dashboard-subtle-income-border: color-mix(in srgb, var(--color-success) 42%, var(--color-border-strong));
+  --color-dashboard-subtle-income-rail: color-mix(in srgb, var(--color-success) 78%, transparent);
+  --color-dashboard-subtle-expense-bg: color-mix(in srgb, var(--color-danger) 12%, var(--color-surface-1));
+  --color-dashboard-subtle-expense-border: color-mix(in srgb, var(--color-danger) 42%, var(--color-border-strong));
+  --color-dashboard-subtle-expense-rail: color-mix(in srgb, var(--color-danger) 78%, transparent);
+  --color-dashboard-subtle-credit-bg: color-mix(in srgb, var(--color-credit) 14%, var(--color-surface-1));
+  --color-dashboard-subtle-credit-border: color-mix(in srgb, var(--color-credit) 44%, var(--color-border-strong));
+  --color-dashboard-subtle-credit-rail: color-mix(in srgb, var(--color-credit) 80%, transparent);
 
   --color-shell-bg: color-mix(in srgb, var(--color-sidebar-bg) 88%, var(--color-page-bg));
   --color-shell-surface: color-mix(in srgb, var(--color-surface-1) 86%, var(--color-sidebar-bg));
@@ -180,6 +203,29 @@
   --color-dashboard-balance-border: #31598f;
   --color-dashboard-cutoff-bg: #173b70;
   --color-dashboard-cutoff-border: #3b82f6;
+  /* Transferencias: movimiento neutral entre cuentas propias, con color propio
+     para no leerse como ingreso ni como gasto. */
+  --color-dashboard-transfer-in: #22d3ee;
+  --color-dashboard-transfer-out: #94a3b8;
+
+  /* Paneles internos de las tarjetas de cuenta. Cada rol tiene fondo, borde y
+     raíl propios para que los bloques no se confundan entre sí ni con la
+     tarjeta que los contiene. */
+  --color-dashboard-subtle-bg: color-mix(in srgb, var(--color-surface-3) 94%, var(--color-border-strong));
+  --color-dashboard-subtle-border: var(--color-border-strong);
+  --color-dashboard-subtle-rail: color-mix(in srgb, var(--color-text-muted) 55%, transparent);
+  --color-dashboard-subtle-accent-bg: color-mix(in srgb, var(--color-accent) 18%, var(--color-surface-1));
+  --color-dashboard-subtle-accent-border: color-mix(in srgb, var(--color-accent) 46%, var(--color-border-strong));
+  --color-dashboard-subtle-accent-rail: color-mix(in srgb, var(--color-accent) 82%, transparent);
+  --color-dashboard-subtle-income-bg: color-mix(in srgb, var(--color-success) 16%, var(--color-surface-1));
+  --color-dashboard-subtle-income-border: color-mix(in srgb, var(--color-success) 42%, var(--color-border-strong));
+  --color-dashboard-subtle-income-rail: color-mix(in srgb, var(--color-success) 82%, transparent);
+  --color-dashboard-subtle-expense-bg: color-mix(in srgb, var(--color-danger) 16%, var(--color-surface-1));
+  --color-dashboard-subtle-expense-border: color-mix(in srgb, var(--color-danger) 42%, var(--color-border-strong));
+  --color-dashboard-subtle-expense-rail: color-mix(in srgb, var(--color-danger) 82%, transparent);
+  --color-dashboard-subtle-credit-bg: color-mix(in srgb, var(--color-credit) 20%, var(--color-surface-1));
+  --color-dashboard-subtle-credit-border: color-mix(in srgb, var(--color-credit) 46%, var(--color-border-strong));
+  --color-dashboard-subtle-credit-rail: color-mix(in srgb, var(--color-credit) 84%, transparent);
 
   --color-shell-bg: color-mix(in srgb, var(--color-sidebar-bg) 88%, var(--color-page-bg));
   --color-shell-surface: color-mix(in srgb, var(--color-surface-1) 86%, var(--color-sidebar-bg));
@@ -840,6 +886,10 @@ body {
     background: #dc2626;
   }
 
+  .tabler-badge-warning.tabler-badge-solid {
+    background: #d97706;
+  }
+
   .tabler-badge-muted.tabler-badge-solid {
     background: #475569;
   }
@@ -933,6 +983,12 @@ body {
     color: var(--color-danger);
   }
 
+  .app-grid-skin .tabler-badge.tabler-badge-warning {
+    border-color: color-mix(in srgb, var(--color-warning) 50%, transparent);
+    background: color-mix(in srgb, var(--color-warning) 20%, transparent);
+    color: var(--color-warning);
+  }
+
   .subcategories-flat-table > .space-y-2 {
     @apply space-y-0;
   }
@@ -1019,6 +1075,57 @@ body {
     border-color: var(--color-dashboard-cutoff-border);
   }
 
+  /* "Cuentas con mayor movimiento": apilar varios paneles del mismo color los
+     volvía indistinguibles entre sí y del fondo de la tarjeta. Dentro de este
+     grid cada panel sube de contraste y recibe un raíl que indica su rol (el
+     color es refuerzo, nunca el único indicador: la etiqueta ya nombra el dato). */
+  .dashboard-accounts-grid .dashboard-subtle {
+    background: var(--color-dashboard-subtle-bg);
+    border-color: var(--color-dashboard-subtle-border);
+    border-inline-start: 3px solid var(--color-dashboard-subtle-rail);
+  }
+
+  .dashboard-accounts-grid .dashboard-subtle-accent {
+    background: var(--color-dashboard-subtle-accent-bg);
+    border-color: var(--color-dashboard-subtle-accent-border);
+    border-inline-start-color: var(--color-dashboard-subtle-accent-rail);
+  }
+
+  .dashboard-accounts-grid .dashboard-subtle-income {
+    background: var(--color-dashboard-subtle-income-bg);
+    border-color: var(--color-dashboard-subtle-income-border);
+    border-inline-start-color: var(--color-dashboard-subtle-income-rail);
+  }
+
+  .dashboard-accounts-grid .dashboard-subtle-expense {
+    background: var(--color-dashboard-subtle-expense-bg);
+    border-color: var(--color-dashboard-subtle-expense-border);
+    border-inline-start-color: var(--color-dashboard-subtle-expense-rail);
+  }
+
+  .dashboard-accounts-grid .dashboard-subtle-credit {
+    background: var(--color-dashboard-subtle-credit-bg);
+    border-color: var(--color-dashboard-subtle-credit-border);
+    border-inline-start-color: var(--color-dashboard-subtle-credit-rail);
+  }
+
+  .dashboard-accounts-grid .dashboard-credit-balance {
+    background: var(--color-dashboard-balance-bg);
+    border-color: var(--color-dashboard-balance-border);
+    border-inline-start-color: var(--color-dashboard-subtle-accent-rail);
+  }
+
+  .dashboard-accounts-grid .dashboard-credit-cutoff {
+    background: var(--color-dashboard-cutoff-bg);
+    border-color: var(--color-dashboard-cutoff-border);
+    border-inline-start-color: color-mix(in srgb, var(--color-warning) 78%, transparent);
+  }
+
+  .dashboard-metric-note {
+    background: color-mix(in srgb, var(--color-warning) 12%, var(--color-surface-1));
+    border: 1px solid color-mix(in srgb, var(--color-warning) 38%, transparent);
+  }
+
   .dashboard-icon {
     background: var(--color-accent-soft);
     color: var(--color-accent);
@@ -1037,6 +1144,8 @@ body {
   .dashboard-bar-income { background: var(--color-success); }
   .dashboard-bar-expense { background: var(--color-danger); }
   .dashboard-bar-credit { background: var(--color-credit); }
+  .dashboard-bar-transfer-in { background: var(--color-dashboard-transfer-in); }
+  .dashboard-bar-transfer-out { background: var(--color-dashboard-transfer-out); }
 
   .dashboard-touch-target {
     min-height: var(--shell-control-size);

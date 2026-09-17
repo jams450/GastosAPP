@@ -1,4 +1,5 @@
 using GastosApp.BusinessLogic.Interfaces;
+using GastosApp.BusinessLogic.Models.Accounts;
 using GastosApp.BusinessLogic.Models.Transactions;
 using GastosApp.Models.Entities;
 using Microsoft.EntityFrameworkCore;
@@ -241,6 +242,108 @@ namespace GastosApp.BusinessLogic.Services
             return await _repository.Get<Transaction>(t => t.AccountId == accountId).SumAsync(t => t.BalanceImpact);
         }
 
+        public async Task<AccountAnnualSummary?> GetAccountAnnualSummaryAsync(int accountId, int userId, int? year)
+        {
+            var timezone = MonthRangeResolver.ResolveTimeZone(MonthRangeResolver.DefaultTimezoneId);
+            var resolvedYear = year ?? TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, timezone).Year;
+            if (resolvedYear < 1 || resolvedYear > 9998)
+            {
+                throw new ArgumentException("Year must be between 1 and 9998.");
+            }
+
+            var account = await _repository.Get<Account>(a => a.AccountId == accountId && a.UserId == userId)
+                .AsNoTracking()
+                .FirstOrDefaultAsync();
+            if (account == null)
+            {
+                return null;
+            }
+
+            var yearStartUtc = TimeZoneInfo.ConvertTimeToUtc(
+                new DateTime(resolvedYear, 1, 1, 0, 0, 0, DateTimeKind.Unspecified), timezone);
+            var nextYearStartUtc = TimeZoneInfo.ConvertTimeToUtc(
+                new DateTime(resolvedYear + 1, 1, 1, 0, 0, 0, DateTimeKind.Unspecified), timezone);
+
+            // Saldo inicial = saldo inicial de la cuenta + todo movimiento confirmado anterior al año.
+            var priorImpact = await _repository.Get<Transaction>(t => t.AccountId == accountId && t.TransactionDate < yearStartUtc)
+                .SumAsync(t => t.BalanceImpact);
+            var openingBalance = RoundMoney(account.InitialBalance + priorImpact);
+
+            // Una sola consulta para los doce meses; nada de doce llamadas.
+            var rows = await _repository.Get<Transaction>(t =>
+                    t.AccountId == accountId &&
+                    t.TransactionDate >= yearStartUtc &&
+                    t.TransactionDate < nextYearStartUtc)
+                .Select(t => new { t.TransactionDate, t.Type, t.Amount, t.BalanceImpact })
+                .ToListAsync();
+
+            var monthIncome = new decimal[13];
+            var monthExpense = new decimal[13];
+            var monthNetTransfers = new decimal[13];
+
+            foreach (var row in rows)
+            {
+                var localMonth = TimeZoneInfo.ConvertTimeFromUtc(
+                    DateTime.SpecifyKind(row.TransactionDate, DateTimeKind.Utc), timezone).Month;
+
+                if (IsTransactionType(row.Type, TransactionDomainConstants.TransactionType.Income))
+                {
+                    monthIncome[localMonth] += row.Amount;
+                }
+                else if (IsTransactionType(row.Type, TransactionDomainConstants.TransactionType.Expense))
+                {
+                    monthExpense[localMonth] += row.Amount;
+                }
+                else if (IsTransactionType(row.Type, TransactionDomainConstants.TransactionType.Transfer))
+                {
+                    // Las transferencias sólo afectan el saldo; jamás se suman como ingreso o gasto.
+                    monthNetTransfers[localMonth] += row.BalanceImpact;
+                }
+            }
+
+            var months = new List<AccountAnnualSummaryMonth>(12);
+            var runningBalance = openingBalance;
+            var yearIncome = 0m;
+            var yearExpense = 0m;
+            var yearNetTransfers = 0m;
+
+            for (var month = 1; month <= 12; month++)
+            {
+                var income = RoundMoney(monthIncome[month]);
+                var expense = RoundMoney(monthExpense[month]);
+                var netTransfers = RoundMoney(monthNetTransfers[month]);
+
+                // Saldo de cierre = saldo anterior + ingresos - gastos + transferencias netas.
+                // Un mes sin movimientos conserva el saldo anterior en lugar de reportar cero.
+                runningBalance = RoundMoney(runningBalance + income - expense + netTransfers);
+
+                months.Add(new AccountAnnualSummaryMonth
+                {
+                    Month = month,
+                    Income = income,
+                    Expense = expense,
+                    NetTransfers = netTransfers,
+                    ClosingBalance = runningBalance
+                });
+
+                yearIncome += income;
+                yearExpense += expense;
+                yearNetTransfers += netTransfers;
+            }
+
+            return new AccountAnnualSummary
+            {
+                AccountId = accountId,
+                Year = resolvedYear,
+                OpeningBalance = openingBalance,
+                Months = months,
+                YearIncome = RoundMoney(yearIncome),
+                YearExpense = RoundMoney(yearExpense),
+                YearNetTransfers = RoundMoney(yearNetTransfers),
+                ClosingBalance = runningBalance
+            };
+        }
+
         public async Task<IEnumerable<CreditInstallmentOpenItem>> GetOpenCreditInstallmentsAsync(int creditAccountId)
         {
             var rows = await _repository.Get<CreditInstallment>()
@@ -318,6 +421,11 @@ namespace GastosApp.BusinessLogic.Services
         private static bool IsTransactionType(string? actual, string expected)
         {
             return string.Equals(actual, expected, StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static decimal RoundMoney(decimal value)
+        {
+            return Math.Round(value, 2, MidpointRounding.AwayFromZero);
         }
 
         private sealed class TransactionAggregateRow

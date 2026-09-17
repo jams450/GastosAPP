@@ -39,7 +39,7 @@ export function CreditFields({ form, errors, onChange }: Props) {
             label="Límite de crédito"
             type="number"
             step="0.01"
-            min="0"
+            min="0.01"
             value={form.creditLimit ?? ""}
             error={errors.creditLimit}
             onChange={(event) => onChange("creditLimit", event.target.value ? Number(event.target.value) : null)}

@@ -26,6 +26,18 @@ namespace GastosApp.BusinessLogic.Models.Dashboard
         public decimal CutoffPending { get; set; }
         public decimal MsiOutstanding { get; set; }
         public decimal NormalOutstanding { get; set; }
+
+        /// <summary>
+        /// Deuda canónica de la cuenta: saldo normal pendiente + MSI pendiente.
+        /// Es un snapshot actual, no depende del mes consultado. Cero en cuentas no-crédito.
+        /// </summary>
+        public decimal CurrentDebt => NormalOutstanding + MsiOutstanding;
+
+        /// <summary>
+        /// Crédito disponible actual = CreditLimit - CurrentDebt. Puede ser negativo.
+        /// Null cuando la cuenta no tiene límite declarado (no se inventa porcentaje de uso).
+        /// </summary>
+        public decimal? CreditAvailable => CreditLimit.HasValue ? CreditLimit.Value - CurrentDebt : null;
     }
 
     public class DashboardOverviewResponse
@@ -69,7 +81,16 @@ namespace GastosApp.BusinessLogic.Models.Dashboard
 
     public class DashboardCreditSectionSummary
     {
+        /// <summary>Crédito disponible total actual = suma de (límite - deuda). Snapshot, no del mes.</summary>
         public decimal TotalAvailable { get; set; }
+        /// <summary>Límite de crédito total declarado (0 si no aplica).</summary>
+        public decimal TotalLimit { get; set; }
+        /// <summary>Deuda total actual = TotalNormalDebt + TotalMsiDebt.</summary>
+        public decimal TotalDebt { get; set; }
+        /// <summary>Deuda normal (revolving) total pendiente. Snapshot actual.</summary>
+        public decimal TotalNormalDebt { get; set; }
+        /// <summary>Deuda MSI total pendiente. Snapshot actual.</summary>
+        public decimal TotalMsiDebt { get; set; }
         public decimal MonthIncome { get; set; }
         public decimal MonthExpense { get; set; }
         public decimal MonthNet { get; set; }

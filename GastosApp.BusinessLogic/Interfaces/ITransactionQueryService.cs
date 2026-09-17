@@ -1,3 +1,4 @@
+using GastosApp.BusinessLogic.Models.Accounts;
 using GastosApp.BusinessLogic.Models.Transactions;
 using GastosApp.Models.Entities;
 
@@ -17,6 +18,7 @@ namespace GastosApp.BusinessLogic.Interfaces
         Task<PagedTransactions> QueryByAccountForUserAsync(int accountId, int userId, TransactionQuery query);
         Task<TransactionAggregateResult> QueryAcrossAccountsForUserAsync(int userId, TransactionAggregateQuery query);
         Task<decimal> CalculateAccountBalanceAsync(int accountId);
+        Task<AccountAnnualSummary?> GetAccountAnnualSummaryAsync(int accountId, int userId, int? year);
         Task<IEnumerable<CreditInstallmentOpenItem>> GetOpenCreditInstallmentsAsync(int creditAccountId);
         Task<IEnumerable<CreditChargeSummaryItem>> GetCreditChargeSummariesAsync(IEnumerable<int> sourceTransactionIds);
     }

@@ -12,7 +12,7 @@ Este documento es ejecutable: cada tarea nombra archivo y verificación. No cont
 1. Reglas deterministas de categorización (`catalog_rules`) que asignen categoría/subcategoría sin LLM.
 2. Presupuestos mensuales por categoría **o** subcategoría, en MXN, sin rollover.
 3. Alertas cuando el gasto del mes cruza umbrales configurables.
-4. Entrega de alertas **exclusivamente por Telegram**, idempotente y con outbox transaccional.
+4. Entrega de alertas **exclusivamente por Telegram**, idempotente en la creación y con outbox transaccional de entrega best-effort acotada.
 
 ---
 

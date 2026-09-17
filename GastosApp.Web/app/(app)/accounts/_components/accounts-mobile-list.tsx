@@ -1,6 +1,8 @@
+import Link from "next/link";
 import type { Account } from "@/lib/contracts/accounts";
 import { formatCurrency } from "@/lib/format/currency";
 import { AlertCircle, Inbox } from "lucide-react";
+import { accountAnnualSummaryHref } from "../_lib/accounts-annual-ui";
 import { getAccountStatusBadgeClass, getAccountStatusLabel, getAccountTypeBadgeClass, getAccountTypeLabel } from "../_lib/accounts-ui";
 import { AccountActionsMenu } from "./account-actions-menu";
 
@@ -56,9 +58,16 @@ export function AccountsMobileList({ rows, loading, errorMessage, onEdit, onTogg
       {rows.map((account) => (
         <article key={account.accountId} className="border border-default bg-[var(--color-surface-2)] p-3">
           <header className="flex items-start justify-between gap-2 pb-2">
-            <div>
-              <p className="text-primary text-sm font-extrabold">{account.name}</p>
-              <p className="text-muted text-xs">Saldo: {formatCurrency(account.currentBalance)}</p>
+            <div className="min-w-0">
+              <Link
+                href={accountAnnualSummaryHref(account.accountId)}
+                className="focus-ring group inline-flex flex-col items-start gap-0.5"
+                title={`Ver histórico anual de ${account.name}`}
+              >
+                <span className="text-primary text-sm font-extrabold group-hover:underline">{account.name}</span>
+                <span className="text-muted text-[11px] font-medium">Ver histórico</span>
+              </Link>
+              <p className="text-muted mt-1 text-xs">Saldo: {formatCurrency(account.currentBalance)}</p>
             </div>
             <span className="sr-only">Cuenta activa para acciones rápidas</span>
           </header>

@@ -54,10 +54,10 @@ public class AccountUpdateRequest
                 new[] { nameof(DueDay) });
         }
 
-        if (IsCredit == true && CreditLimit <= 0)
+        if (CreditLimit.HasValue && CreditLimit.Value <= 0)
         {
             yield return new ValidationResult(
-                "CreditLimit must be greater than 0 when IsCredit is true",
+                "CreditLimit must be greater than 0 when provided",
                 new[] { nameof(CreditLimit) });
         }
 

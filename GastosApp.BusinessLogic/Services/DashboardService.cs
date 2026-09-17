@@ -18,6 +18,9 @@ namespace GastosApp.BusinessLogic.Services
         private const int MinProjectionMonths = 1;
         private const int MaxProjectionMonths = 24;
         private const int MinTrendSampleMonths = 3;
+
+        /// <summary>Límite defensivo: la descripción del cargo fuente es TEXT en BD y puede ser arbitrariamente larga.</summary>
+        private const int MaxMsiSourceDescriptionLength = 200;
         private readonly IRepository _repository;
 
         public DashboardService(IRepository repository)
@@ -51,6 +54,14 @@ namespace GastosApp.BusinessLogic.Services
 
             var creditAccounts = accounts.Where(a => a.IsCredit).ToList();
             var cashAccounts = accounts.Where(a => !a.IsCredit).ToList();
+
+            // Snapshot de crédito actual (no del mes): deuda = normal + MSI, disponible = límite - deuda.
+            // Se calcula por cuenta una sola vez (CurrentDebt/CreditAvailable) y el total es la suma.
+            var totalNormalDebt = creditAccounts.Sum(a => a.NormalOutstanding);
+            var totalMsiDebt = creditAccounts.Sum(a => a.MsiOutstanding);
+            var totalDebt = creditAccounts.Sum(a => a.CurrentDebt);
+            var totalLimit = creditAccounts.Sum(a => a.CreditLimit ?? 0m);
+            var totalAvailable = creditAccounts.Sum(a => a.CreditAvailable ?? 0m);
 
             return new DashboardOverviewResponse
             {
@@ -119,7 +130,11 @@ namespace GastosApp.BusinessLogic.Services
                 },
                 CreditSummary = new DashboardCreditSectionSummary
                 {
-                    TotalAvailable = creditAccounts.Sum(a => a.ClosingBalance),
+                    TotalAvailable = totalAvailable,
+                    TotalLimit = totalLimit,
+                    TotalDebt = totalDebt,
+                    TotalNormalDebt = totalNormalDebt,
+                    TotalMsiDebt = totalMsiDebt,
                     MonthIncome = financialSummary.CreditIncome,
                     MonthExpense = financialSummary.CreditExpense,
                     MonthNet = creditAccounts.Sum(a => a.MonthNet),
@@ -136,8 +151,8 @@ namespace GastosApp.BusinessLogic.Services
                     MonthNormalExpense = monthCreditCharges
                         .Where(c => !string.Equals(c.PlanType, TransactionDomainConstants.CreditPlanType.Msi, StringComparison.OrdinalIgnoreCase))
                         .Sum(c => c.Amount),
-                    PendingMsi = creditAccounts.Sum(a => a.MsiOutstanding),
-                    PendingNormal = creditAccounts.Sum(a => a.NormalOutstanding)
+                    PendingMsi = totalMsiDebt,
+                    PendingNormal = totalNormalDebt
                 },
                 CashSummary = new DashboardCashSectionSummary
                 {
@@ -178,6 +193,7 @@ namespace GastosApp.BusinessLogic.Services
 
             var transactions = await _repository.Get<Transaction>(t =>
                     t.Account.UserId == userId &&
+                    t.Account.Active &&
                     t.TransactionDate >= historyStartUtc &&
                     t.TransactionDate < historyEndUtc)
                 .Include(t => t.Account)
@@ -193,9 +209,13 @@ namespace GastosApp.BusinessLogic.Services
             foreach (var bucket in historyBuckets)
             {
                 var monthKey = FormatMonthKey(bucket.Year, bucket.Month);
-                var summary = transactionsByMonth.TryGetValue(monthKey, out var monthTransactions)
-                    ? CalculateFinancialSummary(monthTransactions, accountCreditTypes)
-                    : new DashboardFinancialSummary();
+                var summary = new DashboardFinancialSummary();
+                var hasActivity = false;
+                if (transactionsByMonth.TryGetValue(monthKey, out var bucketTransactions) && bucketTransactions.Count > 0)
+                {
+                    hasActivity = true;
+                    summary = CalculateFinancialSummary(bucketTransactions, accountCreditTypes);
+                }
 
                 // Sólo flujo de efectivo: income/expense en cuentas no crédito y el lado cash→credit
                 // de las transferencias (mismas reglas que CalculateFinancialSummary del overview).
@@ -206,7 +226,9 @@ namespace GastosApp.BusinessLogic.Services
                     Month = monthKey,
                     Income = income,
                     Expense = expense,
-                    Net = RoundMoney(income - expense)
+                    Net = RoundMoney(income - expense),
+                    // Ausencia explícita: un bucket vacío no es "neto 0 registrado".
+                    HasActivity = hasActivity
                 });
             }
 
@@ -299,9 +321,13 @@ namespace GastosApp.BusinessLogic.Services
         {
             var rows = await _repository.Get<CreditInstallment>(i =>
                     i.Plan.Account.UserId == userId &&
+                    i.Plan.Account.Active &&
                     i.Plan.PlanType == TransactionDomainConstants.CreditPlanType.Msi)
                 .Include(i => i.Plan)
                 .ThenInclude(p => p.Account)
+                .Include(i => i.Plan)
+                .ThenInclude(p => p.SourceCharge)
+                .ThenInclude(c => c.SourceTransaction)
                 .ToListAsync();
 
             rows = rows
@@ -332,6 +358,7 @@ namespace GastosApp.BusinessLogic.Services
                         PlanId = row.PlanId,
                         AccountId = row.Plan.AccountId,
                         AccountName = row.Plan.Account.Name,
+                        Description = NormalizeMsiSourceDescription(row.Plan.SourceCharge?.SourceTransaction?.Description),
                         DueDate = row.DueDate,
                         TotalDue = row.TotalDue,
                         RemainingAmount = Math.Max(row.TotalDue - paid, 0m)
@@ -355,6 +382,7 @@ namespace GastosApp.BusinessLogic.Services
                         PlanId = group.Key,
                         AccountId = rows[0].AccountId,
                         AccountName = rows[0].AccountName,
+                        Description = rows.Select(r => r.Description).FirstOrDefault(d => !string.IsNullOrWhiteSpace(d)) ?? string.Empty,
                         RemainingAmount = RoundMoney(rows.Sum(r => r.RemainingAmount)),
                         OpenInstallments = rows.Count,
                         NextDueDate = next.DueDate == default ? null : next.DueDate,
@@ -382,6 +410,19 @@ namespace GastosApp.BusinessLogic.Services
         private static decimal RoundMoney(decimal value)
         {
             return Math.Round(value, 2, MidpointRounding.AwayFromZero);
+        }
+
+        private static string NormalizeMsiSourceDescription(string? description)
+        {
+            if (string.IsNullOrWhiteSpace(description))
+            {
+                return string.Empty;
+            }
+
+            var trimmed = description.Trim();
+            return trimmed.Length <= MaxMsiSourceDescriptionLength
+                ? trimmed
+                : trimmed[..MaxMsiSourceDescriptionLength];
         }
 
         private async Task<List<DashboardAccountSqlRow>> QueryAccountOverviewRowsAsync(
@@ -427,6 +468,7 @@ namespace GastosApp.BusinessLogic.Services
         {
             return await _repository.Get<Transaction>(t =>
                     t.Account.UserId == userId &&
+                    t.Account.Active &&
                     t.TransactionDate >= monthStart &&
                     t.TransactionDate < nextMonthStart)
                 .Include(t => t.Account)
@@ -437,7 +479,7 @@ namespace GastosApp.BusinessLogic.Services
 
         private async Task<Dictionary<int, bool>> QueryUserAccountCreditTypesAsync(int userId)
         {
-            return await _repository.Get<Account>(a => a.UserId == userId)
+            return await _repository.Get<Account>(a => a.UserId == userId && a.Active)
                 .AsNoTracking()
                 .ToDictionaryAsync(a => a.AccountId, a => a.IsCredit);
         }
@@ -593,6 +635,7 @@ namespace GastosApp.BusinessLogic.Services
         {
             return await _repository.Get<CreditCharge>(c =>
                     c.Account.UserId == userId &&
+                    c.Account.Active &&
                     c.OccurredAt >= monthStart &&
                     c.OccurredAt < nextMonthStart)
                 .Include(c => c.InstallmentPlan)
@@ -670,6 +713,7 @@ namespace GastosApp.BusinessLogic.Services
             public int PlanId { get; set; }
             public int AccountId { get; set; }
             public string AccountName { get; set; } = string.Empty;
+            public string Description { get; set; } = string.Empty;
             public DateTime DueDate { get; set; }
             public decimal TotalDue { get; set; }
             public decimal RemainingAmount { get; set; }

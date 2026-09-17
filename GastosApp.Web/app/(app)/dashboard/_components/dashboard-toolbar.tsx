@@ -1,6 +1,6 @@
 import type { DashboardViewMode } from "@/app/(app)/dashboard/_components/dashboard-view-mode";
 import { dashboardViewModeLabel } from "@/app/(app)/dashboard/_components/dashboard-view-mode";
-import { CalendarDays, LayoutGrid, SlidersHorizontal } from "lucide-react";
+import { CalendarDays, History, LayoutGrid, SlidersHorizontal } from "lucide-react";
 import { cn } from "@/lib/ui/cn";
 
 type DashboardToolbarProps = {
@@ -9,6 +9,11 @@ type DashboardToolbarProps = {
   viewMode: DashboardViewMode;
   onMonthChange: (value: string) => void;
   onViewModeChange: (mode: DashboardViewMode) => void;
+  /** El mes sólo aplica a las pestañas Resumen y Efectivo. */
+  showMonth: boolean;
+  showViewMode: boolean;
+  /** Etiqueta para pestañas que muestran un snapshot al día de hoy. */
+  snapshotLabel?: string | null;
 };
 
 const viewModes: DashboardViewMode[] = ["detail", "headers", "grid2", "grid3"];
@@ -18,7 +23,10 @@ export function DashboardToolbar({
   timezone,
   viewMode,
   onMonthChange,
-  onViewModeChange
+  onViewModeChange,
+  showMonth,
+  showViewMode,
+  snapshotLabel
 }: DashboardToolbarProps) {
   return (
     <section className="app-panel overflow-hidden p-4 shadow-[var(--shadow-sm)] sm:p-5">
@@ -34,47 +42,56 @@ export function DashboardToolbar({
         </div>
 
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end lg:justify-end">
-          <div className="grid gap-1">
-             <label className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted" htmlFor="dashboard-month">
-               <CalendarDays className="h-3.5 w-3.5" aria-hidden="true" />
-               Mes
-             </label>
-             <input
-              id="dashboard-month"
-              type="month"
-              value={month}
-              onChange={(event) => onMonthChange(event.target.value)}
-               className="input-semantic h-10 min-w-44 px-3 text-sm focus-ring"
-            />
-          </div>
-
-          <div className="grid gap-1">
-             <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted">
-               <LayoutGrid className="h-3.5 w-3.5" aria-hidden="true" />
-               Visualización
-             </span>
-              <div className="grid min-h-11 grid-cols-2 rounded-[var(--radius-sm)] border border-default bg-[var(--color-surface-1)] p-1 sm:inline-flex sm:grid-cols-none">
-              {viewModes.map((mode) => {
-                const isActive = mode === viewMode;
-                return (
-                  <button
-                    key={mode}
-                    type="button"
-                    onClick={() => onViewModeChange(mode)}
-                    className={cn(
-                       "dashboard-touch-target rounded-md px-3 py-1.5 text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-border-focus)]",
-                      isActive
-                         ? "bg-[var(--color-accent-soft)] text-primary"
-                         : "text-muted hover:bg-[var(--color-surface-3)] hover:text-primary"
-                    )}
-                    aria-pressed={isActive}
-                  >
-                    {dashboardViewModeLabel[mode]}
-                  </button>
-                );
-              })}
+          {showMonth ? (
+            <div className="grid gap-1">
+              <label className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted" htmlFor="dashboard-month">
+                <CalendarDays className="h-3.5 w-3.5" aria-hidden="true" />
+                Mes
+              </label>
+              <input
+                id="dashboard-month"
+                type="month"
+                value={month}
+                onChange={(event) => onMonthChange(event.target.value)}
+                className="input-semantic h-10 min-w-44 px-3 text-sm focus-ring"
+              />
             </div>
-          </div>
+          ) : snapshotLabel ? (
+            <p className="m-0 inline-flex min-h-10 items-center gap-2 rounded-[var(--radius-sm)] border border-default bg-[var(--color-surface-2)] px-3 text-xs font-medium text-muted">
+              <History className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+              {snapshotLabel}
+            </p>
+          ) : null}
+
+          {showViewMode ? (
+            <div className="grid gap-1">
+              <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted">
+                <LayoutGrid className="h-3.5 w-3.5" aria-hidden="true" />
+                Visualización
+              </span>
+              <div className="grid min-h-11 grid-cols-2 rounded-[var(--radius-sm)] border border-default bg-[var(--color-surface-1)] p-1 sm:inline-flex sm:grid-cols-none">
+                {viewModes.map((mode) => {
+                  const isActive = mode === viewMode;
+                  return (
+                    <button
+                      key={mode}
+                      type="button"
+                      onClick={() => onViewModeChange(mode)}
+                      className={cn(
+                        "dashboard-touch-target rounded-md px-3 py-1.5 text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-border-focus)]",
+                        isActive
+                          ? "bg-[var(--color-accent-soft)] text-primary"
+                          : "text-muted hover:bg-[var(--color-surface-3)] hover:text-primary"
+                      )}
+                      aria-pressed={isActive}
+                    >
+                      {dashboardViewModeLabel[mode]}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ) : null}
         </div>
       </div>
     </section>

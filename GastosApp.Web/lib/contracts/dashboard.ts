@@ -23,6 +23,18 @@ export type DashboardAccountOverview = {
   cutoffPending: number;
   msiOutstanding: number;
   normalOutstanding: number;
+  /**
+   * Deuda canónica de la cuenta (normal pendiente + MSI pendiente), calculada por backend.
+   * Snapshot actual: no depende del mes consultado. Si el backend no la envía,
+   * `normalizeAccount` la deriva de los saldos pendientes.
+   */
+  currentDebt: number;
+  /**
+   * Disponible de crédito calculado por backend = límite - deuda; puede ser negativo.
+   * `null` significa "sin límite declarado", no "cero".
+   * Mientras no exista, el frontend lo deriva con `resolveAccountCredit`.
+   */
+  creditAvailable: number | null;
 };
 
 type UnknownRecord = Record<string, unknown>;
@@ -76,6 +88,9 @@ function normalizeAccount(input: unknown): DashboardAccountOverview | null {
     return null;
   }
 
+  const normalOutstanding = toFiniteNumber(input.normalOutstanding);
+  const msiOutstanding = toFiniteNumber(input.msiOutstanding);
+
   return {
     accountId,
     name: typeof input.name === "string" && input.name.trim().length > 0 ? input.name.trim() : "Sin nombre",
@@ -99,8 +114,11 @@ function normalizeAccount(input: unknown): DashboardAccountOverview | null {
     estimatedCutoffCharges: toFiniteNumber(input.estimatedCutoffCharges),
     cutoffPayments: toFiniteNumber(input.cutoffPayments),
     cutoffPending: toFiniteNumber(input.cutoffPending),
-    msiOutstanding: toFiniteNumber(input.msiOutstanding),
-    normalOutstanding: toFiniteNumber(input.normalOutstanding)
+    msiOutstanding,
+    normalOutstanding,
+    // Canónico del backend; sin campo se deriva para no inventar una deuda distinta.
+    currentDebt: toOptionalFiniteNumber(input.currentDebt) ?? normalOutstanding + msiOutstanding,
+    creditAvailable: toOptionalFiniteNumber(input.creditAvailable)
   };
 }
 
@@ -130,7 +148,16 @@ export type DashboardCharts = {
 };
 
 export type DashboardCreditSectionSummary = {
+  /** Suma de (límite - deuda) de las cuentas de crédito activas. Snapshot actual, no del mes. */
   totalAvailable: number;
+  /** Límite de crédito total declarado (0 si no aplica). */
+  totalLimit: number;
+  /** Deuda total actual = totalNormalDebt + totalMsiDebt. */
+  totalDebt: number;
+  /** Deuda normal (revolving) total pendiente. Snapshot actual. */
+  totalNormalDebt: number;
+  /** Deuda MSI total pendiente. Snapshot actual. */
+  totalMsiDebt: number;
   monthIncome: number;
   monthExpense: number;
   monthNet: number;
@@ -203,6 +230,10 @@ export function normalizeDashboardOverview(input: unknown): DashboardOverviewRes
       },
       creditSummary: {
         totalAvailable: 0,
+        totalLimit: 0,
+        totalDebt: 0,
+        totalNormalDebt: 0,
+        totalMsiDebt: 0,
         monthIncome: 0,
         monthExpense: 0,
         monthNet: 0,
@@ -254,6 +285,10 @@ export function normalizeDashboardOverview(input: unknown): DashboardOverviewRes
     },
     creditSummary: {
       totalAvailable: toFiniteNumber(creditSummaryInput.totalAvailable),
+      totalLimit: toFiniteNumber(creditSummaryInput.totalLimit),
+      totalDebt: toFiniteNumber(creditSummaryInput.totalDebt),
+      totalNormalDebt: toFiniteNumber(creditSummaryInput.totalNormalDebt),
+      totalMsiDebt: toFiniteNumber(creditSummaryInput.totalMsiDebt),
       monthIncome: toFiniteNumber(creditSummaryInput.monthIncome),
       monthExpense: toFiniteNumber(creditSummaryInput.monthExpense),
       monthNet: toFiniteNumber(creditSummaryInput.monthNet),
@@ -287,6 +322,11 @@ export type DashboardProjectionHistoricalMonth = {
   income: number;
   expense: number;
   net: number;
+  /**
+   * `false` = sin movimientos registrados en el mes (ausencia de historial), no un neto de cero.
+   * Si el backend no envía el campo se deriva de income/expense para no pintar ceros fabricados.
+   */
+  hasActivity: boolean;
 };
 
 export type DashboardProjectionTrend = {
@@ -301,13 +341,16 @@ export type DashboardProjectionMonth = {
   projectedCashBalance: number;
   projectedNet: number;
   msiCommitment: number;
-  msiPaymentScenarioBalance: number;
+  /** Saldo con pagos MSI; `null` si upstream no aporta escenario explícito. */
+  msiPaymentScenarioBalance: number | null;
 };
 
 export type DashboardProjectionMsiPlan = {
   planId: string | null;
   accountId: number | null;
   accountName: string;
+  /** Texto del cargo MSI cuando upstream lo aporta; ausente no se convierte en dato inventado. */
+  description: string | null;
   remainingAmount: number;
   openInstallments: number | null;
   nextDueDate: string | null;
@@ -349,11 +392,15 @@ function normalizeProjectionHistoricalMonth(input: unknown): DashboardProjection
     return null;
   }
 
+  const income = toFiniteNumber(input.income);
+  const expense = toFiniteNumber(input.expense);
+
   return {
     month,
-    income: toFiniteNumber(input.income),
-    expense: toFiniteNumber(input.expense),
-    net: toFiniteNumber(input.net ?? toFiniteNumber(input.income) - toFiniteNumber(input.expense))
+    income,
+    expense,
+    net: toFiniteNumber(input.net ?? income - expense),
+    hasActivity: typeof input.hasActivity === "boolean" ? input.hasActivity : income !== 0 || expense !== 0
   };
 }
 
@@ -374,8 +421,10 @@ function normalizeProjectionMonth(input: unknown): DashboardProjectionMonth | nu
     projectedCashBalance,
     projectedNet: toFiniteNumber(input.projectedNet),
     msiCommitment: toFiniteNumber(input.msiCommitment),
-    // Sin escenario explícito, el saldo base es el mejor sustituto: no inventa impacto MSI.
-    msiPaymentScenarioBalance: toFiniteNumber(input.msiPaymentScenarioBalance ?? projectedCashBalance)
+    msiPaymentScenarioBalance:
+      input.msiPaymentScenarioBalance === null || input.msiPaymentScenarioBalance === undefined
+        ? null
+        : toFiniteNumber(input.msiPaymentScenarioBalance)
   };
 }
 
@@ -398,6 +447,7 @@ function normalizeProjectionMsiPlan(input: unknown): DashboardProjectionMsiPlan 
       typeof input.accountName === "string" && input.accountName.trim().length > 0
         ? input.accountName.trim()
         : "Cuenta sin nombre",
+    description: typeof input.description === "string" && input.description.trim().length > 0 ? input.description.trim() : null,
     remainingAmount: toFiniteNumber(input.remainingAmount),
     openInstallments: toOptionalInt(input.openInstallments),
     nextDueDate: toOptionalDateString(input.nextDueDate),

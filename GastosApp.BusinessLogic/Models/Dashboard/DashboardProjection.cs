@@ -18,6 +18,12 @@ namespace GastosApp.BusinessLogic.Models.Dashboard
         public decimal Income { get; set; }
         public decimal Expense { get; set; }
         public decimal Net { get; set; }
+
+        /// <summary>
+        /// True sólo si el mes tiene movimientos registrados. False significa "sin historial",
+        /// no un neto de cero: la UI no debe pintarlo como neto registrado.
+        /// </summary>
+        public bool HasActivity { get; set; }
     }
 
     public class DashboardProjectionTrend
@@ -43,6 +49,14 @@ namespace GastosApp.BusinessLogic.Models.Dashboard
         public int PlanId { get; set; }
         public int AccountId { get; set; }
         public string AccountName { get; set; } = string.Empty;
+
+        /// <summary>
+        /// Descripción del cargo fuente (<c>CreditCharge.SourceTransaction.Description</c>), sólo
+        /// informativa. Se normaliza (trim + longitud máxima) y nunca contiene datos sensibles de
+        /// configuración; es texto capturado por el propio usuario.
+        /// </summary>
+        public string Description { get; set; } = string.Empty;
+
         public decimal RemainingAmount { get; set; }
         public int OpenInstallments { get; set; }
         public DateTime? NextDueDate { get; set; }

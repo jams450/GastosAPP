@@ -88,8 +88,9 @@ public sealed class TelegramWebhookController : ControllerBase
     }
 
     /// <summary>
-    /// La configuración solo siembra la identidad la primera vez. Una vez que existe fila en BD,
-    /// la BD es la autoridad (cambios en <c>Telegram:AllowedUserId</c>/<c>AppUserId</c> no re-autorizan).
+    /// La configuración siembra la identidad la primera vez, pero la allowlist single-user se
+    /// revalida en <b>cada</b> webhook: una fila persistida ya no basta si la configuración
+    /// dejó de autorizar al usuario/chat o el enlace apunta a otro usuario de Gastos.
     /// La autorización final siempre revalida identidad y usuario de Gastos activos.
     /// </summary>
     private async Task<TelegramIdentity?> ResolveIdentityAsync(
@@ -119,8 +120,26 @@ public sealed class TelegramWebhookController : ControllerBase
 
         // Autorización final: revalida la fila activa y que el usuario de Gastos dueño siga activo.
         // Null si la identidad está desactivada o su usuario fue desactivado.
-        return await _identities.GetActiveByTelegramUserIdAsync(telegramUserId, cancellationToken);
+        var identity = await _identities.GetActiveByTelegramUserIdAsync(telegramUserId, cancellationToken);
+        if (identity is null)
+        {
+            return null;
+        }
+
+        // Allowlist/config single-user aplicada SIEMPRE, incluso con identidad ya existente.
+        return IsAllowed(identity, telegramUserId, chatId) ? identity : null;
     }
+
+    /// <summary>
+    /// El usuario/chat de Telegram y el usuario de Gastos enlazado deben coincidir con la
+    /// configuración vigente. Sin logs ni detalle de qué parte falló (respuesta genérica).
+    /// </summary>
+    private bool IsAllowed(TelegramIdentity identity, long telegramUserId, long chatId) =>
+        telegramUserId == _options.AllowedUserId
+        && chatId == _options.AllowedUserId
+        && identity.TelegramUserId == _options.AllowedUserId
+        && identity.TelegramChatId == _options.AllowedUserId
+        && identity.UserId == _options.AppUserId;
 
     private static bool HasValidSecret(string providedSecret, string expectedSecret)
     {

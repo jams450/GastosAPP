@@ -1,4 +1,5 @@
 using GastosApp.AI.Intent;
+using GastosApp.API.BackgroundServices;
 using GastosApp.API.Interfaces;
 using GastosApp.API.Services;
 using GastosApp.API.Services.Telegram;
@@ -49,6 +50,14 @@ public static class ServiceCollectionExtensions
         services.AddScoped<TelegramBotClientProvider>();
         services.AddSingleton<TelegramRateLimiter>();
         services.AddScoped<ITelegramUpdateService, TelegramUpdateService>();
+
+        services.AddScoped<ICatalogRuleService, CatalogRuleService>();
+        services.AddScoped<IBudgetService, BudgetService>();
+        services.AddScoped<IAlertEvaluationService, AlertEvaluationService>();
+        services.AddScoped<ITelegramAlertSender, TelegramAlertSender>();
+
+        services.AddHostedService<AlertEvaluationBackgroundService>();
+        services.AddHostedService<AlertDispatchBackgroundService>();
 
         return services;
     }

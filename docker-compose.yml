@@ -40,6 +40,11 @@ services:
       - Telegram__WebhookSecret=${Telegram__WebhookSecret}
       - Telegram__AllowedUserId=${Telegram__AllowedUserId}
       - Telegram__AppUserId=${Telegram__AppUserId}
+      - Alerts__Enabled=${Alerts__Enabled}
+      - Alerts__EvaluationIntervalMinutes=${Alerts__EvaluationIntervalMinutes}
+      - Alerts__DispatchSeconds=${Alerts__DispatchSeconds}
+      - Alerts__BatchSize=${Alerts__BatchSize}
+      - Alerts__MaxAttempts=${Alerts__MaxAttempts}
       - Llm__BaseUrl=${Llm__BaseUrl}
       - Llm__ApiKey=${Llm__ApiKey}
       - Llm__Model=${Llm__Model}

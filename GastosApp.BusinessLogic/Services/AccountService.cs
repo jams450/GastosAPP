@@ -120,6 +120,12 @@ namespace GastosApp.BusinessLogic.Services
                 var account = lockedAccounts.SingleOrDefault();
                 if (account == null || account.UserId != userId) return false;
 
+                // Reactivar una cuenta de crédito sin límite dejaría persistir un crédito inválido.
+                if (active && account.IsCredit && (!account.CreditLimit.HasValue || account.CreditLimit.Value <= 0))
+                {
+                    throw new ArgumentException("CreditLimit must be greater than 0 when IsCredit is true");
+                }
+
                 account.Active = active;
                 await _repository.SaveChangesAsync();
                 return true;
@@ -149,6 +155,12 @@ namespace GastosApp.BusinessLogic.Services
             if (account.IsCredit && !account.DueDay.HasValue)
             {
                 return (false, "DueDay is required when IsCredit is true");
+            }
+
+            // Una cuenta de crédito sin límite no debe persistir: sin límite no hay disponible calculable.
+            if (account.IsCredit && (!account.CreditLimit.HasValue || account.CreditLimit.Value <= 0))
+            {
+                return (false, "CreditLimit must be greater than 0 when IsCredit is true");
             }
 
             if (account.EarnsInterest && account.AnnualInterestRate <= 0)

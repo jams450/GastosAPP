@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "ESLINT_USE_FLAT_CONFIG=false eslint . --ext .js,.jsx,.ts,.tsx",
     "lint:fix": "ESLINT_USE_FLAT_CONFIG=false eslint . --ext .js,.jsx,.ts,.tsx --fix",
-    "test": "node --experimental-strip-types --test 'app/(app)/transactions/_lib/transactions-repeat.test.ts'"
+    "typecheck": "tsc --noEmit",
+    "test": "node --experimental-strip-types --test 'app/(app)/transactions/_lib/transactions-repeat.test.ts' 'app/(app)/dashboard/_lib/dashboard-metrics.test.ts' 'app/(app)/dashboard/_lib/dashboard-tabs.test.ts' 'app/(app)/dashboard/_lib/projection-chart.test.ts' 'app/(app)/budgets/_lib/budget-form-model.test.ts' 'app/(app)/accounts/_lib/accounts-annual-ui.test.ts' 'lib/contracts/dashboard.test.ts' 'lib/contracts/account-annual-summary.test.ts'"
   },
   "dependencies": {
     "@tanstack/react-table": "^8.21.3",

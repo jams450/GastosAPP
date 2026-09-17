@@ -44,6 +44,24 @@ namespace GastosApp.BusinessLogic.Interfaces
         Task<TelegramExpenseDraft?> LockTelegramExpenseDraftAsync(Guid draftId);
 
         /// <summary>
+        /// Reclama una entrega de alerta de forma atómica: inserta <c>alert_deliveries</c> con
+        /// <c>ON CONFLICT (budget_id, threshold_id, period_key) DO NOTHING</c> y, solo si insertó,
+        /// encola su <c>alert_outbox</c> (<c>pending</c>) en la misma sentencia. Devuelve <c>true</c>
+        /// cuando este llamador ganó el candado de idempotencia (1 fila); <c>false</c> si ya existía.
+        /// </summary>
+        Task<bool> ClaimAlertDeliveryAsync(
+            int budgetId,
+            int thresholdId,
+            int userId,
+            string periodKey,
+            decimal thresholdPercent,
+            decimal budgetAmount,
+            decimal spentAmount,
+            decimal percentUsed,
+            string payload,
+            DateTimeOffset nextAttemptAt);
+
+        /// <summary>
         /// Toma un advisory lock de PostgreSQL por <paramref name="chatId"/> dentro de la transacción
         /// actual: serializa la creación de borradores del mismo chat. Se libera al commit/rollback.
         /// </summary>
