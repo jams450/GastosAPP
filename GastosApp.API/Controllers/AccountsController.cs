@@ -253,7 +253,7 @@ namespace GastosApp.API.Controllers
                 if (existingAccount == null)
                     return NotFound(new { Message = $"Account with ID {id} not found" });
 
-                var result = await _accountService.RecalculateBalanceAsync(id);
+                var result = await _accountService.RecalculateBalanceAsync(id, userId);
                 if (!result)
                     return StatusCode(500, new { Message = "Failed to recalculate balance" });
 
@@ -281,7 +281,7 @@ namespace GastosApp.API.Controllers
                     return BadRequest(new { Message = "This endpoint is only for credit accounts" });
 
                 var date = referenceDate ?? DateTime.UtcNow;
-                var result = await _accountService.GetCreditCardExpensesForPeriodAsync(id, date);
+                var result = await _accountService.GetCreditCardExpensesForPeriodAsync(id, userId, date);
 
                 return Ok(new
                 {

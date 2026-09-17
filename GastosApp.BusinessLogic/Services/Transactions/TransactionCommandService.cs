@@ -77,6 +77,7 @@ namespace GastosApp.BusinessLogic.Services
                 if (account.IsCredit)
                 {
                     var paymentResult = await _creditLifecycleService.RegisterCreditPaymentAsync(
+                        userId,
                         account.AccountId,
                         result.TransactionId,
                         result.TransactionDate,
@@ -151,7 +152,7 @@ namespace GastosApp.BusinessLogic.Services
 
                     if (msiMonths.HasValue && msiMonths.Value > 1)
                     {
-                        var convertResult = await _creditLifecycleService.ConvertChargeToMsiAsync(result.TransactionId, msiMonths.Value);
+                        var convertResult = await _creditLifecycleService.ConvertChargeToMsiAsync(userId, result.TransactionId, msiMonths.Value);
                         if (!convertResult.Success)
                         {
                             throw new ArgumentException(convertResult.ErrorMessage ?? "No se pudo convertir cargo a MSI");
@@ -161,22 +162,6 @@ namespace GastosApp.BusinessLogic.Services
 
                 return result;
             });
-        }
-
-        public async Task<Transaction?> UpdateAsync(int id, Transaction transaction)
-        {
-            var existing = await _repository.GetByIdAsync<Transaction>(id);
-            if (existing == null) return null;
-
-            return await UpdateInternalAsync(id, transaction, existing);
-        }
-
-        public async Task<Transaction?> UpdateForUserAsync(int id, int userId, Transaction transaction)
-        {
-            var existing = await _repository.Get<Transaction>(t => t.TransactionId == id && t.Account.UserId == userId).FirstOrDefaultAsync();
-            if (existing == null) return null;
-
-            return await UpdateInternalAsync(id, transaction, existing);
         }
 
         public Task<(Transaction? Transaction, string? ErrorMessage)> UpdateTransactionWithDetailsForUserAsync(
@@ -271,23 +256,6 @@ namespace GastosApp.BusinessLogic.Services
                 }
 
                 return (updated, (string?)null);
-            });
-        }
-
-        public Task<bool> DeleteAsync(int id)
-        {
-            return _repository.ExecuteInTransactionAsync(async () =>
-            {
-                var transactionAccount = await _repository.Get<Transaction>(t => t.TransactionId == id)
-                    .Select(t => t.AccountId)
-                    .FirstOrDefaultAsync();
-                if (transactionAccount == 0) return false;
-
-                await _repository.LockAccountsAsync([transactionAccount]);
-                var transaction = await _repository.LockTransactionAsync(id);
-                if (transaction == null || transaction.AccountId != transactionAccount || IsTransfer(transaction)) return false;
-
-                return await DeleteInternalAsync(id, transaction);
             });
         }
 

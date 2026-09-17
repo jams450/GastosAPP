@@ -178,6 +178,15 @@ public class BancoppelImportService : IBancoppelImportService
 
         return await _repository.ExecuteInTransactionAsync(async () =>
         {
+            // Pre-filtro de solo lectura: UNA consulta para conocer qué huellas del lote ya existen.
+            // Evita entrar al loop de creación (validación de dimensiones + claim) para filas ya importadas.
+            // El claim atómico sigue siendo la autoridad de idempotencia para todo lo que no esté aquí.
+            var existingFingerprints = await LoadExistingFingerprintsAsync(accountId, inputRows, cancellationToken);
+
+            // Cache en memoria por dimensiones: las filas de un estado de cuenta repiten combinaciones
+            // (categoría, subcategoría, comercio); dentro de esta transacción el catálogo no cambia.
+            var dimensionsCache = new Dictionary<(int?, int?, int?), (bool IsValid, string? ErrorMessage)>();
+
             foreach (var row in inputRows)
             {
                 cancellationToken.ThrowIfCancellationRequested();
@@ -203,14 +212,7 @@ public class BancoppelImportService : IBancoppelImportService
                     continue;
                 }
 
-                var temp = new Transaction
-                {
-                    AccountId = accountId,
-                    TransactionDate = DateTime.SpecifyKind(row.TransactionDate.Date, DateTimeKind.Utc),
-                    Amount = row.Amount,
-                    Description = row.Description.Trim(),
-                    Type = row.Type
-                };
+                var temp = BuildFingerprintSource(accountId, row);
 
                 var dedupeKey = BuildKey(temp);
                 if (!commitKeys.Add(dedupeKey))
@@ -220,7 +222,13 @@ public class BancoppelImportService : IBancoppelImportService
                     continue;
                 }
 
-                var dimensionsValidation = await _transactionService.ValidateAnalyticsDimensionsAsync(userId, row.CategoryId, row.SubcategoryId, row.MerchantId);
+                var dimensionsKey = (row.CategoryId, row.SubcategoryId, row.MerchantId);
+                if (!dimensionsCache.TryGetValue(dimensionsKey, out var dimensionsValidation))
+                {
+                    dimensionsValidation = await _transactionService.ValidateAnalyticsDimensionsAsync(userId, row.CategoryId, row.SubcategoryId, row.MerchantId);
+                    dimensionsCache[dimensionsKey] = dimensionsValidation;
+                }
+
                 if (!dimensionsValidation.IsValid)
                 {
                     result.SkippedCount++;
@@ -233,6 +241,13 @@ public class BancoppelImportService : IBancoppelImportService
                 temp.MerchantId = row.MerchantId;
 
                 var fingerprint = BuildFingerprint(temp);
+                if (existingFingerprints.Contains(fingerprint))
+                {
+                    result.SkippedCount++;
+                    result.Warnings.Add($"Posible duplicado existente, omitido: {row.TransactionDate:yyyy-MM-dd} | {row.Description} | {row.Amount}.");
+                    continue;
+                }
+
                 if (!await _repository.ClaimBancoppelImportedRowAsync(accountId, fingerprint))
                 {
                     result.SkippedCount++;
@@ -256,6 +271,66 @@ public class BancoppelImportService : IBancoppelImportService
 
             return result;
         });
+    }
+
+    /// <summary>
+    /// Construye la transacción base cuyos campos alimentan <see cref="BuildFingerprint"/>.
+    /// La huella depende solo de cuenta, tipo, fecha, monto y descripción normalizada:
+    /// las dimensiones analíticas se asignan después, por lo que este objeto puede
+    /// construirse antes de validarlas.
+    /// </summary>
+    private static Transaction BuildFingerprintSource(int accountId, BancoppelImportCommitRow row)
+    {
+        return new Transaction
+        {
+            AccountId = accountId,
+            TransactionDate = DateTime.SpecifyKind(row.TransactionDate.Date, DateTimeKind.Utc),
+            Amount = row.Amount,
+            Description = row.Description.Trim(),
+            Type = row.Type
+        };
+    }
+
+    /// <summary>
+    /// Una sola consulta con las huellas candidatas del lote (mismas guardas baratas que el loop).
+    /// Devuelve las que ya existen para la cuenta. No sustituye al claim atómico: solo evita
+    /// round-trips redundantes de filas evidentemente repetidas.
+    /// </summary>
+    private async Task<HashSet<string>> LoadExistingFingerprintsAsync(int accountId, List<BancoppelImportCommitRow> rows, CancellationToken cancellationToken)
+    {
+        var candidates = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var row in rows)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var isEligible = row.Amount > 0
+                && !string.IsNullOrWhiteSpace(row.Description)
+                && (row.Type == TransactionDomainConstants.TransactionType.Expense || row.Type == TransactionDomainConstants.TransactionType.Income);
+            if (!isEligible)
+            {
+                continue;
+            }
+
+            candidates.Add(BuildFingerprint(BuildFingerprintSource(accountId, row)));
+        }
+
+        var existing = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        if (candidates.Count == 0)
+        {
+            return existing;
+        }
+
+        var candidateList = candidates.ToList();
+        var stored = await _repository
+            .Get<BancoppelImportedRow>(r => r.AccountId == accountId && candidateList.Contains(r.Fingerprint))
+            .Select(r => r.Fingerprint)
+            .ToListAsync(cancellationToken);
+
+        foreach (var fingerprint in stored)
+        {
+            existing.Add(fingerprint);
+        }
+
+        return existing;
     }
 
     private static List<string> ExtractRegularChargesSectionLines(IReadOnlyList<string> allLines, ICollection<string> warnings)

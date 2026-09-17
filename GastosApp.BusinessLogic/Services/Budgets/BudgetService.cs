@@ -270,10 +270,18 @@ namespace GastosApp.BusinessLogic.Services
                 .OrderBy(b => b.Name)
                 .ToListAsync();
 
+            if (budgets.Count == 0)
+            {
+                return Array.Empty<BudgetStatusResult>();
+            }
+
+            // Un solo SUM agrupado por (categoría, subcategoría) sustituye los N SUM por presupuesto.
+            var spentByScope = await GetSpentByScopeAsync(userId, effectivePeriod);
+
             var results = new List<BudgetStatusResult>(budgets.Count);
             foreach (var budget in budgets)
             {
-                var spent = await GetSpentAsync(userId, budget.PeriodKey, budget.CategoryId, budget.SubcategoryId);
+                var spent = ResolveSpent(spentByScope, budget.CategoryId, budget.SubcategoryId);
                 results.Add(BuildStatus(budget, spent));
             }
 
@@ -297,6 +305,60 @@ namespace GastosApp.BusinessLogic.Services
 
             return RoundMoney(total ?? 0m);
         }
+
+        /// <summary>
+        /// Gasto del periodo agrupado por (categoría, subcategoría). Misma condición de gasto que
+        /// <see cref="GetSpentAsync"/>; una sola consulta cubre todos los presupuestos del periodo.
+        /// </summary>
+        private async Task<List<ScopeSpend>> GetSpentByScopeAsync(int userId, string periodKey)
+        {
+            var (_, _, startUtc, nextStartUtc) = MonthRangeResolver.ResolveUtcRange(periodKey, null);
+
+            var rows = await _repository.Get<Transaction>(t =>
+                    t.Account.UserId == userId &&
+                    t.Type == TransactionDomainConstants.TransactionType.Expense &&
+                    t.TransferGroupId == null &&
+                    t.TransactionDate >= startUtc &&
+                    t.TransactionDate < nextStartUtc)
+                .GroupBy(t => new { t.CategoryId, t.SubcategoryId })
+                .Select(g => new
+                {
+                    g.Key.CategoryId,
+                    g.Key.SubcategoryId,
+                    Total = g.Sum(t => (decimal?)t.Amount)
+                })
+                .ToListAsync();
+
+            return rows
+                .Select(r => new ScopeSpend(r.CategoryId, r.SubcategoryId, r.Total ?? 0m))
+                .ToList();
+        }
+
+        /// <summary>
+        /// Presupuesto por categoría incluye sus subcategorías; por subcategoría suma solo la suya.
+        /// Ambos nulos solo aparece en datos legados sin scope: suma el periodo completo, igual que antes.
+        /// </summary>
+        private static decimal ResolveSpent(IReadOnlyList<ScopeSpend> spentByScope, int? categoryId, int? subcategoryId)
+        {
+            decimal total;
+
+            if (subcategoryId.HasValue)
+            {
+                total = spentByScope.Where(r => r.SubcategoryId == subcategoryId).Sum(r => r.Total);
+            }
+            else if (categoryId.HasValue)
+            {
+                total = spentByScope.Where(r => r.CategoryId == categoryId).Sum(r => r.Total);
+            }
+            else
+            {
+                total = spentByScope.Sum(r => r.Total);
+            }
+
+            return RoundMoney(total);
+        }
+
+        private sealed record ScopeSpend(int? CategoryId, int? SubcategoryId, decimal Total);
 
         private static BudgetStatusResult BuildStatus(Budget budget, decimal spent)
         {

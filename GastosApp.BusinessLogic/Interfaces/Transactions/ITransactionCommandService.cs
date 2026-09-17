@@ -7,8 +7,6 @@ namespace GastosApp.BusinessLogic.Interfaces
     {
         Task<Transaction> CreateIncomeAsync(Transaction transaction, int userId, IEnumerable<(int InstallmentId, decimal Amount)>? creditAllocations = null, IEnumerable<string>? tags = null);
         Task<Transaction> CreateExpenseAsync(Transaction transaction, int userId, IEnumerable<ExpenseAllocationInput>? allocations = null, IEnumerable<string>? tags = null, int? msiMonths = null);
-        Task<Transaction?> UpdateAsync(int id, Transaction transaction);
-        Task<Transaction?> UpdateForUserAsync(int id, int userId, Transaction transaction);
         Task<(Transaction? Transaction, string? ErrorMessage)> UpdateTransactionWithDetailsForUserAsync(
             int id,
             int userId,
@@ -16,7 +14,6 @@ namespace GastosApp.BusinessLogic.Interfaces
             IEnumerable<string>? tags,
             IEnumerable<ExpenseAllocationInput>? allocations,
             bool replaceAllocations);
-        Task<bool> DeleteAsync(int id);
         Task<bool> DeleteForUserAsync(int id, int userId);
     }
 }

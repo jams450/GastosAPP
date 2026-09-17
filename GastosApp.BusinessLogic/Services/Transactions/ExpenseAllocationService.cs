@@ -18,8 +18,10 @@ namespace GastosApp.BusinessLogic.Services
 
         public async Task<(bool Success, string? ErrorMessage)> ReplaceExpenseAllocationsAsync(int transactionId, int userId, IEnumerable<ExpenseAllocationInput>? allocations, bool fallbackToSelfWhenEmpty = true)
         {
-            var transaction = await _repository.GetByIdAsync<Transaction>(transactionId);
-            if (transaction == null) return (false, "Transaction not found");
+            var transaction = await _repository.Get<Transaction>(t => t.TransactionId == transactionId)
+                .Select(t => new { t.Type, t.Amount, UserId = t.Account.UserId })
+                .FirstOrDefaultAsync();
+            if (transaction == null || transaction.UserId != userId) return (false, "Transaction not found");
             if (!string.Equals(transaction.Type, TransactionDomainConstants.TransactionType.Expense, StringComparison.OrdinalIgnoreCase)) return (true, null);
 
             var normalizedInputs = (allocations ?? [])

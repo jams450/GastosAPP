@@ -17,6 +17,9 @@ namespace GastosApp.BusinessLogic.Services
         private readonly IRepository _repository;
         private readonly IBudgetService _budgetService;
 
+        /// <summary>Compartido y nunca mutado: presupuestos sin entregas del periodo.</summary>
+        private static readonly HashSet<int> EmptyThresholdIds = new();
+
         public AlertEvaluationService(IRepository repository, IBudgetService budgetService)
         {
             _repository = repository;
@@ -41,6 +44,18 @@ namespace GastosApp.BusinessLogic.Services
             var statuses = await _budgetService.GetPeriodStatusAsync(appUserId, periodKey);
             var statusByBudget = statuses.ToDictionary(s => s.BudgetId);
 
+            // Una sola lectura de entregas para todos los presupuestos activos. La garantía de
+            // idempotencia sigue siendo el candado atómico del Claim; esto solo evita intentos obvios.
+            var activeBudgetIds = activeBudgets.Select(b => b.BudgetId).ToList();
+            var deliveries = await _repository
+                .Get<AlertDelivery>(d => d.PeriodKey == periodKey && activeBudgetIds.Contains(d.BudgetId))
+                .Select(d => new { d.BudgetId, d.ThresholdId })
+                .ToListAsync(cancellationToken);
+
+            var deliveredByBudget = deliveries
+                .GroupBy(d => d.BudgetId)
+                .ToDictionary(g => g.Key, g => g.Select(d => d.ThresholdId).ToHashSet());
+
             foreach (var budget in activeBudgets)
             {
                 cancellationToken.ThrowIfCancellationRequested();
@@ -64,12 +79,9 @@ namespace GastosApp.BusinessLogic.Services
                     continue;
                 }
 
-                var deliveredThresholdIds = await _repository
-                    .Get<AlertDelivery>(d => d.BudgetId == budget.BudgetId && d.PeriodKey == periodKey)
-                    .Select(d => d.ThresholdId)
-                    .ToListAsync(cancellationToken);
-
-                var delivered = deliveredThresholdIds.ToHashSet();
+                var delivered = deliveredByBudget.TryGetValue(budget.BudgetId, out var deliveredThresholds)
+                    ? deliveredThresholds
+                    : EmptyThresholdIds;
                 var chosen = crossed.FirstOrDefault(t => !delivered.Contains(t.ThresholdId));
                 if (chosen == null)
                 {

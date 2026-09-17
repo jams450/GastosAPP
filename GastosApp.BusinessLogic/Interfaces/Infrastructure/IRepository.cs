@@ -27,7 +27,6 @@ namespace GastosApp.BusinessLogic.Interfaces
         Task<int> RemoveAsync<T>(int id) where T : class;
         Task<int> RemoveRangeAsync<T>(List<T> entities) where T : class;
 
-        Task<List<T>> SyncAsync<T>(List<T> newListModel, List<T> currentListModel, Func<T, object> keySelector) where T : class;
         (List<T> ToAdd, List<T> ToRemove) DiffList<T, TKey>(IEnumerable<T> original, IEnumerable<T> updated, Func<T, TKey> keySelector) where TKey : notnull;
 
         Task<int> ExecuteSqlRawAsync(string sql, params object[] parameters);

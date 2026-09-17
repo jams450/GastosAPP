@@ -196,7 +196,6 @@ namespace GastosApp.BusinessLogic.Services
                     t.Account.Active &&
                     t.TransactionDate >= historyStartUtc &&
                     t.TransactionDate < historyEndUtc)
-                .Include(t => t.Account)
                 .ToListAsync();
 
             var accountCreditTypes = await QueryUserAccountCreditTypesAsync(userId);
@@ -319,20 +318,20 @@ namespace GastosApp.BusinessLogic.Services
 
         private async Task<List<MsiOpenInstallmentRow>> QueryOpenMsiInstallmentsAsync(int userId)
         {
+            // Filtro de "no pagada" en SQL, mismo criterio que TransactionQueryService.GetOpenCreditInstallmentsAsync.
+            // El CHECK de credit_installments.status fija los valores exactos, por lo que != Paid cubre el
+            // OrdinalIgnoreCase que antes se aplicaba en memoria.
             var rows = await _repository.Get<CreditInstallment>(i =>
                     i.Plan.Account.UserId == userId &&
                     i.Plan.Account.Active &&
-                    i.Plan.PlanType == TransactionDomainConstants.CreditPlanType.Msi)
+                    i.Plan.PlanType == TransactionDomainConstants.CreditPlanType.Msi &&
+                    i.Status != TransactionDomainConstants.CreditStatus.Paid)
                 .Include(i => i.Plan)
                 .ThenInclude(p => p.Account)
                 .Include(i => i.Plan)
                 .ThenInclude(p => p.SourceCharge)
                 .ThenInclude(c => c.SourceTransaction)
                 .ToListAsync();
-
-            rows = rows
-                .Where(i => !string.Equals(i.Status, TransactionDomainConstants.CreditStatus.Paid, StringComparison.OrdinalIgnoreCase))
-                .ToList();
 
             if (rows.Count == 0)
             {

@@ -210,41 +210,6 @@ namespace GastosApp.BusinessLogic.Services
 
         #region Collection Sync Methods
 
-        public async Task<List<T>> SyncAsync<T>(List<T> newListModel, List<T> currentListModel, Func<T, object> keySelector) where T : class
-        {
-            var newDict = newListModel.ToDictionary(keySelector);
-            var currentDict = currentListModel.ToDictionary(keySelector);
-
-            var toRemove = currentDict.Keys.Except(newDict.Keys);
-            foreach (var key in toRemove)
-            {
-                _context.Set<T>().Remove(currentDict[key]);
-            }
-
-            var toAdd = newDict.Keys.Except(currentDict.Keys);
-            foreach (var key in toAdd)
-            {
-                _context.Set<T>().Add(newDict[key]);
-            }
-
-            await _context.SaveChangesAsync();
-
-            var toUpdate = newDict.Keys.Intersect(currentDict.Keys);
-            foreach (var key in toUpdate)
-            {
-                var updated = newDict[key];
-                var current = currentDict[key];
-                _context.Entry(current).CurrentValues.SetValues(updated);
-            }
-
-            if (toUpdate.Any())
-            {
-                await _context.SaveChangesAsync();
-            }
-
-            return newListModel;
-        }
-
         public (List<T> ToAdd, List<T> ToRemove) DiffList<T, TKey>(IEnumerable<T> original, IEnumerable<T> updated, Func<T, TKey> keySelector) where TKey : notnull
         {
             var oldDict = original.ToDictionary(keySelector);

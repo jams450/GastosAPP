@@ -17,14 +17,30 @@ namespace GastosApp.BusinessLogic.Services
 
         public async Task<Transaction?> GetByIdAsync(int id)
         {
+            // Lectura de una sola fila: un único JOIN es más barato que las 3 consultas del modo split.
             return await BuildBaseQuery(t => t.TransactionId == id)
+                .AsSingleQuery()
                 .FirstOrDefaultAsync();
         }
 
         public async Task<Transaction?> GetByIdForUserAsync(int id, int userId)
         {
+            // Lectura de una sola fila: un único JOIN es más barato que las 3 consultas del modo split.
             return await BuildBaseQuery(t => t.TransactionId == id && t.Account.UserId == userId)
+                .AsSingleQuery()
                 .FirstOrDefaultAsync();
+        }
+
+        public async Task<HashSet<int>> GetExistingTransactionIdsAsync(int userId, IReadOnlyCollection<int> ids)
+        {
+            if (ids.Count == 0) return [];
+
+            var idList = ids as List<int> ?? ids.ToList();
+            var existing = await _repository.Get<Transaction>(t => t.Account.UserId == userId && idList.Contains(t.TransactionId))
+                .Select(t => t.TransactionId)
+                .ToListAsync();
+
+            return existing.ToHashSet();
         }
 
         public async Task<IEnumerable<Transaction>> GetAllByAccountIdAsync(int accountId)
@@ -83,7 +99,6 @@ namespace GastosApp.BusinessLogic.Services
                 .ThenByDescending(t => t.TransactionId)
                 .Skip(checked((int)skip))
                 .Take(query.PageSize)
-                .AsSplitQuery()
                 .ToListAsync();
 
             return new PagedTransactions { TotalCount = totalCount, Items = items };
@@ -441,7 +456,8 @@ namespace GastosApp.BusinessLogic.Services
                 .Include(t => t.TransactionTags)
                 .ThenInclude(tt => tt.Tag)
                 .Include(t => t.TransactionAllocations)
-                .ThenInclude(a => a.BillableParty);
+                .ThenInclude(a => a.BillableParty)
+                .AsSplitQuery();
         }
     }
 }

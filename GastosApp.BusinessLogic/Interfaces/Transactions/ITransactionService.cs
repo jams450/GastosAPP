@@ -34,8 +34,6 @@ namespace GastosApp.BusinessLogic.Interfaces
             IEnumerable<string>? tags = null,
             IEnumerable<(int InstallmentId, decimal Amount)>? creditAllocations = null);
         
-        Task<Transaction?> UpdateAsync(int id, Transaction transaction);
-        Task<Transaction?> UpdateForUserAsync(int id, int userId, Transaction transaction);
         Task<(Transaction? Transaction, string? ErrorMessage)> UpdateTransactionWithDetailsForUserAsync(
             int id,
             int userId,
@@ -43,7 +41,6 @@ namespace GastosApp.BusinessLogic.Interfaces
             IEnumerable<string>? tags,
             IEnumerable<ExpenseAllocationInput>? allocations,
             bool replaceAllocations);
-        Task<bool> DeleteAsync(int id);
         Task<bool> DeleteForUserAsync(int id, int userId);
         Task<bool> DeleteTransferAsync(Guid transferGroupId, int userId);
         Task<(bool Success, string? ErrorMessage)> UpdateTransferMetadataAsync(
@@ -63,12 +60,13 @@ namespace GastosApp.BusinessLogic.Interfaces
         Task SyncTransactionTagsAsync(int transactionId, int userId, IEnumerable<string>? tagNames);
         Task<(bool Success, string? ErrorMessage)> ReplaceExpenseAllocationsAsync(int transactionId, int userId, IEnumerable<ExpenseAllocationInput>? allocations, bool fallbackToSelfWhenEmpty = true);
         Task<(bool Success, string? ErrorMessage)> RegisterCreditPaymentAsync(
+            int userId,
             int creditAccountId,
             int sourceTransactionId,
             DateTime paidAt,
             decimal amount,
             IEnumerable<(int InstallmentId, decimal Amount)> allocations);
-        Task<(bool Success, string? ErrorMessage)> ConvertChargeToMsiAsync(int sourceTransactionId, int months);
+        Task<(bool Success, string? ErrorMessage)> ConvertChargeToMsiAsync(int userId, int sourceTransactionId, int months);
         Task<IEnumerable<CreditInstallmentOpenItem>> GetOpenCreditInstallmentsAsync(int creditAccountId);
         Task<IEnumerable<CreditChargeSummaryItem>> GetCreditChargeSummariesAsync(IEnumerable<int> sourceTransactionIds);
         Task<(bool Success, string? ErrorMessage, int CreatedCount)> CreateOpeningCreditChargesAsync(

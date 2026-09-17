@@ -24,12 +24,12 @@ namespace GastosApp.BusinessLogic.Services
             _creditCycleService = creditCycleService;
         }
 
-        public Task<(bool Success, string? ErrorMessage)> RegisterCreditPaymentAsync(int creditAccountId, int sourceTransactionId, DateTime paidAt, decimal amount, IEnumerable<(int InstallmentId, decimal Amount)> allocations)
+        public Task<(bool Success, string? ErrorMessage)> RegisterCreditPaymentAsync(int userId, int creditAccountId, int sourceTransactionId, DateTime paidAt, decimal amount, IEnumerable<(int InstallmentId, decimal Amount)> allocations)
         {
-            return _repository.ExecuteInTransactionAsync(() => RegisterCreditPaymentInternalAsync(creditAccountId, sourceTransactionId, paidAt, amount, allocations));
+            return _repository.ExecuteInTransactionAsync(() => RegisterCreditPaymentInternalAsync(userId, creditAccountId, sourceTransactionId, paidAt, amount, allocations));
         }
 
-        private async Task<(bool Success, string? ErrorMessage)> RegisterCreditPaymentInternalAsync(int creditAccountId, int sourceTransactionId, DateTime paidAt, decimal amount, IEnumerable<(int InstallmentId, decimal Amount)> allocations)
+        private async Task<(bool Success, string? ErrorMessage)> RegisterCreditPaymentInternalAsync(int userId, int creditAccountId, int sourceTransactionId, DateTime paidAt, decimal amount, IEnumerable<(int InstallmentId, decimal Amount)> allocations)
         {
             if (amount <= 0) return (false, "El monto del pago debe ser mayor a cero");
 
@@ -43,6 +43,7 @@ namespace GastosApp.BusinessLogic.Services
 
             var account = await _accountService.GetByIdAsync(creditAccountId);
             if (account == null || !account.IsCredit) return (false, "La cuenta destino no es de crédito");
+            if (account.UserId != userId) return (false, "La cuenta indicada no existe");
 
             var sourceTransaction = await _repository.LockTransactionAsync(sourceTransactionId);
             if (sourceTransaction == null) return (false, "No existe transacción origen para aplicar pago de crédito");
@@ -142,14 +143,18 @@ namespace GastosApp.BusinessLogic.Services
             return (true, null);
         }
 
-        public Task<(bool Success, string? ErrorMessage)> ConvertChargeToMsiAsync(int sourceTransactionId, int months)
+        public Task<(bool Success, string? ErrorMessage)> ConvertChargeToMsiAsync(int userId, int sourceTransactionId, int months)
         {
-            return _repository.ExecuteInTransactionAsync(() => ConvertChargeToMsiInternalAsync(sourceTransactionId, months));
+            return _repository.ExecuteInTransactionAsync(() => ConvertChargeToMsiInternalAsync(userId, sourceTransactionId, months));
         }
 
-        private async Task<(bool Success, string? ErrorMessage)> ConvertChargeToMsiInternalAsync(int sourceTransactionId, int months)
+        private async Task<(bool Success, string? ErrorMessage)> ConvertChargeToMsiInternalAsync(int userId, int sourceTransactionId, int months)
         {
-            await _repository.LockTransactionAsync(sourceTransactionId);
+            var sourceTransaction = await _repository.LockTransactionAsync(sourceTransactionId);
+            // Respuesta homogénea para transacción ajena o inexistente, para no filtrar existencia.
+            var ownsSourceTransaction = sourceTransaction != null &&
+                await _repository.Get<Account>(a => a.AccountId == sourceTransaction.AccountId && a.UserId == userId).AnyAsync();
+            if (!ownsSourceTransaction) return (false, "No existe transacción origen para convertir a MSI");
             if (months <= 1) return (false, "Meses MSI debe ser mayor a 1");
 
             var charge = await _repository.GetTrack<CreditCharge>()
@@ -179,8 +184,9 @@ namespace GastosApp.BusinessLogic.Services
             plan.MonthlyAmountBase = Math.Round(charge.PrincipalAmount / months, 2, MidpointRounding.AwayFromZero);
             plan.RoundingResidual = charge.PrincipalAmount - (plan.MonthlyAmountBase * months);
 
-            var chargeCycle = await _creditCycleService.ResolveChargeCycleAsync(account, charge.OccurredAt);
+            // dueCycles[0] es el ciclo del cargo: ResolveDueCyclesAsync usa la misma fecha de corte (months > 1 garantizado arriba).
             var dueCycles = await _creditCycleService.ResolveDueCyclesAsync(account, charge.OccurredAt, months);
+            var chargeCycle = dueCycles[0];
             charge.CycleId = chargeCycle.CycleId;
             plan.StartCycleId = chargeCycle.CycleId;
 
@@ -219,11 +225,12 @@ namespace GastosApp.BusinessLogic.Services
 
             if (normalized.Any(i => i.Months < 1 || i.Months > 60)) return (false, "Meses inválido. Debe estar entre 1 y 60", 0);
 
-            foreach (var input in normalized)
+            // Distinct preserva el orden de primera aparición: la primera categoría inválida (y su mensaje) es la misma que antes.
+            foreach (var categoryId in normalized.Select(i => i.CategoryId).Distinct())
             {
                 var dimensionsValidation = await _validation.ValidateAnalyticsDimensionsAsync(
                     userId,
-                    input.CategoryId,
+                    categoryId,
                     null,
                     null,
                     TransactionDomainConstants.TransactionType.Expense);
@@ -232,6 +239,8 @@ namespace GastosApp.BusinessLogic.Services
                     return (false, dimensionsValidation.ErrorMessage, 0);
                 }
             }
+
+            var dueCycleCache = new Dictionary<(DateTime Date, int Months), IReadOnlyList<CreditCycle>>();
 
             foreach (var input in normalized)
             {
@@ -248,13 +257,20 @@ namespace GastosApp.BusinessLogic.Services
                     TransactionDate = occurredAt
                 });
 
-                await CreateCreditChargeWithPlanAsync(syntheticTransaction, input.Months, input.Months > 1 ? TransactionDomainConstants.CreditPlanType.Msi : TransactionDomainConstants.CreditPlanType.Revolving);
+                await CreateCreditChargeWithPlanCoreAsync(syntheticTransaction, input.Months, input.Months > 1 ? TransactionDomainConstants.CreditPlanType.Msi : TransactionDomainConstants.CreditPlanType.Revolving, dueCycleCache);
             }
 
             return (true, null, normalized.Count);
         }
 
-        public async Task CreateCreditChargeWithPlanAsync(Transaction transaction, int months, string planType)
+        public Task CreateCreditChargeWithPlanAsync(Transaction transaction, int months, string planType)
+        {
+            return CreateCreditChargeWithPlanCoreAsync(transaction, months, planType, null);
+        }
+
+        // ponytail: dueCycleCache comparte la resolución de ciclos dentro de un mismo lote (clave fecha+meses, valores Utc
+        // de EnsureUtc). Deduplicar por mes de ciclo exigiría replicar la fórmula DueDay de CreditCycleService.
+        private async Task CreateCreditChargeWithPlanCoreAsync(Transaction transaction, int months, string planType, Dictionary<(DateTime Date, int Months), IReadOnlyList<CreditCycle>>? dueCycleCache)
         {
             var account = await _accountService.GetByIdAsync(transaction.AccountId);
             if (account == null || !account.IsCredit)
@@ -263,8 +279,18 @@ namespace GastosApp.BusinessLogic.Services
             }
 
             var normalizedMonths = Math.Max(months, 1);
-            var chargeCycle = await _creditCycleService.ResolveChargeCycleAsync(account, transaction.TransactionDate);
-            var dueCycles = await _creditCycleService.ResolveDueCyclesAsync(account, transaction.TransactionDate, normalizedMonths);
+            // ResolveDueCyclesAsync usa la misma fecha de corte y siempre incluye el ciclo del cargo como su primer elemento,
+            // así que esta única resolución cubre el ciclo del cargo y todas sus mensualidades.
+            var cycleCacheKey = (transaction.TransactionDate, normalizedMonths);
+            var dueCycles = dueCycleCache != null && dueCycleCache.TryGetValue(cycleCacheKey, out var cachedCycles)
+                ? cachedCycles
+                : await _creditCycleService.ResolveDueCyclesAsync(account, transaction.TransactionDate, normalizedMonths);
+            if (dueCycleCache != null)
+            {
+                dueCycleCache[cycleCacheKey] = dueCycles;
+            }
+
+            var chargeCycle = dueCycles[0];
 
             var charge = await _repository.Save(new CreditCharge
             {
@@ -320,8 +346,9 @@ namespace GastosApp.BusinessLogic.Services
 
             var months = Math.Max(plan.Months, 1);
             var normalizedTransactionDate = _validation.EnsureUtc(newTransactionDate);
-            var chargeCycle = await _creditCycleService.ResolveChargeCycleAsync(account, normalizedTransactionDate);
+            // dueCycles[0] es el ciclo del cargo: ResolveDueCyclesAsync usa la misma fecha de corte (months >= 1).
             var dueCycles = await _creditCycleService.ResolveDueCyclesAsync(account, normalizedTransactionDate, months);
+            var chargeCycle = dueCycles[0];
 
             charge.PrincipalAmount = newAmount;
             charge.OccurredAt = normalizedTransactionDate;

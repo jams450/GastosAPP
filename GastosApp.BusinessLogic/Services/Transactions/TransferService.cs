@@ -95,8 +95,7 @@ namespace GastosApp.BusinessLogic.Services
                     var createdSource = await _repository.Save(sourceTransaction);
                     var createdDestination = await _repository.Save(destinationTransaction);
 
-                    await _tagService.SyncTransactionTagsAsync(createdSource.TransactionId, sourceAccount.UserId, tags);
-                    await _tagService.SyncTransactionTagsAsync(createdDestination.TransactionId, destinationAccount.UserId, tags);
+                    await _tagService.SyncTransactionTagsAsync(userId, [createdSource.TransactionId, createdDestination.TransactionId], tags);
 
                     await UpdateAccountBalanceAsync(sourceAccountId, -amount);
                     await UpdateAccountBalanceAsync(destinationAccountId, amount);
@@ -105,6 +104,7 @@ namespace GastosApp.BusinessLogic.Services
                     {
                         var allocationItems = creditAllocations?.Where(a => a.InstallmentId > 0 && a.Amount > 0).ToList() ?? [];
                         var paymentResult = await _creditLifecycleService.RegisterCreditPaymentAsync(
+                            userId,
                             destinationAccount.AccountId,
                             createdDestination.TransactionId,
                             createdDestination.TransactionDate,
@@ -139,7 +139,7 @@ namespace GastosApp.BusinessLogic.Services
                 if (lockedAccounts.Count != 2 || lockedAccounts.Any(a => a.UserId != userId)) return false;
 
                 var transactions = await _repository.LockTransferTransactionsAsync(transferGroupId);
-                var pairValidation = await ValidateTransferPairAsync(transactions, transferGroupId, userId);
+                var pairValidation = ValidateTransferPair(transactions, transferGroupId, userId, lockedAccounts);
                 if (!pairValidation.Success) return false;
 
                 foreach (var transaction in transactions)
@@ -183,7 +183,7 @@ namespace GastosApp.BusinessLogic.Services
             }
 
             var transactions = await _repository.LockTransferTransactionsAsync(transferGroupId);
-            var pairValidation = await ValidateTransferPairAsync(transactions, transferGroupId, userId);
+            var pairValidation = ValidateTransferPair(transactions, transferGroupId, userId, lockedAccounts);
             if (!pairValidation.Success) return (false, pairValidation.ErrorMessage);
 
             var sample = transactions[0];
@@ -233,26 +233,21 @@ namespace GastosApp.BusinessLogic.Services
 
             if (tags != null)
             {
-                foreach (var transaction in transactions)
-                {
-                    await _tagService.SyncTransactionTagsAsync(transaction.TransactionId, userId, tags);
-                }
+                await _tagService.SyncTransactionTagsAsync(userId, transactions.Select(t => t.TransactionId).ToList(), tags);
             }
 
             return (true, null);
         }
 
-        private async Task<(bool Success, string? ErrorMessage)> ValidateTransferPairAsync(IReadOnlyCollection<Transaction> transactions, Guid transferGroupId, int userId)
+        private (bool Success, string? ErrorMessage) ValidateTransferPair(IReadOnlyCollection<Transaction> transactions, Guid transferGroupId, int userId, IReadOnlyCollection<Account> lockedAccounts)
         {
             if (transactions.Count != 2 || transactions.Any(t => t.TransferGroupId != transferGroupId))
             {
                 return (false, "Transfer not found");
             }
 
-            var accounts = await _repository.Get<Account>()
-                .Where(a => transactions.Select(t => t.AccountId).Contains(a.AccountId))
-                .ToDictionaryAsync(a => a.AccountId);
-            if (accounts.Count != 2 || accounts.Values.Any(a => a.UserId != userId))
+            // Reutiliza las cuentas ya lockeadas por el llamador (mismas instancias rastreadas): sin re-SELECT.
+            if (lockedAccounts.Count != 2 || lockedAccounts.Any(a => a.UserId != userId))
             {
                 return (false, "Transfer not found");
             }

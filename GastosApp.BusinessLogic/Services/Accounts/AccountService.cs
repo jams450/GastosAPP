@@ -52,23 +52,18 @@ namespace GastosApp.BusinessLogic.Services
             return await _repository.Save<Account>(account);
         }
 
-        public async Task<Account?> UpdateAsync(int id, Account account)
-        {
-            return await UpdateInternalAsync(id, null, account);
-        }
-
         public async Task<Account?> UpdateForUserAsync(int id, int userId, Account account)
         {
             return await UpdateInternalAsync(id, userId, account);
         }
 
-        private Task<Account?> UpdateInternalAsync(int id, int? userId, Account account)
+        private Task<Account?> UpdateInternalAsync(int id, int userId, Account account)
         {
             return _repository.ExecuteInTransactionAsync(async () =>
             {
                 var lockedAccounts = await _repository.LockAccountsAsync([id]);
                 var existing = lockedAccounts.SingleOrDefault();
-                if (existing == null || (userId.HasValue && existing.UserId != userId.Value)) return null;
+                if (existing == null || existing.UserId != userId) return null;
 
                 account.AccountId = id;
                 account.UserId = existing.UserId;
@@ -84,32 +79,22 @@ namespace GastosApp.BusinessLogic.Services
             });
         }
 
-        public async Task<bool> DeleteAsync(int id)
-        {
-            return await DeleteInternalAsync(id, null);
-        }
-
         public async Task<bool> DeleteForUserAsync(int id, int userId)
         {
             return await DeleteInternalAsync(id, userId);
         }
 
-        private Task<bool> DeleteInternalAsync(int id, int? userId)
+        private Task<bool> DeleteInternalAsync(int id, int userId)
         {
             return _repository.ExecuteInTransactionAsync(async () =>
             {
                 var lockedAccounts = await _repository.LockAccountsAsync([id]);
                 var existing = lockedAccounts.SingleOrDefault();
-                if (existing == null || (userId.HasValue && existing.UserId != userId.Value)) return false;
+                if (existing == null || existing.UserId != userId) return false;
 
                 var result = await _repository.RemoveAsync(existing);
                 return result > 0;
             });
-        }
-
-        public async Task<bool> UpdateActiveStatusAsync(int id, bool active)
-        {
-            return await _repository.UpdateFieldAsync<Account, bool>(id, a => a.Active, active);
         }
 
         public Task<bool> UpdateActiveStatusForUserAsync(int id, int userId, bool active)
@@ -132,12 +117,21 @@ namespace GastosApp.BusinessLogic.Services
             });
         }
 
-        public async Task<bool> RecalculateBalanceAsync(int accountId)
+        public Task<bool> RecalculateBalanceAsync(int accountId, int userId)
         {
-            var balance = await _repository.Get<Transaction>(t => t.AccountId == accountId)
-                .SumAsync(t => t.BalanceImpact);
+            return _repository.ExecuteInTransactionAsync(async () =>
+            {
+                var lockedAccounts = await _repository.LockAccountsAsync([accountId]);
+                var account = lockedAccounts.SingleOrDefault();
+                if (account == null || account.UserId != userId) return false;
 
-            return await _repository.UpdateFieldAsync<Account, decimal>(accountId, a => a.CurrentBalance, balance);
+                var balance = await _repository.Get<Transaction>(t => t.AccountId == accountId)
+                    .SumAsync(t => t.BalanceImpact);
+
+                account.CurrentBalance = balance;
+                await _repository.SaveChangesAsync();
+                return true;
+            });
         }
 
         private static (bool IsValid, string? ErrorMessage) ValidateAccount(Account account)
@@ -171,9 +165,10 @@ namespace GastosApp.BusinessLogic.Services
             return (true, null);
         }
 
-        public async Task<(decimal TotalExpenses, DateTime PeriodStart, DateTime PeriodEnd)> GetCreditCardExpensesForPeriodAsync(int accountId, DateTime referenceDate)
+        public async Task<(decimal TotalExpenses, DateTime PeriodStart, DateTime PeriodEnd)> GetCreditCardExpensesForPeriodAsync(int accountId, int userId, DateTime referenceDate)
         {
-            var account = await _repository.GetByIdAsync<Account>(accountId);
+            var account = await _repository.Get<Account>(a => a.AccountId == accountId && a.UserId == userId)
+                .FirstOrDefaultAsync();
             if (account == null)
                 throw new ArgumentException("Account not found");
 

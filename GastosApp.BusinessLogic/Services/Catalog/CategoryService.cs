@@ -110,38 +110,83 @@ namespace GastosApp.BusinessLogic.Services
             return true;
         }
 
+        // Batching deliberado: 2 lecturas como máximo (relaciones + tags faltantes) y un único
+        // SaveChangesAsync, sin importar el número de tags.
+        //
+        // No se reutiliza TagService.ResolveOrCreateAsync aunque también resuelve en bloque porque su
+        // contrato no encaja: (1) hace su propio SaveChangesAsync, lo que impide un único commit final;
+        // (2) obligaría a inyectar ITagService en este servicio; (3) su Normalize solo divide por ' '
+        // mientras NormalizeTags colapsa cualquier whitespace (\s+), así que cambiaría el nombre
+        // normalizado almacenado para entradas con tabs/saltos de línea.
         private async Task SyncTagsAsync(Category category, int userId, IEnumerable<string>? tags)
         {
             var normalizedTags = NormalizeTags(tags);
 
-            var existingRelations = await _repository.Get<CategoryTag>(ct => ct.CategoryId == category.CategoryId)
-                .Include(ct => ct.Tag)
-                .ToListAsync();
-
-            var existingByNormalized = existingRelations
-                .Where(ct => ct.Tag != null)
-                .ToDictionary(ct => ct.Tag.NormalizedName, ct => ct, StringComparer.OrdinalIgnoreCase);
-
             var toKeep = new HashSet<string>(normalizedTags, StringComparer.OrdinalIgnoreCase);
 
-            foreach (var relation in existingRelations.Where(r => r.Tag != null && !toKeep.Contains(r.Tag.NormalizedName)))
-            {
-                await _repository.RemoveAsync(relation);
-            }
+            // Se consulta vía GetTrack para reutilizar las instancias ya rastreadas cuando el llamador
+            // cargó la categoría con Include(CategoryTags) (UpdateWithTagsAsync): RemoveRange sobre
+            // instancias no rastreadas chocaría con la identidad ya registrada en el change tracker.
+            var existingRelations = await _repository.GetTrack<CategoryTag>()
+                .Include(ct => ct.Tag)
+                .Where(ct => ct.CategoryId == category.CategoryId)
+                .ToListAsync();
 
-            foreach (var normalized in normalizedTags)
+            // Construcción tolerante a duplicados: un tag global (user_id NULL) y uno del usuario pueden
+            // compartir NormalizedName (el único no los colisiona). Se conserva el primero de cada grupo,
+            // que es el resultado previo en el caso normal (un solo tag por nombre).
+            var existingByNormalized = new Dictionary<string, CategoryTag>(StringComparer.OrdinalIgnoreCase);
+            foreach (var relation in existingRelations)
             {
-                if (existingByNormalized.ContainsKey(normalized))
+                if (relation.Tag == null || existingByNormalized.ContainsKey(relation.Tag.NormalizedName))
                 {
                     continue;
                 }
 
-                var tag = await _repository.Get<Tag>(t => (t.UserId == userId || t.UserId == null) && t.NormalizedName == normalized)
-                    .FirstOrDefaultAsync();
+                existingByNormalized[relation.Tag.NormalizedName] = relation;
+            }
 
-                if (tag == null)
+            var toRemove = existingRelations
+                .Where(r => r.Tag != null && !toKeep.Contains(r.Tag.NormalizedName))
+                .ToList();
+
+            if (toRemove.Count > 0)
+            {
+                _repository.GetTrack<CategoryTag>().RemoveRange(toRemove);
+            }
+
+            var missingNormalized = normalizedTags
+                .Where(normalized => !existingByNormalized.ContainsKey(normalized))
+                .ToList();
+
+            var relationsToAdd = new List<CategoryTag>(missingNormalized.Count);
+
+            if (missingNormalized.Count > 0)
+            {
+                // Todos los tags faltantes en una sola consulta.
+                var candidates = await _repository.Get<Tag>(t =>
+                        (t.UserId == userId || t.UserId == null) && missingNormalized.Contains(t.NormalizedName))
+                    .ToListAsync();
+
+                var resolved = new Dictionary<string, Tag>(StringComparer.OrdinalIgnoreCase);
+                foreach (var candidate in candidates)
                 {
-                    tag = new Tag
+                    // Igual que el FirstOrDefaultAsync anterior: si existiera un tag global y uno del
+                    // usuario con el mismo nombre normalizado, la BD decide cuál gana.
+                    resolved[candidate.NormalizedName] = candidate;
+                }
+
+                // Pertenencia por referencia a los tags creados en esta llamada: no depende de que EF
+                // materialice (o no) la clave generada en TagId antes del SaveChanges.
+                var newTags = new HashSet<Tag>();
+                foreach (var normalized in missingNormalized)
+                {
+                    if (resolved.ContainsKey(normalized))
+                    {
+                        continue;
+                    }
+
+                    var tag = new Tag
                     {
                         UserId = userId,
                         Name = normalized,
@@ -150,15 +195,31 @@ namespace GastosApp.BusinessLogic.Services
                         Created = DateTime.UtcNow
                     };
 
-                    await _repository.Save(tag);
+                    resolved[normalized] = tag;
+                    newTags.Add(tag);
                 }
 
-                await _repository.Save(new CategoryTag
+                if (newTags.Count > 0)
                 {
-                    CategoryId = category.CategoryId,
-                    TagId = tag.TagId
-                });
+                    _repository.GetTrack<Tag>().AddRange(newTags);
+                }
+
+                foreach (var normalized in missingNormalized)
+                {
+                    var tag = resolved[normalized];
+
+                    relationsToAdd.Add(newTags.Contains(tag)
+                        ? new CategoryTag { CategoryId = category.CategoryId, Tag = tag }
+                        : new CategoryTag { CategoryId = category.CategoryId, TagId = tag.TagId });
+                }
             }
+
+            if (relationsToAdd.Count > 0)
+            {
+                _repository.GetTrack<CategoryTag>().AddRange(relationsToAdd);
+            }
+
+            await _repository.SaveChangesAsync();
         }
 
         private static IReadOnlyCollection<string> NormalizeTags(IEnumerable<string>? tags)

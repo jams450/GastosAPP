@@ -6,6 +6,7 @@ namespace GastosApp.BusinessLogic.Interfaces
     public interface ICreditLifecycleService
     {
         Task<(bool Success, string? ErrorMessage)> RegisterCreditPaymentAsync(
+            int userId,
             int creditAccountId,
             int sourceTransactionId,
             DateTime paidAt,
@@ -13,7 +14,7 @@ namespace GastosApp.BusinessLogic.Interfaces
             IEnumerable<(int InstallmentId, decimal Amount)> allocations);
         Task<(bool Success, string? ErrorMessage)> ReverseCreditPaymentSourceAsync(int sourceTransactionId);
 
-        Task<(bool Success, string? ErrorMessage)> ConvertChargeToMsiAsync(int sourceTransactionId, int months);
+        Task<(bool Success, string? ErrorMessage)> ConvertChargeToMsiAsync(int userId, int sourceTransactionId, int months);
         Task<(bool Success, string? ErrorMessage, int CreatedCount)> CreateOpeningCreditChargesAsync(
             int userId,
             int creditAccountId,

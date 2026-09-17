@@ -8,6 +8,7 @@ namespace GastosApp.BusinessLogic.Interfaces
     {
         Task<Transaction?> GetByIdAsync(int id);
         Task<Transaction?> GetByIdForUserAsync(int id, int userId);
+        Task<HashSet<int>> GetExistingTransactionIdsAsync(int userId, IReadOnlyCollection<int> ids);
         Task<IEnumerable<Transaction>> GetAllByAccountIdAsync(int accountId);
         Task<IEnumerable<Transaction>> GetAllByAccountIdForUserAsync(int accountId, int userId);
         Task<IEnumerable<Transaction>> GetByDateRangeAsync(int accountId, DateTime startDate, DateTime endDate);

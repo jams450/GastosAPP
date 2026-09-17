@@ -14,6 +14,7 @@ namespace GastosApp.API.Controllers
     public class TransactionsController : ControllerBase
     {
         private readonly ITransactionService _transactionService;
+        private readonly ITransactionQueryService _transactionQueryService;
         private readonly IAccountService _accountService;
         private readonly ICurrentUserService _currentUserService;
         private readonly IBancoppelImportService _bancoppelImportService;
@@ -21,12 +22,14 @@ namespace GastosApp.API.Controllers
 
         public TransactionsController(
             ITransactionService transactionService,
+            ITransactionQueryService transactionQueryService,
             IAccountService accountService,
             ICurrentUserService currentUserService,
             IBancoppelImportService bancoppelImportService,
             ILogger<TransactionsController> logger)
         {
             _transactionService = transactionService;
+            _transactionQueryService = transactionQueryService;
             _accountService = accountService;
             _currentUserService = currentUserService;
             _bancoppelImportService = bancoppelImportService;
@@ -549,7 +552,7 @@ namespace GastosApp.API.Controllers
                 return NotFound(new { Message = "No existe transacción origen para convertir a MSI" });
             }
 
-            var result = await _transactionService.ConvertChargeToMsiAsync(request.SourceTransactionId, request.Months);
+            var result = await _transactionService.ConvertChargeToMsiAsync(userId, request.SourceTransactionId, request.Months);
             if (!result.Success)
             {
                 return BadRequest(new { Message = result.ErrorMessage ?? "Failed to convert charge to MSI" });
@@ -572,13 +575,10 @@ namespace GastosApp.API.Controllers
                 return Ok(Array.Empty<object>());
             }
 
-            foreach (var sourceId in sourceIds)
+            var existingIds = await _transactionQueryService.GetExistingTransactionIdsAsync(userId, sourceIds);
+            if (existingIds.Count != sourceIds.Count)
             {
-                var sourceTransaction = await _transactionService.GetByIdForUserAsync(sourceId, userId);
-                if (sourceTransaction == null)
-                {
-                    return NotFound(new { Message = "Una o más transacciones no existen" });
-                }
+                return NotFound(new { Message = "Una o más transacciones no existen" });
             }
 
             var summaries = await _transactionService.GetCreditChargeSummariesAsync(sourceIds);
@@ -660,6 +660,7 @@ namespace GastosApp.API.Controllers
             }
 
             var result = await _transactionService.RegisterCreditPaymentAsync(
+                userId,
                 request.CreditAccountId,
                 request.SourceTransactionId,
                 source.TransactionDate,

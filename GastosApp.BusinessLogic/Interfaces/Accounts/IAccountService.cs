@@ -9,13 +9,10 @@ namespace GastosApp.BusinessLogic.Interfaces
         Task<IEnumerable<Account>> GetAllByUserIdAsync(int userId);
         Task<IEnumerable<Account>> GetAllActiveByUserIdAsync(int userId);
         Task<Account> CreateAsync(Account account);
-        Task<Account?> UpdateAsync(int id, Account account);
         Task<Account?> UpdateForUserAsync(int id, int userId, Account account);
-        Task<bool> DeleteAsync(int id);
         Task<bool> DeleteForUserAsync(int id, int userId);
-        Task<bool> UpdateActiveStatusAsync(int id, bool active);
         Task<bool> UpdateActiveStatusForUserAsync(int id, int userId, bool active);
-        Task<bool> RecalculateBalanceAsync(int accountId);
-        Task<(decimal TotalExpenses, DateTime PeriodStart, DateTime PeriodEnd)> GetCreditCardExpensesForPeriodAsync(int accountId, DateTime referenceDate);
+        Task<bool> RecalculateBalanceAsync(int accountId, int userId);
+        Task<(decimal TotalExpenses, DateTime PeriodStart, DateTime PeriodEnd)> GetCreditCardExpensesForPeriodAsync(int accountId, int userId, DateTime referenceDate);
     }
 }
