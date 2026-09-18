@@ -10,6 +10,7 @@ public enum TelegramCommandKind
 
     Help,
     Expense,
+    Income,
     Confirm,
     Cancel,
     Pending,
@@ -43,7 +44,8 @@ public static class TelegramCommandParser
             return head switch
             {
                 "/ayuda" or "/help" or "/start" => new TelegramCommand(TelegramCommandKind.Help),
-                "/gasto" => ParseExpense(rest),
+                "/gasto" => ParseExpense(rest, TelegramCommandKind.Expense),
+                "/ingreso" => ParseExpense(rest, TelegramCommandKind.Income),
                 "/confirmar" => new TelegramCommand(TelegramCommandKind.Confirm),
                 "/cancelar" => new TelegramCommand(TelegramCommandKind.Cancel),
                 "/pendiente" => new TelegramCommand(TelegramCommandKind.Pending),
@@ -63,12 +65,12 @@ public static class TelegramCommandParser
         return new TelegramCommand(TelegramCommandKind.None);
     }
 
-    private static TelegramCommand ParseExpense(string rest)
+    private static TelegramCommand ParseExpense(string rest, TelegramCommandKind kind)
     {
-        // El parser no interpreta campos: TelegramExpenseService divide el contenido por '|'
+        // El parser no interpreta campos: TelegramTransactionService divide el contenido por '|'
         // (monto | cuenta | categoría | subcategoría | comercio | descripción).
         return new TelegramCommand(
-            TelegramCommandKind.Expense,
+            kind,
             string.IsNullOrWhiteSpace(rest) ? null : rest);
     }
 }

@@ -1,13 +1,23 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { Alert } from "@/components/ui/alert";
-import { ProjectionCharts } from "@/app/(app)/dashboard/_components/balance-line-chart";
 import { DashboardMetricCards } from "@/app/(app)/dashboard/_components/dashboard-metric-cards";
 import { DashboardPanelSkeleton } from "@/app/(app)/dashboard/_components/dashboard-skeleton";
 import { formatDate } from "@/app/(app)/dashboard/_components/dashboard-format";
 import { PROJECTION_HORIZONS } from "@/app/(app)/dashboard/_lib/dashboard-tabs";
 import { cn } from "@/lib/ui/cn";
 import type { DashboardProjectionResponse } from "@/lib/contracts/dashboard";
+
+// Recharts 3.x mide el DOM en efectos: sin SSR para evitar desajuste de hidratación
+// y los avisos width(-1)/height(-1) de ResponsiveContainer.
+const ProjectionCharts = dynamic(
+  () => import("@/app/(app)/dashboard/_components/projection-charts").then((mod) => mod.ProjectionCharts),
+  {
+    ssr: false,
+    loading: () => <DashboardPanelSkeleton label="Cargando proyección de efectivo" cards={3} blocks={2} />
+  }
+);
 
 type ProyeccionTabProps = {
   projection: DashboardProjectionResponse | null;

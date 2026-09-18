@@ -391,7 +391,7 @@ CREATE TABLE telegram_expense_drafts (
     telegram_identity_id INT NOT NULL,
     chat_id BIGINT NOT NULL,
     status VARCHAR(20) NOT NULL CHECK (status IN ('pending', 'confirmed', 'cancelled', 'expired')),
-    intent VARCHAR(20) NOT NULL CHECK (intent IN ('expense')),
+    intent VARCHAR(20) NOT NULL CHECK (intent IN ('expense', 'income')),
     amount NUMERIC(15,2) NOT NULL CHECK (amount > 0),
     transaction_date TIMESTAMPTZ NOT NULL,
     account_id INT,

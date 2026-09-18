@@ -35,7 +35,7 @@ namespace GastosApp.BusinessLogic.Context
         public DbSet<TransactionAllocation> TransactionAllocations { get; set; } = null!;
         public DbSet<BancoppelImportedRow> BancoppelImportedRows { get; set; } = null!;
         public DbSet<TelegramIdentity> TelegramIdentities { get; set; } = null!;
-        public DbSet<TelegramExpenseDraft> TelegramExpenseDrafts { get; set; } = null!;
+        public DbSet<TelegramDraft> TelegramDrafts { get; set; } = null!;
         public DbSet<TelegramProcessedUpdate> TelegramProcessedUpdates { get; set; } = null!;
         public DbSet<CatalogRule> CatalogRules { get; set; } = null!;
         public DbSet<Budget> Budgets { get; set; } = null!;
@@ -211,7 +211,7 @@ namespace GastosApp.BusinessLogic.Context
                 entity.HasOne(e => e.User).WithMany().HasForeignKey(e => e.UserId).OnDelete(DeleteBehavior.Cascade);
             });
 
-            modelBuilder.Entity<TelegramExpenseDraft>(entity =>
+            modelBuilder.Entity<TelegramDraft>(entity =>
             {
                 // UUID generado en C#: nunca por la base de datos.
                 entity.Property(e => e.DraftId).ValueGeneratedNever();

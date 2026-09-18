@@ -31,7 +31,7 @@ namespace GastosApp.BusinessLogic.Interfaces
         Task<bool> ClaimBancoppelImportedRowAsync(int accountId, string fingerprint);
         Task LinkBancoppelImportedRowAsync(int accountId, string fingerprint, int transactionId);
         Task<bool> ClaimTelegramProcessedUpdateAsync(long updateId, int? telegramIdentityId, string status, DateTime claimedAt, Guid claimToken);
-        Task<TelegramExpenseDraft?> LockTelegramExpenseDraftAsync(Guid draftId);
+        Task<TelegramDraft?> LockTelegramDraftAsync(Guid draftId);
 
         /// <summary>
         /// Reclama una entrega de alerta de forma atómica: inserta <c>alert_deliveries</c> con

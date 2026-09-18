@@ -6,5 +6,6 @@ public sealed record IntentRequest(
     string ZonaHoraria,
     IReadOnlyList<string> Cuentas,
     IReadOnlyList<string> Categorias,
+    IReadOnlyList<string> CategoriasIngreso,
     IReadOnlyList<string> Subcategorias,
     IReadOnlyList<string> Comercios);

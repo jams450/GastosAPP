@@ -5,10 +5,10 @@
 
 ## Alcance
 
-Registro conversacional de **gastos simples** por Telegram con borrador + confirmación explícita, más la consulta de solo lectura ya existente.
+Registro conversacional de **gastos e ingresos simples** por Telegram con borrador + confirmación explícita, más la consulta de solo lectura ya existente.
 
 - La IA **no escribe ni decide**: solo extrae intención (`GastosApp.AI`, sin tools, sin acceso a DB, sin IDs).
-- La autoridad de validación y escritura sigue siendo `GastosApp.BusinessLogic` (`ITransactionService.CreateExpenseAsync`).
+- La autoridad de validación y escritura sigue siendo `GastosApp.BusinessLogic` (`ITransactionService.CreateExpenseAsync` para gasto, `CreateIncomeAsync` para ingreso).
 - Nada llega a `transactions` sin confirmación del usuario.
 
 ## Comandos (deterministas, sin IA)
@@ -16,20 +16,23 @@ Registro conversacional de **gastos simples** por Telegram con borrador + confir
 | Comando | Efecto |
 |---|---|
 | `/ayuda` (`/start`) | Lista de comandos y formato. |
-| `/gasto <monto> <cuenta> [descripción]` | Crea borrador `expense`; si falta o es ambigua la cuenta → pregunta de aclaración. |
+| `/gasto <monto> \| <cuenta> \| <categoría> [...]` | Crea borrador `expense`; la categoría debe ser de gasto. |
+| `/ingreso <monto> \| <cuenta> \| <categoría> [...]` | Crea borrador `income`; la categoría debe ser de ingreso. |
 | `/confirmar` (`sí`, `si`) | Confirma el borrador pendiente del chat. |
 | `/cancelar` (`no`) | Cancela el borrador sin tocar `transactions`. |
 | `/pendiente` | Muestra el borrador pendiente. |
-| `/cuentas`, `/categorias` | Lista catálogos activos para resolución manual. |
+| `/cuentas`, `/categorias` | Lista catálogos activos para resolución manual (`/categorias` separa gasto/ingreso). |
 
-Funcionan aunque el proveedor LLM esté caído. El texto libre que no es comando pasa por extracción de intención (`RegistrarGasto` → mismo camino con `source = ai`; `Consulta` → agente de solo lectura; `Desconocido` → aclaración). Atajos `sí`/`no` se resuelven antes del LLM si hay borrador pendiente.
+Funcionan aunque el proveedor LLM esté caído. El texto libre que no es comando pasa por extracción de intención (`RegistrarGasto`/`RegistrarIngreso` → mismo camino que su comando con `source = ai`; `Consulta` → agente de solo lectura; `Desconocido` → aclaración). Atajos `sí`/`no` se resuelven antes del LLM si hay borrador pendiente.
 
 ## Borrador y confirmación
 
-- Tabla `telegram_expense_drafts`: `status = pending|confirmed|cancelled|expired`, `source = manual|ai`, TTL por defecto **15 minutos**.
+- Tabla `telegram_expense_drafts`: `status = pending|confirmed|cancelled|expired`, `intent = expense|income`, `source = manual|ai`, TTL por defecto **15 minutos**.
 - **Un solo borrador pendiente por chat** (índice único parcial); el más reciente cancela el anterior.
-- Confirmación en **una sola transacción de DB**: bloqueo `FOR UPDATE` de la fila, escritura vía `ITransactionService`, y solo entonces `confirmed` + `transaction_id`. Si falla, rollback y el borrador queda `pending`.
+- Confirmación en **una sola transacción de DB**: bloqueo `FOR UPDATE` de la fila, escritura vía `ITransactionService` según `intent`, y solo entonces `confirmed` + `transaction_id`. Si falla, rollback y el borrador queda `pending`.
 - TTL vencido → `expired`, sin escritura.
+- **Ingreso a cuenta de crédito:** rechazo temprano. Si el intent es `income` y la cuenta es de crédito (`Account.IsCredit`) **no se crea borrador** y se responde el mensaje de bloqueo (el borrador de Telegram no captura asignaciones a mensualidades). Aplica a `/ingreso` y al texto libre (`RegistrarIngreso`); la lógica de crédito no se modificó.
+- **Precondición de catálogo:** sin categorías de tipo `income`, `/ingreso` responde «No tienes categorías de ingreso. Créalas en la aplicación (tipo ingreso) y vuelve a intentarlo.». El borrador muestra su tipo («Borrador de gasto:» / «Borrador de ingreso:»).
 
 ## Seguridad
 
@@ -46,6 +49,7 @@ Las 3 tablas (`telegram_identities`, `telegram_expense_drafts`, `telegram_proces
 
 - `SQL/migrations/2026-09-16_telegram_identity_drafts_idempotency.sql`
 - `SQL/migrations/2026-09-16_telegram_processed_updates_claim_token.sql`
+- `SQL/migrations/2026-09-18_telegram_draft_income_intent.sql` (CHECK de `intent` admite `income`)
 - Reflejadas en `SQL/schema.sql` para instalaciones nuevas.
 
 **No hay runner automático** en el repo: la migración se aplica a mano (ver `TELEGRAM_BOT.md` §9) antes de desplegar el API de Fase 1.

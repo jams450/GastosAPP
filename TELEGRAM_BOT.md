@@ -1,10 +1,10 @@
 # Bot de Telegram con IA — guía de despliegue
 
-Bot de Telegram que responde preguntas sobre tus finanzas (consulta en lenguaje natural con 3 herramientas de solo lectura) y permite **registrar gastos simples** con borrador + confirmación explícita (Fase 1).
+Bot de Telegram que responde preguntas sobre tus finanzas (consulta en lenguaje natural con 3 herramientas de solo lectura) y permite **registrar gastos e ingresos simples** con borrador + confirmación explícita (Fase 1).
 
 Reglas de Fase 1:
 
-- **Nada se escribe en `transactions` hasta que confirmas.** El texto libre o `/gasto` solo crean un borrador `pending`.
+- **Nada se escribe en `transactions` hasta que confirmas.** El texto libre, `/gasto` o `/ingreso` solo crean un borrador `pending`.
 - **Solo chat privado** con el usuario autorizado. El bot no está pensado para grupos ni canales.
 - La IA **no escribe ni decide**: solo extrae intención (`GastosApp.AI`); la autoridad de validación y persistencia es `GastosApp.BusinessLogic` (`ITransactionService`).
 
@@ -141,6 +141,7 @@ Escríbele al bot:
 - `gastos de la última semana por comercio`
 - `¿qué cuentas tengo?`
 - `resumen de agosto 2026`
+- `recibí 500 de salario hoy` (ingreso: crea borrador `income`)
 
 ---
 
@@ -151,15 +152,17 @@ Fase 1 agrega 3 tablas (`telegram_identities`, `telegram_expense_drafts`, `teleg
 1. Archivos, en este orden:
    - `SQL/migrations/2026-09-16_telegram_identity_drafts_idempotency.sql`
    - `SQL/migrations/2026-09-16_telegram_processed_updates_claim_token.sql`
+   - `SQL/migrations/2026-09-18_telegram_draft_income_intent.sql` (amplía el CHECK de `intent` para admitir `income`)
 2. Aplícalos sobre la base de datos de Gastos **antes** de desplegar el API con Fase 1:
 
    ```bash
    psql "$CONNECTION_STRING" -f SQL/migrations/2026-09-16_telegram_identity_drafts_idempotency.sql
    psql "$CONNECTION_STRING" -f SQL/migrations/2026-09-16_telegram_processed_updates_claim_token.sql
+   psql "$CONNECTION_STRING" -f SQL/migrations/2026-09-18_telegram_draft_income_intent.sql
    ```
 
-3. `SQL/schema.sql` ya incluye las mismas tablas y `claim_token` para instalaciones nuevas.
-4. Sin ambas migraciones aplicadas, cualquier mensaje fallará al resolver identidad / persistir el borrador.
+3. `SQL/schema.sql` ya incluye las mismas tablas, `claim_token` y el CHECK de `intent` con `income` para instalaciones nuevas.
+4. Sin las migraciones aplicadas, cualquier mensaje fallará al resolver identidad / persistir el borrador; sin la del CHECK, `/ingreso` fallará al intentar guardar un borrador `income`.
 
 ---
 
@@ -170,27 +173,35 @@ Los comandos son deterministas y **no invocan IA**: funcionan aunque el proveedo
 | Comando | Efecto |
 |---|---|
 | `/ayuda` (y `/start`) | Lista de comandos y formato esperado. |
-| `/gasto <monto> <cuenta> [descripción]` | Crea un borrador `expense`. Si falta la cuenta o es ambigua → pide aclaración. |
+| `/gasto <monto> \| <cuenta> \| <categoría> [\| <subcategoría>] [\| <comercio>] [\| <descripción>]` | Crea un borrador `expense`. |
+| `/ingreso <monto> \| <cuenta> \| <categoría> [\| <subcategoría>] [\| <comercio>] [\| <descripción>]` | Crea un borrador `income`. |
 | `/confirmar` (alias `sí`, `si`) | Confirma el borrador pendiente del chat. |
 | `/cancelar` (alias `no`) | Cancela el borrador pendiente, sin tocar `transactions`. |
 | `/pendiente` | Muestra el borrador pendiente del chat. |
-| `/cuentas`, `/categorias` | Lista catálogos activos para resolución manual. |
+| `/cuentas` | Lista cuentas activas para resolución manual. |
+| `/categorias` | Lista categorías activas separadas por tipo (`Gasto:` / `Ingreso:`). |
+| `/subcategorias`, `/comercios` | Lista esos catálogos activos. |
 
 Detalles:
 
 - El monto acepta `200`, `200.50` o `$200`; la fecha por defecto es hoy en `America/Mexico_City`.
+- Los campos posicionales van separados por `|` en el orden indicado; para saltar uno intermedio déjalo vacío.
+- **Categoría obligatoria**: `/gasto` exige una categoría de **gasto** y `/ingreso` una de **ingreso**. Cada flujo resuelve solo contra el catálogo de su tipo, así que un `/gasto` ya no puede ofrecer ni aceptar categorías de ingreso (y viceversa). Si falta o no existe → aclaración con la sintaxis, sin crear borrador.
+- **Precondición para ingresos**: si no tienes categorías de ingreso creadas, `/ingreso` responde «No tienes categorías de ingreso. Créalas en la aplicación (tipo ingreso) y vuelve a intentarlo.» (no basta con el mensaje genérico de categoría).
+- **Cuenta de crédito**: un ingreso a una cuenta de crédito se rechaza de inmediato con el mensaje de bloqueo (ver abajo); no se crea borrador. Usa una cuenta que no sea de crédito.
 - Sin borrador pendiente, `sí`/`no` responden que no hay nada pendiente (no hacen nada destructivo).
-- Texto libre que no es comando: la extracción de intención (`GastosApp.AI`) decide entre `RegistrarGasto` (mismo camino que `/gasto`, `source = ai`), `Consulta` (se delega al agente de solo lectura) o `Desconocido` (pregunta de aclaración).
+- Texto libre que no es comando: la extracción de intención (`GastosApp.AI`) decide entre `RegistrarGasto` (mismo camino que `/gasto`, `source = ai`), `RegistrarIngreso` (mismo camino que `/ingreso`, `source = ai`), `Consulta` (se delega al agente de solo lectura) o `Desconocido` (pregunta de aclaración).
 - Los atajos `sí`/`no` se resuelven **antes** de llamar al LLM si existe borrador pendiente.
 
 ---
 
 ## 11. Borrador y confirmación
 
-- Un mensaje de gasto **nunca** escribe de inmediato: persiste un borrador en `telegram_expense_drafts` con `status = 'pending'`, `source = manual|ai` y `expires_at = now + TTL`.
+- Un mensaje de gasto o ingreso **nunca** escribe de inmediato: persiste un borrador en `telegram_expense_drafts` con `status = 'pending'`, `intent = expense|income`, `source = manual|ai` y `expires_at = now + TTL`.
 - **TTL por defecto: 15 minutos.** Un borrador vencido se marca `expired` y no se escribe.
 - **Un solo borrador pendiente por chat** (índice único parcial): el más reciente cancela el anterior.
-- La confirmación corre dentro de **una única transacción de base de datos**: bloquea la fila (`FOR UPDATE`), llama a `ITransactionService.CreateExpenseAsync` y recién entonces marca el borrador `confirmed` con el `transaction_id`. Si la escritura falla, todo se revierte y el borrador queda `pending` para corregir o cancelar.
+- La confirmación corre dentro de **una única transacción de base de datos**: bloquea la fila (`FOR UPDATE`), llama a `ITransactionService.CreateExpenseAsync` o `CreateIncomeAsync` según `draft.intent`, y recién entonces marca el borrador `confirmed` con el `transaction_id`. Si la escritura falla, todo se revierte y el borrador queda `pending` para corregir o cancelar.
+- **Ingreso a cuenta de crédito → rechazo temprano:** el borrador de Telegram no captura asignaciones a mensualidades (la capa de negocio exige al menos una), así que si el intent es `income` y la cuenta resuelta es de crédito (`Account.IsCredit`) **no se crea borrador** y se responde de inmediato: «Los ingresos a una cuenta de crédito requieren asignar una mensualidad y ese flujo no está disponible por Telegram. Usa una cuenta que no sea de crédito o regístralo en la aplicación.». Aplica igual a `/ingreso` y al texto libre (`RegistrarIngreso`). La lógica de crédito no se modificó.
 - Idempotencia durable en `telegram_processed_updates`: el update se reclama con `INSERT ... ON CONFLICT DO NOTHING`. Un `update_id` ya `done` no se reprocesa (sobrevive reinicios y varias réplicas). Lease de reclamo: 5 minutos; máximo 5 intentos.
 
 ---

@@ -14,10 +14,10 @@ public class TelegramMaintenanceService : ITelegramMaintenanceService
     /// <summary>Retención de updates terminados (o leases abandonados) antes de purgarlos.</summary>
     public static readonly TimeSpan DefaultUpdateRetention = TimeSpan.FromDays(1);
 
-    private readonly IExpenseDraftService _drafts;
+    private readonly ITelegramDraftService _drafts;
     private readonly ITelegramUpdateLedger _ledger;
 
-    public TelegramMaintenanceService(IExpenseDraftService drafts, ITelegramUpdateLedger ledger)
+    public TelegramMaintenanceService(ITelegramDraftService drafts, ITelegramUpdateLedger ledger)
     {
         _drafts = drafts;
         _ledger = ledger;

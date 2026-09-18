@@ -6,18 +6,18 @@ namespace GastosApp.BusinessLogic.Interfaces;
 /// Borradores de gasto conversacional. Persistencia "privada": nunca recibe <c>userId</c>;
 /// el usuario se deriva de la <see cref="TelegramIdentity"/> referenciada por el borrador.
 /// </summary>
-public interface IExpenseDraftService
+public interface ITelegramDraftService
 {
     /// <summary>
     /// Crea un borrador <c>pending</c> para el chat. Si ya existía otro pendiente en el mismo chat,
     /// lo marca <c>cancelled</c> (gana el más reciente) para respetar el único pendiente por chat.
     /// No escribe <c>transactions</c>.
     /// </summary>
-    Task<TelegramExpenseDraft> CreateAsync(TelegramExpenseDraft draft, CancellationToken cancellationToken = default);
+    Task<TelegramDraft> CreateAsync(TelegramDraft draft, CancellationToken cancellationToken = default);
 
-    Task<TelegramExpenseDraft?> GetAsync(Guid draftId, CancellationToken cancellationToken = default);
+    Task<TelegramDraft?> GetAsync(Guid draftId, CancellationToken cancellationToken = default);
 
-    Task<TelegramExpenseDraft?> GetPendingAsync(long chatId, CancellationToken cancellationToken = default);
+    Task<TelegramDraft?> GetPendingAsync(long chatId, CancellationToken cancellationToken = default);
 
     /// <summary>Cancela el borrador pendiente del chat. Devuelve <c>true</c> si había algo que cancelar.</summary>
     Task<bool> CancelAsync(long chatId, CancellationToken cancellationToken = default);
@@ -35,14 +35,14 @@ public interface IExpenseDraftService
     /// y marca el borrador <c>confirmed</c> con el <c>transaction_id</c> resultante.
     /// Si <paramref name="createExpense"/> falla, todo se revierte y el borrador queda <c>pending</c>.
     /// </summary>
-    Task<ExpenseDraftConfirmationResult> ConfirmAsync(
+    Task<TelegramDraftConfirmationResult> ConfirmAsync(
         Guid draftId,
         long chatId,
-        Func<TelegramExpenseDraft, Task<Transaction>> createExpense,
+        Func<TelegramDraft, Task<Transaction>> createExpense,
         CancellationToken cancellationToken = default);
 }
 
-public enum ExpenseDraftConfirmationOutcome
+public enum TelegramDraftConfirmationOutcome
 {
     Confirmed,
 
@@ -56,7 +56,7 @@ public enum ExpenseDraftConfirmationOutcome
     Expired
 }
 
-public sealed record ExpenseDraftConfirmationResult(
-    ExpenseDraftConfirmationOutcome Outcome,
-    TelegramExpenseDraft? Draft,
+public sealed record TelegramDraftConfirmationResult(
+    TelegramDraftConfirmationOutcome Outcome,
+    TelegramDraft? Draft,
     Transaction? Transaction);

@@ -9,7 +9,7 @@ namespace GastosApp.Models.Entities
     /// nunca expone ni recibe un <c>user_id</c> propio (el usuario sale de <see cref="TelegramIdentity"/>).
     /// </summary>
     [Table("telegram_expense_drafts")]
-    public class TelegramExpenseDraft : BaseModel
+    public class TelegramDraft : BaseModel
     {
         [Key]
         [Column("draft_id")]
@@ -26,12 +26,12 @@ namespace GastosApp.Models.Entities
         [Column("status")]
         [Required]
         [StringLength(20)]
-        public string Status { get; set; } = TelegramExpenseDraftStatus.Pending;
+        public string Status { get; set; } = TelegramDraftStatus.Pending;
 
         [Column("intent")]
         [Required]
         [StringLength(20)]
-        public string Intent { get; set; } = TelegramExpenseDraftIntent.Expense;
+        public string Intent { get; set; } = TelegramDraftIntent.Expense;
 
         [Column("amount", TypeName = "decimal(15,2)")]
         [Required]
@@ -76,7 +76,7 @@ namespace GastosApp.Models.Entities
         [Column("source")]
         [Required]
         [StringLength(20)]
-        public string Source { get; set; } = TelegramExpenseDraftSource.Manual;
+        public string Source { get; set; } = TelegramDraftSource.Manual;
 
         [Column("expires_at", TypeName = "timestamp with time zone")]
         [Required]
@@ -95,7 +95,7 @@ namespace GastosApp.Models.Entities
         public virtual Transaction? Transaction { get; set; }
     }
 
-    public static class TelegramExpenseDraftStatus
+    public static class TelegramDraftStatus
     {
         public const string Pending = "pending";
         public const string Confirmed = "confirmed";
@@ -103,12 +103,13 @@ namespace GastosApp.Models.Entities
         public const string Expired = "expired";
     }
 
-    public static class TelegramExpenseDraftIntent
+    public static class TelegramDraftIntent
     {
         public const string Expense = "expense";
+        public const string Income = "income";
     }
 
-    public static class TelegramExpenseDraftSource
+    public static class TelegramDraftSource
     {
         public const string Manual = "manual";
         public const string Ai = "ai";

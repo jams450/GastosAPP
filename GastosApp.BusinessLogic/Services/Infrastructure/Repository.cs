@@ -232,9 +232,9 @@ namespace GastosApp.BusinessLogic.Services
             return affected == 1;
         }
 
-        public async Task<TelegramExpenseDraft?> LockTelegramExpenseDraftAsync(Guid draftId)
+        public async Task<TelegramDraft?> LockTelegramDraftAsync(Guid draftId)
         {
-            return await _context.TelegramExpenseDrafts
+            return await _context.TelegramDrafts
                 .FromSqlInterpolated($"SELECT * FROM telegram_expense_drafts WHERE draft_id = {draftId} FOR UPDATE")
                 .FirstOrDefaultAsync();
         }

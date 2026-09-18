@@ -4,7 +4,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace GastosApp.BusinessLogic.Services;
 
-public class ExpenseDraftService : IExpenseDraftService
+public class TelegramDraftService : ITelegramDraftService
 {
     /// <summary>TTL propuesto para un borrador pendiente cuando el llamador no fija <c>expires_at</c>.</summary>
     public static readonly TimeSpan DefaultTtl = TimeSpan.FromMinutes(15);
@@ -12,13 +12,13 @@ public class ExpenseDraftService : IExpenseDraftService
     private readonly IRepository _repository;
     private readonly ITransactionValidationService _validation;
 
-    public ExpenseDraftService(IRepository repository, ITransactionValidationService validation)
+    public TelegramDraftService(IRepository repository, ITransactionValidationService validation)
     {
         _repository = repository;
         _validation = validation;
     }
 
-    public async Task<TelegramExpenseDraft> CreateAsync(TelegramExpenseDraft draft, CancellationToken cancellationToken = default)
+    public async Task<TelegramDraft> CreateAsync(TelegramDraft draft, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(draft);
 
@@ -43,9 +43,9 @@ public class ExpenseDraftService : IExpenseDraftService
             draft.DraftId = Guid.NewGuid();
         }
 
-        draft.Status = TelegramExpenseDraftStatus.Pending;
-        draft.Intent = string.IsNullOrWhiteSpace(draft.Intent) ? TelegramExpenseDraftIntent.Expense : draft.Intent;
-        draft.Source = string.IsNullOrWhiteSpace(draft.Source) ? TelegramExpenseDraftSource.Manual : draft.Source;
+        draft.Status = TelegramDraftStatus.Pending;
+        draft.Intent = string.IsNullOrWhiteSpace(draft.Intent) ? TelegramDraftIntent.Expense : draft.Intent;
+        draft.Source = string.IsNullOrWhiteSpace(draft.Source) ? TelegramDraftSource.Manual : draft.Source;
         draft.TransactionDate = _validation.EnsureUtc(draft.TransactionDate);
         draft.ExpiresAt = draft.ExpiresAt == default || draft.ExpiresAt <= now
             ? now + DefaultTtl
@@ -61,26 +61,26 @@ public class ExpenseDraftService : IExpenseDraftService
             await _repository.LockTelegramDraftChatAsync(draft.ChatId);
 
             // Un solo borrador pendiente por chat: el más reciente reemplaza al anterior.
-            await _repository.GetTrack<TelegramExpenseDraft>()
-                .Where(d => d.ChatId == draft.ChatId && d.Status == TelegramExpenseDraftStatus.Pending)
+            await _repository.GetTrack<TelegramDraft>()
+                .Where(d => d.ChatId == draft.ChatId && d.Status == TelegramDraftStatus.Pending)
                 .ExecuteUpdateAsync(s => s
-                    .SetProperty(d => d.Status, TelegramExpenseDraftStatus.Cancelled)
+                    .SetProperty(d => d.Status, TelegramDraftStatus.Cancelled)
                     .SetProperty(d => d.Updated, (DateTime?)now), cancellationToken);
 
-            _repository.GetTrack<TelegramExpenseDraft>().Add(draft);
+            _repository.GetTrack<TelegramDraft>().Add(draft);
             await _repository.SaveChangesAsync();
             return draft;
         });
     }
 
-    public async Task<TelegramExpenseDraft?> GetAsync(Guid draftId, CancellationToken cancellationToken = default)
+    public async Task<TelegramDraft?> GetAsync(Guid draftId, CancellationToken cancellationToken = default)
     {
-        return await _repository.GetByIdAsync<TelegramExpenseDraft>(draftId);
+        return await _repository.GetByIdAsync<TelegramDraft>(draftId);
     }
 
-    public async Task<TelegramExpenseDraft?> GetPendingAsync(long chatId, CancellationToken cancellationToken = default)
+    public async Task<TelegramDraft?> GetPendingAsync(long chatId, CancellationToken cancellationToken = default)
     {
-        return await _repository.Get<TelegramExpenseDraft>(d => d.ChatId == chatId && d.Status == TelegramExpenseDraftStatus.Pending)
+        return await _repository.Get<TelegramDraft>(d => d.ChatId == chatId && d.Status == TelegramDraftStatus.Pending)
             .OrderByDescending(d => d.ExpiresAt)
             .FirstOrDefaultAsync(cancellationToken);
     }
@@ -88,10 +88,10 @@ public class ExpenseDraftService : IExpenseDraftService
     public async Task<bool> CancelAsync(long chatId, CancellationToken cancellationToken = default)
     {
         var now = DateTime.UtcNow;
-        var affected = await _repository.GetTrack<TelegramExpenseDraft>()
-            .Where(d => d.ChatId == chatId && d.Status == TelegramExpenseDraftStatus.Pending)
+        var affected = await _repository.GetTrack<TelegramDraft>()
+            .Where(d => d.ChatId == chatId && d.Status == TelegramDraftStatus.Pending)
             .ExecuteUpdateAsync(s => s
-                .SetProperty(d => d.Status, TelegramExpenseDraftStatus.Cancelled)
+                .SetProperty(d => d.Status, TelegramDraftStatus.Cancelled)
                 .SetProperty(d => d.Updated, (DateTime?)now), cancellationToken);
         return affected > 0;
     }
@@ -99,47 +99,47 @@ public class ExpenseDraftService : IExpenseDraftService
     public async Task<int> ExpireStaleAsync(DateTime utcNow, CancellationToken cancellationToken = default)
     {
         var now = utcNow == default ? DateTime.UtcNow : utcNow;
-        return await _repository.GetTrack<TelegramExpenseDraft>()
-            .Where(d => d.Status == TelegramExpenseDraftStatus.Pending && d.ExpiresAt <= now)
+        return await _repository.GetTrack<TelegramDraft>()
+            .Where(d => d.Status == TelegramDraftStatus.Pending && d.ExpiresAt <= now)
             .ExecuteUpdateAsync(s => s
-                .SetProperty(d => d.Status, TelegramExpenseDraftStatus.Expired)
+                .SetProperty(d => d.Status, TelegramDraftStatus.Expired)
                 .SetProperty(d => d.Updated, (DateTime?)now), cancellationToken);
     }
 
     public async Task<int> PurgeAsync(DateTime expiresBefore, CancellationToken cancellationToken = default)
     {
-        return await _repository.GetTrack<TelegramExpenseDraft>()
-            .Where(d => d.Status != TelegramExpenseDraftStatus.Pending && d.ExpiresAt < expiresBefore)
+        return await _repository.GetTrack<TelegramDraft>()
+            .Where(d => d.Status != TelegramDraftStatus.Pending && d.ExpiresAt < expiresBefore)
             .ExecuteDeleteAsync(cancellationToken);
     }
 
-    public async Task<ExpenseDraftConfirmationResult> ConfirmAsync(
+    public async Task<TelegramDraftConfirmationResult> ConfirmAsync(
         Guid draftId,
         long chatId,
-        Func<TelegramExpenseDraft, Task<Transaction>> createExpense,
+        Func<TelegramDraft, Task<Transaction>> createExpense,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(createExpense);
 
         return await _repository.ExecuteInTransactionAsync(async () =>
         {
-            var draft = await _repository.LockTelegramExpenseDraftAsync(draftId);
+            var draft = await _repository.LockTelegramDraftAsync(draftId);
             if (draft == null || draft.ChatId != chatId)
             {
-                return new ExpenseDraftConfirmationResult(ExpenseDraftConfirmationOutcome.NotFound, null, null);
+                return new TelegramDraftConfirmationResult(TelegramDraftConfirmationOutcome.NotFound, null, null);
             }
 
-            if (draft.Status != TelegramExpenseDraftStatus.Pending)
+            if (draft.Status != TelegramDraftStatus.Pending)
             {
-                return new ExpenseDraftConfirmationResult(ExpenseDraftConfirmationOutcome.NotPending, draft, null);
+                return new TelegramDraftConfirmationResult(TelegramDraftConfirmationOutcome.NotPending, draft, null);
             }
 
             var now = DateTime.UtcNow;
             if (draft.ExpiresAt <= now)
             {
-                draft.Status = TelegramExpenseDraftStatus.Expired;
+                draft.Status = TelegramDraftStatus.Expired;
                 await _repository.SaveChangesAsync();
-                return new ExpenseDraftConfirmationResult(ExpenseDraftConfirmationOutcome.Expired, draft, null);
+                return new TelegramDraftConfirmationResult(TelegramDraftConfirmationOutcome.Expired, draft, null);
             }
 
             // El callback debe usar ITransactionService: reutiliza esta misma transacción
@@ -150,12 +150,12 @@ public class ExpenseDraftService : IExpenseDraftService
                 throw new InvalidOperationException("La confirmación del borrador no devolvió una transacción.");
             }
 
-            draft.Status = TelegramExpenseDraftStatus.Confirmed;
+            draft.Status = TelegramDraftStatus.Confirmed;
             draft.ConfirmedAt = now;
             draft.TransactionId = transaction.TransactionId;
             await _repository.SaveChangesAsync();
 
-            return new ExpenseDraftConfirmationResult(ExpenseDraftConfirmationOutcome.Confirmed, draft, transaction);
+            return new TelegramDraftConfirmationResult(TelegramDraftConfirmationOutcome.Confirmed, draft, transaction);
         });
     }
 }

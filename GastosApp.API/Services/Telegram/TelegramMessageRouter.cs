@@ -11,7 +11,8 @@ namespace GastosApp.API.Services.Telegram;
 /// Orquestador del mensaje entrante. Resuelve primero comandos y atajos deterministas
 /// (<see cref="TelegramCommandParser"/>, sin IA), y solo para texto libre llama a
 /// <see cref="IExpenseIntentExtractor"/> para enrutar por intención:
-/// <see cref="IntentKind.RegistrarGasto"/> → <see cref="TelegramExpenseService"/> (borrador),
+/// <see cref="IntentKind.RegistrarGasto"/> y <see cref="IntentKind.RegistrarIngreso"/> →
+/// <see cref="TelegramTransactionService"/> (borrador),
 /// <see cref="IntentKind.Consulta"/> → <see cref="TelegramQueryService"/> (solo lectura),
 /// desconocido → pregunta aclaratoria.
 /// </summary>
@@ -21,16 +22,16 @@ public sealed class TelegramMessageRouter
     private const int MaxCatalogNames = 50;
 
     private const string GenericMessage =
-        "No pude interpretar el mensaje. Puedes usar /gasto <monto> <cuenta> o pedir un resumen de tus gastos.";
+        "No pude interpretar el mensaje. Puedes usar /gasto <monto> | <cuenta> | <categoría> o /ingreso <monto> | <cuenta> | <categoría>, o pedir un resumen de tus finanzas.";
 
-    private readonly TelegramExpenseService _expenses;
+    private readonly TelegramTransactionService _expenses;
     private readonly TelegramQueryService _queries;
     private readonly IExpenseIntentExtractor _extractor;
     private readonly IOptions<LlmOptions> _llm;
     private readonly ILogger<TelegramMessageRouter> _logger;
 
     public TelegramMessageRouter(
-        TelegramExpenseService expenses,
+        TelegramTransactionService expenses,
         TelegramQueryService queries,
         IExpenseIntentExtractor extractor,
         IOptions<LlmOptions> llm,
@@ -62,7 +63,8 @@ public sealed class TelegramMessageRouter
         try
         {
             var accounts = await _expenses.GetExpenseAccountsAsync(identity.UserId, cancellationToken);
-            var categories = await _expenses.GetActiveCategoriesAsync(identity.UserId, cancellationToken);
+            var categories = await _expenses.GetActiveCategoriesAsync(identity.UserId, "expense", cancellationToken);
+            var incomeCategories = await _expenses.GetActiveCategoriesAsync(identity.UserId, "income", cancellationToken);
             var subcategories = await _expenses.GetActiveSubcategoriesAsync(identity.UserId, cancellationToken);
             var merchants = await _expenses.GetActiveMerchantsAsync(identity.UserId, cancellationToken);
 
@@ -72,6 +74,7 @@ public sealed class TelegramMessageRouter
                 MexicoTimeZoneId,
                 accounts.Select(a => a.Name).Take(MaxCatalogNames).ToList(),
                 categories.Select(c => c.Name).Take(MaxCatalogNames).ToList(),
+                incomeCategories.Select(c => c.Name).Take(MaxCatalogNames).ToList(),
                 subcategories.Select(s => s.Name).Take(MaxCatalogNames).ToList(),
                 merchants.Select(m => m.Name).Take(MaxCatalogNames).ToList());
 
@@ -82,6 +85,10 @@ public sealed class TelegramMessageRouter
                 case IntentKind.RegistrarGasto:
                     return await _expenses.HandleExpenseIntentAsync(
                         intent, identity, accounts, categories, subcategories, merchants, cancellationToken);
+
+                case IntentKind.RegistrarIngreso:
+                    return await _expenses.HandleIncomeIntentAsync(
+                        intent, identity, accounts, incomeCategories, subcategories, merchants, cancellationToken);
 
                 case IntentKind.Consulta:
                     return await _queries.ConsultaAsync(text, identity, cancellationToken);

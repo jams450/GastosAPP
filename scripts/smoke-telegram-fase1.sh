@@ -15,7 +15,14 @@
 #   TELEGRAM_WEBHOOK_SECRET='<secreto de prueba>' \
 #   TELEGRAM_TEST_USER_ID=123456789 \
 #   TELEGRAM_TEST_CATEGORY='<categoría existente en el catálogo del usuario de prueba>' \
+#   TELEGRAM_TEST_INCOME_CATEGORY='<categoría de ingreso existente; opcional>' \
 #   ./scripts/smoke-telegram-fase1.sh
+#
+# Si TELEGRAM_TEST_INCOME_CATEGORY no está definida, los casos que requieren una categoría de
+# ingreso se omiten con un SKIP explícito (el resto del script sigue corriendo).
+#
+# Los casos de /ingreso verifican solo que el webhook ACEPTE el update (HTTP 200). El efecto real
+# en DB no se asertá aquí: requiere la verificación manual opcional del bloque final.
 #
 # Salida: PASS/FAIL por caso y exit code != 0 si algo falla.
 
@@ -25,6 +32,7 @@ BASE_URL="${API_URL:-http://localhost:5000}"
 SECRET="${TELEGRAM_WEBHOOK_SECRET:?Define TELEGRAM_WEBHOOK_SECRET (valor de prueba, no de producción)}"
 FROM_ID="${TELEGRAM_TEST_USER_ID:?Define TELEGRAM_TEST_USER_ID (id numérico autorizado en el entorno de prueba)}"
 CATEGORY="${TELEGRAM_TEST_CATEGORY:?Define TELEGRAM_TEST_CATEGORY (categoría existente en el entorno de prueba)}"
+INCOME_CATEGORY="${TELEGRAM_TEST_INCOME_CATEGORY:-}"
 UNKNOWN_ID="${TELEGRAM_UNKNOWN_USER_ID:-999999999}"
 PATH_WEBHOOK="/api/telegram/webhook"
 
@@ -112,6 +120,26 @@ check "comando /subcategorias" "200" "$LAST_HTTP"
 post_update "$(build_update 900013 "$FROM_ID" "$FROM_ID" private '/comercios')" "$SECRET"
 check "comando /comercios" "200" "$LAST_HTTP"
 
+# --- /ingreso con categoría de ingreso -> 200 (solo aceptación del webhook) ---------
+if [[ -z "$INCOME_CATEGORY" ]]; then
+  echo "SKIP  comando /ingreso con categoría de ingreso: define TELEGRAM_TEST_INCOME_CATEGORY para cubrirlo."
+else
+  post_update "$(build_update 900014 "$FROM_ID" "$FROM_ID" private "/ingreso 500 | efectivo | ${INCOME_CATEGORY} | | | smoke-ingreso")" "$SECRET"
+  check "comando /ingreso con categoría de ingreso" "200" "$LAST_HTTP"
+fi
+
+# --- /ingreso con categoría de gasto -> 200 (solo aceptación del webhook) -----------
+post_update "$(build_update 900015 "$FROM_ID" "$FROM_ID" private "/ingreso 500 | efectivo | ${CATEGORY} | | | smoke-ingreso")" "$SECRET"
+check "comando /ingreso con categoría de gasto" "200" "$LAST_HTTP"
+
+# --- texto libre de ingreso -> 200 (solo aceptación del webhook) --------------------
+post_update "$(build_update 900016 "$FROM_ID" "$FROM_ID" private 'recibí 500 de salario')" "$SECRET"
+check "texto libre de ingreso" "200" "$LAST_HTTP"
+
+# NOTA: la guardia de ingreso a cuenta de crédito no se cubre aquí. El webhook responde 200 sin
+# cuerpo (la respuesta al usuario sale por el bot) y saber si una cuenta es de crédito depende del
+# estado real de la BD de pruebas. La verificación de esa guardia corresponde a pruebas de servicio.
+
 # --- Caso 5: update duplicado -> 200 sin segundo efecto -----------------------------
 post_update "$(build_update 900010 "$FROM_ID" "$FROM_ID" private '/ayuda')" "$SECRET"
 check "update original" "200" "$LAST_HTTP"
@@ -121,15 +149,19 @@ check "update duplicado" "200" "$LAST_HTTP"
 # --- Verificación manual sugerida (opcional, requiere psql directo, no Docker) -----
 cat <<'SQL'
 
-Para comprobar efectos en DB (ajusta host/usuario/base; no incluir credenciales en el repo):
+Para comprobar efectos en DB (ajusta host/usuario/base; no incluir credenciales en el repo).
+Esto es MANUAL: el script no ejecuta psql ni aserta estos resultados.
 
-  SELECT count(*) FROM telegram_processed_updates WHERE update_id IN (900011,900010);
+  SELECT count(*) FROM telegram_processed_updates WHERE update_id IN (900011,900010,900014,900015,900016);
   SELECT status, count(*) FROM telegram_expense_drafts WHERE chat_id = <TELEGRAM_TEST_USER_ID> GROUP BY status;
+  SELECT intent, status, count(*) FROM telegram_expense_drafts WHERE chat_id = <TELEGRAM_TEST_USER_ID> GROUP BY intent, status;
   SELECT count(*) FROM transactions WHERE description = 'smoke';
 
-Esperado: los updates terminan en status 'done'; el borrador creado por el caso 1b (900011) queda
-'confirmed' tras 'sí'; el caso sin categoría (900005) y el de monto 0 no crean borrador;
-el duplicado (900010) no incrementa filas.
+Esperado (manual, no asertado): los updates terminan en status 'done'; el borrador de gasto creado por
+el caso 1b (900011) queda 'confirmed' tras 'sí'; el caso sin categoría (900005) y el de monto 0 no crean
+borrador; el duplicado (900010) no incrementa filas. Si se define TELEGRAM_TEST_INCOME_CATEGORY, el caso
+900014 debería dejar un borrador 'pending' con intent 'income'. El texto libre de ingreso (900016) solo
+crea borrador si el LLM devuelve RegistrarIngreso.
 
 SQL
 

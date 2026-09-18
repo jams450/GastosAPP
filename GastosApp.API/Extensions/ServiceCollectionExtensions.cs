@@ -38,13 +38,13 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IBancoppelImportService, BancoppelImportService>();
         services.AddScoped<IDashboardService, DashboardService>();
         services.AddScoped<ITelegramIdentityService, TelegramIdentityService>();
-        services.AddScoped<IExpenseDraftService, ExpenseDraftService>();
+        services.AddScoped<ITelegramDraftService, TelegramDraftService>();
         services.AddScoped<ITelegramUpdateLedger, TelegramUpdateLedger>();
         services.AddScoped<ITelegramMaintenanceService, TelegramMaintenanceService>();
         services.AddScoped<IExpenseIntentExtractor, ExpenseIntentExtractor>();
         services.AddScoped<TelegramToolService>();
         services.AddScoped<ExpenseAgentService>();
-        services.AddScoped<TelegramExpenseService>();
+        services.AddScoped<TelegramTransactionService>();
         services.AddScoped<TelegramQueryService>();
         services.AddScoped<TelegramMessageRouter>();
         services.AddScoped<TelegramBotClientProvider>();
