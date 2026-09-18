@@ -67,8 +67,8 @@ public static class TelegramCommandParser
 
     private static TelegramCommand ParseExpense(string rest, TelegramCommandKind kind)
     {
-        // El parser no interpreta campos: TelegramTransactionService divide el contenido por '|'
-        // (monto | cuenta | categoría | subcategoría | comercio | descripción).
+        // El parser no interpreta campos: TelegramTransactionService divide el contenido por ';'
+        // (monto; cuenta; categoría; subcategoría; comercio; descripción) y acepta '|' por compatibilidad.
         return new TelegramCommand(
             kind,
             string.IsNullOrWhiteSpace(rest) ? null : rest);

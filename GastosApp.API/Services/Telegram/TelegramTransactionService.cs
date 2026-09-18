@@ -1,6 +1,8 @@
 using System.Globalization;
 using GastosApp.AI.Intent;
 using GastosApp.BusinessLogic.Interfaces;
+using GastosApp.BusinessLogic.Services;
+using GastosApp.BusinessLogic.Services.Catalog;
 using GastosApp.Models.Entities;
 using Microsoft.Extensions.Logging;
 
@@ -31,18 +33,18 @@ public sealed class TelegramTransactionService
         "No tienes categorías de ingreso. Créalas en la aplicación (tipo ingreso) y vuelve a intentarlo.";
 
     private const string ExpenseSyntax =
-        "Sintaxis: /gasto <monto> | <cuenta> | <categoría> [| <subcategoría>] [| <comercio>] [| <descripción>]\n" +
-        "Ejemplo: /gasto 200 | efectivo | mascotas | higiene | amazon | arena para gato";
+        "Sintaxis: /gasto <monto>; <cuenta>; <categoría> [; <subcategoría>] [; <comercio>] [; <descripción>]\n" +
+        "Ejemplo: /gasto 200; efectivo; mascotas; higiene; amazon; arena para gato";
 
     private const string IncomeSyntax =
-        "Sintaxis: /ingreso <monto> | <cuenta> | <categoría> [| <subcategoría>] [| <comercio>] [| <descripción>]\n" +
-        "Ejemplo: /ingreso 500 | efectivo | salario | | | quincena";
+        "Sintaxis: /ingreso <monto>; <cuenta>; <categoría> [; <subcategoría>] [; <comercio>] [; <descripción>]\n" +
+        "Ejemplo: /ingreso 500; efectivo; salario; ;; quincena";
 
     private const string HelpText = """
         Comandos disponibles:
         /ayuda, /start — esta ayuda
-        /gasto <monto> | <cuenta> | <categoría> [| <subcategoría>] [| <comercio>] [| <descripción>] — crea un borrador de gasto
-        /ingreso <monto> | <cuenta> | <categoría> [| <subcategoría>] [| <comercio>] [| <descripción>] — crea un borrador de ingreso
+        /gasto <monto>; <cuenta>; <categoría> [; <subcategoría>] [; <comercio>] [; <descripción>] — crea un borrador de gasto
+        /ingreso <monto>; <cuenta>; <categoría> [; <subcategoría>] [; <comercio>] [; <descripción>] — crea un borrador de ingreso
         /confirmar (sí, si) — confirma el borrador pendiente
         /cancelar (no) — cancela el borrador pendiente
         /pendiente — muestra el borrador pendiente
@@ -51,10 +53,12 @@ public sealed class TelegramTransactionService
         /subcategorias — lista tus subcategorías activas (con su categoría)
         /comercios — lista tus comercios activos
 
-        Ejemplo: /gasto 200 | efectivo | mascotas | higiene | amazon | arena para gato
-        Ejemplo: /ingreso 500 | efectivo | salario | | | quincena
-        Los campos van en ese orden. Puedes cortar la línea si los últimos no aplican; para saltar
-        uno intermedio déjalo vacío: /gasto 200 | efectivo | mascotas | | amazon
+        Ejemplo: /gasto 200; efectivo; mascotas; higiene; amazon; arena para gato
+        Ejemplo: /ingreso 500; efectivo; salario; ;; quincena
+        Los campos van en ese orden, separados por punto y coma (;). Puedes cortar la línea si los
+        últimos no aplican; para saltar uno intermedio déjalo vacío: /gasto 200; efectivo; mascotas; ; amazon
+        Si el nombre de la cuenta, categoría, subcategoría o comercio no coincide exactamente, se
+        interpreta por aproximación y, si hay duda, se te muestran opciones.
         La categoría es obligatoria (de gasto para /gasto y de ingreso para /ingreso) y la fecha/hora
         se toman del servidor si no las indicas.
         Los ingresos a una cuenta de crédito no están disponibles por Telegram: usa una cuenta que no
@@ -123,15 +127,18 @@ public sealed class TelegramTransactionService
         var syntax = isIncome ? IncomeSyntax : ExpenseSyntax;
         var categoryType = isIncome ? CategoryTypeIncome : CategoryTypeExpense;
 
-        // Campos posicionales separados por '|'. Los segmentos vacíos se tratan como ausentes.
-        var segments = (command.Arguments ?? string.Empty)
-            .Split('|', StringSplitOptions.TrimEntries)
-            .Select(segment => segment.Trim())
-            .ToList();
+        // Campos posicionales separados por ';' (se acepta '|' como compatibilidad). Los segmentos
+        // vacíos se tratan como ausentes y la descripción es el último campo, de texto libre.
+        var rawArguments = command.Arguments ?? string.Empty;
+        var segments = rawArguments.Contains(';')
+            ? rawArguments.Split(';', StringSplitOptions.TrimEntries).Select(segment => segment.Trim()).ToList()
+            : rawArguments.Split('|', StringSplitOptions.TrimEntries).Select(segment => segment.Trim()).ToList();
 
         if (segments.Count > ExpenseFieldCount)
         {
-            return $"Usa como máximo {ExpenseFieldCount} campos separados por |.\n{syntax}";
+            // La descripción es libre: los separadores sobrantes se reincorporan a ese último campo.
+            segments[ExpenseFieldCount - 1] = string.Join("; ", segments.Skip(ExpenseFieldCount - 1));
+            segments = segments.Take(ExpenseFieldCount).ToList();
         }
 
         while (segments.Count < ExpenseFieldCount)
@@ -143,6 +150,8 @@ public sealed class TelegramTransactionService
         {
             return $"Indica un monto mayor a cero.\n{syntax}";
         }
+
+        var notes = new List<string>();
 
         var accounts = await GetExpenseAccountsAsync(identity.UserId, cancellationToken);
         if (accounts.Count == 0)
@@ -156,6 +165,8 @@ public sealed class TelegramTransactionService
             return (accountError ?? "No encontré esa cuenta.") + "\n" + syntax;
         }
 
+        AddNote(notes, segments[1], account.Name);
+
         if (ValidateIncomeAccount(intent, account) is { } incomeBlocked)
         {
             return incomeBlocked;
@@ -167,25 +178,21 @@ public sealed class TelegramTransactionService
             return NoIncomeCategoriesMessage;
         }
 
-        var (category, categoryError) = ResolveSingleCategory(segments[2], categories, label);
+        var category = ResolveSingleCategory(segments[2], categories);
         if (category is null)
         {
-            return (categoryError ?? $"Falta la categoría del {label.ToLowerInvariant()}.") + "\n" + syntax;
+            return await BuildCategoryFailureAsync(identity, segments[2], categories, isIncome, syntax, cancellationToken);
         }
+
+        AddNote(notes, segments[2], category.Name);
 
         var subcategories = await GetActiveSubcategoriesAsync(identity.UserId, cancellationToken);
-        var (subcategory, subcategoryError) = ResolveSingleSubcategory(segments[3], category, subcategories);
-        if (subcategoryError is not null)
-        {
-            return subcategoryError;
-        }
+        var (subcategory, subcategoryWarning) = ResolveSingleSubcategory(segments[3], category, subcategories);
+        AddNoteOrWarning(notes, segments[3], subcategory?.Name, subcategoryWarning);
 
         var merchants = await GetActiveMerchantsAsync(identity.UserId, cancellationToken);
-        var (merchant, merchantError) = ResolveSingleMerchant(segments[4], merchants);
-        if (merchantError is not null)
-        {
-            return merchantError;
-        }
+        var (merchant, merchantWarning) = ResolveSingleMerchant(segments[4], merchants);
+        AddNoteOrWarning(notes, segments[4], merchant?.Name, merchantWarning);
 
         var draft = await CreateDraftAsync(
             identity,
@@ -200,7 +207,7 @@ public sealed class TelegramTransactionService
             intent,
             cancellationToken);
 
-        return DescribeDraft(draft);
+        return DescribeDraft(draft) + FormatNotes(notes);
     }
 
     /// <summary>
@@ -241,12 +248,15 @@ public sealed class TelegramTransactionService
         string draftIntent,
         CancellationToken cancellationToken)
     {
-        var label = draftIntent == TelegramDraftIntent.Income ? "Ingreso" : "Gasto";
+        var isIncome = draftIntent == TelegramDraftIntent.Income;
+        var syntax = isIncome ? IncomeSyntax : ExpenseSyntax;
 
         if (intent.Monto is null || intent.Monto <= 0)
         {
             return "El monto debe ser mayor a cero.";
         }
+
+        var notes = new List<string>();
 
         var (account, error) = ResolveSingleAccount(intent.Cuenta, accounts);
         if (account is null)
@@ -254,31 +264,30 @@ public sealed class TelegramTransactionService
             return error ?? "No encontré esa cuenta. Usa /cuentas para ver los nombres disponibles.";
         }
 
+        AddNote(notes, intent.Cuenta, account.Name);
+
         if (ValidateIncomeAccount(draftIntent, account) is { } incomeBlocked)
         {
             return incomeBlocked;
         }
 
         // Categoría obligatoria: sin categoría resuelta no se crea borrador.
-        var (category, categoryError) = ResolveSingleCategory(intent.Categoria, categories, label);
+        var category = ResolveSingleCategory(intent.Categoria, categories);
         if (category is null)
         {
-            return categoryError ?? $"Falta la categoría del {label.ToLowerInvariant()}. Usa /categorias para ver las disponibles.";
+            return await BuildCategoryFailureAsync(
+                identity, intent.Categoria, categories, isIncome, syntax, cancellationToken);
         }
 
-        // Subcategoría y comercio son opcionales, pero si el usuario los mencionó deben resolver
-        // dentro de su catálogo: nunca se sustituyen en silencio.
-        var (subcategory, subcategoryError) = ResolveSingleSubcategory(intent.Subcategoria, category, subcategories);
-        if (subcategoryError is not null)
-        {
-            return subcategoryError;
-        }
+        AddNote(notes, intent.Categoria, category.Name);
 
-        var (merchant, merchantError) = ResolveSingleMerchant(intent.Comercio, merchants);
-        if (merchantError is not null)
-        {
-            return merchantError;
-        }
+        // Subcategoría y comercio son opcionales: si no resuelven, el borrador se crea sin ellos
+        // y se avisa al usuario con las opciones disponibles.
+        var (subcategory, subcategoryWarning) = ResolveSingleSubcategory(intent.Subcategoria, category, subcategories);
+        AddNoteOrWarning(notes, intent.Subcategoria, subcategory?.Name, subcategoryWarning);
+
+        var (merchant, merchantWarning) = ResolveSingleMerchant(intent.Comercio, merchants);
+        AddNoteOrWarning(notes, intent.Comercio, merchant?.Name, merchantWarning);
 
         // Fecha presente pero fuera de rango: se pide aclaración y NO se sustituye por hoy.
         // Fecha u hora ausentes => fecha de hoy y hora actual del servidor (America/Mexico_City).
@@ -300,7 +309,7 @@ public sealed class TelegramTransactionService
                 transactionDate!.Value,
                 TelegramDraftSource.Ai,
                 draftIntent,
-                cancellationToken));
+                cancellationToken)) + FormatNotes(notes);
     }
 
     private async Task<string> ConfirmAsync(TelegramIdentity identity, CancellationToken cancellationToken)
@@ -559,83 +568,159 @@ public sealed class TelegramTransactionService
             return (null, "Falta la cuenta en el segundo campo.");
         }
 
-        var matches = accounts
-            .Where(a => string.Equals(a.Name.Trim(), name.Trim(), StringComparison.OrdinalIgnoreCase))
-            .ToList();
-
-        return matches.Count switch
-        {
-            0 => (null, "No encontré esa cuenta. Usa /cuentas para ver los nombres disponibles."),
-            > 1 => (null, "Hay más de una cuenta con ese nombre. Usa /cuentas para ver los nombres exactos."),
-            _ => (matches[0], null)
-        };
+        var match = CatalogNameMatcher.Match(name, accounts, a => a.Name);
+        return match.Value is not null
+            ? (match.Value, null)
+            : (null, $"No pude identificar la cuenta \"{name.Trim()}\".{FormatOptions(match.Suggestions, a => a.Name, "Usa /cuentas para ver los nombres disponibles.")}");
     }
 
-    private static (Category? Category, string? Error) ResolveSingleCategory(string? name, IReadOnlyList<Category> categories, string label)
+    private static Category? ResolveSingleCategory(string? name, IReadOnlyList<Category> categories)
     {
         // Categoría obligatoria: ausente se trata como error, no como "sin categoría".
-        if (string.IsNullOrWhiteSpace(name))
-        {
-            return (null, $"Falta la categoría del {label.ToLowerInvariant()}. Usa /categorias para ver las disponibles.");
-        }
+        // El mensaje de fallo lo arma <see cref="BuildCategoryFailureAsync"/> (incluye tipo opuesto).
+        if (string.IsNullOrWhiteSpace(name)) return null;
 
-        var matches = categories
-            .Where(c => string.Equals(c.Name.Trim(), name.Trim(), StringComparison.OrdinalIgnoreCase))
-            .ToList();
-
-        return matches.Count switch
-        {
-            0 => (null, "No encontré esa categoría. Usa /categorias para ver los nombres disponibles."),
-            > 1 => (null, "Hay más de una categoría con ese nombre. Usa /categorias para ver los nombres exactos."),
-            _ => (matches[0], null)
-        };
+        return CatalogNameMatcher.Match(name, categories, c => c.Name).Value;
     }
 
-    private static (Subcategory? Subcategory, string? Error) ResolveSingleSubcategory(
+    private static (Subcategory? Subcategory, string? Warning) ResolveSingleSubcategory(
         string? name,
         Category category,
         IReadOnlyList<Subcategory> subcategories)
     {
-        // Subcategoría opcional: solo se resuelve si el usuario la mencionó, y siempre dentro de su categoría.
+        // Subcategoría opcional: no bloquea el borrador. Siempre se filtra por su categoría.
         if (string.IsNullOrWhiteSpace(name)) return (null, null);
 
-        var matches = subcategories
-            .Where(s => s.CategoryId == category.CategoryId
-                && string.Equals(s.Name.Trim(), name.Trim(), StringComparison.OrdinalIgnoreCase))
-            .ToList();
+        var candidates = subcategories.Where(s => s.CategoryId == category.CategoryId).ToList();
+        var match = CatalogNameMatcher.Match(name, candidates, s => s.Name);
+        if (match.Value is not null) return (match.Value, null);
 
-        return matches.Count switch
-        {
-            0 => (null, $"No encontré la subcategoría \"{name.Trim()}\" en {category.Name}. Puedes registrarla sin subcategoría."),
-            > 1 => (null, $"Hay más de una subcategoría \"{name.Trim()}\" en {category.Name}."),
-            _ => (matches[0], null)
-        };
+        return (null, $"No encontré la subcategoría \"{name.Trim()}\" en {category.Name}; el borrador se crea sin subcategoría.{FormatOptions(match.Suggestions, s => s.Name, "Usa /subcategorias para ver las disponibles.")}");
     }
 
-    private static (Merchant? Merchant, string? Error) ResolveSingleMerchant(string? name, IReadOnlyList<Merchant> merchants)
+    private static (Merchant? Merchant, string? Warning) ResolveSingleMerchant(
+        string? name,
+        IReadOnlyList<Merchant> merchants)
     {
-        // Comercio opcional: solo se resuelve si el usuario lo mencionó.
+        // Comercio opcional: no bloquea el borrador.
         if (string.IsNullOrWhiteSpace(name)) return (null, null);
 
-        var matches = merchants
-            .Where(m => string.Equals(m.Name.Trim(), name.Trim(), StringComparison.OrdinalIgnoreCase))
-            .ToList();
+        var match = CatalogNameMatcher.Match(name, merchants, m => m.Name);
+        if (match.Value is not null) return (match.Value, null);
 
-        return matches.Count switch
-        {
-            0 => (null, $"No encontré el comercio \"{name.Trim()}\". Puedes registrarlo sin comercio."),
-            > 1 => (null, "Hay más de un comercio con ese nombre. Indica el nombre exacto."),
-            _ => (matches[0], null)
-        };
+        return (null, $"No encontré el comercio \"{name.Trim()}\"; el borrador se crea sin comercio.{FormatOptions(match.Suggestions, m => m.Name, "Usa /comercios para ver los disponibles.")}");
     }
+
+    /// <summary>
+    /// Mensaje cuando la categoría obligatoria no resuelve. Antes de responder se prueba el mismo
+    /// texto contra las categorías del tipo opuesto para avisar que la intención era la otra.
+    /// </summary>
+    private async Task<string> BuildCategoryFailureAsync(
+        TelegramIdentity identity,
+        string? raw,
+        IReadOnlyList<Category> currentTypeCategories,
+        bool isIncome,
+        string syntax,
+        CancellationToken cancellationToken)
+    {
+        var rawName = raw?.Trim() ?? string.Empty;
+        if (rawName.Length == 0)
+        {
+            var missingLabel = isIncome ? "ingreso" : "gasto";
+            return $"Falta la categoría del {missingLabel}. Usa /categorias para ver las disponibles.\n{syntax}";
+        }
+
+        var match = CatalogNameMatcher.Match(raw, currentTypeCategories, c => c.Name);
+        var options = FormatOptions(match.Suggestions, c => c.Name, "Usa /categorias para ver las disponibles.");
+
+        var oppositeType = isIncome ? CategoryTypeExpense : CategoryTypeIncome;
+        var opposite = await GetActiveCategoriesAsync(identity.UserId, oppositeType, cancellationToken);
+        var oppositeMatch = CatalogNameMatcher.Match(raw, opposite, c => c.Name);
+        if (oppositeMatch.Value is not null)
+        {
+            return isIncome
+                ? $"La categoría \"{rawName}\" es de tipo gasto. Usa /gasto para registrarlo, o elige una categoría de ingreso.{options}"
+                : $"La categoría \"{rawName}\" es de tipo ingreso. Usa /ingreso para registrarlo, o elige una categoría de gasto.{options}";
+        }
+
+        return $"No pude identificar la categoría \"{rawName}\".{options}\n{syntax}";
+    }
+
+    /// <summary>Nota de auto-resolución cuando el texto del usuario difiere del nombre canónico.</summary>
+    private static void AddNote(List<string> notes, string? raw, string resolvedName)
+    {
+        if (string.IsNullOrWhiteSpace(raw)) return;
+        if (CatalogTextNormalizer.Normalize(raw) == CatalogTextNormalizer.Normalize(resolvedName)) return;
+
+        notes.Add($"Interpreté \"{raw.Trim()}\" como \"{resolvedName}\".");
+    }
+
+    /// <summary>Nota de aviso para campos opcionales que no resolvieron, o nota si el texto era aproximado.</summary>
+    private static void AddNoteOrWarning(List<string> notes, string? raw, string? resolvedName, string? warning)
+    {
+        if (resolvedName is not null)
+        {
+            AddNote(notes, raw, resolvedName);
+            return;
+        }
+
+        if (warning is not null) notes.Add(warning);
+    }
+
+    private static string FormatNotes(List<string> notes)
+        => notes.Count == 0 ? string.Empty : "\n\n" + string.Join('\n', notes);
+
+    /// <summary>Alternativas disponibles, o una pista de dónde consultar el catálogo cuando no hay ninguna.</summary>
+    private static string FormatOptions<T>(IReadOnlyList<T> items, Func<T, string> nameSelector, string fallbackHint)
+        => items.Count == 0
+            ? $" {fallbackHint}"
+            : $" Opciones: {string.Join(", ", items.Select(nameSelector))}.";
 
     private static bool TryParseAmount(string? raw, out decimal amount)
     {
         amount = 0m;
         if (string.IsNullOrWhiteSpace(raw)) return false;
 
-        var cleaned = raw.Trim().Replace("$", string.Empty).Replace(" ", string.Empty).Replace(",", string.Empty);
-        if (!decimal.TryParse(cleaned, NumberStyles.Number, CultureInfo.InvariantCulture, out var parsed)) return false;
+        var cleaned = raw.Trim().Replace("$", string.Empty).Replace(" ", string.Empty);
+        if (cleaned.Length == 0) return false;
+
+        // Heurística es-MX: "1,5"/"1,50" son decimales; "1.500"/"1,500"/"1,500.00" usan separador de miles.
+        var lastDot = cleaned.LastIndexOf('.');
+        var lastComma = cleaned.LastIndexOf(',');
+        string normalized;
+
+        if (lastDot >= 0 && lastComma >= 0)
+        {
+            // El último separador que aparece es el decimal; el otro es de miles.
+            var decimalSeparator = Math.Max(lastDot, lastComma);
+            var integerPart = cleaned[..decimalSeparator].Replace(".", string.Empty).Replace(",", string.Empty);
+            var decimalPart = cleaned[(decimalSeparator + 1)..].Replace(".", string.Empty).Replace(",", string.Empty);
+            normalized = integerPart + "." + decimalPart;
+        }
+        else if (lastComma >= 0)
+        {
+            var commaCount = cleaned.Count(c => c == ',');
+            var digitsAfterComma = cleaned.Length - lastComma - 1;
+            normalized = commaCount == 1 && digitsAfterComma is 1 or 2
+                ? cleaned.Replace(',', '.')
+                : cleaned.Replace(",", string.Empty);
+        }
+        else if (lastDot >= 0)
+        {
+            var dotCount = cleaned.Count(c => c == '.');
+            var digitsAfterDot = cleaned.Length - lastDot - 1;
+            normalized = dotCount > 1
+                ? cleaned.Replace(".", string.Empty)
+                : dotCount == 1 && digitsAfterDot == 3
+                    ? cleaned.Replace(".", string.Empty)
+                    : cleaned;
+        }
+        else
+        {
+            normalized = cleaned;
+        }
+
+        if (!decimal.TryParse(normalized, NumberStyles.Number, CultureInfo.InvariantCulture, out var parsed)) return false;
         if (parsed <= 0) return false;
 
         amount = decimal.Round(parsed, 2, MidpointRounding.AwayFromZero);

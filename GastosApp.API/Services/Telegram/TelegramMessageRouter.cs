@@ -22,7 +22,7 @@ public sealed class TelegramMessageRouter
     private const int MaxCatalogNames = 50;
 
     private const string GenericMessage =
-        "No pude interpretar el mensaje. Puedes usar /gasto <monto> | <cuenta> | <categoría> o /ingreso <monto> | <cuenta> | <categoría>, o pedir un resumen de tus finanzas.";
+        "No pude interpretar el mensaje. Puedes usar /gasto <monto>; <cuenta>; <categoría> o /ingreso <monto>; <cuenta>; <categoría>, o pedir un resumen de tus finanzas.";
 
     private readonly TelegramTransactionService _expenses;
     private readonly TelegramQueryService _queries;

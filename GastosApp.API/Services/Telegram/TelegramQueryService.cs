@@ -10,7 +10,7 @@ namespace GastosApp.API.Services.Telegram;
 public sealed class TelegramQueryService
 {
     private const string GenericMessage =
-        "No pude interpretar el mensaje. Puedes usar /gasto <monto> <cuenta> o pedir un resumen de tus gastos.";
+        "No pude interpretar el mensaje. Puedes usar /gasto <monto>; <cuenta>; <categoría> o pedir un resumen de tus gastos.";
 
     private readonly ExpenseAgentService _agent;
 
