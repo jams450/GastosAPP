@@ -1,0 +1,17 @@
+# Build context for Dockerfile.api (root). Keeps .env + frontend out of the image.
+.git
+.gitignore
+.env
+.env.*
+*.md
+docs/
+Templates/
+SQL/
+GastosApp.Web/
+**/node_modules/
+**/.next/
+**/bin/
+**/obj/
+**/.env
+GastosApp.API/appsettings.json
+gastos_dev.dump
