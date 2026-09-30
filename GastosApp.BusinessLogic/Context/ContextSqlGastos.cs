@@ -42,6 +42,11 @@ namespace GastosApp.BusinessLogic.Context
         public DbSet<BudgetThreshold> BudgetThresholds { get; set; } = null!;
         public DbSet<AlertDelivery> AlertDeliveries { get; set; } = null!;
         public DbSet<AlertOutbox> AlertOutbox { get; set; } = null!;
+        public DbSet<InvestmentProduct> InvestmentProducts { get; set; } = null!;
+        public DbSet<InvestmentOffer> InvestmentOffers { get; set; } = null!;
+        public DbSet<InvestmentRateTier> InvestmentRateTiers { get; set; } = null!;
+        public DbSet<InvestmentPlan> InvestmentPlans { get; set; } = null!;
+        public DbSet<InvestmentPlanAllocation> InvestmentPlanAllocations { get; set; } = null!;
 
         public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
         {
@@ -378,6 +383,38 @@ namespace GastosApp.BusinessLogic.Context
                     .WithOne(e => e.Outbox)
                     .HasForeignKey<AlertOutbox>(e => e.DeliveryId)
                     .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            modelBuilder.Entity<InvestmentProduct>(entity =>
+            {
+                entity.HasIndex(e => new { e.UserId, e.AccountId });
+                entity.HasIndex(e => new { e.UserId, e.Active });
+                entity.HasOne(e => e.Account).WithMany().HasForeignKey(e => e.AccountId).OnDelete(DeleteBehavior.Restrict);
+                entity.HasMany(e => e.Offers).WithOne(e => e.Product).HasForeignKey(e => e.InvestmentProductId).OnDelete(DeleteBehavior.Cascade);
+            });
+
+            modelBuilder.Entity<InvestmentOffer>(entity =>
+            {
+                entity.HasIndex(e => new { e.InvestmentProductId, e.CapturedForMonth }).IsUnique();
+                entity.HasMany(e => e.Tiers).WithOne(e => e.Offer).HasForeignKey(e => e.InvestmentOfferId).OnDelete(DeleteBehavior.Cascade);
+            });
+
+            modelBuilder.Entity<InvestmentRateTier>(entity =>
+            {
+                entity.HasIndex(e => new { e.InvestmentOfferId, e.MinimumAmount }).IsUnique();
+            });
+
+            modelBuilder.Entity<InvestmentPlan>(entity =>
+            {
+                entity.HasIndex(e => new { e.UserId, e.PlanMonth }).IsUnique();
+                entity.HasMany(e => e.Allocations).WithOne(e => e.Plan).HasForeignKey(e => e.InvestmentPlanId).OnDelete(DeleteBehavior.Cascade);
+            });
+
+            modelBuilder.Entity<InvestmentPlanAllocation>(entity =>
+            {
+                entity.HasIndex(e => new { e.InvestmentPlanId, e.InvestmentProductId }).IsUnique();
+                entity.HasOne<InvestmentProduct>().WithMany().HasForeignKey(e => e.InvestmentProductId).OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne<Account>().WithMany().HasForeignKey(e => e.AccountId).OnDelete(DeleteBehavior.Restrict);
             });
         }
     }

@@ -5,6 +5,7 @@ using GastosApp.API.Services;
 using GastosApp.API.Services.Telegram;
 using GastosApp.BusinessLogic.Interfaces;
 using GastosApp.BusinessLogic.Services;
+using GastosApp.BusinessLogic.Services.Investments;
 using IPasswordService = GastosApp.BusinessLogic.Interfaces.IPasswordService;
 using PasswordService = GastosApp.BusinessLogic.Services.PasswordService;
 
@@ -53,6 +54,7 @@ public static class ServiceCollectionExtensions
 
         services.AddScoped<ICatalogRuleService, CatalogRuleService>();
         services.AddScoped<IBudgetService, BudgetService>();
+        services.AddScoped<IInvestmentService, InvestmentService>();
         services.AddScoped<IAlertEvaluationService, AlertEvaluationService>();
         services.AddScoped<ITelegramAlertSender, TelegramAlertSender>();
 

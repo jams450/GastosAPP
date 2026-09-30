@@ -1,4 +1,4 @@
-import { ArrowLeftRight, Home, PiggyBank, Tags, Users, Wallet } from "lucide-react";
+import { ArrowLeftRight, Home, Landmark, PiggyBank, Tags, Users, Wallet } from "lucide-react";
 
 export type NavChild = {
   readonly href: string;
@@ -16,6 +16,7 @@ export const appNavItems: readonly NavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: Home },
   { href: "/accounts", label: "Cuentas", icon: Wallet },
   { href: "/budgets", label: "Presupuestos", icon: PiggyBank },
+  { href: "/investments", label: "Inversiones", icon: Landmark },
   {
     href: "/transactions",
     label: "Transacciones",
