@@ -8,7 +8,7 @@ BEGIN;
 CREATE TABLE IF NOT EXISTS investment_products (
     investment_product_id SERIAL PRIMARY KEY,
     user_id INT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
-    account_id INT NOT NULL REFERENCES accounts(account_id) ON DELETE RESTRICT,
+    account_id INT REFERENCES accounts(account_id) ON DELETE RESTRICT,
     name VARCHAR(120) NOT NULL,
     institution VARCHAR(120) NOT NULL,
     active BOOLEAN NOT NULL DEFAULT TRUE,

@@ -6,10 +6,16 @@ financial advice.
 
 ## Scope
 
-- A product belongs to one user and references exactly one active, non-credit account owned by that
-  user. The account link is immutable after creation. PostgreSQL permits at most one active product
-  per user/account (`ux_investment_products_active_account`) and the service reports a conflicting
-  account before persisting.
+- A product belongs to one user and may have zero or one linked account. Offers can be captured
+  without an account and linked later. A linked account must belong to that user, be active,
+  non-credit (`!IsCredit`) and interest-bearing (`EarnsInterest`). Account annual interest metadata
+  is not used as an offer rate. PostgreSQL permits at most one active linked product per user/account
+  (`ux_investment_products_active_account`); multiple unlinked products are permitted.
+- Links may be added, removed or changed with the bounded account PATCH. That action never replaces
+  offers or tier IDs, preserving confirmations and historical plan snapshots. Full catalog updates
+  also preserve offer/tier IDs when normalized offer content is unchanged. A changed offer still
+  replaces its tiers and requires confirmations for the new IDs. Linked activation revalidates
+  eligibility and occupancy; unlinked activation is allowed for catalog use.
 - Products and monthly offer captures are entered by hand. Every offer requires an HTTPS source URL,
   a capture month, validity dates and an explicit marginal tier schedule. No rate is ever seeded,
   prefilled or inferred.
@@ -90,7 +96,7 @@ when **all** of the following hold:
 
 1. Its institution is in the seven-code catalog.
 2. It is active.
-3. It has at least one offer.
+3. It has an eligible linked account (same user, active, non-credit, interest-bearing), then at least one offer.
 4. An offer exists whose `capturedForMonth` **equals the plan month**. A capture from an earlier month
    is stale and is never promoted to the current month.
 5. That offer's validity covers the plan month start (`validFrom <= monthStart && validTo >=
@@ -103,6 +109,12 @@ Every ineligible product is reported with a machine-readable reason:
 
 | Reason | Meaning |
 |---|---|
+| `unlinked_account` | No account is linked; catalog-only product, no balance allocation. |
+| `missing_account` | The linked account is unavailable. |
+| `foreign_account` | The linked account belongs to another user. |
+| `inactive_account` | The linked account is inactive. |
+| `credit_account` | The linked account is a credit account. |
+| `non_interest_account` | The linked account does not earn interest. |
 | `inactive_product` | The product is inactive. |
 | `unsupported_institution` | The institution is outside the V1 catalog. |
 | `no_offer_for_month` | The product has no offers at all. |
@@ -202,7 +214,8 @@ missing one.
 | `GET /api/investments/products` | List the user's products with offers and tiers. |
 | `GET /api/investments/products/{id}` | Product detail. |
 | `POST /api/investments/products` | Create a product within the institution catalog. |
-| `PUT /api/investments/products/{id}` | Update name/institution/active and replace offers and tiers. |
+| `PUT /api/investments/products/{id}` | Update catalog fields and optional link; replace offers/tiers only if their content changes. |
+| `PATCH /api/investments/products/{id}/account` | Link, unlink (`accountId: null`) or relink without replacing offer/tier IDs. |
 | `PATCH /api/investments/products/{id}/active` | Activate/deactivate; reactivation revalidates the account. |
 | `GET /api/investments/plans/current?planMonth=` | Persisted plan or derived draft (see above). |
 | `GET /api/investments/plans/{id}` | Plan detail: allocations + exclusions, no series. |
@@ -215,6 +228,15 @@ DTO examples: `InvestmentProductResult`, `InvestmentOfferResult`, `InvestmentTie
 `InvestmentPendingConditionResult`.
 
 ## Frontend
+
+- Account selectors use normalized account flags, filter active cash interest-bearing accounts and
+  active-link occupancy, and offer an explicit blank option that sends `null` (never `0`). The existing
+  link remains visible even if it became ineligible, allowing unlink/relink. Loading failures have
+  explicit Spanish guidance rather than being presented as an empty eligible list.
+- A separate Spanish linking drawer uses the bounded PATCH and existing CSRF/admin BFF pattern.
+  Only eligible linked products enter draft/generation allocations, using their actual account balance;
+  unlinked or invalid links are excluded before any balance dereference, never allocated a fake zero.
+  Relinking does not regenerate an already persisted plan; only explicit generation replaces it.
 
 - Page `/investments` is admin-guarded (`requireAdminSession`), listed in `privateRoutes` and the
   middleware `matcher`, and linked from the navigation config.
@@ -248,8 +270,8 @@ DTO examples: `InvestmentProductResult`, `InvestmentOfferResult`, `InvestmentTie
 
 ## Unchanged invariants
 
-One active product per account and one active account per product; immutable account link on update;
-account revalidation on reactivation; read-only balances; no transactions, credit or MSI writes;
+One active linked product per account and zero or one account per product; optional mutable links;
+linked-account revalidation on reactivation; read-only balances; no transactions, credit or MSI writes;
 canonical marginal tier schedule validated both on input and at generation; snapshots of the tier,
 offer, terms and condition state; admin-only API, BFF and page guard; CSRF handled by the existing
 mutable-method middleware and client header.
@@ -266,7 +288,11 @@ mutable-method middleware and client header.
 
 `SQL/schema.sql` holds the fresh-install DDL and
 `SQL/migrations/2026-09-29_fixed_income_investments_v1.sql` the idempotent migration for existing
-databases. This solution has **no EF migrations**; catalog CHECK constraints live only in SQL, and the
+databases. `SQL/migrations/2026-09-30_optional_investment_account.sql` is a new additive,
+transactional, repeatable migration that drops only the product account column's NOT NULL constraint.
+Apply it after the V1 migration, before deploying nullable-link code to an existing database.
+It does not change data, allocation account requirements, RESTRICT foreign keys or the partial unique
+index. Neither migration was applied as part of this correction. This solution has **no EF migrations**; catalog CHECK constraints live only in SQL, and the
 migration backfills `validity_inferred`, `offer_validity_inferred_snapshot`, `source_label`,
 `offer_captured_for_month_snapshot` and `exclusions_json` before adding the named constraints.
 

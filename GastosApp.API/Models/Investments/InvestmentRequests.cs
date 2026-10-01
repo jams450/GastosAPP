@@ -34,7 +34,7 @@ public sealed class InvestmentOfferRequest
 
 public sealed class InvestmentProductRequest
 {
-    public int AccountId { get; set; }
+    public int? AccountId { get; set; }
     public string Name { get; set; } = string.Empty;
 
     /// <summary>One of: revolut, cetes, nu, klar, finsus, didi, mercado_libre (case-insensitive).</summary>
@@ -42,6 +42,12 @@ public sealed class InvestmentProductRequest
 
     public bool Active { get; set; } = true;
     public List<InvestmentOfferRequest> Offers { get; set; } = [];
+}
+
+public sealed class InvestmentProductAccountRequest
+{
+    [Range(1, int.MaxValue)]
+    public int? AccountId { get; set; }
 }
 
 public sealed class InvestmentProductActiveRequest

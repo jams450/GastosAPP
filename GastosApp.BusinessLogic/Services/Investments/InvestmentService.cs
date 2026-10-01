@@ -44,7 +44,7 @@ public class InvestmentService : IInvestmentService
     public async Task<InvestmentProductResult> CreateProductAsync(int userId, InvestmentProductInput input)
     {
         ValidateInput(input);
-        await ValidateAccountAsync(userId, input.AccountId, null);
+        await ValidateAccountAsync(userId, input.AccountId, null, input.Active);
 
         var product = new InvestmentProduct
         {
@@ -71,22 +71,36 @@ public class InvestmentService : IInvestmentService
         var product = await _repository.GetTrack<InvestmentProduct>().FirstOrDefaultAsync(x => x.InvestmentProductId == id && x.UserId == userId);
         if (product is null) return null;
 
-        // The account link is immutable: moving a product to another account would silently rewrite history.
-        if (product.AccountId != input.AccountId) throw new ArgumentException("accountId is read-only once a product is created.");
-        await ValidateAccountAsync(userId, product.AccountId, id);
+        await ValidateAccountAsync(userId, input.AccountId, id, input.Active);
+        product.AccountId = input.AccountId;
 
         product.Name = Text(input.Name, 120, "Product name");
         product.Institution = InvestmentInstitutions.Normalize(input.Institution);
         product.Active = input.Active;
 
+        var existingOffers = await _repository.Get<InvestmentOffer>()
+            .Include(x => x.Tiers).Where(x => x.InvestmentProductId == id).ToListAsync();
+        var offersUnchanged = OffersUnchanged(existingOffers, input.Offers);
         await _repository.ExecuteInTransactionAsync(async () =>
         {
             await _repository.SaveChangesAsync();
-            await ReplaceOffersAsync(product, input.Offers);
+            if (!offersUnchanged) await ReplaceOffersAsync(product, input.Offers);
             return 0;
         });
 
         return await GetProductAsync(id, userId);
+    }
+
+    // Link-only edits never replace offers/tiers or change historical allocation snapshots.
+    public async Task<bool> SetProductAccountAsync(int id, int userId, int? accountId)
+    {
+        var product = await _repository.GetTrack<InvestmentProduct>()
+            .FirstOrDefaultAsync(x => x.InvestmentProductId == id && x.UserId == userId);
+        if (product is null) return false;
+        await ValidateAccountAsync(userId, accountId, id, product.Active);
+        product.AccountId = accountId;
+        await _repository.SaveChangesAsync();
+        return true;
     }
 
     public async Task<bool> SetProductActiveAsync(int id, int userId, bool active)
@@ -256,8 +270,8 @@ public class InvestmentService : IInvestmentService
                 {
                     InvestmentPlanId = plan.InvestmentPlanId,
                     InvestmentProductId = product.InvestmentProductId,
-                    AccountId = product.AccountId,
-                    AllocatedAmount = product.Account.CurrentBalance,
+                    AccountId = product.AccountId!.Value,
+                    AllocatedAmount = product.Account!.CurrentBalance,
                     ProductNameSnapshot = product.Name,
                     InstitutionSnapshot = product.Institution,
                     OfferSourceUrlSnapshot = offer.SourceUrl,
@@ -298,6 +312,19 @@ public class InvestmentService : IInvestmentService
 
         if (!product.Active)
             return (null, InvestmentExclusionReasons.InactiveProduct);
+
+        if (product.AccountId is null)
+            return (null, InvestmentExclusionReasons.UnlinkedAccount);
+        if (product.Account is null)
+            return (null, InvestmentExclusionReasons.MissingAccount);
+        if (product.Account.UserId != product.UserId)
+            return (null, InvestmentExclusionReasons.ForeignAccount);
+        if (!product.Account.Active)
+            return (null, InvestmentExclusionReasons.InactiveAccount);
+        if (product.Account.IsCredit)
+            return (null, InvestmentExclusionReasons.CreditAccount);
+        if (!product.Account.EarnsInterest)
+            return (null, InvestmentExclusionReasons.NonInterestAccount);
 
         if (product.Offers.Count == 0)
             return (null, InvestmentExclusionReasons.NoOfferForMonth);
@@ -342,6 +369,12 @@ public class InvestmentService : IInvestmentService
 
     private static string ExclusionMessage(string reason) => reason switch
     {
+        InvestmentExclusionReasons.UnlinkedAccount => "El producto no tiene una cuenta vinculada.",
+        InvestmentExclusionReasons.MissingAccount => "La cuenta vinculada no existe o no está disponible.",
+        InvestmentExclusionReasons.ForeignAccount => "La cuenta vinculada no pertenece al usuario del producto.",
+        InvestmentExclusionReasons.InactiveAccount => "La cuenta vinculada está inactiva.",
+        InvestmentExclusionReasons.CreditAccount => "La cuenta vinculada es de crédito.",
+        InvestmentExclusionReasons.NonInterestAccount => "La cuenta vinculada no genera intereses.",
         InvestmentExclusionReasons.InactiveProduct => "The product is inactive.",
         InvestmentExclusionReasons.UnsupportedInstitution => $"The institution is not in the V1 catalog ({string.Join(", ", InvestmentInstitutions.AllowedCodes)}).",
         InvestmentExclusionReasons.NoOfferForMonth => "The product has no offers.",
@@ -356,7 +389,7 @@ public class InvestmentService : IInvestmentService
     // Draft derivation (never persisted)
     // ---------------------------------------------------------------------------------------
 
-    private async Task<InvestmentPlanResult> BuildDraftAsync(
+    private Task<InvestmentPlanResult> BuildDraftAsync(
         int userId,
         string month,
         int? carriedFromPlanId,
@@ -365,9 +398,6 @@ public class InvestmentService : IInvestmentService
         List<InvestmentProduct> products)
     {
         var monthStart = InvestmentMonthResolver.StartDate(month);
-        var balances = await _repository.Get<Account>(a => a.UserId == userId)
-            .Select(a => new { a.AccountId, a.CurrentBalance })
-            .ToDictionaryAsync(a => a.AccountId, a => a.CurrentBalance);
 
         // The draft partitions the whole catalog exactly like generation does: the same eligibility
         // rules, the same machine-readable reasons, and full coverage — every product ends up either as
@@ -403,11 +433,11 @@ public class InvestmentService : IInvestmentService
             allocations.Add(new InvestmentAllocationResult
             {
                 InvestmentProductId = product.InvestmentProductId,
-                AccountId = product.AccountId,
+                AccountId = product.AccountId!.Value,
                 ProductName = product.Name,
                 Institution = product.Institution,
                 InstitutionLabel = InvestmentInstitutions.Label(product.Institution),
-                AllocatedAmount = balances.TryGetValue(product.AccountId, out var balance) ? balance : 0m,
+                AllocatedAmount = product.Account!.CurrentBalance,
                 OfferCapturedForMonth = offer.CapturedForMonth,
                 OfferValidFrom = offer.ValidFrom,
                 OfferValidTo = offer.ValidTo,
@@ -432,7 +462,7 @@ public class InvestmentService : IInvestmentService
             });
         }
 
-        return new InvestmentPlanResult
+        return Task.FromResult(new InvestmentPlanResult
         {
             InvestmentPlanId = 0,
             PlanMonth = month,
@@ -442,7 +472,7 @@ public class InvestmentService : IInvestmentService
             CarriedFromPlanMonth = carriedFromPlanMonth,
             Allocations = allocations,
             Exclusions = exclusions
-        };
+        });
     }
 
     private static InvestmentExclusionResult ToExclusion(InvestmentProduct product, string reason) => new()
@@ -563,7 +593,7 @@ public class InvestmentService : IInvestmentService
     {
         InvestmentProductId = product.InvestmentProductId,
         AccountId = product.AccountId,
-        AccountName = product.Account?.Name,
+        AccountName = product.Account?.UserId == product.UserId ? product.Account.Name : null,
         Name = product.Name,
         Institution = product.Institution,
         InstitutionLabel = InvestmentInstitutions.Label(product.Institution),
@@ -607,6 +637,31 @@ public class InvestmentService : IInvestmentService
         .Include(x => x.Offers)
         .ThenInclude(x => x.Tiers);
 
+    // A full form may submit only a link or catalog metadata change. Preserve stable tier identities
+    // when the normalized offer content is identical, so existing confirmations remain meaningful.
+    private static bool OffersUnchanged(IReadOnlyList<InvestmentOffer> existing, IReadOnlyList<InvestmentOfferInput> inputs)
+    {
+        if (existing.Count != inputs.Count) return false;
+        foreach (var input in inputs)
+        {
+            var month = InvestmentMonthResolver.Normalize(input.CapturedForMonth);
+            var offer = existing.SingleOrDefault(x => x.CapturedForMonth == month);
+            if (offer is null || offer.ValidFrom != input.ValidFrom ||
+                offer.ValidTo != (input.ValidTo ?? InvestmentMonthResolver.EndOfCaptureYear(month)) ||
+                offer.ValidityInferred != (input.ValidTo is null) || offer.SourceUrl != Url(input.SourceUrl) ||
+                offer.SourceLabel != Text(input.SourceLabel, 120, "Source label") ||
+                offer.TermsText != OptionalText(input.TermsText) || offer.ConditionsConfirmed != input.ConditionsConfirmed ||
+                offer.Tiers.Count != input.Tiers.Count) return false;
+            var tiers = offer.Tiers.OrderBy(x => x.MinimumAmount).ToList();
+            var requested = input.Tiers.OrderBy(x => x.MinimumAmount).ToList();
+            for (var i = 0; i < tiers.Count; i++)
+                if (tiers[i].MinimumAmount != requested[i].MinimumAmount || tiers[i].MaximumAmount != requested[i].MaximumAmount ||
+                    tiers[i].AnnualRatePercent != requested[i].AnnualRatePercent ||
+                    tiers[i].SpecialConditionText != OptionalText(requested[i].SpecialConditionText)) return false;
+        }
+        return true;
+    }
+
     private async Task ReplaceOffersAsync(InvestmentProduct product, IReadOnlyList<InvestmentOfferInput> inputs)
     {
         var offers = _repository.GetTrack<InvestmentOffer>();
@@ -646,15 +701,17 @@ public class InvestmentService : IInvestmentService
         }
     }
 
-    private async Task ValidateAccountAsync(int userId, int accountId, int? productId)
+    private async Task ValidateAccountAsync(int userId, int? accountId, int? productId, bool active = true)
     {
+        if (accountId is null) return;
+        if (accountId <= 0) throw new ArgumentException("Account not found or not accessible.");
         var account = await _repository.Get<Account>(a => a.AccountId == accountId && a.UserId == userId).FirstOrDefaultAsync()
             ?? throw new ArgumentException("Account not found or not accessible.");
-        if (!account.Active || account.IsCredit)
-            throw new ArgumentException("Investment products require an active non-credit account.");
+        if (!account.Active || account.IsCredit || !account.EarnsInterest)
+            throw new ArgumentException("Investment products require an active non-credit interest-bearing account.");
 
         // One active product per account, and one active account per product.
-        if (await _repository.Get<InvestmentProduct>(p => p.UserId == userId && p.AccountId == accountId && p.Active && p.InvestmentProductId != productId).AnyAsync())
+        if (active && await _repository.Get<InvestmentProduct>(p => p.UserId == userId && p.AccountId == accountId && p.Active && p.InvestmentProductId != productId).AnyAsync())
             throw new ArgumentException("An active investment product already links this account.");
     }
 

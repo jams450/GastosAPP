@@ -78,7 +78,7 @@ export type OfferPayload = {
 };
 
 export type ProductPayload = {
-  accountId: number;
+  accountId: number | null;
   name: string;
   institution: string;
   active: boolean;
@@ -118,20 +118,20 @@ export function inferredValidTo(capturedForMonth: string): string | null {
 export function validateProductForm(form: ProductFormValues): ProductFormErrors {
   const errors: ProductFormErrors = {};
 
-  if (!/^\d+$/.test(form.accountId)) errors.accountId = "Select one eligible account.";
-  if (!form.name.trim()) errors.name = "Product name is required.";
-  if (form.name.trim().length > 120) errors.name = "Product name cannot exceed 120 characters.";
-  if (!isAllowedInstitution(form.institution)) errors.institution = "Select an institution from the catalog.";
-  if (!form.offers.length) errors.offers = "At least one offer is required.";
+  if (form.accountId !== "" && (!/^\d+$/.test(form.accountId) || !Number.isSafeInteger(Number(form.accountId)) || Number(form.accountId) <= 0)) errors.accountId = "Selecciona una cuenta elegible.";
+  if (!form.name.trim()) errors.name = "El nombre del producto es obligatorio.";
+  if (form.name.trim().length > 120) errors.name = "El nombre del producto no puede superar los 120 caracteres.";
+  if (!isAllowedInstitution(form.institution)) errors.institution = "Selecciona una institución del catálogo.";
+  if (!form.offers.length) errors.offers = "Agrega al menos una oferta.";
 
   const months = new Set<string>();
   form.offers.forEach((offer, offerIndex) => {
     const prefix = `offers.${offerIndex}`;
 
     if (!MONTH_PATTERN.test(offer.capturedForMonth)) {
-      errors[`${prefix}.capturedForMonth`] = "Use a capture month.";
+      errors[`${prefix}.capturedForMonth`] = "Selecciona el mes de captura.";
     } else if (months.has(offer.capturedForMonth)) {
-      errors[`${prefix}.capturedForMonth`] = "Capture month must be unique.";
+      errors[`${prefix}.capturedForMonth`] = "El mes de captura no se puede repetir.";
     } else {
       months.add(offer.capturedForMonth);
     }
@@ -139,22 +139,22 @@ export function validateProductForm(form: ProductFormValues): ProductFormErrors 
     // A blank end date is allowed: the server infers December 31 of the capture year and flags it.
     const effectiveValidTo = offer.validTo || inferredValidTo(offer.capturedForMonth) || "";
     if (!offer.validFrom || !effectiveValidTo || effectiveValidTo < offer.validFrom) {
-      errors[`${prefix}.validity`] = "Enter a valid start and end date.";
+      errors[`${prefix}.validity`] = "Indica fechas de inicio y fin válidas.";
     }
 
     try {
       const url = new URL(offer.sourceUrl.trim());
       if (url.protocol !== "https:") throw new Error();
     } catch {
-      errors[`${prefix}.sourceUrl`] = "Use an HTTPS source URL.";
+      errors[`${prefix}.sourceUrl`] = "Indica una URL de origen con HTTPS.";
     }
 
-    if (!offer.sourceLabel.trim()) errors[`${prefix}.sourceLabel`] = "Source label is required.";
-    else if (offer.sourceLabel.trim().length > MAX_SOURCE_LABEL_LENGTH) errors[`${prefix}.sourceLabel`] = `Source label cannot exceed ${MAX_SOURCE_LABEL_LENGTH} characters.`;
+    if (!offer.sourceLabel.trim()) errors[`${prefix}.sourceLabel`] = "El nombre de la fuente es obligatorio.";
+    else if (offer.sourceLabel.trim().length > MAX_SOURCE_LABEL_LENGTH) errors[`${prefix}.sourceLabel`] = `El nombre de la fuente no puede superar los ${MAX_SOURCE_LABEL_LENGTH} caracteres.`;
 
-    if (offer.termsText.trim().length > MAX_SPECIAL_CONDITION_LENGTH) errors[`${prefix}.termsText`] = `Terms cannot exceed ${MAX_SPECIAL_CONDITION_LENGTH} characters.`;
+    if (offer.termsText.trim().length > MAX_SPECIAL_CONDITION_LENGTH) errors[`${prefix}.termsText`] = `Los términos no pueden superar los ${MAX_SPECIAL_CONDITION_LENGTH} caracteres.`;
 
-    if (!offer.tiers.length) errors[`${prefix}.tiers`] = "At least one marginal tier is required.";
+    if (!offer.tiers.length) errors[`${prefix}.tiers`] = "Agrega al menos un tramo marginal.";
 
     let expectedMinimum = 0;
     offer.tiers.forEach((tier, tierIndex) => {
@@ -163,21 +163,21 @@ export function validateProductForm(form: ProductFormValues): ProductFormErrors 
       const maximum = tier.maximumAmount === "" ? null : Number(tier.maximumAmount);
       const rate = Number(tier.annualRatePercent);
 
-      if (!Number.isFinite(minimum) || minimum !== expectedMinimum || minimum < 0) errors[`${tierPrefix}.minimumAmount`] = `Must equal ${expectedMinimum}.`;
-      if (!Number.isFinite(rate) || rate < 0) errors[`${tierPrefix}.annualRatePercent`] = "Enter a non-negative annual rate.";
+      if (!Number.isFinite(minimum) || minimum !== expectedMinimum || minimum < 0) errors[`${tierPrefix}.minimumAmount`] = `Debe ser igual a ${expectedMinimum}.`;
+      if (!Number.isFinite(rate) || rate < 0) errors[`${tierPrefix}.annualRatePercent`] = "Indica una tasa anual mayor o igual a cero.";
 
       if (maximum === null) {
-        if (tierIndex !== offer.tiers.length - 1) errors[`${tierPrefix}.maximumAmount`] = "Only the final tier may be unbounded.";
+        if (tierIndex !== offer.tiers.length - 1) errors[`${tierPrefix}.maximumAmount`] = "Solo el último tramo puede ser ilimitado.";
       } else if (!Number.isFinite(maximum) || maximum <= minimum) {
-        errors[`${tierPrefix}.maximumAmount`] = "Maximum must exceed minimum.";
+        errors[`${tierPrefix}.maximumAmount`] = "El máximo debe ser mayor que el mínimo.";
       }
 
-      if (tier.specialConditionText.trim().length > MAX_SPECIAL_CONDITION_LENGTH) errors[`${tierPrefix}.specialConditionText`] = `Condition cannot exceed ${MAX_SPECIAL_CONDITION_LENGTH} characters.`;
+      if (tier.specialConditionText.trim().length > MAX_SPECIAL_CONDITION_LENGTH) errors[`${tierPrefix}.specialConditionText`] = `La condición no puede superar los ${MAX_SPECIAL_CONDITION_LENGTH} caracteres.`;
 
       if (maximum !== null && Number.isFinite(maximum)) expectedMinimum = maximum;
     });
 
-    if (offer.tiers.at(-1)?.maximumAmount !== "") errors[`${prefix}.tiers`] = "The final tier must be unbounded.";
+    if (offer.tiers.at(-1)?.maximumAmount !== "") errors[`${prefix}.tiers`] = "El último tramo debe ser ilimitado.";
   });
 
   return errors;
@@ -191,7 +191,7 @@ function optionalText(value: string): string | null {
 /** Converts the form into the API payload. A blank validity end stays `null` so the server can infer it. */
 export function toProductPayload(form: ProductFormValues): ProductPayload {
   return {
-    accountId: Number(form.accountId),
+    accountId: form.accountId === "" ? null : Number(form.accountId),
     name: form.name.trim(),
     institution: form.institution,
     active: form.active,
@@ -211,4 +211,15 @@ export function toProductPayload(form: ProductFormValues): ProductPayload {
       }))
     }))
   };
+}
+
+/** Filter normalized user-scoped account payloads; the API remains authoritative for ownership. */
+export function eligibleLinkAccounts<T extends { accountId: number; active: boolean; isCredit: boolean; earnsInterest: boolean }>(
+  accounts: ReadonlyArray<T>,
+  products: ReadonlyArray<{ investmentProductId: number; accountId: number | null; active: boolean }>,
+  productId: number | null,
+  active = true
+): T[] {
+  return accounts.filter((account) => account.active && !account.isCredit && account.earnsInterest &&
+    (!active || !products.some((product) => product.active && product.accountId === account.accountId && product.investmentProductId !== productId)));
 }

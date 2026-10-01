@@ -12,6 +12,7 @@ public interface IInvestmentService
     Task<InvestmentProductResult?> GetProductAsync(int id, int userId);
     Task<InvestmentProductResult> CreateProductAsync(int userId, InvestmentProductInput input);
     Task<InvestmentProductResult?> UpdateProductAsync(int id, int userId, InvestmentProductInput input);
+    Task<bool> SetProductAccountAsync(int id, int userId, int? accountId);
     Task<bool> SetProductActiveAsync(int id, int userId, bool active);
 
     /// <summary>Persisted plan for the month, or a derived, never-persisted draft carried from the previous plan.</summary>

@@ -15,7 +15,7 @@ public class InvestmentProduct : BaseModel
     public int UserId { get; set; }
 
     [Column("account_id")]
-    public int AccountId { get; set; }
+    public int? AccountId { get; set; }
 
     [Column("name")]
     [StringLength(120)]
@@ -32,7 +32,7 @@ public class InvestmentProduct : BaseModel
     [Column("active")]
     public bool Active { get; set; } = true;
 
-    public Account Account { get; set; } = null!;
+    public Account? Account { get; set; }
     public ICollection<InvestmentOffer> Offers { get; set; } = new List<InvestmentOffer>();
 }
 

@@ -34,7 +34,7 @@ export type InvestmentOffer = {
 
 export type InvestmentProduct = {
   investmentProductId: number;
-  accountId: number;
+  accountId: number | null;
   accountName: string | null;
   name: string;
   institution: string;
@@ -140,6 +140,14 @@ function asNumber(value: unknown): number {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+/** Unknown snapshot numbers stay non-finite so projection consumers fail closed, never plot zero. */
+function snapshotNumber(value: unknown): number {
+  if (typeof value === "number") return Number.isFinite(value) ? value : Number.NaN;
+  if (typeof value !== "string" || !/^[+-]?(?:\d+(?:\.\d+)?|\.\d+)(?:[eE][+-]?\d+)?$/.test(value)) return Number.NaN;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : Number.NaN;
+}
+
 function asOptionalNumber(value: unknown): number | null {
   if (value === null || value === undefined || value === "") return null;
   const parsed = typeof value === "number" ? value : Number(value);
@@ -197,7 +205,7 @@ export function normalizeProducts(input: unknown): InvestmentProduct[] {
       if (id <= 0) return null;
       return {
         investmentProductId: id,
-        accountId: asInt(value.accountId),
+        accountId: asOptionalNumber(value.accountId),
         accountName: asOptionalString(value.accountName),
         name: asString(value.name),
         institution: asString(value.institution),
@@ -223,9 +231,10 @@ function normalizeAllocationTier(value: unknown): InvestmentAllocationTier {
   const tier = isRecord(value) ? value : {};
   return {
     investmentRateTierId: asInt(tier.investmentRateTierId),
-    minimumAmount: asNumber(tier.minimumAmount),
-    maximumAmount: asOptionalNumber(tier.maximumAmount),
-    annualRatePercent: asNumber(tier.annualRatePercent),
+    minimumAmount: snapshotNumber(tier.minimumAmount),
+    // AddApiMvc omits null properties; an absent nullable bound means unbounded.
+    maximumAmount: tier.maximumAmount === null || tier.maximumAmount === undefined ? null : snapshotNumber(tier.maximumAmount),
+    annualRatePercent: snapshotNumber(tier.annualRatePercent),
     specialConditionText: asString(tier.specialConditionText),
     conditionConfirmed: asBoolean(tier.conditionConfirmed)
   };
@@ -240,12 +249,12 @@ function normalizeFreshness(value: unknown): InvestmentOfferFreshness | null {
 function normalizeAllocation(value: unknown): InvestmentAllocation {
   const allocation = isRecord(value) ? value : {};
   return {
-    investmentProductId: asInt(allocation.investmentProductId),
-    accountId: asInt(allocation.accountId),
+    investmentProductId: snapshotNumber(allocation.investmentProductId),
+    accountId: snapshotNumber(allocation.accountId),
     productName: asString(allocation.productName),
     institution: asString(allocation.institution),
     institutionLabel: asString(allocation.institutionLabel),
-    allocatedAmount: asNumber(allocation.allocatedAmount),
+    allocatedAmount: snapshotNumber(allocation.allocatedAmount),
     offerCapturedForMonth: asString(allocation.offerCapturedForMonth),
     offerValidFrom: asString(allocation.offerValidFrom),
     offerValidTo: asString(allocation.offerValidTo),
@@ -279,9 +288,9 @@ export function normalizePlan(input: unknown): InvestmentPlan | null {
   if (!MONTH_PATTERN.test(planMonth)) return null;
 
   return {
-    investmentPlanId: asInt(input.investmentPlanId),
+    investmentPlanId: snapshotNumber(input.investmentPlanId),
     planMonth,
-    projectionMonths: asInt(input.projectionMonths),
+    projectionMonths: snapshotNumber(input.projectionMonths),
     isPersisted: asBoolean(input.isPersisted),
     carriedFromPlanId: asOptionalNumber(input.carriedFromPlanId),
     carriedFromPlanMonth: asOptionalString(input.carriedFromPlanMonth),
@@ -293,11 +302,11 @@ export function normalizePlan(input: unknown): InvestmentPlan | null {
 function normalizeProjectionRow(value: unknown): InvestmentProjectionRow {
   const row = isRecord(value) ? value : {};
   return {
-    monthNumber: asInt(row.monthNumber),
+    monthNumber: snapshotNumber(row.monthNumber),
     month: asString(row.month),
-    openingBalance: asNumber(row.openingBalance),
-    interest: asNumber(row.interest),
-    closingBalance: asNumber(row.closingBalance)
+    openingBalance: snapshotNumber(row.openingBalance),
+    interest: snapshotNumber(row.interest),
+    closingBalance: snapshotNumber(row.closingBalance)
   };
 }
 
@@ -307,9 +316,9 @@ export function normalizePlanProjection(input: unknown): InvestmentPlanProjectio
   if (!MONTH_PATTERN.test(planMonth)) return null;
 
   return {
-    investmentPlanId: asInt(input.investmentPlanId),
+    investmentPlanId: snapshotNumber(input.investmentPlanId),
     planMonth,
-    projectionMonths: asInt(input.projectionMonths),
+    projectionMonths: snapshotNumber(input.projectionMonths),
     isPersisted: asBoolean(input.isPersisted),
     allocations: asArray(input.allocations).map((value) => ({
       ...normalizeAllocation(value),

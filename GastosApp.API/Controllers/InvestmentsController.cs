@@ -3,6 +3,8 @@ using GastosApp.BusinessLogic.Interfaces;
 using GastosApp.BusinessLogic.Models.Investments;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using Npgsql;
 
 namespace GastosApp.API.Controllers;
 
@@ -51,6 +53,10 @@ public class InvestmentsController : ControllerBase
         {
             return BadRequest(new { Message = ex.Message });
         }
+        catch (DbUpdateException ex) when (IsAccountConstraint(ex))
+        {
+            return Conflict(new { Message = AccountConstraintMessage(ex) });
+        }
     }
 
     [HttpPut("products/{id:int}")]
@@ -65,6 +71,27 @@ public class InvestmentsController : ControllerBase
         {
             return BadRequest(new { Message = ex.Message });
         }
+        catch (DbUpdateException ex) when (IsAccountConstraint(ex))
+        {
+            return Conflict(new { Message = AccountConstraintMessage(ex) });
+        }
+    }
+
+    [HttpPatch("products/{id:int}/account")]
+    public async Task<IActionResult> Account(int id, InvestmentProductAccountRequest request)
+    {
+        try
+        {
+            return await _service.SetProductAccountAsync(id, UserId, request.AccountId) ? Ok() : NotFound();
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { Message = ex.Message });
+        }
+        catch (DbUpdateException ex) when (IsAccountConstraint(ex))
+        {
+            return Conflict(new { Message = AccountConstraintMessage(ex) });
+        }
     }
 
     [HttpPatch("products/{id:int}/active")]
@@ -77,6 +104,10 @@ public class InvestmentsController : ControllerBase
         catch (ArgumentException ex)
         {
             return BadRequest(new { Message = ex.Message });
+        }
+        catch (DbUpdateException ex) when (IsAccountConstraint(ex))
+        {
+            return Conflict(new { Message = AccountConstraintMessage(ex) });
         }
     }
 
@@ -134,6 +165,15 @@ public class InvestmentsController : ControllerBase
             return BadRequest(new { Message = ex.Message });
         }
     }
+
+    private static bool IsAccountConstraint(DbUpdateException ex) => ex.InnerException is PostgresException pg &&
+        ((pg.SqlState == PostgresErrorCodes.UniqueViolation && pg.ConstraintName == "ux_investment_products_active_account") ||
+         (pg.SqlState == PostgresErrorCodes.ForeignKeyViolation && pg.ConstraintName == "investment_products_account_id_fkey"));
+
+    private static string AccountConstraintMessage(DbUpdateException ex) =>
+        ex.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation }
+            ? "An active investment product already links this account."
+            : "Account not found or not accessible.";
 
     private int UserId => _currentUser.GetUserId() ?? throw new UnauthorizedAccessException("Missing or invalid user identity claim");
 

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
+  eligibleLinkAccounts,
   emptyOffer,
   emptyProductForm,
   inferredValidTo,
@@ -126,7 +127,8 @@ test("validateProductForm bounds the literal condition and terms text", () => {
 test("validateProductForm rejects non-HTTPS sources, duplicate capture months and missing identity", () => {
   const base = validForm();
 
-  assert.ok(validateProductForm(validForm({ accountId: "" })).accountId);
+  assert.equal(validateProductForm(validForm({ accountId: "" })).accountId, undefined);
+  assert.ok(validateProductForm(validForm({ accountId: "0" })).accountId);
   assert.ok(validateProductForm(validForm({ name: "  " })).name);
 
   const http = { ...base, offers: [{ ...base.offers[0], sourceUrl: "http://example.com" }] };
@@ -174,4 +176,34 @@ test("emptyProductForm and emptyOffer start from the operating month with one us
   assert.equal(form.offers[0].capturedForMonth, "2026-09");
   assert.equal(form.offers[0].conditionsConfirmed, false);
   assert.deepEqual(emptyOffer("2026-09").tiers, [{ minimumAmount: "0", maximumAmount: "", annualRatePercent: "", specialConditionText: "" }]);
+});
+
+test("form validation supplies Spanish guidance without changing payload semantics", () => {
+  const errors = validateProductForm(emptyProductForm("2026-09"));
+  assert.equal(errors.accountId, undefined);
+  assert.equal(errors.name, "El nombre del producto es obligatorio.");
+  assert.equal(errors.institution, "Selecciona una institución del catálogo.");
+  assert.equal(errors["offers.0.sourceUrl"], "Indica una URL de origen con HTTPS.");
+  assert.equal(errors["offers.0.validity"], "Indica fechas de inicio y fin válidas.");
+});
+
+
+test("optional link sends null, never a fabricated zero account", () => {
+  assert.equal(toProductPayload(validForm({ accountId: "" })).accountId, null);
+  for (const accountId of ["0", "-1", "1.5", "invalid", "9007199254740992"]) {
+    assert.ok(validateProductForm(validForm({ accountId })).accountId);
+  }
+});
+
+test("link choices require active cash interest accounts and exclude occupied active links", () => {
+  const base = { accountId: 7, active: true, isCredit: false, earnsInterest: true };
+  const accounts = [base, { ...base, accountId: 8, active: false },
+    { ...base, accountId: 9, isCredit: true }, { ...base, accountId: 10, earnsInterest: false },
+    { ...base, accountId: 11 }];
+  const products = [{ investmentProductId: 1, accountId: 7, active: true },
+    { investmentProductId: 2, accountId: 11, active: false },
+    { investmentProductId: 3, accountId: null, active: true }];
+  assert.deepEqual(eligibleLinkAccounts(accounts, products, null).map((a) => a.accountId), [11]);
+  assert.deepEqual(eligibleLinkAccounts(accounts, products, 1).map((a) => a.accountId), [7, 11]);
+  assert.deepEqual(eligibleLinkAccounts(accounts, products, null, false).map((a) => a.accountId), [7, 11]);
 });

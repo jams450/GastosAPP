@@ -34,7 +34,7 @@ public sealed class InvestmentOfferInput
 
 public sealed class InvestmentProductInput
 {
-    public int AccountId { get; set; }
+    public int? AccountId { get; set; }
     public string Name { get; set; } = string.Empty;
     public string Institution { get; set; } = string.Empty;
     public bool Active { get; set; } = true;
@@ -83,7 +83,7 @@ public sealed class InvestmentOfferResult
 public sealed class InvestmentProductResult
 {
     public int InvestmentProductId { get; init; }
-    public int AccountId { get; init; }
+    public int? AccountId { get; init; }
     public string? AccountName { get; init; }
     public string Name { get; init; } = string.Empty;
     public string Institution { get; init; } = string.Empty;
@@ -95,6 +95,12 @@ public sealed class InvestmentProductResult
 /// <summary>Machine-readable exclusion reasons. Never a rate, never a guess.</summary>
 public static class InvestmentExclusionReasons
 {
+    public const string UnlinkedAccount = "unlinked_account";
+    public const string MissingAccount = "missing_account";
+    public const string ForeignAccount = "foreign_account";
+    public const string InactiveAccount = "inactive_account";
+    public const string CreditAccount = "credit_account";
+    public const string NonInterestAccount = "non_interest_account";
     public const string InactiveProduct = "inactive_product";
     public const string UnsupportedInstitution = "unsupported_institution";
     public const string NoOfferForMonth = "no_offer_for_month";

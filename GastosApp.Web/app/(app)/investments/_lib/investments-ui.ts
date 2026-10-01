@@ -9,10 +9,10 @@
 export type OfferFreshness = "current" | "stale" | "missing" | "inactive";
 
 export const OFFER_FRESHNESS_COPY: Record<OfferFreshness, string> = {
-  current: "Captured for this month",
-  stale: "Captured in an earlier month — refresh before generating",
-  missing: "No offer recorded yet",
-  inactive: "Product is inactive"
+  current: "Capturada para este mes",
+  stale: "Capturada en un mes anterior — actualiza antes de generar",
+  missing: "Aún no hay una oferta registrada",
+  inactive: "El producto está inactivo"
 };
 
 export type PlanStateInput = {
@@ -29,9 +29,9 @@ export type AllocationStateInput = {
 
 /** A draft must never be presented as if it were the persisted month plan. */
 export function planStateLabel(plan: PlanStateInput): string {
-  if (plan.isPersisted) return `Generated plan for ${plan.planMonth}`;
-  if (plan.carriedFromPlanMonth) return `Draft for ${plan.planMonth} carried from ${plan.carriedFromPlanMonth} — update before generating`;
-  return `Draft for ${plan.planMonth} — not generated yet`;
+  if (plan.isPersisted) return `Plan generado para ${plan.planMonth}`;
+  if (plan.carriedFromPlanMonth) return `Borrador para ${plan.planMonth} basado en ${plan.carriedFromPlanMonth} — actualiza antes de generar`;
+  return `Borrador para ${plan.planMonth} — aún no generado`;
 }
 
 /** Freshness of an offer, treating an absent value as unknown rather than current. */
@@ -67,18 +67,18 @@ export function resolveGenerationGate(
   if (plan.isPersisted) return { canGenerate: true, blockers: [] };
 
   const blockers: string[] = [];
-  if (!plan.allocations.length) blockers.push("No product is eligible for this month.");
+  if (!plan.allocations.length) blockers.push("Ningún producto cumple los requisitos para este mes.");
 
   for (const allocation of plan.allocations) {
     if (isOfferStale(allocation)) {
-      const reason = allocation.offerFreshness ? OFFER_FRESHNESS_COPY[allocation.offerFreshness] : "offer state unknown";
+      const reason = allocation.offerFreshness ? OFFER_FRESHNESS_COPY[allocation.offerFreshness] : "estado de la oferta desconocido";
       blockers.push(`${allocation.productName}: ${reason}.`);
       continue;
     }
 
     for (const tier of allocation.tiers) {
       if (tier.specialConditionText.trim().length > 0 && !confirmedTierIds.has(tier.investmentRateTierId)) {
-        blockers.push(`${allocation.productName}: confirm "${tier.specialConditionText.trim()}".`);
+        blockers.push(`${allocation.productName}: confirma "${tier.specialConditionText.trim()}".`);
       }
     }
   }
@@ -88,8 +88,8 @@ export function resolveGenerationGate(
 
 /** Short summary of the exclusion count for a heading. */
 export function exclusionSummary(exclusions: ReadonlyArray<unknown>): string {
-  if (!exclusions.length) return "No products were excluded.";
-  return `${exclusions.length} product${exclusions.length === 1 ? "" : "s"} excluded`;
+  if (!exclusions.length) return "No hay productos excluidos.";
+  return `${exclusions.length} producto${exclusions.length === 1 ? " excluido" : "s excluidos"}`;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -204,5 +204,5 @@ export function confirmedTierIdsForGeneration(candidates: ReadonlyArray<Conditio
  */
 export function conditionCandidateLabel(candidate: ConditionCandidate): string {
   const interval = candidate.maximumAmount === null ? `${candidate.minimumAmount}+` : `${candidate.minimumAmount}-${candidate.maximumAmount}`;
-  return `Confirm "${candidate.specialConditionText}" for ${candidate.productName}, tier ${interval} at ${candidate.annualRatePercent}%`;
+  return `Confirmar "${candidate.specialConditionText}" para ${candidate.productName}, tramo ${interval} al ${candidate.annualRatePercent}%`;
 }

@@ -497,7 +497,7 @@ namespace GastosApp.BusinessLogic.Context
             {
                 entity.HasIndex(e => new { e.UserId, e.AccountId });
                 entity.HasIndex(e => new { e.UserId, e.Active });
-                entity.HasOne(e => e.Account).WithMany().HasForeignKey(e => e.AccountId).OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(e => e.Account).WithMany().HasForeignKey(e => e.AccountId).IsRequired(false).OnDelete(DeleteBehavior.Restrict);
                 entity.HasMany(e => e.Offers).WithOne(e => e.Product).HasForeignKey(e => e.InvestmentProductId).OnDelete(DeleteBehavior.Cascade);
             });
 
