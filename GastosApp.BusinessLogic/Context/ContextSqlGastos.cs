@@ -42,6 +42,9 @@ namespace GastosApp.BusinessLogic.Context
         public DbSet<BudgetThreshold> BudgetThresholds { get; set; } = null!;
         public DbSet<AlertDelivery> AlertDeliveries { get; set; } = null!;
         public DbSet<AlertOutbox> AlertOutbox { get; set; } = null!;
+        public DbSet<RecurringItem> RecurringItems { get; set; } = null!;
+        public DbSet<BudgetItem> BudgetItems { get; set; } = null!;
+        public DbSet<BudgetItemAlertDelivery> BudgetItemAlertDeliveries { get; set; } = null!;
 
         public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
         {
@@ -170,6 +173,10 @@ namespace GastosApp.BusinessLogic.Context
                 entity.HasIndex(e => new { e.CategoryId, e.TransactionDate });
                 entity.HasIndex(e => new { e.SubcategoryId, e.TransactionDate });
                 entity.HasIndex(e => new { e.MerchantId, e.TransactionDate });
+                entity.HasOne(e => e.OriginRecurringItem)
+                    .WithMany()
+                    .HasForeignKey(e => e.OriginRecurringItemId)
+                    .OnDelete(DeleteBehavior.SetNull);
             });
 
             modelBuilder.Entity<BillableParty>(entity =>
@@ -372,11 +379,109 @@ namespace GastosApp.BusinessLogic.Context
 
             modelBuilder.Entity<AlertOutbox>(entity =>
             {
-                entity.HasIndex(e => e.DeliveryId).IsUnique();
+                // Idempotencia del camino de presupuesto (Fase 2), endurecida: excluye failed para
+                // que una fila expirada libere la clave. El candado real sigue siendo alert_deliveries.
+                entity.HasIndex(e => e.DeliveryId).IsUnique().HasFilter("delivery_id IS NOT NULL AND status <> 'failed'");
                 entity.HasIndex(e => new { e.Status, e.NextAttemptAt });
+                // Alcance de lectura por usuario. El outbox tiene dueño propio: el filtro es una
+                // igualdad y no depende de la entrega, que es nula fuera del camino de presupuesto.
+                entity.HasIndex(e => new { e.UserId, e.Status });
+                // Idempotencia del camino nuevo: una fila por fuente, ocurrencia y clave
+                // (source_key = period_key o {period_key}:{alert_kind}).
+                entity.HasIndex(e => new { e.SourceType, e.SourceId, e.SourceKey })
+                    .IsUnique()
+                    .HasFilter("source_id IS NOT NULL AND status <> 'failed'");
+                // Sin IsRequired: la columna es nullable y la FK física se retiró en Fase 3.
+                // ClientSetNull: al borrar la entrega se anula el FK, sin cascada en la base.
                 entity.HasOne(e => e.Delivery)
                     .WithOne(e => e.Outbox)
                     .HasForeignKey<AlertOutbox>(e => e.DeliveryId)
+                    .OnDelete(DeleteBehavior.ClientSetNull);
+                entity.HasOne(e => e.User)
+                    .WithMany()
+                    .HasForeignKey(e => e.UserId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            modelBuilder.Entity<RecurringItem>(entity =>
+            {
+                // Una sola plantilla por (usuario, tipo, nombre).
+                entity.HasIndex(e => new { e.UserId, e.Kind, e.Name }).IsUnique();
+                entity.HasOne(e => e.User)
+                    .WithMany()
+                    .HasForeignKey(e => e.UserId)
+                    .OnDelete(DeleteBehavior.Cascade);
+                entity.HasOne(e => e.Category)
+                    .WithMany()
+                    .HasForeignKey(e => e.CategoryId)
+                    .OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(e => e.Subcategory)
+                    .WithMany()
+                    .HasForeignKey(e => e.SubcategoryId)
+                    .OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(e => e.Account)
+                    .WithMany()
+                    .HasForeignKey(e => e.AccountId)
+                    .OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(e => e.Merchant)
+                    .WithMany()
+                    .HasForeignKey(e => e.MerchantId)
+                    .OnDelete(DeleteBehavior.Restrict);
+                // XOR de scope, ventana ends_period >= starts_period y coherencia de monto fijo
+                // son solo SQL (ck_recurring_items_*).
+            });
+
+            modelBuilder.Entity<BudgetItem>(entity =>
+            {
+                // Remontar un mes no duplica la misma partida.
+                entity.HasIndex(e => new { e.UserId, e.PeriodKey, e.Kind, e.Name }).IsUnique();
+                // Una transacción satisface como máximo UNA partida.
+                entity.HasIndex(e => e.TransactionId).IsUnique().HasFilter("transaction_id IS NOT NULL");
+                entity.HasIndex(e => new { e.UserId, e.PeriodKey, e.Status });
+                entity.HasIndex(e => new { e.UserId, e.Status, e.PlannedDate });
+                entity.HasOne(e => e.User)
+                    .WithMany()
+                    .HasForeignKey(e => e.UserId)
+                    .OnDelete(DeleteBehavior.Cascade);
+                entity.HasOne(e => e.Category)
+                    .WithMany()
+                    .HasForeignKey(e => e.CategoryId)
+                    .OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(e => e.Subcategory)
+                    .WithMany()
+                    .HasForeignKey(e => e.SubcategoryId)
+                    .OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(e => e.Account)
+                    .WithMany()
+                    .HasForeignKey(e => e.AccountId)
+                    .OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(e => e.Merchant)
+                    .WithMany()
+                    .HasForeignKey(e => e.MerchantId)
+                    .OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(e => e.RecurringItem)
+                    .WithMany(e => e.BudgetItems)
+                    .HasForeignKey(e => e.RecurringItemId)
+                    .OnDelete(DeleteBehavior.SetNull);
+                entity.HasOne(e => e.Transaction)
+                    .WithMany()
+                    .HasForeignKey(e => e.TransactionId)
+                    .OnDelete(DeleteBehavior.SetNull);
+                // El XOR de scope, la coherencia executed/transaction_id y el formato del
+                // periodo son solo SQL (ck_budget_items_*).
+            });
+
+            modelBuilder.Entity<BudgetItemAlertDelivery>(entity =>
+            {
+                // Candado de idempotencia: una alerta por partida, tipo y periodo.
+                entity.HasIndex(e => new { e.ItemId, e.AlertKind, e.PeriodKey }).IsUnique();
+                entity.HasOne(e => e.Item)
+                    .WithMany(e => e.AlertDeliveries)
+                    .HasForeignKey(e => e.ItemId)
+                    .OnDelete(DeleteBehavior.Cascade);
+                entity.HasOne(e => e.User)
+                    .WithMany()
+                    .HasForeignKey(e => e.UserId)
                     .OnDelete(DeleteBehavior.Cascade);
             });
         }
