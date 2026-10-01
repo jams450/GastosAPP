@@ -33,6 +33,15 @@ export type BudgetReachedThreshold = {
   percent: number;
 };
 
+/**
+ * Estado calculado de un presupuesto en su periodo. El desglose es aditivo:
+ * `effective = spent + committed` y `forecast = effective + projected`.
+ *
+ * `percentUsed` es el desglose **mostrado** (`spentPercent + committedPercent`);
+ * `thresholdPercent` es el número que decidió `status` y `reachedThreshold`, que puede
+ * coincidir con `percentUsed` o con `spentPercent` según `Alerts:CommittedCountsEnabled`.
+ * El campo heredado `spent`/`remaining`/`percentUsed` se conserva sin cambios.
+ */
 export type BudgetPeriodStatus = {
   budgetId: number;
   name: string;
@@ -42,7 +51,33 @@ export type BudgetPeriodStatus = {
   active: boolean;
   amountMxn: number;
   spent: number;
+  /** Gasto ejecutado como porcentaje del límite. */
+  spentPercent: number;
+  /** Planificado no ejecutado con periodo abierto. Cero si el periodo ya cerró. */
+  committed: number;
+  committedPercent: number;
+  /** Cuotas derivadas de promedio no confirmadas. No compromete dinero. */
+  projected: number;
+  projectedPercent: number;
+  /** `spent + committed`: contra esto se calcula el restante. */
+  effective: number;
+  /** `effective + projected`. Informativo. */
+  forecast: number;
+  /** Porcentaje que decide `status`: puede ser `percentUsed` o `spentPercent`. */
+  thresholdPercent: number;
   remaining: number;
+  /** Suma de `plannedAmount` de las partidas no canceladas del alcance. */
+  plannedAmount: number;
+  /** `plannedAmount − spent`: desviación del plan. */
+  variance: number;
+  itemsPending: number;
+  itemsExecuted: number;
+  /** Partidas `pending` de un periodo cerrado: caducaron sin ejecutarse. */
+  itemsUnexecuted: number;
+  itemsIgnored: number;
+  plannedIncome: number;
+  committedIncome: number;
+  projectedIncome: number;
   percentUsed: number;
   status: BudgetUsageStatus;
   reachedThreshold: BudgetReachedThreshold | null;
@@ -239,7 +274,24 @@ export function normalizeBudgetStatus(input: unknown): BudgetPeriodStatus | null
     active: toBool(input.active ?? input.Active, true),
     amountMxn: toFiniteNumber(input.amountMxn ?? input.AmountMxn),
     spent: toFiniteNumber(input.spent ?? input.Spent),
+    spentPercent: toFiniteNumber(input.spentPercent ?? input.SpentPercent),
+    committed: toFiniteNumber(input.committed ?? input.Committed),
+    committedPercent: toFiniteNumber(input.committedPercent ?? input.CommittedPercent),
+    projected: toFiniteNumber(input.projected ?? input.Projected),
+    projectedPercent: toFiniteNumber(input.projectedPercent ?? input.ProjectedPercent),
+    effective: toFiniteNumber(input.effective ?? input.Effective),
+    forecast: toFiniteNumber(input.forecast ?? input.Forecast),
+    thresholdPercent: toFiniteNumber(input.thresholdPercent ?? input.ThresholdPercent),
     remaining: toFiniteNumber(input.remaining ?? input.Remaining),
+    plannedAmount: toFiniteNumber(input.plannedAmount ?? input.PlannedAmount),
+    variance: toFiniteNumber(input.variance ?? input.Variance),
+    itemsPending: toOptionalInt(input.itemsPending ?? input.ItemsPending) ?? 0,
+    itemsExecuted: toOptionalInt(input.itemsExecuted ?? input.ItemsExecuted) ?? 0,
+    itemsUnexecuted: toOptionalInt(input.itemsUnexecuted ?? input.ItemsUnexecuted) ?? 0,
+    itemsIgnored: toOptionalInt(input.itemsIgnored ?? input.ItemsIgnored) ?? 0,
+    plannedIncome: toFiniteNumber(input.plannedIncome ?? input.PlannedIncome),
+    committedIncome: toFiniteNumber(input.committedIncome ?? input.CommittedIncome),
+    projectedIncome: toFiniteNumber(input.projectedIncome ?? input.ProjectedIncome),
     percentUsed: toFiniteNumber(input.percentUsed ?? input.PercentUsed),
     status: toUsageStatus(input.status ?? input.Status),
     reachedThreshold: normalizeReachedThreshold(input.reachedThreshold ?? input.ReachedThreshold)

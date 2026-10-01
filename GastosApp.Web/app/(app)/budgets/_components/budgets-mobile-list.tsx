@@ -96,7 +96,18 @@ export function BudgetsMobileList({ rows, loading, errorMessage, catalogs, onEdi
                   <span>Avance</span>
                   <span className="tabular-nums text-secondary">{formatPercent(status.percentUsed)}</span>
                 </div>
-                <BudgetProgress percentUsed={status.percentUsed} status={status.status} />
+                <BudgetProgress
+                  amountMxn={status.amountMxn}
+                  spent={status.spent}
+                  committed={status.committed}
+                  projected={status.projected}
+                  status={status.status}
+                />
+                {status.committed > 0 ? (
+                  <p className="m-0 text-[10px] font-medium text-muted">
+                    {formatCurrency(status.spent)} gastado + {formatCurrency(status.committed)} comprometido
+                  </p>
+                ) : null}
               </div>
 
               <div className="mt-3 flex flex-wrap items-center gap-1.5">

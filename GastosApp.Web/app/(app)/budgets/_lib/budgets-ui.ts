@@ -7,11 +7,18 @@ export const BUDGETS_MODULE_META = {
   title: "Presupuestos"
 } as const;
 
-export type BudgetsTab = "resumen" | "alertas";
+export type BudgetsTab = "resumen" | "partidas" | "alertas";
 
-/** La URL solo distingue la pestaña de alertas; cualquier otro valor cae al resumen. */
+const BUDGETS_TABS: readonly BudgetsTab[] = ["resumen", "partidas", "alertas"];
+
+/** La URL solo distingue las pestañas no predeterminadas; cualquier otro valor cae al resumen. */
 export function resolveBudgetsTab(value: string | null | undefined): BudgetsTab {
-  return value === "alertas" ? "alertas" : "resumen";
+  return BUDGETS_TABS.find((tab) => tab === value) ?? "resumen";
+}
+
+/** Valor de `?tab=` de una pestaña; `null` significa URL limpia (resumen). */
+export function budgetsTabQueryValue(tab: BudgetsTab): string | null {
+  return tab === "resumen" ? null : tab;
 }
 
 const badgeBase = "tabler-badge tabler-badge-solid";
@@ -169,12 +176,23 @@ export function describeBudgetScope(
 export type BudgetTotals = {
   budgeted: number;
   spent: number;
+  /** Planificado no ejecutado con periodo abierto. */
+  committed: number;
+  /** `spent + committed`: contra esto se mide el restante. */
+  effective: number;
+  /** `effective + projected`. Informativo. */
+  forecast: number;
+  projected: number;
   remaining: number;
   activeCount: number;
   totalCount: number;
 };
 
-/** Los totales ignoran presupuestos inactivos: no acumulan gasto ni alertas. */
+/**
+ * Los totales ignoran presupuestos inactivos: no acumulan gasto ni alertas.
+ * "Total restante" se calcula contra `effective` (`spent + committed`), nunca contra `spent`:
+ * el dinero comprometido ya no está disponible aunque todavía no se haya ejecutado.
+ */
 export function summarizeBudgetStatuses(statuses: BudgetPeriodStatus[]): BudgetTotals {
   const active = statuses.filter((status) => status.active);
 
@@ -183,11 +201,19 @@ export function summarizeBudgetStatuses(statuses: BudgetPeriodStatus[]): BudgetT
       ...totals,
       budgeted: totals.budgeted + status.amountMxn,
       spent: totals.spent + status.spent,
-      remaining: totals.remaining + status.remaining
+      committed: totals.committed + status.committed,
+      projected: totals.projected + status.projected,
+      effective: totals.effective + status.spent + status.committed,
+      forecast: totals.forecast + status.spent + status.committed + status.projected,
+      remaining: totals.remaining + (status.amountMxn - (status.spent + status.committed))
     }),
     {
       budgeted: 0,
       spent: 0,
+      committed: 0,
+      effective: 0,
+      forecast: 0,
+      projected: 0,
       remaining: 0,
       activeCount: active.length,
       totalCount: statuses.length
