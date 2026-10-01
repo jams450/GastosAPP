@@ -61,16 +61,21 @@ namespace GastosApp.BusinessLogic.Services
                 cancellationToken.ThrowIfCancellationRequested();
                 result.BudgetsEvaluated++;
 
-                if (!statusByBudget.TryGetValue(budget.BudgetId, out var status) || status.Spent <= 0m)
+                if (!statusByBudget.TryGetValue(budget.BudgetId, out var status) ||
+                    (status.Spent <= 0m && status.ThresholdPercent <= 0m))
                 {
                     continue;
                 }
 
-                var percentUsed = status.PercentUsed;
+                // El umbral se decide con ThresholdPercent: con Alerts:CommittedCountsEnabled apagado
+                // equivale al gasto ejecutado (Fase 2 intacta); con el interruptor encendido incluye el
+                // comprometido. El PercentUsed que viaja al payload y a la entrega sigue siendo el
+                // desglose mostrado (spentPercent + committedPercent), para que el mensaje lo refleje.
+                var thresholdPercent = status.ThresholdPercent;
 
                 // Cruzados activos, de mayor a menor. Solo se elige el porcentaje mayor sin entrega previa.
                 var crossed = budget.Thresholds
-                    .Where(t => t.Active && t.Percent <= percentUsed)
+                    .Where(t => t.Active && t.Percent <= thresholdPercent)
                     .OrderByDescending(t => t.Percent)
                     .ToList();
 
@@ -90,8 +95,10 @@ namespace GastosApp.BusinessLogic.Services
 
                 var budgetAmount = RoundMoney(budget.AmountMxn);
                 var spent = RoundMoney(status.Spent);
-                var thresholdPercent = RoundPercent(chosen.Percent);
-                var payload = BuildPayload(budget, chosen, spent, budgetAmount, percentUsed);
+                var committed = RoundMoney(status.Committed);
+                var chosenPercent = RoundPercent(chosen.Percent);
+                var percentUsed = RoundPercent(status.PercentUsed);
+                var payload = BuildPayload(budget, chosen, spent, committed, budgetAmount, percentUsed);
 
                 // Una sentencia atómica: ON CONFLICT DO NOTHING sobre (budget, threshold, period) y,
                 // solo si ganó el candado, el outbox. Si otro evaluador ya reclamó, no inserta nada.
@@ -101,7 +108,7 @@ namespace GastosApp.BusinessLogic.Services
                         chosen.ThresholdId,
                         appUserId,
                         periodKey,
-                        thresholdPercent,
+                        chosenPercent,
                         budgetAmount,
                         spent,
                         percentUsed,
@@ -153,8 +160,10 @@ namespace GastosApp.BusinessLogic.Services
         {
             var normalizedStatus = status == null ? null : NormalizeStatus(status);
 
-            // El outbox no tiene user_id: el alcance estricto es vía su entrega.
-            var query = _repository.Get<AlertOutbox>(o => o.Delivery.UserId == appUserId);
+            // El outbox tiene dueño propio. El alcance por Delivery.UserId ya no sirve: las filas de
+            // partida y de ejecución automática no tienen entrega, y tolerar Delivery == null en un OR
+            // no acota nada (devolvería el payload de todos los usuarios). Por eso se filtra por UserId.
+            var query = _repository.Get<AlertOutbox>(o => o.UserId == appUserId);
             if (normalizedStatus != null)
             {
                 query = query.Where(o => o.Status == normalizedStatus);
@@ -167,8 +176,8 @@ namespace GastosApp.BusinessLogic.Services
                 {
                     OutboxId = o.OutboxId,
                     DeliveryId = o.DeliveryId,
-                    BudgetId = o.Delivery.BudgetId,
-                    PeriodKey = o.Delivery.PeriodKey,
+                    BudgetId = o.Delivery != null ? o.Delivery.BudgetId : null,
+                    PeriodKey = o.Delivery != null ? o.Delivery.PeriodKey : null,
                     Channel = o.Channel,
                     Status = o.Status,
                     Attempts = o.Attempts,
@@ -182,8 +191,12 @@ namespace GastosApp.BusinessLogic.Services
 
         public async Task<AlertRetryResult> RetryFailedAsync(int appUserId, int outboxId, CancellationToken cancellationToken = default)
         {
+            // Mismo alcance que ListOutboxAsync: igualdad por dueño propio. Un OR que tolerara
+            // Delivery == null permitiría reencolar el aviso de otro usuario.
             var outbox = await _repository.GetTrack<AlertOutbox>()
-                .FirstOrDefaultAsync(o => o.OutboxId == outboxId && o.Delivery.UserId == appUserId, cancellationToken);
+                .FirstOrDefaultAsync(
+                    o => o.OutboxId == outboxId && o.UserId == appUserId,
+                    cancellationToken);
 
             if (outbox == null)
             {
@@ -220,18 +233,33 @@ namespace GastosApp.BusinessLogic.Services
             };
         }
 
-        /// <summary>Texto estable en español; sin secretos, sin logs. Se congela al crear la entrega.</summary>
-        private static string BuildPayload(Budget budget, BudgetThreshold threshold, decimal spent, decimal amount, decimal percentUsed)
+        /// <summary>
+        /// Texto estable en español; sin secretos, sin logs. Se congela al crear la entrega.
+        /// Las líneas de comprometido y total solo aparecen cuando hay comprometido: sin partidas que
+        /// lo alimenten, el mensaje es idéntico al de Fase 2 (cero montos por partida).
+        /// </summary>
+        private static string BuildPayload(Budget budget, BudgetThreshold threshold, decimal spent, decimal committed, decimal amount, decimal percentUsed)
         {
             var thresholdPercent = RoundPercent(threshold.Percent);
-            var remaining = RoundMoney(amount - spent);
+            var effective = RoundMoney(spent + committed);
+            var remaining = RoundMoney(amount - effective);
 
-            return string.Create(CultureInfo.InvariantCulture, $"""
+            var header = string.Create(CultureInfo.InvariantCulture, $"""
                 Presupuesto "{budget.Name}" · {budget.PeriodKey}
-                Gastado: ${spent:N2} de ${amount:N2} ({percentUsed:F2}%)
+                Gastado: ${spent:N2} de ${amount:N2} ({RoundPercent(spent / amount * 100m):F2}%)
+                """);
+
+            var committedLine = committed > 0m
+                ? string.Create(CultureInfo.InvariantCulture, $"\nComprometido: ${committed:N2} ({RoundPercent(committed / amount * 100m):F2}%)\nTotal: ${effective:N2} ({percentUsed:F2}%)")
+                : string.Empty;
+
+            var footer = string.Create(CultureInfo.InvariantCulture, $"""
+
                 Umbral alcanzado: {threshold.Name} ({thresholdPercent:F2}%)
                 Restante: ${remaining:N2}
                 """);
+
+            return header + committedLine + footer;
         }
 
         private static string NormalizePeriodKey(string periodKey)

@@ -1,5 +1,6 @@
 using System.Linq.Expressions;
 using Microsoft.EntityFrameworkCore;
+using GastosApp.BusinessLogic.Models.Budgets;
 using GastosApp.Models.Entities;
 
 namespace GastosApp.BusinessLogic.Interfaces
@@ -48,6 +49,27 @@ namespace GastosApp.BusinessLogic.Interfaces
             decimal budgetAmount,
             decimal spentAmount,
             decimal percentUsed,
+            string payload,
+            DateTimeOffset nextAttemptAt);
+
+        /// <summary>
+        /// Inserta una partida planificada con <c>ON CONFLICT (user_id, period_key, kind, name)
+        /// DO NOTHING</c>. Devuelve <c>true</c> cuando esta llamada creó la fila y <c>false</c> cuando
+        /// la ocurrencia ya existía; una sola sentencia atómica hace idempotente al materializador
+        /// sin lectura previa (misma técnica que <see cref="ClaimAlertDeliveryAsync"/>).
+        /// </summary>
+        Task<bool> ClaimBudgetItemAsync(BudgetItemClaim claim);
+
+        /// <summary>
+        /// Encola un aviso de ejecución automática con <c>ON CONFLICT … DO NOTHING</c> sobre
+        /// <c>(source_type, source_id, source_key)</c>: una fila por plantilla y periodo. El predicado
+        /// del índice es obligatorio para inferir el índice parcial, y es lo que permite reinsertar
+        /// cuando la fila anterior expiró a <c>failed</c>.
+        /// </summary>
+        Task<bool> ClaimRecurringItemNoticeAsync(
+            int recurringItemId,
+            int userId,
+            string periodKey,
             string payload,
             DateTimeOffset nextAttemptAt);
 
