@@ -1,4 +1,4 @@
-import { PiggyBank, Target, TrendingDown } from "lucide-react";
+import { HandCoins, PiggyBank, Target, TrendingDown } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { formatCurrency } from "@/lib/format/currency";
 import { clampPercent, formatPercent, type BudgetTotals } from "../_lib/budgets-ui";
@@ -8,12 +8,20 @@ type Props = {
   periodLabel: string;
 };
 
+/**
+ * Los cuatro KPI separan dinero gastado de dinero comprometido: "Total gastado" es dinero que ya
+ * salió, "Comprometido" es planificado que todavía no se ejecuta, y "Total restante" se mide
+ * contra `effective` (`spent + committed`), no contra `spent`.
+ */
 export function BudgetsKpis({ totals, periodLabel }: Props) {
   const consumption = totals.budgeted > 0 ? (totals.spent / totals.budgeted) * 100 : 0;
+  const committedShare = totals.budgeted > 0 ? (totals.committed / totals.budgeted) * 100 : 0;
+  // El restante se calcula contra lo efectivo (gastado + comprometido), no contra el gasto.
   const remainingTone = totals.remaining < 0 ? "text-[var(--color-danger)]" : "text-[var(--color-success)]";
+  const effectivePercent = totals.budgeted > 0 ? (totals.effective / totals.budgeted) * 100 : 0;
 
   return (
-    <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3" aria-label="Resumen del periodo">
+    <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="Resumen del periodo">
       <Card className="dashboard-card dashboard-card-interactive p-4">
         <div className="flex items-start justify-between gap-3">
           <div>
@@ -46,6 +54,24 @@ export function BudgetsKpis({ totals, periodLabel }: Props) {
       <Card className="dashboard-card dashboard-card-interactive p-4">
         <div className="flex items-start justify-between gap-3">
           <div>
+            <p className="m-0 text-xs font-semibold uppercase tracking-[0.1em] text-muted">Comprometido</p>
+            <p className="mt-1 text-[11px] font-medium text-muted">
+              {totals.committed > 0 ? `${formatPercent(committedShare)} planificado sin ejecutar` : "Sin partidas pendientes"}
+            </p>
+          </div>
+          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-[var(--color-accent-soft)] text-[var(--color-accent)]">
+            <HandCoins className="h-4 w-4" aria-hidden="true" />
+          </span>
+        </div>
+        <p className="mt-4 truncate text-2xl font-semibold tabular-nums tracking-tight text-primary">{formatCurrency(totals.committed)}</p>
+        <div className="dashboard-track mt-3 h-1.5 w-full overflow-hidden rounded-full">
+          <div className="budget-progress-committed h-full rounded-full transition-[width] duration-300 motion-reduce:transition-none" style={{ width: `${clampPercent(committedShare)}%` }} />
+        </div>
+      </Card>
+
+      <Card className="dashboard-card dashboard-card-interactive p-4">
+        <div className="flex items-start justify-between gap-3">
+          <div>
             <p className="m-0 text-xs font-semibold uppercase tracking-[0.1em] text-muted">Total restante</p>
             <p className="mt-1 text-[11px] font-medium text-muted">
               {totals.activeCount} de {totals.totalCount} límites activos
@@ -56,6 +82,9 @@ export function BudgetsKpis({ totals, periodLabel }: Props) {
           </span>
         </div>
         <p className={`mt-4 truncate text-2xl font-semibold tabular-nums tracking-tight ${remainingTone}`}>{formatCurrency(totals.remaining)}</p>
+        <p className="m-0 mt-2 text-[11px] font-medium text-muted">
+          {formatCurrency(totals.effective)} efectivo de {formatCurrency(totals.budgeted)} ({formatPercent(effectivePercent)})
+        </p>
       </Card>
     </section>
   );

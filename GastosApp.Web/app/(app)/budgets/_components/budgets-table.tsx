@@ -75,7 +75,13 @@ export function BudgetsTable({ rows, loading, errorMessage, catalogs, onEdit, on
         cell: ({ row }) => (
           <div className="w-40 space-y-1.5">
             <p className="m-0 text-[11px] font-bold tabular-nums text-secondary">{formatPercent(row.original.status.percentUsed)}</p>
-            <BudgetProgress percentUsed={row.original.status.percentUsed} status={row.original.status.status} />
+            <BudgetProgress
+              amountMxn={row.original.status.amountMxn}
+              spent={row.original.status.spent}
+              committed={row.original.status.committed}
+              projected={row.original.status.projected}
+              status={row.original.status.status}
+            />
           </div>
         )
       },

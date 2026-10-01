@@ -1147,6 +1147,20 @@ body {
   .dashboard-bar-transfer-in { background: var(--color-dashboard-transfer-in); }
   .dashboard-bar-transfer-out { background: var(--color-dashboard-transfer-out); }
 
+  /* Capa rayada del presupuesto: distingue el dinero comprometido del gastado sin depender
+     del color. El patrón mantiene contraste en ambos temas porque se apoya en `currentColor`
+     mezclado con el fondo, no en un tono fijo. */
+  .budget-progress-committed {
+    background-color: color-mix(in srgb, var(--color-text-primary) 26%, transparent);
+    background-image: repeating-linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--color-text-primary) 68%, transparent) 0,
+      color-mix(in srgb, var(--color-text-primary) 68%, transparent) 3px,
+      transparent 3px,
+      transparent 6px
+    );
+  }
+
   .dashboard-touch-target {
     min-height: var(--shell-control-size);
     min-width: var(--shell-control-size);

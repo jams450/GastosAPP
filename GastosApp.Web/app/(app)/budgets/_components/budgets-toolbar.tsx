@@ -1,6 +1,6 @@
 "use client";
 
-import { BellRing, CalendarDays, Plus, Wallet } from "lucide-react";
+import { BellRing, CalendarDays, ListChecks, Plus, Wallet } from "lucide-react";
 import { useRef, type KeyboardEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/ui/cn";
@@ -10,7 +10,8 @@ import type { BudgetsTab } from "../_lib/budgets-ui";
 type Props = {
   period: string;
   tab: BudgetsTab;
-  canCreate: boolean;
+  /** Etiqueta del botón de alta; `null` lo oculta cuando la pestaña no crea nada. */
+  createLabel: string | null;
   onPeriodChange: (value: string) => void;
   onTabChange: (tab: BudgetsTab) => void;
   onCreate: () => void;
@@ -18,10 +19,11 @@ type Props = {
 
 const TABS: ReadonlyArray<{ id: BudgetsTab; label: string; icon: typeof Wallet }> = [
   { id: "resumen", label: "Límites del mes", icon: Wallet },
+  { id: "partidas", label: "Partidas", icon: ListChecks },
   { id: "alertas", label: "Alertas", icon: BellRing }
 ];
 
-export function BudgetsToolbar({ period, tab, canCreate, onPeriodChange, onTabChange, onCreate }: Props) {
+export function BudgetsToolbar({ period, tab, createLabel, onPeriodChange, onTabChange, onCreate }: Props) {
   const tabListRef = useRef<HTMLDivElement | null>(null);
 
   function onTabKeyDown(event: KeyboardEvent<HTMLDivElement>) {
@@ -30,7 +32,10 @@ export function BudgetsToolbar({ period, tab, canCreate, onPeriodChange, onTabCh
     }
 
     event.preventDefault();
-    const next: BudgetsTab = tab === "resumen" ? "alertas" : "resumen";
+    const currentIndex = TABS.findIndex((item) => item.id === tab);
+    const step = event.key === "ArrowRight" ? 1 : -1;
+    // Navegación cíclica: la lista de pestañas no tiene extremos muertos.
+    const next = TABS[(currentIndex + step + TABS.length) % TABS.length].id;
     onTabChange(next);
     window.requestAnimationFrame(() => {
       tabListRef.current?.querySelector<HTMLButtonElement>(`[data-tab="${next}"]`)?.focus();
@@ -89,7 +94,7 @@ export function BudgetsToolbar({ period, tab, canCreate, onPeriodChange, onTabCh
           })}
         </div>
 
-        {canCreate ? (
+        {createLabel ? (
           <Button
             type="button"
             variant="ghost"
@@ -97,7 +102,7 @@ export function BudgetsToolbar({ period, tab, canCreate, onPeriodChange, onTabCh
             onClick={onCreate}
           >
             <Plus className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
-            Nuevo presupuesto
+            {createLabel}
           </Button>
         ) : null}
       </div>
