@@ -1,4 +1,5 @@
 using GastosApp.API.Models.Budgets;
+using GastosApp.BusinessLogic.Exceptions;
 using GastosApp.BusinessLogic.Interfaces;
 using GastosApp.BusinessLogic.Models.Budgets;
 using GastosApp.Models.Entities;
@@ -13,15 +14,18 @@ namespace GastosApp.API.Controllers;
 public class BudgetsController : ControllerBase
 {
     private readonly IBudgetService _budgetService;
+    private readonly IRecurringItemService _recurringItemService;
     private readonly ICurrentUserService _currentUserService;
     private readonly ILogger<BudgetsController> _logger;
 
     public BudgetsController(
         IBudgetService budgetService,
+        IRecurringItemService recurringItemService,
         ICurrentUserService currentUserService,
         ILogger<BudgetsController> logger)
     {
         _budgetService = budgetService;
+        _recurringItemService = recurringItemService;
         _currentUserService = currentUserService;
         _logger = logger;
     }
@@ -222,6 +226,78 @@ public class BudgetsController : ControllerBase
         }
     }
 
+    /// <summary>
+    /// Rollover de plan entre dos periodos: clona presupuestos y materializa partidas según el modo.
+    /// Idempotente y con <c>dryRun</c> por default: sin confirmación explícita no escribe nada y no
+    /// puede sobrescribir un mes existente.
+    /// </summary>
+    /// <remarks>
+    /// La ruta vive aquí por coherencia con <c>api/budgets</c>, pero el trabajo lo hace
+    /// <see cref="IRecurringItemService"/>: es el servicio que ya es dueño de la materialización de
+    /// partidas y de la clave <c>(user, periodo, kind, nombre)</c> que hace idempotente el remonte.
+    /// </remarks>
+    [HttpPost("rollover")]
+    public async Task<IActionResult> Rollover([FromBody] BudgetRolloverRequest request)
+    {
+        try
+        {
+            var userId = GetCurrentUserId();
+
+            var result = await _recurringItemService.RolloverAsync(userId, new BudgetRolloverInput
+            {
+                FromPeriod = request.FromPeriod,
+                ToPeriod = request.ToPeriod,
+                Mode = request.Mode,
+                DryRun = request.DryRun
+            });
+
+            // Solo conteos por bloque: nunca montos, nombres ni payload.
+            _logger.LogInformation(
+                "Budget rollover {FromPeriod} -> {ToPeriod} ({Mode}, dryRun={DryRun}): budgets={BudgetsInserted}, manual={ManualInserted}, remounted={RemountedInserted}",
+                result.FromPeriod,
+                result.ToPeriod,
+                result.Mode,
+                result.DryRun,
+                result.Budgets.Inserted,
+                result.ManualItems.Inserted,
+                result.RemountedItems.Inserted);
+
+            return Ok(MapRollover(result));
+        }
+        catch (BudgetConflictException ex)
+        {
+            return Conflict(new { Message = ex.Message });
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { Message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error rolling over budget plan");
+            return StatusCode(500, new { Message = "An error occurred while rolling over the budget plan" });
+        }
+    }
+
+    private static BudgetRolloverResponse MapRollover(BudgetRolloverResult result) => new()
+    {
+        FromPeriod = result.FromPeriod,
+        ToPeriod = result.ToPeriod,
+        Mode = result.Mode,
+        DryRun = result.DryRun,
+        Budgets = MapRolloverCounts(result.Budgets),
+        ManualItems = MapRolloverCounts(result.ManualItems),
+        RemountedItems = MapRolloverCounts(result.RemountedItems)
+    };
+
+    private static BudgetRolloverCountsResponse MapRolloverCounts(BudgetRolloverCounts counts) => new()
+    {
+        Attempted = counts.Attempted,
+        Inserted = counts.Inserted,
+        Skipped = counts.Skipped,
+        Omitted = counts.Omitted
+    };
+
     private static BudgetThresholdInput MapThresholdInput(BudgetThresholdRequest request) => new()
     {
         Name = request.Name ?? string.Empty,
@@ -253,7 +329,7 @@ public class BudgetsController : ControllerBase
             .ToList()
     };
 
-    private static BudgetStatusResponse MapStatus(BudgetStatusResult result) => new()
+    internal static BudgetStatusResponse MapStatus(BudgetStatusResult result) => new()
     {
         BudgetId = result.BudgetId,
         Name = result.Name,
@@ -263,8 +339,25 @@ public class BudgetsController : ControllerBase
         Active = result.Active,
         AmountMxn = result.AmountMxn,
         Spent = result.Spent,
-        Remaining = result.Remaining,
+        SpentPercent = result.SpentPercent,
+        Committed = result.Committed,
+        CommittedPercent = result.CommittedPercent,
+        Projected = result.Projected,
+        ProjectedPercent = result.ProjectedPercent,
+        Effective = result.Effective,
+        Forecast = result.Forecast,
         PercentUsed = result.PercentUsed,
+        ThresholdPercent = result.ThresholdPercent,
+        Remaining = result.Remaining,
+        PlannedAmount = result.PlannedAmount,
+        Variance = result.Variance,
+        ItemsPending = result.ItemsPending,
+        ItemsExecuted = result.ItemsExecuted,
+        ItemsUnexecuted = result.ItemsUnexecuted,
+        ItemsIgnored = result.ItemsIgnored,
+        PlannedIncome = result.PlannedIncome,
+        CommittedIncome = result.CommittedIncome,
+        ProjectedIncome = result.ProjectedIncome,
         Status = result.Status,
         ReachedThreshold = result.ReachedThreshold == null
             ? null

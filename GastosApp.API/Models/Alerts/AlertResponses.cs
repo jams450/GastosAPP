@@ -33,9 +33,10 @@ public class AlertDeliveryResponse
 public class AlertOutboxResponse
 {
     public int OutboxId { get; set; }
-    public int DeliveryId { get; set; }
-    public int BudgetId { get; set; }
-    public string PeriodKey { get; set; } = string.Empty;
+    /// <summary>Nulo en los avisos que no provienen de una entrega de presupuesto.</summary>
+    public int? DeliveryId { get; set; }
+    public int? BudgetId { get; set; }
+    public string? PeriodKey { get; set; }
     public string Channel { get; set; } = string.Empty;
     public string Status { get; set; } = string.Empty;
     public int Attempts { get; set; }

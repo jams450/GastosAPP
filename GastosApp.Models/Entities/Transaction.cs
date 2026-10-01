@@ -54,6 +54,19 @@ namespace GastosApp.Models.Entities
         [Required]
         public DateTime TransactionDate { get; set; }
 
+        /// <summary>
+        /// Origen de la transacción: <c>manual</c> (capturada o importada) o <c>auto_recurring</c>
+        /// (creada por el motor de gastos programados). Ver <see cref="TransactionOrigin"/>.
+        /// </summary>
+        [Column("origin")]
+        [Required]
+        [StringLength(20)]
+        public string Origin { get; set; } = TransactionOrigin.Manual;
+
+        /// <summary>Plantilla que generó la transacción cuando <see cref="Origin"/> es automático.</summary>
+        [Column("origin_recurring_item_id")]
+        public int? OriginRecurringItemId { get; set; }
+
         [ForeignKey("AccountId")]
         public virtual Account Account { get; set; } = null!;
 
@@ -66,9 +79,19 @@ namespace GastosApp.Models.Entities
         [ForeignKey("MerchantId")]
         public virtual Merchant? Merchant { get; set; }
 
+        /// <summary>Plantilla de programación que originó la transacción, si fue automática.</summary>
+        [ForeignKey("OriginRecurringItemId")]
+        public virtual RecurringItem? OriginRecurringItem { get; set; }
+
         public virtual ICollection<TransactionTag> TransactionTags { get; set; } = new List<TransactionTag>();
         public virtual ICollection<TransactionAllocation> TransactionAllocations { get; set; } = new List<TransactionAllocation>();
         public virtual CreditCharge? CreditCharge { get; set; }
         public virtual CreditPayment? CreditPayment { get; set; }
+    }
+
+    public static class TransactionOrigin
+    {
+        public const string Manual = "manual";
+        public const string AutoRecurring = "auto_recurring";
     }
 }

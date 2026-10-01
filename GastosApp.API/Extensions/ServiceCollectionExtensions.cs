@@ -53,11 +53,16 @@ public static class ServiceCollectionExtensions
 
         services.AddScoped<ICatalogRuleService, CatalogRuleService>();
         services.AddScoped<IBudgetService, BudgetService>();
+        services.AddScoped<IBudgetItemService, BudgetItemService>();
+        services.AddScoped<IPlanService, PlanService>();
+        services.AddScoped<IRecurringItemService, RecurringItemService>();
         services.AddScoped<IAlertEvaluationService, AlertEvaluationService>();
         services.AddScoped<ITelegramAlertSender, TelegramAlertSender>();
 
         services.AddHostedService<AlertEvaluationBackgroundService>();
         services.AddHostedService<AlertDispatchBackgroundService>();
+        // Motor de gastos programados: hereda la cadencia de alertas y el alcance single-user.
+        services.AddHostedService<RecurringExecutionBackgroundService>();
 
         return services;
     }

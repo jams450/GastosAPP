@@ -1,5 +1,6 @@
 using GastosApp.AI.Configuration;
 using GastosApp.API.Configuration;
+using GastosApp.BusinessLogic.Models.Recurring;
 
 namespace GastosApp.API.Extensions;
 
@@ -13,6 +14,22 @@ public static class TelegramConfigurationExtensions
 
         var telegramOptions = services.AddOptions<TelegramOptions>()
             .Bind(telegramSection);
+
+        // Ajustes de programados para BusinessLogic. Se registran aquí porque este método sí recibe
+        // IConfiguration y BusinessLogic no usa IOptions: un POCO inmutable (singleton) evita añadir
+        // paquetes y mantiene la configuración fuera del dominio.
+        // TelegramAlertingAvailable es la única condición que habilita autoExecute (sección 7.4):
+        // se resuelve aquí para que el guardado y el motor compartan la misma decisión sin que el
+        // dominio vea el token. Nunca expone el token ni un chat_id, solo el veredicto.
+        services.AddSingleton(new RecurringItemSettings
+        {
+            AverageMonths = configuration.GetValue("Plan:AverageMonths", 3),
+            MatchTolerancePct = configuration.GetValue("Plan:MatchTolerancePct", 0m),
+            TelegramAlertingAvailable =
+                telegramSection.GetValue<bool>(nameof(TelegramOptions.Enabled)) &&
+                !IsPlaceholder(telegramSection.GetValue<string>(nameof(TelegramOptions.BotToken)) ?? string.Empty) &&
+                telegramSection.GetValue<long>(nameof(TelegramOptions.AllowedUserId)) > 0
+        });
 
         // LlmOptions se enlaza sin validación de arranque: un LLM inválido/caído nunca debe
         // bloquear el arranque ni los comandos manuales. La usabilidad se verifica en tiempo de ejecución.

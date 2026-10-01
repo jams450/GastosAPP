@@ -4,6 +4,7 @@ using System.Linq;
 using System.Linq.Expressions;
 using System.Threading.Tasks;
 using GastosApp.BusinessLogic.Interfaces;
+using GastosApp.BusinessLogic.Models.Budgets;
 using Microsoft.EntityFrameworkCore;
 using GastosApp.BusinessLogic.Context;
 using GastosApp.Models.Entities;
@@ -225,9 +226,40 @@ namespace GastosApp.BusinessLogic.Services
                     ON CONFLICT (budget_id, threshold_id, period_key) DO NOTHING
                     RETURNING delivery_id
                 )
-                INSERT INTO alert_outbox (delivery_id, channel, payload, status, attempts, next_attempt_at)
-                SELECT delivery_id, {AlertOutboxChannel.Telegram}, {payload}, {AlertOutboxStatus.Pending}, 0, {nextAttemptAt}
+                INSERT INTO alert_outbox (delivery_id, user_id, channel, payload, status, attempts, next_attempt_at)
+                SELECT delivery_id, {userId}, {AlertOutboxChannel.Telegram}, {payload}, {AlertOutboxStatus.Pending}, 0, {nextAttemptAt}
                 FROM inserted
+                """);
+            return affected == 1;
+        }
+
+        public async Task<bool> ClaimBudgetItemAsync(BudgetItemClaim claim)
+        {
+            // Sin RETURNING y sin lectura previa: ExecuteSqlInterpolatedAsync reporta filas afectadas
+            // (1 = insertado, 0 = la clave (user_id, period_key, kind, name) ya existía). Es lo que
+            // hace idempotente al materializador y al rollover.
+            var affected = await _context.Database.ExecuteSqlInterpolatedAsync($"""
+                INSERT INTO budget_items (user_id, period_key, kind, name, planned_amount, planned_date, category_id, subcategory_id, account_id, merchant_id, recurring_item_id, status, is_projected, source)
+                VALUES ({claim.UserId}, {claim.PeriodKey}, {claim.Kind}, {claim.Name}, {claim.PlannedAmount}, {claim.PlannedDate}, {claim.CategoryId}, {claim.SubcategoryId}, {claim.AccountId}, {claim.MerchantId}, {claim.RecurringItemId}, {BudgetItemStatus.Pending}, {claim.IsProjected}, {claim.Source})
+                ON CONFLICT (user_id, period_key, kind, name) DO NOTHING
+                """);
+            return affected == 1;
+        }
+
+        public async Task<bool> ClaimRecurringItemNoticeAsync(
+            int recurringItemId,
+            int userId,
+            string periodKey,
+            string payload,
+            DateTimeOffset nextAttemptAt)
+        {
+            // El predicado del índice parcial es obligatorio para inferirlo: sin él Postgres no puede
+            // elegir uq_alert_outbox_source y la sentencia falla. Excluir 'failed' es lo que permite
+            // reinsertar el aviso cuando la fila anterior expiró (>7 días) en vez de perderlo para siempre.
+            var affected = await _context.Database.ExecuteSqlInterpolatedAsync($"""
+                INSERT INTO alert_outbox (delivery_id, user_id, source_type, source_id, source_key, channel, payload, status, attempts, next_attempt_at)
+                VALUES (NULL, {userId}, {AlertOutboxSourceType.RecurringItem}, {recurringItemId}, {periodKey}, {AlertOutboxChannel.Telegram}, {payload}, {AlertOutboxStatus.Pending}, 0, {nextAttemptAt})
+                ON CONFLICT (source_type, source_id, source_key) WHERE source_id IS NOT NULL AND status <> 'failed' DO NOTHING
                 """);
             return affected == 1;
         }

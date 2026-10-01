@@ -26,10 +26,12 @@ namespace GastosApp.BusinessLogic.Services
         private const string StatusExceeded = "exceeded";
 
         private readonly IRepository _repository;
+        private readonly BudgetEvaluationSettings _settings;
 
-        public BudgetService(IRepository repository)
+        public BudgetService(IRepository repository, BudgetEvaluationSettings settings)
         {
             _repository = repository;
+            _settings = settings;
         }
 
         public async Task<IReadOnlyList<Budget>> ListAsync(int userId, string? periodKey = null)
@@ -256,8 +258,10 @@ namespace GastosApp.BusinessLogic.Services
                 return null;
             }
 
-            var spent = await GetSpentAsync(userId, budget.PeriodKey, budget.CategoryId, budget.SubcategoryId);
-            return BuildStatus(budget, spent);
+            // Mismo camino por-scope que el listado del periodo: así el scope de un solo presupuesto
+            // nunca vuelve a resolverse con una regla distinta a la del resto.
+            var statuses = await ComputeStatusesAsync(userId, budget.PeriodKey, new[] { budget });
+            return statuses[0];
         }
 
         public async Task<IReadOnlyList<BudgetStatusResult>> GetPeriodStatusAsync(int userId, string? periodKey = null)
@@ -275,40 +279,42 @@ namespace GastosApp.BusinessLogic.Services
                 return Array.Empty<BudgetStatusResult>();
             }
 
+            return await ComputeStatusesAsync(userId, effectivePeriod, budgets);
+        }
+
+        /// <summary>
+        /// Calcula el estado de consumo de uno o varios presupuestos del mismo periodo con consultas
+        /// agrupadas por scope. Es el camino único de cálculo: <see cref="GetStatusAsync"/> y
+        /// <see cref="GetPeriodStatusAsync"/> comparten esta función para que el comprometido de un
+        /// presupuesto por categoría incluya siempre las partidas de sus subcategorías (sección 4.8).
+        /// </summary>
+        private async Task<List<BudgetStatusResult>> ComputeStatusesAsync(int userId, string periodKey, IReadOnlyList<Budget> budgets)
+        {
             // Un solo SUM agrupado por (categoría, subcategoría) sustituye los N SUM por presupuesto.
-            var spentByScope = await GetSpentByScopeAsync(userId, effectivePeriod);
+            var spentByScope = await GetSpentByScopeAsync(userId, periodKey);
+            var committedByScope = await GetCommittedByScopeAsync(userId, periodKey);
+            var totalsByScope = await GetItemTotalsByScopeAsync(userId, periodKey);
+
+            // Una sola consulta resuelve el padre de cada subcategoría referenciada; el mapa se reutiliza
+            // para todos los presupuestos del periodo.
+            var parentBySubcategory = await GetSubcategoryParentMapAsync(
+                CollectSubcategoryIds(committedByScope, totalsByScope));
 
             var results = new List<BudgetStatusResult>(budgets.Count);
             foreach (var budget in budgets)
             {
                 var spent = ResolveSpent(spentByScope, budget.CategoryId, budget.SubcategoryId);
-                results.Add(BuildStatus(budget, spent));
+                var committed = ResolveCommitted(committedByScope, budget.CategoryId, budget.SubcategoryId, parentBySubcategory);
+                var totals = ResolveItemTotals(totalsByScope, budget.CategoryId, budget.SubcategoryId, parentBySubcategory);
+                results.Add(BuildStatus(budget, spent, committed, totals));
             }
 
             return results;
         }
 
-        /// <summary>Suma el gasto del periodo. Presupuesto por categoría incluye sus subcategorías.</summary>
-        private async Task<decimal> GetSpentAsync(int userId, string periodKey, int? categoryId, int? subcategoryId)
-        {
-            var (_, _, startUtc, nextStartUtc) = MonthRangeResolver.ResolveUtcRange(periodKey, null);
-
-            var total = await _repository.Get<Transaction>(t =>
-                    t.Account.UserId == userId &&
-                    t.Type == TransactionDomainConstants.TransactionType.Expense &&
-                    t.TransferGroupId == null &&
-                    t.TransactionDate >= startUtc &&
-                    t.TransactionDate < nextStartUtc &&
-                    (categoryId == null || t.CategoryId == categoryId) &&
-                    (subcategoryId == null || t.SubcategoryId == subcategoryId))
-                .SumAsync(t => (decimal?)t.Amount);
-
-            return RoundMoney(total ?? 0m);
-        }
-
         /// <summary>
-        /// Gasto del periodo agrupado por (categoría, subcategoría). Misma condición de gasto que
-        /// <see cref="GetSpentAsync"/>; una sola consulta cubre todos los presupuestos del periodo.
+        /// Gasto del periodo agrupado por (categoría, subcategoría). Una sola consulta cubre todos los
+        /// presupuestos del periodo y <see cref="ResolveSpent"/> atribuye el scope más específico.
         /// </summary>
         private async Task<List<ScopeSpend>> GetSpentByScopeAsync(int userId, string periodKey)
         {
@@ -358,32 +364,277 @@ namespace GastosApp.BusinessLogic.Services
             return RoundMoney(total);
         }
 
+        /// <summary>
+        /// Comprometido del periodo agrupado por (categoría, subcategoría): una sola consulta cubre
+        /// todos los presupuestos del periodo, igual que <see cref="GetSpentByScopeAsync"/>.
+        /// <c>period_key</c> se deriva de <c>planned_date</c>, así que no hace falta filtrar por fecha.
+        /// Solo en periodos abiertos: al cerrar el mes, una partida <c>pending</c> deja de contar
+        /// (caduca) y se reporta como <c>unexecuted</c>.
+        /// </summary>
+        private async Task<List<ScopeCommitted>> GetCommittedByScopeAsync(int userId, string periodKey)
+        {
+            if (!MonthRangeResolver.IsPeriodOpen(periodKey))
+            {
+                return new List<ScopeCommitted>();
+            }
+
+            var rows = await _repository.Get<BudgetItem>(i =>
+                    i.UserId == userId &&
+                    i.PeriodKey == periodKey &&
+                    i.Kind == TransactionDomainConstants.TransactionType.Expense &&
+                    (i.Status == BudgetItemStatus.Pending || i.Status == BudgetItemStatus.Ignored))
+                .GroupBy(i => new { i.CategoryId, i.SubcategoryId })
+                .Select(g => new
+                {
+                    g.Key.CategoryId,
+                    g.Key.SubcategoryId,
+                    Committed = g.Sum(i => i.IsProjected ? 0m : i.PlannedAmount),
+                    Projected = g.Sum(i => i.IsProjected ? i.PlannedAmount : 0m)
+                })
+                .ToListAsync();
+
+            return rows
+                .Select(r => new ScopeCommitted(r.CategoryId, r.SubcategoryId, r.Committed, r.Projected))
+                .ToList();
+        }
+
+        /// <summary>
+        /// Mapa subcategoría → categoría padre. Una partida con <c>subcategory_id</c> cuenta tanto en el
+        /// presupuesto de esa subcategoría como en el de su categoría padre, igual que el gasto real
+        /// (sección 4.8). Sin este mapa, el comprometido de un presupuesto por categoría ignoraría las
+        /// partidas de sus subcategorías porque <c>category_id</c> es nulo en ellas (<c>ck_budget_items_scope</c>).
+        /// </summary>
+        private async Task<Dictionary<int, int>> GetSubcategoryParentMapAsync(IReadOnlyCollection<int> subcategoryIds)
+        {
+            if (subcategoryIds.Count == 0)
+            {
+                return new Dictionary<int, int>();
+            }
+
+            // Una sola consulta para todas las subcategorías del periodo; el resultado se reutiliza por presupuesto.
+            return await _repository.Get<Subcategory>(s => subcategoryIds.Contains(s.SubcategoryId))
+                .Select(s => new { s.SubcategoryId, s.CategoryId })
+                .ToDictionaryAsync(s => s.SubcategoryId, s => s.CategoryId);
+        }
+
+        /// <summary>
+        /// Subcategorías referenciadas por las filas del comprometido y de los conteos del periodo.
+        /// Se deduplican porque varias filas por <c>(categoría, subcategoría)</c> pueden compartir la misma.
+        /// </summary>
+        private static IReadOnlyCollection<int> CollectSubcategoryIds(
+            IReadOnlyList<ScopeCommitted> committedByScope,
+            IReadOnlyList<ScopeItemTotals> totalsByScope)
+        {
+            var ids = new HashSet<int>();
+
+            foreach (var row in committedByScope)
+            {
+                if (row.SubcategoryId.HasValue)
+                {
+                    ids.Add(row.SubcategoryId.Value);
+                }
+            }
+
+            foreach (var row in totalsByScope)
+            {
+                if (row.SubcategoryId.HasValue)
+                {
+                    ids.Add(row.SubcategoryId.Value);
+                }
+            }
+
+            return ids;
+        }
+
+        /// <summary>
+        /// Misma regla de scope más específico que <see cref="ResolveSpent"/>. Un presupuesto por
+        /// categoría suma además las partidas de sus subcategorías, resueltas mediante
+        /// <paramref name="parentBySubcategory"/> (sección 4.8): la partida de subcategoría tiene
+        /// <c>category_id</c> nulo, así que sin el mapa nunca caería en el presupuesto de la categoría.
+        /// </summary>
+        private static ScopeCommitted ResolveCommitted(
+            IReadOnlyList<ScopeCommitted> committedByScope,
+            int? categoryId,
+            int? subcategoryId,
+            IReadOnlyDictionary<int, int> parentBySubcategory)
+        {
+            IEnumerable<ScopeCommitted> matching;
+
+            if (subcategoryId.HasValue)
+            {
+                matching = committedByScope.Where(r => r.SubcategoryId == subcategoryId);
+            }
+            else if (categoryId.HasValue)
+            {
+                matching = committedByScope.Where(r =>
+                    r.CategoryId == categoryId ||
+                    (r.SubcategoryId.HasValue &&
+                     parentBySubcategory.TryGetValue(r.SubcategoryId.Value, out var parent) &&
+                     parent == categoryId.Value));
+            }
+            else
+            {
+                matching = committedByScope;
+            }
+
+            var rows = matching.ToList();
+            return new ScopeCommitted(
+                categoryId,
+                subcategoryId,
+                RoundMoney(rows.Sum(r => r.Committed)),
+                RoundMoney(rows.Sum(r => r.Projected)));
+        }
+
+        /// <summary>
+        /// Conteos y montos planificados del periodo agrupados por scope. Se calculan siempre, aunque
+        /// el periodo esté cerrado: los conteos y el plan declarado no caducan, solo el comprometido.
+        /// Incluye las partidas de ingreso (<c>plannedIncome</c>) porque ese bloque no se mezcla con
+        /// los límites de gasto pero sí se reporta por presupuesto.
+        /// Gating de ingresos: <c>committedIncome</c>/<c>projectedIncome</c> solo cuentan partidas
+        /// <c>pending</c>. Una partida <c>executed</c> ya existe como transacción real y contarla aquí
+        /// la duplicaría; una <c>ignored</c> significa "no llegó" y no debe contarse como esperado.
+        /// Asimetría intencional con gasto, donde <c>ignored</c> sigue contando (sección 4.4 regla 6:
+        /// "decidí no gastarlo", el dinero sigue reservado).
+        /// </summary>
+        private async Task<List<ScopeItemTotals>> GetItemTotalsByScopeAsync(int userId, string periodKey)
+        {
+            var rows = await _repository.Get<BudgetItem>(i =>
+                    i.UserId == userId &&
+                    i.PeriodKey == periodKey)
+                .GroupBy(i => new { i.CategoryId, i.SubcategoryId })
+                .Select(g => new
+                {
+                    g.Key.CategoryId,
+                    g.Key.SubcategoryId,
+                    Pending = g.Count(i => i.Status == BudgetItemStatus.Pending),
+                    Executed = g.Count(i => i.Status == BudgetItemStatus.Executed),
+                    Ignored = g.Count(i => i.Status == BudgetItemStatus.Ignored),
+                    PlannedExpense = g.Sum(i => i.Kind == TransactionDomainConstants.TransactionType.Expense && i.Status != BudgetItemStatus.Cancelled
+                        ? i.PlannedAmount
+                        : 0m),
+                    PlannedIncome = g.Sum(i => i.Kind == TransactionDomainConstants.TransactionType.Income && i.Status != BudgetItemStatus.Cancelled
+                        ? i.PlannedAmount
+                        : 0m),
+                    CommittedIncome = g.Sum(i => i.Kind == TransactionDomainConstants.TransactionType.Income &&
+                            i.Status == BudgetItemStatus.Pending &&
+                            !i.IsProjected
+                        ? i.PlannedAmount
+                        : 0m),
+                    ProjectedIncome = g.Sum(i => i.Kind == TransactionDomainConstants.TransactionType.Income &&
+                            i.Status == BudgetItemStatus.Pending &&
+                            i.IsProjected
+                        ? i.PlannedAmount
+                        : 0m)
+                })
+                .ToListAsync();
+
+            return rows
+                .Select(r => new ScopeItemTotals(
+                    r.CategoryId,
+                    r.SubcategoryId,
+                    r.Pending,
+                    r.Executed,
+                    r.Ignored,
+                    r.PlannedExpense,
+                    r.PlannedIncome,
+                    r.CommittedIncome,
+                    r.ProjectedIncome))
+                .ToList();
+        }
+
+        /// <summary>
+        /// Misma regla de scope más específico que <see cref="ResolveSpent"/>: un presupuesto por
+        /// categoría suma además las totales de sus subcategorías vía <paramref name="parentBySubcategory"/>.
+        /// </summary>
+        private static ScopeItemTotals ResolveItemTotals(
+            IReadOnlyList<ScopeItemTotals> totalsByScope,
+            int? categoryId,
+            int? subcategoryId,
+            IReadOnlyDictionary<int, int> parentBySubcategory)
+        {
+            IEnumerable<ScopeItemTotals> matching;
+
+            if (subcategoryId.HasValue)
+            {
+                matching = totalsByScope.Where(r => r.SubcategoryId == subcategoryId);
+            }
+            else if (categoryId.HasValue)
+            {
+                matching = totalsByScope.Where(r =>
+                    r.CategoryId == categoryId ||
+                    (r.SubcategoryId.HasValue &&
+                     parentBySubcategory.TryGetValue(r.SubcategoryId.Value, out var parent) &&
+                     parent == categoryId.Value));
+            }
+            else
+            {
+                matching = totalsByScope;
+            }
+
+            var rows = matching.ToList();
+            return new ScopeItemTotals(
+                categoryId,
+                subcategoryId,
+                rows.Sum(r => r.Pending),
+                rows.Sum(r => r.Executed),
+                rows.Sum(r => r.Ignored),
+                rows.Sum(r => r.PlannedExpense),
+                rows.Sum(r => r.PlannedIncome),
+                rows.Sum(r => r.CommittedIncome),
+                rows.Sum(r => r.ProjectedIncome));
+        }
+
         private sealed record ScopeSpend(int? CategoryId, int? SubcategoryId, decimal Total);
 
-        private static BudgetStatusResult BuildStatus(Budget budget, decimal spent)
+        private sealed record ScopeCommitted(int? CategoryId, int? SubcategoryId, decimal Committed, decimal Projected);
+
+        private sealed record ScopeItemTotals(
+            int? CategoryId,
+            int? SubcategoryId,
+            int Pending,
+            int Executed,
+            int Ignored,
+            decimal PlannedExpense,
+            decimal PlannedIncome,
+            decimal CommittedIncome,
+            decimal ProjectedIncome);
+
+        private BudgetStatusResult BuildStatus(
+            Budget budget,
+            decimal spent,
+            ScopeCommitted committed,
+            ScopeItemTotals totals)
         {
             var amount = RoundMoney(budget.AmountMxn);
-            var percentUsed = amount > 0m
-                ? Math.Round(spent / amount * 100m, 2, MidpointRounding.AwayFromZero)
-                : 0m;
+            var projected = RoundMoney(committed.Projected);
+            var effective = RoundMoney(spent + committed.Committed);
+            var forecast = RoundMoney(effective + projected);
+
+            var spentPercent = PercentOf(spent, amount);
+            var committedPercent = PercentOf(committed.Committed, amount);
+            var projectedPercent = PercentOf(projected, amount);
+
+            // El desglose mostrado compone el agregado; el umbral lo decide el interruptor.
+            var percentUsed = RoundPercent(spentPercent + committedPercent);
+            var thresholdPercent = _settings.CommittedCountsEnabled ? percentUsed : spentPercent;
 
             var activeThresholds = budget.Thresholds
                 .Where(t => t.Active)
                 .OrderBy(t => t.Percent)
                 .ToList();
 
-            var reached = activeThresholds.LastOrDefault(t => t.Percent <= percentUsed);
+            var reached = activeThresholds.LastOrDefault(t => t.Percent <= thresholdPercent);
 
             string status;
             if (activeThresholds.Count == 0)
             {
-                status = percentUsed >= 100m ? StatusExceeded : StatusOk;
+                status = thresholdPercent >= 100m ? StatusExceeded : StatusOk;
             }
-            else if (percentUsed < activeThresholds[0].Percent)
+            else if (thresholdPercent < activeThresholds[0].Percent)
             {
                 status = StatusOk;
             }
-            else if (percentUsed >= 100m || percentUsed >= activeThresholds[^1].Percent)
+            else if (thresholdPercent >= 100m || thresholdPercent >= activeThresholds[^1].Percent)
             {
                 status = StatusExceeded;
             }
@@ -391,6 +642,10 @@ namespace GastosApp.BusinessLogic.Services
             {
                 status = StatusWarning;
             }
+
+            // Caducidad: en un periodo cerrado el comprometido vale cero y las partidas que siguen
+            // pendientes se reportan como no ejecutadas. Los conteos y el plan declarado no caducan.
+            var periodOpen = MonthRangeResolver.IsPeriodOpen(budget.PeriodKey);
 
             return new BudgetStatusResult
             {
@@ -402,8 +657,25 @@ namespace GastosApp.BusinessLogic.Services
                 Active = budget.Active,
                 AmountMxn = amount,
                 Spent = spent,
-                Remaining = RoundMoney(amount - spent),
+                SpentPercent = spentPercent,
+                Committed = committed.Committed,
+                CommittedPercent = committedPercent,
+                Projected = projected,
+                ProjectedPercent = projectedPercent,
+                Effective = effective,
+                Forecast = forecast,
                 PercentUsed = percentUsed,
+                ThresholdPercent = thresholdPercent,
+                Remaining = RoundMoney(amount - effective),
+                PlannedAmount = RoundMoney(totals.PlannedExpense),
+                Variance = RoundMoney(totals.PlannedExpense - spent),
+                ItemsPending = totals.Pending,
+                ItemsExecuted = totals.Executed,
+                ItemsUnexecuted = periodOpen ? 0 : totals.Pending,
+                ItemsIgnored = totals.Ignored,
+                PlannedIncome = RoundMoney(totals.PlannedIncome),
+                CommittedIncome = periodOpen ? RoundMoney(totals.CommittedIncome) : 0m,
+                ProjectedIncome = periodOpen ? RoundMoney(totals.ProjectedIncome) : 0m,
                 Status = status,
                 ReachedThreshold = reached == null
                     ? null
@@ -414,6 +686,16 @@ namespace GastosApp.BusinessLogic.Services
                         Percent = reached.Percent
                     }
             };
+        }
+
+        private static decimal PercentOf(decimal value, decimal amount)
+        {
+            if (amount <= 0m)
+            {
+                return 0m;
+            }
+
+            return RoundPercent(value / amount * 100m);
         }
 
         private async Task<(int? CategoryId, int? SubcategoryId)> ValidateScopeAsync(int userId, int? categoryId, int? subcategoryId)
@@ -586,6 +868,11 @@ namespace GastosApp.BusinessLogic.Services
         }
 
         private static decimal RoundMoney(decimal value)
+        {
+            return Math.Round(value, 2, MidpointRounding.AwayFromZero);
+        }
+
+        private static decimal RoundPercent(decimal value)
         {
             return Math.Round(value, 2, MidpointRounding.AwayFromZero);
         }
