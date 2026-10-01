@@ -21,6 +21,10 @@ public class InvestmentProduct : BaseModel
     [StringLength(120)]
     public string Name { get; set; } = string.Empty;
 
+    /// <summary>
+    /// Canonical institution code from the seven-code V1 catalog. The database enforces the same
+    /// catalog with <c>ck_investment_products_institution</c>; the service normalizes caller input.
+    /// </summary>
     [Column("institution")]
     [StringLength(120)]
     public string Institution { get; set; } = string.Empty;
@@ -49,8 +53,16 @@ public class InvestmentOffer : BaseModel
     [Column("valid_from")]
     public DateOnly ValidFrom { get; set; }
 
+    /// <summary>
+    /// Validity end. When the caller declares none, the service sets December 31 of the capture year
+    /// and raises <see cref="ValidityInferred"/>. No rate is ever inferred.
+    /// </summary>
     [Column("valid_to")]
     public DateOnly ValidTo { get; set; }
+
+    /// <summary>True when <see cref="ValidTo"/> was derived instead of declared by the user or source.</summary>
+    [Column("validity_inferred")]
+    public bool ValidityInferred { get; set; }
 
     [Column("source_url")]
     [StringLength(500)]
@@ -59,6 +71,11 @@ public class InvestmentOffer : BaseModel
     [Column("source_label")]
     [StringLength(120)]
     public string SourceLabel { get; set; } = string.Empty;
+
+    /// <summary>Literal offer-level terms text, copied as entered. Never parsed or interpreted.</summary>
+    [Column("terms_text")]
+    [StringLength(1000)]
+    public string? TermsText { get; set; }
 
     [Column("conditions_confirmed")]
     public bool ConditionsConfirmed { get; set; }
@@ -86,6 +103,14 @@ public class InvestmentRateTier : BaseModel
     [Column("annual_rate_percent", TypeName = "decimal(7,4)")]
     public decimal AnnualRatePercent { get; set; }
 
+    /// <summary>
+    /// Optional literal special condition attached to this tier (for example a minimum spend). When
+    /// present, generation requires an explicit per-tier confirmation from the request.
+    /// </summary>
+    [Column("special_condition_text")]
+    [StringLength(1000)]
+    public string? SpecialConditionText { get; set; }
+
     public InvestmentOffer Offer { get; set; } = null!;
 }
 
@@ -105,6 +130,13 @@ public class InvestmentPlan : BaseModel
 
     [Column("projection_months")]
     public int ProjectionMonths { get; set; }
+
+    /// <summary>
+    /// Serialized exclusions reported by the generation that produced this row. Kept as a snapshot so
+    /// an already generated plan keeps explaining why each product was left out.
+    /// </summary>
+    [Column("exclusions_json", TypeName = "text")]
+    public string ExclusionsJson { get; set; } = "[]";
 
     public ICollection<InvestmentPlanAllocation> Allocations { get; set; } = new List<InvestmentPlanAllocation>();
 }
@@ -153,6 +185,12 @@ public class InvestmentPlanAllocation : BaseModel
 
     [Column("offer_valid_to_snapshot")]
     public DateOnly OfferValidToSnapshot { get; set; }
+
+    [Column("offer_validity_inferred_snapshot")]
+    public bool OfferValidityInferredSnapshot { get; set; }
+
+    [Column("terms_snapshot", TypeName = "text")]
+    public string? TermsSnapshot { get; set; }
 
     [Column("conditions_confirmed_snapshot")]
     public bool ConditionsConfirmedSnapshot { get; set; }

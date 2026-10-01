@@ -913,7 +913,9 @@ CREATE TABLE IF NOT EXISTS investment_products (
     active BOOLEAN NOT NULL DEFAULT TRUE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    created_by VARCHAR(100), updated_by VARCHAR(100)
+    created_by VARCHAR(100), updated_by VARCHAR(100),
+    CONSTRAINT ck_investment_products_institution
+        CHECK (institution IN ('revolut', 'cetes', 'nu', 'klar', 'finsus', 'didi', 'mercado_libre'))
 );
 CREATE INDEX IF NOT EXISTS idx_investment_products_user_active ON investment_products(user_id, active);
 CREATE UNIQUE INDEX IF NOT EXISTS ux_investment_products_active_account ON investment_products(user_id, account_id) WHERE active;
@@ -923,17 +925,21 @@ CREATE TABLE IF NOT EXISTS investment_offers (
     investment_product_id INT NOT NULL REFERENCES investment_products(investment_product_id) ON DELETE CASCADE,
     captured_for_month CHAR(7) NOT NULL CHECK (captured_for_month ~ '^[0-9]{4}-(0[1-9]|1[0-2])$'),
     valid_from DATE NOT NULL, valid_to DATE NOT NULL,
-    source_url VARCHAR(500) NOT NULL, source_label VARCHAR(120) NOT NULL, conditions_confirmed BOOLEAN NOT NULL DEFAULT FALSE,
+    validity_inferred BOOLEAN NOT NULL DEFAULT FALSE,
+    source_url VARCHAR(500) NOT NULL, source_label VARCHAR(120) NOT NULL, terms_text VARCHAR(1000),
+    conditions_confirmed BOOLEAN NOT NULL DEFAULT FALSE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     created_by VARCHAR(100), updated_by VARCHAR(100),
     CONSTRAINT ck_investment_offers_validity CHECK (valid_to >= valid_from),
     UNIQUE (investment_product_id, captured_for_month)
 );
+CREATE INDEX IF NOT EXISTS idx_investment_offers_product_capture ON investment_offers(investment_product_id, captured_for_month);
 CREATE TABLE IF NOT EXISTS investment_rate_tiers (
     investment_rate_tier_id SERIAL PRIMARY KEY,
     investment_offer_id INT NOT NULL REFERENCES investment_offers(investment_offer_id) ON DELETE CASCADE,
     minimum_amount DECIMAL(15,2) NOT NULL CHECK (minimum_amount >= 0),
     maximum_amount DECIMAL(15,2), annual_rate_percent DECIMAL(7,4) NOT NULL CHECK (annual_rate_percent >= 0),
+    special_condition_text VARCHAR(1000),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     created_by VARCHAR(100), updated_by VARCHAR(100),
     CONSTRAINT ck_investment_rate_tiers_range CHECK (maximum_amount IS NULL OR maximum_amount > minimum_amount),
@@ -941,7 +947,9 @@ CREATE TABLE IF NOT EXISTS investment_rate_tiers (
 );
 CREATE TABLE IF NOT EXISTS investment_plans (
     investment_plan_id SERIAL PRIMARY KEY, user_id INT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
-    plan_month CHAR(7) NOT NULL CHECK (plan_month ~ '^[0-9]{4}-(0[1-9]|1[0-2])$'), projection_months INT NOT NULL CHECK (projection_months BETWEEN 1 AND 120),
+    plan_month CHAR(7) NOT NULL CHECK (plan_month ~ '^[0-9]{4}-(0[1-9]|1[0-2])$'),
+    projection_months INT NOT NULL CHECK (projection_months BETWEEN 1 AND 24),
+    exclusions_json TEXT NOT NULL DEFAULT '[]',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, created_by VARCHAR(100), updated_by VARCHAR(100),
     UNIQUE(user_id, plan_month)
 );
@@ -951,7 +959,8 @@ CREATE TABLE IF NOT EXISTS investment_plan_allocations (
     account_id INT NOT NULL REFERENCES accounts(account_id) ON DELETE RESTRICT, allocated_amount DECIMAL(15,2) NOT NULL,
     product_name_snapshot VARCHAR(120) NOT NULL, institution_snapshot VARCHAR(120) NOT NULL, offer_source_url_snapshot VARCHAR(500) NOT NULL,
     offer_source_label_snapshot VARCHAR(120) NOT NULL, offer_captured_for_month_snapshot CHAR(7) NOT NULL CHECK (offer_captured_for_month_snapshot ~ '^[0-9]{4}-(0[1-9]|1[0-2])$'),
-    offer_valid_from_snapshot DATE NOT NULL, offer_valid_to_snapshot DATE NOT NULL, conditions_confirmed_snapshot BOOLEAN NOT NULL, tier_snapshot_json TEXT NOT NULL,
+    offer_valid_from_snapshot DATE NOT NULL, offer_valid_to_snapshot DATE NOT NULL, offer_validity_inferred_snapshot BOOLEAN NOT NULL DEFAULT FALSE,
+    terms_snapshot TEXT, conditions_confirmed_snapshot BOOLEAN NOT NULL, tier_snapshot_json TEXT NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, created_by VARCHAR(100), updated_by VARCHAR(100),
     UNIQUE(investment_plan_id, investment_product_id)
 );

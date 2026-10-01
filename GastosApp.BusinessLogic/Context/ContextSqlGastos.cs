@@ -385,6 +385,9 @@ namespace GastosApp.BusinessLogic.Context
                     .OnDelete(DeleteBehavior.Cascade);
             });
 
+            // Catalog CHECK constraints (institution codes, inferred validity) live in SQL only,
+            // following this solution's existing convention: there are no EF migrations, and
+            // SQL/schema.sql plus SQL/migrations/*.sql are the source of truth for DDL.
             modelBuilder.Entity<InvestmentProduct>(entity =>
             {
                 entity.HasIndex(e => new { e.UserId, e.AccountId });
@@ -393,6 +396,7 @@ namespace GastosApp.BusinessLogic.Context
                 entity.HasMany(e => e.Offers).WithOne(e => e.Product).HasForeignKey(e => e.InvestmentProductId).OnDelete(DeleteBehavior.Cascade);
             });
 
+            // ValidTo >= ValidFrom is enforced by ck_investment_offers_validity in SQL; see the note above.
             modelBuilder.Entity<InvestmentOffer>(entity =>
             {
                 entity.HasIndex(e => new { e.InvestmentProductId, e.CapturedForMonth }).IsUnique();
