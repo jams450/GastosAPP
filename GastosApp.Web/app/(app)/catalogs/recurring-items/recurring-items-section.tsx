@@ -324,7 +324,7 @@ export function RecurringItemsSection({
               </div>
             </div>
 
-            <form className="flex h-full flex-col" onSubmit={(event) => void submitForm(event)}>
+            <form className="flex min-h-0 flex-1 flex-col" onSubmit={(event) => void submitForm(event)}>
               <div className="flex-1 space-y-4 overflow-y-auto px-4 py-4 sm:px-5">
                 <section className="drawer-section-semantic rounded-none border-[var(--color-border)] bg-[var(--color-surface-2)]">
                   <h4 className="text-muted text-[11px] font-bold uppercase tracking-[0.14em]">General</h4>

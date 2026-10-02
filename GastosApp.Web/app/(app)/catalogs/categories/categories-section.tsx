@@ -282,7 +282,7 @@ export function CategoriesSection({ categories, onCatalogChanged, onError, onSuc
       {categoryModalOpen ? (
         <div className="drawer-enter-backdrop fixed inset-0 z-[70] flex items-end justify-end bg-[var(--color-overlay)] p-0 backdrop-blur-sm sm:items-stretch">
           <Card className="drawer-enter-panel app-sidebar relative flex h-[100dvh] w-full flex-col border-l p-0 sm:h-full sm:max-w-xl">
-            <form className="flex h-full flex-col" onSubmit={(event) => void submitCategory(event)}>
+            <form className="flex min-h-0 flex-1 flex-col" onSubmit={(event) => void submitCategory(event)}>
               <div className="drawer-header-semantic">
                 <div className="mb-1 h-1 w-12 bg-[var(--color-accent)]/70 sm:hidden" />
                 <div className="flex items-start justify-between gap-3">
