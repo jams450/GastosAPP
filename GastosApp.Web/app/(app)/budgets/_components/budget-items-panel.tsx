@@ -104,6 +104,7 @@ export function BudgetItemsPanel({
               <div className="flex items-center gap-1.5">
                 <p className="m-0 text-xs font-bold text-primary">{row.original.name}</p>
                 {row.original.isProjected ? <span className="tabler-badge">Proyectada</span> : null}
+                {row.original.source === "template" ? <span className="tabler-badge">Programada</span> : null}
               </div>
               <p className="m-0 text-[11px] text-muted">
                 {scope.label}
@@ -256,6 +257,7 @@ export function BudgetItemsPanel({
                           <div className="flex shrink-0 flex-col items-end gap-1">
                             <span className={budgetItemStatusBadgeClass(item.status)}>{budgetItemStatusLabel(item.status)}</span>
                             <span className={budgetItemKindBadgeClass(item.kind)}>{budgetItemKindLabel(item.kind)}</span>
+                            {item.source === "template" ? <span className="tabler-badge">Programada</span> : null}
                           </div>
                         </div>
 

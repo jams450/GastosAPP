@@ -133,6 +133,20 @@ export function createBudgetItem(payload: BudgetItemWriteRequest): Promise<void>
   return sendJson("/api/bff/budget-items", "POST", payload, "No se pudo crear la partida");
 }
 
+/**
+ * Alta selectiva desde programada: 1 plantilla → 1 partida del periodo, sin reescribir. El BFF
+ * reenvía el cuerpo tal cual al API; `plannedDate` solo aporta el mes destino (el día y el monto
+ * los deriva el backend de la plantilla). Mismo patrón de error que `createBudgetItem`.
+ */
+export function createBudgetItemFromTemplate(recurringItemId: number, period: string): Promise<void> {
+  return sendJson(
+    "/api/bff/budget-items",
+    "POST",
+    { recurringItemId, plannedDate: `${period}-01` },
+    "No se pudo agregar la partida programada"
+  );
+}
+
 export function updateBudgetItem(itemId: number, payload: BudgetItemWriteRequest): Promise<void> {
   return sendJson(`/api/bff/budget-items/${itemId}`, "PUT", payload, "No se pudo guardar la partida");
 }

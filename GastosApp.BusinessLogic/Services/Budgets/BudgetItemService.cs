@@ -1,6 +1,7 @@
 using GastosApp.BusinessLogic.Exceptions;
 using GastosApp.BusinessLogic.Interfaces;
 using GastosApp.BusinessLogic.Models.Budgets;
+using GastosApp.BusinessLogic.Models.Recurring;
 using GastosApp.BusinessLogic.Models.Transactions;
 using GastosApp.Models.Entities;
 using Microsoft.EntityFrameworkCore;
@@ -37,10 +38,12 @@ namespace GastosApp.BusinessLogic.Services
             "Una partida ejecutada no puede cambiar de mes: elimina la transacción enlazada si necesitas reubicarla.";
 
         private readonly IRepository _repository;
+        private readonly IRecurringItemService _recurringItems;
 
-        public BudgetItemService(IRepository repository)
+        public BudgetItemService(IRepository repository, IRecurringItemService recurringItems)
         {
             _repository = repository;
+            _recurringItems = recurringItems;
         }
 
         public async Task<IReadOnlyList<BudgetItemListItem>> ListAsync(int userId, BudgetItemQuery query)
@@ -69,6 +72,13 @@ namespace GastosApp.BusinessLogic.Services
         public async Task<BudgetItemListItem> CreateAsync(int userId, BudgetItemWriteInput input)
         {
             if (input == null) throw new ArgumentException("Budget item input is required.", nameof(input));
+
+            // Alta selectiva desde plantilla: 1 plantilla → 1 partida del periodo, ligada por FK y
+            // marcada source=template. Opt-in por plantilla y mes; no hay auto-materialización aquí.
+            if (input.RecurringItemId.HasValue)
+            {
+                return await CreateFromTemplateAsync(userId, input);
+            }
 
             var kind = NormalizeKind(input.Kind);
             var name = NormalizeName(input.Name);
@@ -107,6 +117,143 @@ namespace GastosApp.BusinessLogic.Services
             }
 
             return (await GetAsync(item.ItemId, userId))!;
+        }
+
+        /// <summary>
+        /// Alta selectiva de la partida del periodo desde una plantilla existente, sin reescribir:
+        /// la partida se deriva íntegra de la plantilla y queda ligada (<c>recurring_item_id</c> +
+        /// <c>source=template</c>). Política ante campos manuales: <see cref="BudgetItemWriteInput.PlannedDate"/>
+        /// solo aporta el mes destino (el día lo resuelve la plantilla con su regla de clamp); las
+        /// notas se ignoran (la partida nace sin notas y se pueden editar después); cualquier otro
+        /// campo manual presente y contradictorio con lo derivado se rechaza con 400 para evidenciar
+        /// una plantilla obsoleta en el cliente, en vez de escribir silenciosamente algo distinto a
+        /// lo prellenado. El duplicado usa el mismo claim idempotente del materializador: si la
+        /// clave <c>(user_id, period_key, kind, name)</c> ya existe se responde 400, igual que el
+        /// alta manual ante colisión de nombre.
+        /// </summary>
+        private async Task<BudgetItemListItem> CreateFromTemplateAsync(int userId, BudgetItemWriteInput input)
+        {
+            if (input.PlannedDate == default)
+            {
+                throw new ArgumentException(
+                    "La fecha planificada es requerida para ubicar el periodo de la partida programada.",
+                    nameof(input));
+            }
+
+            // El periodo se deriva del mes de la fecha recibida, igual que en el alta manual: fecha
+            // y periodo nunca divergen. El día se ignora; lo fija la plantilla.
+            var periodKey = ToPeriodKey(NormalizeDate(input.PlannedDate));
+
+            var occurrence = await _recurringItems.ResolveOccurrenceAsync(
+                userId,
+                input.RecurringItemId!.Value,
+                periodKey,
+                CancellationToken.None);
+
+            // Coherencia con lo prellenado desde la plantilla: un valor manual presente y distinto
+            // indica que la plantilla cambió tras el prefill; se rechaza en vez de ignorarse.
+            RejectWhenContradictsTemplate(input, occurrence);
+
+            var claim = new BudgetItemClaim
+            {
+                UserId = userId,
+                PeriodKey = occurrence.PeriodKey,
+                Kind = occurrence.Kind,
+                Name = occurrence.Name,
+                PlannedAmount = occurrence.PlannedAmount,
+                PlannedDate = occurrence.PlannedDate,
+                CategoryId = occurrence.CategoryId,
+                SubcategoryId = occurrence.SubcategoryId,
+                AccountId = occurrence.AccountId,
+                MerchantId = occurrence.MerchantId,
+                RecurringItemId = occurrence.RecurringItemId,
+                IsProjected = occurrence.IsProjected,
+                Source = BudgetItemSource.Template
+            };
+
+            // ON CONFLICT DO NOTHING, como el materializador: una sola sentencia decide sin lectura
+            // previa. Si otro proceso (o un doble clic) ya creó la ocurrencia, no se duplica.
+            if (!await _repository.ClaimBudgetItemAsync(claim))
+            {
+                throw new ArgumentException(
+                    "Esta programada ya tiene partida en este periodo.",
+                    nameof(input));
+            }
+
+            var created = await ProjectListAsync(_repository.Get<BudgetItem>(i =>
+                    i.UserId == userId &&
+                    i.PeriodKey == occurrence.PeriodKey &&
+                    i.Kind == occurrence.Kind &&
+                    i.Name == occurrence.Name))
+                .FirstOrDefaultAsync();
+
+            // El claim acaba de insertar la fila con esta misma clave: solo faltaría si una purga o
+            // borrado concurrente la eliminó entre ambas sentencias.
+            return created!;
+        }
+
+        /// <summary>
+        /// Guardia de prefill obsoleto: los campos manuales ausentes (texto vacío, cero o nulo) se
+        /// derivan de la plantilla; los presentes deben coincidir con lo derivado. El día de
+        /// <c>PlannedDate</c> y las notas nunca se comparan: el día lo fija la plantilla y las
+        /// notas se ignoran en este camino.
+        /// </summary>
+        private static void RejectWhenContradictsTemplate(
+            BudgetItemWriteInput input,
+            RecurringTemplateOccurrence occurrence)
+        {
+            var kind = input.Kind?.Trim().ToLowerInvariant();
+            if (!string.IsNullOrEmpty(kind) &&
+                !string.Equals(kind, occurrence.Kind, StringComparison.Ordinal))
+            {
+                throw new ArgumentException(
+                    "El tipo de la partida no coincide con el de la programada.",
+                    nameof(input));
+            }
+
+            var name = input.Name?.Trim() ?? string.Empty;
+            if (name.Length > 0 && !string.Equals(name, occurrence.Name, StringComparison.Ordinal))
+            {
+                throw new ArgumentException(
+                    "El nombre no coincide con el de la programada; recarga las programadas e inténtalo de nuevo.",
+                    nameof(input));
+            }
+
+            // Cero = ausente: los montos válidos siempre son mayores a cero.
+            if (input.PlannedAmount != 0m && input.PlannedAmount != occurrence.PlannedAmount)
+            {
+                throw new ArgumentException(
+                    "El monto no coincide con el de la programada; recarga las programadas e inténtalo de nuevo.",
+                    nameof(input));
+            }
+
+            if (input.CategoryId.HasValue && input.CategoryId.Value != occurrence.CategoryId)
+            {
+                throw new ArgumentException(
+                    "La categoría no coincide con la de la programada.",
+                    nameof(input));
+            }
+
+            if (input.SubcategoryId.HasValue && input.SubcategoryId.Value != occurrence.SubcategoryId)
+            {
+                throw new ArgumentException(
+                    "La subcategoría no coincide con la de la programada.",
+                    nameof(input));
+            }
+
+            if (input.AccountId.HasValue && input.AccountId.Value != occurrence.AccountId)
+            {
+                throw new ArgumentException(
+                    "La cuenta no coincide con la de la programada.",
+                    nameof(input));
+            }
+
+            if (input.MerchantId.HasValue && input.MerchantId.Value != occurrence.MerchantId)
+            {
+                throw new ArgumentException(
+                    "El comercio no coincide con el de la programada.",
+                    nameof(input));
+            }
         }
 
         public async Task<BudgetItemListItem?> UpdateAsync(int itemId, int userId, BudgetItemWriteInput input)

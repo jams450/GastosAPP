@@ -25,6 +25,13 @@ public class BudgetItemCreateRequest
     public int? MerchantId { get; set; }
 
     public string? Notes { get; set; }
+
+    /// <summary>
+    /// Alta selectiva desde plantilla: con valor, la partida se deriva de la programada indicada
+    /// (<c>plannedDate</c> solo aporta el mes destino) y queda ligada con
+    /// <c>source=template</c>. Nulo = alta manual, comportamiento intacto.
+    /// </summary>
+    public int? RecurringItemId { get; set; }
 }
 
 /// <summary>

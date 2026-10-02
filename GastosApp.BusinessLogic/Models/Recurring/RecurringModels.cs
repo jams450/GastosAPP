@@ -121,6 +121,38 @@ namespace GastosApp.BusinessLogic.Models.Recurring
     }
 
     /// <summary>
+    /// Ocurrencia selectiva de una plantilla para un periodo: lo que necesita el alta de una
+    /// partida ligada sin pasar por el materializador masivo. El monto de una plantilla
+    /// <c>average</c> se deriva con la misma fórmula que <c>MaterializeInternalAsync</c> (promedio
+    /// de los últimos N meses con movimiento); sin historial no hay ocurrencia y se reporta como
+    /// error en vez de inventar un monto. La fecha aplica la misma regla que el materializador
+    /// (<c>effective_from</c> solo en su primer periodo, resto <c>day_of_month</c> con clamp).
+    /// </summary>
+    public class RecurringTemplateOccurrence
+    {
+        public int RecurringItemId { get; set; }
+        public string PeriodKey { get; set; } = string.Empty;
+        /// <summary><c>income</c> o <c>expense</c>, copiado de la plantilla.</summary>
+        public string Kind { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+        public decimal PlannedAmount { get; set; }
+
+        /// <summary>
+        /// Fecha de la partida. <see cref="DateOnly"/> y no <see cref="DateTime"/>: viaja como
+        /// parámetro crudo al <c>INSERT</c> de <c>budget_items</c>, cuya columna
+        /// <c>planned_date</c> es <c>date</c> (misma razón que en <c>BudgetItemClaim</c>).
+        /// </summary>
+        public DateOnly PlannedDate { get; set; }
+        public int? CategoryId { get; set; }
+        public int? SubcategoryId { get; set; }
+        public int? AccountId { get; set; }
+        public int? MerchantId { get; set; }
+
+        /// <summary><c>true</c> cuando el monto se derivó de un promedio: no compromete dinero.</summary>
+        public bool IsProjected { get; set; }
+    }
+
+    /// <summary>
     /// Materialización de ocurrencias de un periodo. Solo conteos: nunca montos ni nombres.
     /// <see cref="Attempted"/> = candidatas aplicables; <see cref="Skipped"/> = la clave
     /// <c>(user, periodo, kind, nombre)</c> ya existía; <see cref="Omitted"/> = candidata descartada

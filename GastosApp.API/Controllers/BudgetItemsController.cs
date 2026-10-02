@@ -280,7 +280,8 @@ public class BudgetItemsController : ControllerBase
         SubcategoryId = request.SubcategoryId,
         AccountId = request.AccountId,
         MerchantId = request.MerchantId,
-        Notes = request.Notes
+        Notes = request.Notes,
+        RecurringItemId = request.RecurringItemId
     };
 
     private static BudgetItemWriteInput MapWriteInput(BudgetItemUpdateRequest request) => new()

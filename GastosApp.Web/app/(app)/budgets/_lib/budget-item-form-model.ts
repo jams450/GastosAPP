@@ -137,6 +137,9 @@ export function toBudgetItemWriteRequest(values: BudgetItemFormValues): BudgetIt
     subcategoryId: useSubcategory ? values.subcategoryId : null,
     accountId: values.accountId,
     merchantId: values.merchantId,
-    notes: values.notes.trim().length > 0 ? values.notes.trim() : null
+    notes: values.notes.trim().length > 0 ? values.notes.trim() : null,
+    // El formulario manual nunca liga plantillas: el alta selectiva viaja por
+    // `createBudgetItemFromTemplate`, no por aquí.
+    recurringItemId: null
   };
 }

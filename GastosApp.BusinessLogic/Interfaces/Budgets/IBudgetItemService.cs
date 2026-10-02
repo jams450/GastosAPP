@@ -14,7 +14,11 @@ namespace GastosApp.BusinessLogic.Interfaces
         /// <summary>Partida propia. Null cuando no existe o no pertenece al usuario.</summary>
         Task<BudgetItemListItem?> GetAsync(int itemId, int userId);
 
-        /// <summary>Alta manual de una partida. El periodo se deriva de <c>plannedDate</c>.</summary>
+        /// <summary>
+        /// Alta de una partida. Sin <c>recurringItemId</c> es manual (<c>source=manual</c>); con
+        /// <c>recurringItemId</c> es selectiva desde plantilla (<c>source=template</c>, ligada por
+        /// FK, monto y fecha derivados). El periodo se deriva de <c>plannedDate</c> en ambos casos.
+        /// </summary>
         Task<BudgetItemListItem> CreateAsync(int userId, BudgetItemWriteInput input);
 
         /// <summary>Edición. Null cuando no existe o no es del usuario. <c>kind</c> es inmutable.</summary>

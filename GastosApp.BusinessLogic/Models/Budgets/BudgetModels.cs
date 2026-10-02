@@ -117,6 +117,10 @@ namespace GastosApp.BusinessLogic.Models.Budgets
     /// Entrada de creación/edición de partida planificada. El scope es XOR: exactamente uno de
     /// <see cref="CategoryId"/> o <see cref="SubcategoryId"/>. <c>period_key</c> no se recibe:
     /// se deriva de <see cref="PlannedDate"/>.
+    /// Con <see cref="RecurringItemId"/> (solo alta) la partida se deriva íntegra de la plantilla:
+    /// <see cref="PlannedDate"/> solo aporta el mes destino (el día lo resuelve la plantilla) y el
+    /// resto de campos manuales presentes y contradictorios se rechazan con 400; los ausentes se
+    /// derivan. Sin <see cref="RecurringItemId"/> el alta es manual, como siempre.
     /// </summary>
     public class BudgetItemWriteInput
     {
@@ -129,6 +133,13 @@ namespace GastosApp.BusinessLogic.Models.Budgets
         public int? AccountId { get; set; }
         public int? MerchantId { get; set; }
         public string? Notes { get; set; }
+
+        /// <summary>
+        /// Plantilla de la que nace la partida. Nulo = alta manual (<c>source=manual</c>, sin ligue);
+        /// con valor = alta selectiva desde plantilla (<c>source=template</c>, ligada por FK). Solo se
+        /// acepta en creación: la edición no religa ni desliga partidas.
+        /// </summary>
+        public int? RecurringItemId { get; set; }
     }
 
     /// <summary>Entrada de transición de estado de una partida. <c>executed</c> exige enlace previo.</summary>

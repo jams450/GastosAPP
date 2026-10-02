@@ -59,6 +59,10 @@ export type BudgetItem = {
 /**
  * Alta o edición de partida. `periodKey` no viaja: el backend lo deriva de `plannedDate`, y en
  * edición `kind` es inmutable (el backend responde 400 si cambia).
+ *
+ * `recurringItemId` solo se envía en el alta selectiva desde programada: con valor, el backend
+ * deriva nombre/tipo/monto/fecha/alcance de la plantilla y liga la partida (`source=template`).
+ * `null` = alta manual, comportamiento intacto.
  */
 export type BudgetItemWriteRequest = {
   kind: string;
@@ -70,6 +74,7 @@ export type BudgetItemWriteRequest = {
   accountId: number | null;
   merchantId: number | null;
   notes: string | null;
+  recurringItemId: number | null;
 };
 
 export type BudgetItemStatusRequest = {

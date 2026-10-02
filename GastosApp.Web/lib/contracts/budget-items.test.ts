@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { normalizeBudgetItemSuggestion, normalizeBudgetItemSuggestions } from "./budget-items.ts";
+import { normalizeBudgetItem, normalizeBudgetItemSuggestion, normalizeBudgetItemSuggestions } from "./budget-items.ts";
 
 /** Payload tal como lo emite `GET /api/budget-items/suggestions`: array plano, `int?` ausentes. */
 function payload(overrides: Record<string, unknown> = {}): Record<string, unknown> {
@@ -112,4 +112,55 @@ test("normalizeBudgetItemSuggestions devuelve lista vacía si no llega un array"
   for (const input of [null, undefined, {}, "sugerencias", 7]) {
     assert.deepEqual(normalizeBudgetItemSuggestions(input), [], `entrada no-array: ${String(input)}`);
   }
+});
+
+function itemPayload(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    itemId: 9,
+    periodKey: "2026-09",
+    kind: "expense",
+    name: "Renta",
+    plannedAmount: 1000,
+    plannedDate: "2026-09-05T00:00:00",
+    categoryId: 3,
+    subcategoryId: null,
+    accountId: null,
+    merchantId: null,
+    recurringItemId: null,
+    status: "pending",
+    isProjected: false,
+    transactionId: null,
+    source: "manual",
+    notes: null,
+    created: null,
+    updated: null,
+    ...overrides
+  };
+}
+
+test("normalizeBudgetItem conserva el origen plantilla y su ligue", () => {
+  const linked = normalizeBudgetItem(itemPayload({ recurringItemId: 7, source: "template", isProjected: true }));
+
+  assert.ok(linked);
+  assert.equal(linked.recurringItemId, 7);
+  assert.equal(linked.source, "template");
+  assert.equal(linked.isProjected, true);
+
+  const manual = normalizeBudgetItem(itemPayload());
+  assert.equal(manual?.recurringItemId, null);
+  assert.equal(manual?.source, "manual");
+
+  // Los `int?` nulos viajan como ausencia (`WhenWritingNull`): ambos se leen como `null`.
+  const missing = normalizeBudgetItem(itemPayload({ recurringItemId: undefined, transactionId: undefined }));
+  assert.equal(missing?.recurringItemId, null);
+  assert.equal(missing?.transactionId, null);
+});
+
+test("normalizeBudgetItem rechaza la entrada no-objeto y la fila sin identidad", () => {
+  for (const input of [null, undefined, 42, "partida", []]) {
+    assert.equal(normalizeBudgetItem(input), null, `entrada no-objeto: ${String(input)}`);
+  }
+
+  assert.equal(normalizeBudgetItem(itemPayload({ itemId: undefined })), null);
+  assert.equal(normalizeBudgetItem(itemPayload({ itemId: 0 })), null);
 });

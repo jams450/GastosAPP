@@ -11,6 +11,7 @@ import type { Subcategory } from "@/lib/contracts/subcategories";
 import {
   cancelBudgetItem,
   createBudgetItem,
+  createBudgetItemFromTemplate,
   fetchBudgetItems,
   patchBudgetItemStatus,
   purgeCancelledBudgetItems,
@@ -128,6 +129,16 @@ export function useBudgetItems(period: string, kindFilter: BudgetItemKindFilter)
     [reload]
   );
 
+  /** Alta selectiva desde programada: mismo ciclo que el alta manual (error + recarga). */
+  const createFromTemplate = useCallback(
+    async (recurringItemId: number, periodKey: string) => {
+      setError(null);
+      await createBudgetItemFromTemplate(recurringItemId, periodKey);
+      await reload();
+    },
+    [reload]
+  );
+
   const update = useCallback(
     async (itemId: number, payload: BudgetItemWriteRequest) => {
       setError(null);
@@ -172,6 +183,8 @@ export function useBudgetItems(period: string, kindFilter: BudgetItemKindFilter)
 
   return {
     items: visibleItems,
+    /** Partidas del periodo sin filtrar por tipo: el filtro es solo visual y un duplicado oculto sigue siendo duplicado. */
+    allItems: items,
     totalCount: items.length,
     cancelledCount,
     catalogs: catalogIndex,
@@ -185,6 +198,7 @@ export function useBudgetItems(period: string, kindFilter: BudgetItemKindFilter)
     busyItemId,
     reload,
     create,
+    createFromTemplate,
     update,
     changeStatus,
     cancel,

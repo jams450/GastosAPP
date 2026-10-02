@@ -396,6 +396,87 @@ namespace GastosApp.BusinessLogic.Services
             return MaterializeInternalAsync(userId, period, persist: true, cancellationToken);
         }
 
+        public async Task<RecurringTemplateOccurrence> ResolveOccurrenceAsync(
+            int userId,
+            int recurringItemId,
+            string periodKey,
+            CancellationToken cancellationToken = default)
+        {
+            var period = NormalizePeriodKey(periodKey);
+
+            // Ajeno o inexistente: el mismo 400 sin datos, igual que el resto de validaciones de
+            // alcance del servicio (nunca 403 con datos).
+            var template = await _repository.Get<RecurringItem>(r =>
+                    r.RecurringItemId == recurringItemId && r.UserId == userId)
+                .FirstOrDefaultAsync(cancellationToken);
+
+            if (template == null)
+            {
+                throw new ArgumentException("La partida programada no existe.", nameof(recurringItemId));
+            }
+
+            if (!template.Active)
+            {
+                throw new ArgumentException("La partida programada está inactiva.", nameof(recurringItemId));
+            }
+
+            if (!IsInWindow(template, period))
+            {
+                throw new ArgumentException(
+                    $"La partida programada no aplica al periodo {period}.",
+                    nameof(periodKey));
+            }
+
+            decimal amount;
+            if (template.AmountMode == RecurringItemAmountMode.Average)
+            {
+                // Misma fórmula que MaterializeInternalAsync: promedio de los últimos N meses con
+                // movimiento ejecutado. Sin historial no hay cuota que proyectar y el alta
+                // selectiva falla en vez de omitir en silencio (el materializador omite porque es
+                // masivo; aquí el usuario pidió explícitamente esta ocurrencia).
+                var averages = await ResolveAverageAmountsAsync(
+                    userId,
+                    new[] { template },
+                    period,
+                    cancellationToken);
+
+                if (!averages.TryGetValue(template.RecurringItemId, out amount) || amount <= 0m)
+                {
+                    throw new ArgumentException(
+                        "La partida programada aún no tiene historial suficiente para promediar el monto de este periodo.",
+                        nameof(recurringItemId));
+                }
+            }
+            else
+            {
+                if (template.AmountMxn is not { } declared || declared <= 0m)
+                {
+                    throw new ArgumentException(
+                        "La partida programada no tiene monto declarado.",
+                        nameof(recurringItemId));
+                }
+
+                amount = RoundMoney(declared);
+            }
+
+            return new RecurringTemplateOccurrence
+            {
+                RecurringItemId = template.RecurringItemId,
+                PeriodKey = period,
+                Kind = template.Kind,
+                Name = template.Name,
+                PlannedAmount = amount,
+                // Misma regla que el materializador: effective_from solo en su primer periodo,
+                // resto day_of_month con clamp a fin de mes.
+                PlannedDate = ResolvePlannedDate(template, period),
+                CategoryId = template.CategoryId,
+                SubcategoryId = template.SubcategoryId,
+                AccountId = template.AccountId,
+                MerchantId = template.MerchantId,
+                IsProjected = template.AmountMode == RecurringItemAmountMode.Average
+            };
+        }
+
         public async Task<BudgetRolloverResult> RolloverAsync(int userId, BudgetRolloverInput input)
         {
             if (input == null) throw new ArgumentException("Rollover input is required.", nameof(input));

@@ -32,10 +32,12 @@ import {
 } from "./_lib/budget-item-form-model";
 import type { BudgetItemKindFilter } from "./_lib/budget-items-model";
 import type { BudgetItem } from "@/lib/contracts/budget-items";
+import type { RecurringItem } from "@/lib/contracts/recurring-items";
 import { AlertsHistoryPanel } from "./_components/alerts-history-panel";
 import { BudgetFormDrawer } from "./_components/budget-form-drawer";
 import { BudgetItemFormDrawer } from "./_components/budget-item-form-drawer";
 import { BudgetItemsPanel } from "./_components/budget-items-panel";
+import { BudgetTemplatesPanel } from "./_components/budget-templates-panel";
 import { BudgetSuggestionsPanel } from "./_components/budget-suggestions-panel";
 import { BudgetsKpis } from "./_components/budgets-kpis";
 import { BudgetsResults } from "./_components/budgets-results";
@@ -47,6 +49,7 @@ import { useBudgetForm } from "./_hooks/use-budget-form";
 import { useBudgetItemForm } from "./_hooks/use-budget-item-form";
 import { useBudgetItemSuggestions } from "./_hooks/use-budget-item-suggestions";
 import { useBudgetItems } from "./_hooks/use-budget-items";
+import { useBudgetTemplates } from "./_hooks/use-budget-templates";
 import { useBudgetsAdmin, type BudgetRow } from "./_hooks/use-budgets-admin";
 import { useBudgetsToasts } from "./_hooks/use-budgets-toasts";
 
@@ -104,6 +107,7 @@ export function BudgetsClient() {
   } = useAlertsHistory(period, tab === "alertas");
   const {
     items,
+    allItems,
     cancelledCount,
     catalogs: itemCatalogs,
     categories: itemCategories,
@@ -114,11 +118,20 @@ export function BudgetsClient() {
     error: itemsError,
     busyItemId,
     create: createItem,
+    createFromTemplate: createItemFromTemplate,
     update: updateItem,
     changeStatus: changeItemStatus,
     cancel: cancelItem,
     purge: purgeItems
   } = useBudgetItems(period, kindFilter);
+  // Programadas candidatas al periodo: se consultan solo en la pestaña de partidas y se filtran
+  // contra las partidas sin filtrar por tipo (un duplicado oculto por el filtro sigue siendo
+  // duplicado y el backend lo rechazaría).
+  const {
+    templates: pendingTemplates,
+    error: templatesError
+  } = useBudgetTemplates(period, allItems, tab === "partidas");
+  const [addingTemplateId, setAddingTemplateId] = useState<number | null>(null);
   const {
     suggestions,
     loading: suggestionsLoading,
@@ -158,6 +171,16 @@ export function BudgetsClient() {
     errorToast(loadError);
     setLoadError(null);
   }, [loadError, errorToast, setLoadError]);
+
+  // La lista de programadas es secundaria: si falla, se avisa una vez y la pantalla sigue
+  // mostrando las partidas (la sección de un clic simplemente no aparece).
+  useEffect(() => {
+    if (!templatesError) {
+      return;
+    }
+
+    errorToast(templatesError);
+  }, [templatesError, errorToast]);
 
   /**
    * Query de la pantalla a partir de pestaña y periodo. Ambas claves son opcionales: el
@@ -309,6 +332,20 @@ export function BudgetsClient() {
     }
   }
 
+  /** Un clic crea la partida del mes ligada a la programada, sin reescribir nada. */
+  async function onAddTemplate(template: RecurringItem) {
+    setAddingTemplateId(template.recurringItemId);
+
+    try {
+      await createItemFromTemplate(template.recurringItemId, period);
+      success("Partida agregada desde la programada");
+    } catch (err) {
+      errorToast(err instanceof Error ? err.message : "No se pudo agregar la partida programada");
+    } finally {
+      setAddingTemplateId(null);
+    }
+  }
+
   /** Volver a `pending` es la transición inversa de "Ignorar" y no está en el menú de estados. */
   async function onRestoreItem(item: BudgetItem) {
     try {
@@ -407,6 +444,15 @@ export function BudgetsClient() {
           </div>
         ) : tab === "partidas" ? (
           <div id="budgets-panel-partidas" role="tabpanel" aria-labelledby="budgets-tab-partidas" className="space-y-3">
+            {!itemsLoading ? (
+              <BudgetTemplatesPanel
+                templates={pendingTemplates}
+                period={period}
+                periodLabel={periodLabel}
+                addingId={addingTemplateId}
+                onAdd={(template) => void onAddTemplate(template)}
+              />
+            ) : null}
             <BudgetItemsPanel
               items={items}
               loading={itemsLoading}

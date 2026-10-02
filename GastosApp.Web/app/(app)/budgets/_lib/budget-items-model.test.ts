@@ -296,7 +296,8 @@ test("toBudgetItemWriteRequest no envía periodKey y respeta el XOR del alcance"
     subcategoryId: null,
     accountId: null,
     merchantId: null,
-    notes: null
+    notes: null,
+    recurringItemId: null
   });
 
   // Con subcategoría se limpia la categoría, aunque el formulario traiga las dos.

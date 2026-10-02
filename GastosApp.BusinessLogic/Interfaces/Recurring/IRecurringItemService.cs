@@ -45,6 +45,20 @@ namespace GastosApp.BusinessLogic.Interfaces
             CancellationToken cancellationToken = default);
 
         /// <summary>
+        /// Resuelve la ocurrencia de una plantilla propia en un periodo: valida propiedad,
+        /// vigencia y monto, y deriva fecha e importe con las mismas reglas que el materializador.
+        /// Es la única vía del alta selectiva (<c>BudgetItemService.CreateAsync</c> con
+        /// <c>recurringItemId</c>); el materializador masivo y el rollover no cambian.
+        /// Lanza <see cref="ArgumentException"/> (400) cuando la plantilla no existe, está
+        /// inactiva, no aplica al periodo o su monto promedio no tiene historial que promediar.
+        /// </summary>
+        Task<RecurringTemplateOccurrence> ResolveOccurrenceAsync(
+            int userId,
+            int recurringItemId,
+            string periodKey,
+            CancellationToken cancellationToken = default);
+
+        /// <summary>
         /// Crea las partidas del periodo a partir de las plantillas vigentes. Idempotente por
         /// <c>(user_id, period_key, kind, name)</c>. No ejecuta ni crea transacciones.
         /// </summary>
