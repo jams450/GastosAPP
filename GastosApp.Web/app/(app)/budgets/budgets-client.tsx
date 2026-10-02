@@ -36,6 +36,7 @@ import { AlertsHistoryPanel } from "./_components/alerts-history-panel";
 import { BudgetFormDrawer } from "./_components/budget-form-drawer";
 import { BudgetItemFormDrawer } from "./_components/budget-item-form-drawer";
 import { BudgetItemsPanel } from "./_components/budget-items-panel";
+import { BudgetSuggestionsPanel } from "./_components/budget-suggestions-panel";
 import { BudgetsKpis } from "./_components/budgets-kpis";
 import { BudgetsResults } from "./_components/budgets-results";
 import { BudgetsRolloverCallout } from "./_components/budgets-rollover-callout";
@@ -44,6 +45,7 @@ import { BudgetsToolbar } from "./_components/budgets-toolbar";
 import { useAlertsHistory } from "./_hooks/use-alerts-history";
 import { useBudgetForm } from "./_hooks/use-budget-form";
 import { useBudgetItemForm } from "./_hooks/use-budget-item-form";
+import { useBudgetItemSuggestions } from "./_hooks/use-budget-item-suggestions";
 import { useBudgetItems } from "./_hooks/use-budget-items";
 import { useBudgetsAdmin, type BudgetRow } from "./_hooks/use-budgets-admin";
 import { useBudgetsToasts } from "./_hooks/use-budgets-toasts";
@@ -117,6 +119,12 @@ export function BudgetsClient() {
     cancel: cancelItem,
     purge: purgeItems
   } = useBudgetItems(period, kindFilter);
+  const {
+    suggestions,
+    loading: suggestionsLoading,
+    error: suggestionsError,
+    reload: reloadSuggestions
+  } = useBudgetItemSuggestions(period, tab === "sugerencias");
   const {
     openForm: openItemForm,
     editing: editingItem,
@@ -320,6 +328,17 @@ export function BudgetsClient() {
     }
   }
 
+  /**
+   * La sugerencia es de solo lectura y el API no expone ningún endpoint para enlazarla a mano: lo
+   * único real es llevar al usuario a la partida, que es donde sí se puede decidir. Se vuelve a
+   * "todas" el filtro de tipo para que la partida buscada quede a la vista aunque el filtro previo
+   * la ocultara.
+   */
+  function onOpenSuggestionItem() {
+    setKindFilter("all");
+    onTabChange("partidas");
+  }
+
   async function onPurgeItems() {
     // La purga borra de forma permanente: se confirma antes, como en el resto de la app.
     if (!window.confirm("¿Eliminar definitivamente las partidas canceladas de este periodo?")) {
@@ -419,7 +438,7 @@ export function BudgetsClient() {
               </div>
             ) : null}
           </div>
-        ) : (
+        ) : tab === "alertas" ? (
           <div id="budgets-panel-alertas" role="tabpanel" aria-labelledby="budgets-tab-alertas">
             <AlertsHistoryPanel
               deliveries={deliveries}
@@ -429,6 +448,18 @@ export function BudgetsClient() {
               retryingId={retryingId}
               periodLabel={periodLabel}
               onRetry={onRetry}
+            />
+          </div>
+        ) : (
+          <div id="budgets-panel-sugerencias" role="tabpanel" aria-labelledby="budgets-tab-sugerencias">
+            <BudgetSuggestionsPanel
+              suggestions={suggestions}
+              loading={suggestionsLoading}
+              errorMessage={suggestionsError}
+              periodLabel={periodLabel}
+              catalogs={itemCatalogs}
+              onRetry={() => void reloadSuggestions()}
+              onOpenItem={onOpenSuggestionItem}
             />
           </div>
         )}

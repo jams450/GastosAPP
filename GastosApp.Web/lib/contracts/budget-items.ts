@@ -82,6 +82,32 @@ export type BudgetItemPurgeResult = {
   deleted: number;
 };
 
+/**
+ * Par candidato a enlace entre una partida `pending` y una transacción del mismo periodo.
+ *
+ * `strength` se conserva como texto crudo (igual que `BudgetItem.status`): hoy el backend solo
+ * emite `weak`, pero una fuerza futura debe aparecer tal cual y no disfrazarse de la de hoy.
+ * `distanceDays` es la separación en días entre la fecha de la partida y la de la transacción: no
+ * la calcula el frontend, viene del backend.
+ */
+export type BudgetItemSuggestion = {
+  itemId: number;
+  periodKey: string;
+  kind: string;
+  name: string;
+  plannedAmount: number;
+  plannedDate: string | null;
+  categoryId: number | null;
+  subcategoryId: number | null;
+  accountId: number | null;
+  merchantId: number | null;
+  transactionId: number;
+  transactionAmount: number;
+  transactionDate: string | null;
+  distanceDays: number;
+  strength: string;
+};
+
 function isRecord(value: unknown): value is UnknownRecord {
   return typeof value === "object" && value !== null;
 }
@@ -112,6 +138,11 @@ function toText(value: unknown, fallback: string): string {
 
 function toOptionalText(value: unknown): string | null {
   return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
+}
+
+/** Días de separación entre partida y transacción: entero ≥ 0. Un valor ilegible se trata como 0. */
+function toDayDistance(value: unknown): number {
+  return Math.max(0, Math.round(toFiniteNumber(value)));
 }
 
 /**
@@ -182,4 +213,51 @@ export function normalizeBudgetItemPurgeResult(input: unknown): BudgetItemPurgeR
     periodKey: toText(input.periodKey ?? input.PeriodKey, ""),
     deleted
   };
+}
+
+/**
+ * Los `int?` del backend viajan como `undefined` cuando son nulos (`WhenWritingNull`), nunca como
+ * `null`: `toOptionalInt` cubre los dos casos sin inventar un `0`.
+ */
+export function normalizeBudgetItemSuggestion(input: unknown): BudgetItemSuggestion | null {
+  if (!isRecord(input)) {
+    return null;
+  }
+
+  const itemId = toOptionalInt(input.itemId ?? input.ItemId);
+  const transactionId = toOptionalInt(input.transactionId ?? input.TransactionId);
+  // Sin la identidad de la partida o de la transacción el par no se puede comparar ni mostrar:
+  // la fila se descarta en vez de inventar un enlace que el backend nunca propuso.
+  if (itemId === null || itemId <= 0 || transactionId === null || transactionId <= 0) {
+    return null;
+  }
+
+  return {
+    itemId,
+    periodKey: typeof (input.periodKey ?? input.PeriodKey) === "string" ? String(input.periodKey ?? input.PeriodKey).trim() : "",
+    kind: toText(input.kind ?? input.Kind, ""),
+    name: toText(input.name ?? input.Name, "Sin nombre"),
+    plannedAmount: toFiniteNumber(input.plannedAmount ?? input.PlannedAmount),
+    plannedDate: toOptionalText(input.plannedDate ?? input.PlannedDate),
+    categoryId: toOptionalInt(input.categoryId ?? input.CategoryId),
+    subcategoryId: toOptionalInt(input.subcategoryId ?? input.SubcategoryId),
+    accountId: toOptionalInt(input.accountId ?? input.AccountId),
+    merchantId: toOptionalInt(input.merchantId ?? input.MerchantId),
+    transactionId,
+    transactionAmount: toFiniteNumber(input.transactionAmount ?? input.TransactionAmount),
+    transactionDate: toOptionalText(input.transactionDate ?? input.TransactionDate),
+    distanceDays: toDayDistance(input.distanceDays ?? input.DistanceDays),
+    strength: toText(input.strength ?? input.Strength, "weak")
+  };
+}
+
+/** El endpoint devuelve un array plano: sin envoltorio y sin paginación. */
+export function normalizeBudgetItemSuggestions(input: unknown): BudgetItemSuggestion[] {
+  if (!Array.isArray(input)) {
+    return [];
+  }
+
+  return input
+    .map((item) => normalizeBudgetItemSuggestion(item))
+    .filter((item): item is BudgetItemSuggestion => item !== null);
 }

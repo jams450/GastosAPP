@@ -9,10 +9,12 @@ import {
 } from "@/lib/contracts/alerts";
 import {
   normalizeBudgetItemPurgeResult,
+  normalizeBudgetItemSuggestions,
   normalizeBudgetItems,
   type BudgetItem,
   type BudgetItemPatchableStatus,
   type BudgetItemPurgeResult,
+  type BudgetItemSuggestion,
   type BudgetItemWriteRequest
 } from "@/lib/contracts/budget-items";
 import {
@@ -113,6 +115,18 @@ export function fetchBudgetItems(filters: BudgetItemFilters): Promise<BudgetItem
   }
 
   return listFrom(`/api/bff/budget-items?${params.toString()}`, "No se pudieron cargar las partidas", normalizeBudgetItems);
+}
+
+/**
+ * Candidatas de enlace del periodo. El endpoint es de solo lectura y no admite filtros: el BFF
+ * reenvía únicamente `period`.
+ */
+export function fetchBudgetItemSuggestions(period: string): Promise<BudgetItemSuggestion[]> {
+  return listFrom(
+    `/api/bff/budget-items/suggestions?period=${encodeURIComponent(period)}`,
+    "No se pudieron cargar las sugerencias",
+    normalizeBudgetItemSuggestions
+  );
 }
 
 export function createBudgetItem(payload: BudgetItemWriteRequest): Promise<void> {

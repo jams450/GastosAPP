@@ -7,9 +7,9 @@ export const BUDGETS_MODULE_META = {
   title: "Presupuestos"
 } as const;
 
-export type BudgetsTab = "resumen" | "partidas" | "alertas";
+export type BudgetsTab = "resumen" | "partidas" | "sugerencias" | "alertas";
 
-const BUDGETS_TABS: readonly BudgetsTab[] = ["resumen", "partidas", "alertas"];
+const BUDGETS_TABS: readonly BudgetsTab[] = ["resumen", "partidas", "sugerencias", "alertas"];
 
 /** La URL solo distingue las pestañas no predeterminadas; cualquier otro valor cae al resumen. */
 export function resolveBudgetsTab(value: string | null | undefined): BudgetsTab {

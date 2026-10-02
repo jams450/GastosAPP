@@ -1,6 +1,6 @@
 "use client";
 
-import { BellRing, CalendarDays, ChevronLeft, ChevronRight, ListChecks, Plus, Wallet } from "lucide-react";
+import { BellRing, CalendarDays, ChevronLeft, ChevronRight, ListChecks, Plus, Sparkles, Wallet } from "lucide-react";
 import { useRef, type KeyboardEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/ui/cn";
@@ -23,6 +23,7 @@ type Props = {
 const TABS: ReadonlyArray<{ id: BudgetsTab; label: string; icon: typeof Wallet }> = [
   { id: "resumen", label: "Límites del mes", icon: Wallet },
   { id: "partidas", label: "Partidas", icon: ListChecks },
+  { id: "sugerencias", label: "Sugerencias", icon: Sparkles },
   { id: "alertas", label: "Alertas", icon: BellRing }
 ];
 
