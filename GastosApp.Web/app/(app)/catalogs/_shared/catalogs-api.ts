@@ -1,6 +1,7 @@
 import type { Category } from "@/lib/contracts/categories";
 import type { Subcategory } from "@/lib/contracts/subcategories";
 import type { Merchant } from "@/lib/contracts/merchants";
+import type { RecurringItem } from "@/lib/contracts/recurring-items";
 import type { Tag } from "@/lib/contracts/tags";
 import type { BillableParty } from "@/lib/contracts/billable-parties";
 import { csrfFetch } from "@/lib/security/csrf-client";
@@ -47,4 +48,8 @@ export function fetchTags(): Promise<Tag[]> {
 
 export function fetchBillableParties(): Promise<BillableParty[]> {
   return fetchCatalogList<BillableParty>("/api/bff/catalogs/billable-parties", "No se pudieron cargar los responsables cobrables");
+}
+
+export function fetchRecurringItems(): Promise<RecurringItem[]> {
+  return fetchCatalogList<RecurringItem>("/api/bff/catalogs/recurring-items", "No se pudieron cargar las partidas programadas");
 }

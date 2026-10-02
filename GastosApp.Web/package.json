@@ -9,7 +9,7 @@
     "lint": "ESLINT_USE_FLAT_CONFIG=false eslint . --ext .js,.jsx,.ts,.tsx",
     "lint:fix": "ESLINT_USE_FLAT_CONFIG=false eslint . --ext .js,.jsx,.ts,.tsx --fix",
     "typecheck": "tsc --noEmit",
-    "test": "node --experimental-strip-types --test 'app/(app)/transactions/_lib/transactions-repeat.test.ts' 'app/(app)/dashboard/_lib/dashboard-metrics.test.ts' 'app/(app)/dashboard/_lib/dashboard-tabs.test.ts' 'app/(app)/dashboard/_lib/projection-chart.test.ts' 'app/(app)/budgets/_lib/budget-form-model.test.ts' 'app/(app)/budgets/_lib/budget-items-model.test.ts' 'app/(app)/budgets/_lib/plan-model.test.ts' 'app/(app)/investments/_lib/investment-form-model.test.ts' 'app/(app)/investments/_lib/investments-ui.test.ts' 'app/(app)/accounts/_lib/accounts-annual-ui.test.ts' 'lib/contracts/dashboard.test.ts' 'lib/contracts/account-annual-summary.test.ts'"
+    "test": "TZ=America/Mexico_City node --experimental-strip-types --test 'app/(app)/transactions/_lib/transactions-repeat.test.ts' 'app/(app)/dashboard/_lib/dashboard-metrics.test.ts' 'app/(app)/dashboard/_lib/dashboard-tabs.test.ts' 'app/(app)/dashboard/_lib/projection-chart.test.ts' 'app/(app)/budgets/_lib/budget-form-model.test.ts' 'app/(app)/budgets/_lib/budget-items-model.test.ts' 'app/(app)/budgets/_lib/plan-model.test.ts' 'app/(app)/investments/_lib/investment-form-model.test.ts' 'app/(app)/investments/_lib/investments-ui.test.ts' 'app/(app)/accounts/_lib/accounts-annual-ui.test.ts' 'lib/contracts/dashboard.test.ts' 'lib/contracts/account-annual-summary.test.ts' 'app/(app)/catalogs/recurring-items/_lib/recurring-items-model.test.ts'"
   },
   "dependencies": {
     "@tanstack/react-table": "^8.21.3",
