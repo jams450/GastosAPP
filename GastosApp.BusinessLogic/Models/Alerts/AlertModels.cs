@@ -10,6 +10,13 @@ namespace GastosApp.BusinessLogic.Models.Alerts
         public int BudgetsEvaluated { get; set; }
         /// <summary>Entregas nuevas reclamadas (y su outbox) en esta corrida.</summary>
         public int AlertsCreated { get; set; }
+        /// <summary>Partidas <c>pending</c> del periodo revisadas (plan §6.2).</summary>
+        public int ItemsEvaluated { get; set; }
+        /// <summary>Avisos de partida encolados en esta corrida: <c>due_today</c>, <c>overdue</c> y
+        /// <c>unexecuted_month_end</c>. Una misma partida puede aportar más de uno en la misma
+        /// corrida, y con <c>Alerts:UnexecutedAlertEnabled</c> en <c>false</c> queda en cero porque
+        /// no se evalúa ninguna partida.</summary>
+        public int ItemAlertsCreated { get; set; }
     }
 
     /// <summary>Fila de historial de entrega. <b>Sin</b> <c>payload</c> de outbox.</summary>

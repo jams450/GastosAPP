@@ -83,6 +83,31 @@ namespace GastosApp.BusinessLogic.Interfaces
             DateTimeOffset nextAttemptAt);
 
         /// <summary>
+        /// Reclama una alerta de partida planificada de forma atómica, en <b>una sola sentencia</b>:
+        /// el CTE inserta <c>budget_item_alert_deliveries</c> con <c>ON CONFLICT (item_id,
+        /// alert_kind, period_key) DO NOTHING</c> (primera barrera, plan §3.3) y, solo si ese
+        /// INSERT devolvió fila, encola el <c>alert_outbox</c> con
+        /// <c>source_type='budget_item'</c> y <c>source_key = {period_key}:{alert_kind}</c>
+        /// (segunda barrera, <c>uq_alert_outbox_source</c>, plan §3.4). Devuelve <c>true</c> solo
+        /// cuando este llamador ganó el candado <b>y</b> encoló el aviso (1 fila); <c>false</c> si
+        /// la entrega ya existía o si la clave del outbox seguía ocupada.
+        /// </summary>
+        /// <remarks>
+        /// Sin lectura previa ni transacción explícita: una sentencia es atómica en PostgreSQL, que
+        /// es exactamente la técnica de <see cref="ClaimRecurringItemNoticeAsync"/> y
+        /// <see cref="ClaimAlertDeliveryAsync"/>. El evaluador no escribe nunca sobre
+        /// <c>budget_items</c>: esta fila es el único rastro del aviso.
+        /// </remarks>
+        Task<bool> ClaimBudgetItemAlertAsync(
+            int itemId,
+            int userId,
+            string periodKey,
+            string alertKind,
+            decimal plannedAmount,
+            string payload,
+            DateTimeOffset nextAttemptAt);
+
+        /// <summary>
         /// Toma un advisory lock de PostgreSQL por <paramref name="chatId"/> dentro de la transacción
         /// actual: serializa la creación de borradores del mismo chat. Se libera al commit/rollback.
         /// </summary>

@@ -274,6 +274,45 @@ namespace GastosApp.BusinessLogic.Services
             return affected == 1;
         }
 
+        public async Task<bool> ClaimBudgetItemAlertAsync(
+            int itemId,
+            int userId,
+            string periodKey,
+            string alertKind,
+            decimal plannedAmount,
+            string payload,
+            DateTimeOffset nextAttemptAt)
+        {
+            // La clave del outbox la compone el dominio (BudgetItemAlertTrigger.BuildSourceKey) y se
+            // propaga como parámetro: una sola implementación del formato {period_key}:{alert_kind}.
+            var sourceKey = BudgetItemAlertTrigger.BuildSourceKey(periodKey, alertKind);
+
+            // Una sola sentencia atómica, sin lectura previa y sin transacción explícita (Postgres
+            // envuelve cada sentencia): el CTE reclama la entrega con ON CONFLICT DO NOTHING sobre la
+            // unicidad (item_id, alert_kind, period_key) y el INSERT final encola el aviso SOLO si el
+            // CTE devolvió fila. ExecuteSqlInterpolatedAsync reporta las filas afectadas del último
+            // INSERT: 1 = este llamador encoló el aviso, 0 = ya existía (o el índice del outbox
+            // seguía ocupado).
+            //
+            // El predicado del índice parcial es obligatorio para inferirlo —sin él Postgres no puede
+            // elegir uq_alert_outbox_source y la sentencia falla. Excluir 'failed' es lo que permite
+            // reinsertar el aviso cuando la fila anterior expiró (>7 días) en vez de perderlo para
+            // siempre; la primera barrera sigue bloqueando mientras la entrega exista.
+            var affected = await _context.Database.ExecuteSqlInterpolatedAsync($"""
+                WITH inserted AS (
+                    INSERT INTO budget_item_alert_deliveries (item_id, user_id, period_key, alert_kind, planned_amount)
+                    VALUES ({itemId}, {userId}, {periodKey}, {alertKind}, {plannedAmount})
+                    ON CONFLICT (item_id, alert_kind, period_key) DO NOTHING
+                    RETURNING delivery_id
+                )
+                INSERT INTO alert_outbox (delivery_id, user_id, source_type, source_id, source_key, channel, payload, status, attempts, next_attempt_at)
+                SELECT NULL, {userId}, {AlertOutboxSourceType.BudgetItem}, {itemId}, {sourceKey}, {AlertOutboxChannel.Telegram}, {payload}, {AlertOutboxStatus.Pending}, 0, {nextAttemptAt}
+                FROM inserted
+                ON CONFLICT (source_type, source_id, source_key) WHERE source_id IS NOT NULL AND status <> 'failed' DO NOTHING
+                """);
+            return affected == 1;
+        }
+
         public async Task<TelegramDraft?> LockTelegramDraftAsync(Guid draftId)
         {
             return await _context.TelegramDrafts

@@ -4,26 +4,35 @@ using GastosApp.BusinessLogic.Models.Alerts;
 using GastosApp.BusinessLogic.Models.Budgets;
 using GastosApp.Models.Entities;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace GastosApp.BusinessLogic.Services
 {
     /// <summary>
-    /// Evalúa umbrales de presupuesto y materializa el outbox transaccional de alertas.
-    /// No envía nada (el dispatcher vive fuera de BusinessLogic) y nunca registra el payload:
-    /// es dato financiero que solo viaja a la base de datos.
+    /// Evalúa umbrales de presupuesto y alertas de partida planificada, y materializa el outbox
+    /// transaccional de ambas. No envía nada (el dispatcher vive fuera de BusinessLogic) y nunca
+    /// registra el payload: es dato financiero que solo viaja a la base de datos.
     /// </summary>
     public class AlertEvaluationService : IAlertEvaluationService
     {
         private readonly IRepository _repository;
         private readonly IBudgetService _budgetService;
+        private readonly BudgetEvaluationSettings _settings;
+        private readonly ILogger<AlertEvaluationService> _logger;
 
         /// <summary>Compartido y nunca mutado: presupuestos sin entregas del periodo.</summary>
         private static readonly HashSet<int> EmptyThresholdIds = new();
 
-        public AlertEvaluationService(IRepository repository, IBudgetService budgetService)
+        public AlertEvaluationService(
+            IRepository repository,
+            IBudgetService budgetService,
+            BudgetEvaluationSettings settings,
+            ILogger<AlertEvaluationService> logger)
         {
             _repository = repository;
             _budgetService = budgetService;
+            _settings = settings;
+            _logger = logger;
         }
 
         public async Task<AlertEvaluationResult> EvaluateAsync(int appUserId, CancellationToken cancellationToken = default)
@@ -33,11 +42,26 @@ namespace GastosApp.BusinessLogic.Services
 
             var result = new AlertEvaluationResult { PeriodKey = periodKey };
 
+            // Orden deliberado: primero los umbrales (camino de Fase 2, el que puede facturar) y
+            // después la cobertura de partidas. Así una falla en las partidas no puede impedir una
+            // evaluación de umbrales, y además EvaluatePlannedItemsAsync se traga su propia falla.
+            await EvaluateThresholdsAsync(appUserId, periodKey, result, cancellationToken);
+            await EvaluatePlannedItemsAsync(appUserId, periodKey, result, cancellationToken);
+
+            return result;
+        }
+
+        private async Task EvaluateThresholdsAsync(
+            int appUserId,
+            string periodKey,
+            AlertEvaluationResult result,
+            CancellationToken cancellationToken)
+        {
             var budgets = await _budgetService.ListAsync(appUserId, periodKey);
             var activeBudgets = budgets.Where(b => b.Active).ToList();
             if (activeBudgets.Count == 0)
             {
-                return result;
+                return;
             }
 
             // El gasto se toma del cálculo existente de BudgetService (misma lógica que /budgets/status).
@@ -120,8 +144,130 @@ namespace GastosApp.BusinessLogic.Services
                     result.AlertsCreated++;
                 }
             }
+        }
 
-            return result;
+        /// <summary>
+        /// Cobertura de partidas planificadas (plan §6): recorre las partidas <c>pending</c> del
+        /// periodo vigente del usuario y encola las alertas que le tocan. Solo <b>lee</b> las
+        /// partidas —nunca escribe sobre ellas— y no envía nada: el drenador genérico de Fase 2 ya
+        /// despacha lo que queda <c>pending</c> en el outbox (regla 2 de §6.4: generalizar, no
+        /// duplicar el drenador).
+        /// </summary>
+        private async Task EvaluatePlannedItemsAsync(
+            int appUserId,
+            string periodKey,
+            AlertEvaluationResult result,
+            CancellationToken cancellationToken)
+        {
+            // Interruptor de despliegue (plan §6.4 regla 4: "las alertas de partida nacen apagadas").
+            // Apaga la evaluación de partidas COMPLETA —las tres alertas—, no solo el cierre de mes:
+            // §6.2 mete a due_today, overdue y unexecuted_month_end detrás de esta misma clave, y el
+            // nombre es el que manda (§6.4 la fija literal) mientras que el alcance lo fija §6.2.
+            //
+            // El corte va aquí, antes de la consulta: con el interruptor en false no se lee una sola
+            // partida ni se intenta un reclamo, así que un despliegue existente no puede empezar a
+            // recibir alertas nuevas sin tocar configuración —que es exactamente lo que el plan
+            // prohíbe entregar—. El nombre de la propiedad es histórico; su alcance no lo es.
+            if (!_settings.UnexecutedAlertEnabled)
+            {
+                return;
+            }
+
+            // "Hoy" y "último día del mes" salen del reloj local de America/Mexico_City, nunca del UTC
+            // crudo: el contenedor corre en UTC y el día local puede diferir en horas.
+            var today = DateOnly.FromDateTime(MonthRangeResolver.ResolveLocalDate(DateTime.UtcNow));
+            var isLastDayOfMonth = today.Day == DateTime.DaysInMonth(today.Year, today.Month);
+
+            // Aislamiento: las alertas de partida son cobertura adicional sobre el camino principal.
+            // Una falla aquí (base de datos, permiso, índice) no puede tumbar el worker ni impedir la
+            // evaluación de umbrales, que ya se resolvió antes. Solo el tipo en el log: nunca payload,
+            // montos ni nombres (plan §7).
+            try
+            {
+                // El filtro de estado es el que excluye a executed/ignored/cancelled: ninguna de las
+                // tres alertas existe para ellas. El de periodo es el mismo corte que
+                // BudgetItemAlertTrigger aplica a "dentro del mes" del overdue —allí para que la
+                // regla no dependa de este recorrido, aquí para no traer filas que no pueden
+                // disparar— y el de usuario fija el alcance single-user explícito (§6.4 regla 3).
+                var items = await _repository
+                    .Get<BudgetItem>(i => i.UserId == appUserId &&
+                                          i.PeriodKey == periodKey &&
+                                          i.Status == BudgetItemStatus.Pending)
+                    .ToListAsync(cancellationToken);
+
+                foreach (var item in items)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    result.ItemsEvaluated++;
+
+                    var plannedDate = DateOnly.FromDateTime(item.PlannedDate);
+                    var amount = RoundMoney(item.PlannedAmount);
+
+                    // Sin filtro por kind ni por auto_execute: una plantilla sin auto-ejecución es
+                    // precisamente la que más necesita el aviso (§6.2 y §6.3). El periodo viaja
+                    // explícito para que el trigger no lo aduzca desde la fecha.
+                    foreach (var alertKind in BudgetItemAlertTrigger.ResolveKinds(
+                                 plannedDate,
+                                 today,
+                                 periodKey,
+                                 isLastDayOfMonth))
+                    {
+                        var payload = BudgetItemAlertTrigger.BuildPayload(alertKind, item.Name, amount);
+                        var queued = await TryClaimItemAlertAsync(item, appUserId, periodKey, alertKind, amount, payload);
+
+                        if (queued)
+                        {
+                            result.ItemAlertsCreated++;
+                        }
+                    }
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception exception)
+            {
+                // Solo el tipo: nunca montos, payload ni mensaje de excepción.
+                _logger.LogError("Planned-item alert evaluation failed: {ErrorType}", exception.GetType().Name);
+            }
+        }
+
+        /// <summary>
+        /// Reclamo de un aviso de partida. Una partida que falla no debe quitarle el aviso a las
+        /// demás, así que la falla se aísla por partida (mismo criterio que el motor de programados).
+        /// La idempotencia no depende de este <c>try</c>: la ganancia del candado la decide
+        /// <c>ON CONFLICT DO NOTHING</c> sobre <c>(item_id, alert_kind, period_key)</c>, así que
+        /// repetir la evaluación —o reintentar el despacho— no duplica nada.
+        /// </summary>
+        private async Task<bool> TryClaimItemAlertAsync(
+            BudgetItem item,
+            int appUserId,
+            string periodKey,
+            string alertKind,
+            decimal amount,
+            string payload)
+        {
+            try
+            {
+                return await _repository.ClaimBudgetItemAlertAsync(
+                    item.ItemId,
+                    appUserId,
+                    periodKey,
+                    alertKind,
+                    amount,
+                    payload,
+                    DateTimeOffset.UtcNow);
+            }
+            catch (Exception exception) when (exception is not OperationCanceledException)
+            {
+                // Solo el tipo y el id de la partida: nunca el payload ni el monto.
+                _logger.LogError(
+                    "Planned-item alert claim failed for item {ItemId} ({ErrorType})",
+                    item.ItemId,
+                    exception.GetType().Name);
+                return false;
+            }
         }
 
         public async Task<IReadOnlyList<AlertDeliveryListItem>> ListDeliveriesAsync(int appUserId, string? periodKey = null, CancellationToken cancellationToken = default)
@@ -238,6 +384,13 @@ namespace GastosApp.BusinessLogic.Services
         /// Las líneas de comprometido y total solo aparecen cuando hay comprometido: sin partidas que
         /// lo alimenten, el mensaje es idéntico al de Fase 2 (cero montos por partida).
         /// </summary>
+        /// <remarks>
+        /// El relleno de espacios de <c>Gastado:</c>, <c>Total:</c> y <c>Restante:</c> no es
+        /// decorativo: reproduce línea por línea el bloque literal de §5, donde los valores quedan
+        /// alineados en columna. <c>Comprometido:</c> lleva un solo espacio porque es la línea más
+        /// larga de la etiqueta y no tiene con qué alinearse. El texto es contrato con el usuario:
+        /// cambiar un espacio es un cambio de payload, no un refactor.
+        /// </remarks>
         private static string BuildPayload(Budget budget, BudgetThreshold threshold, decimal spent, decimal committed, decimal amount, decimal percentUsed)
         {
             var thresholdPercent = RoundPercent(threshold.Percent);
@@ -246,17 +399,17 @@ namespace GastosApp.BusinessLogic.Services
 
             var header = string.Create(CultureInfo.InvariantCulture, $"""
                 Presupuesto "{budget.Name}" · {budget.PeriodKey}
-                Gastado: ${spent:N2} de ${amount:N2} ({RoundPercent(spent / amount * 100m):F2}%)
+                Gastado:   ${spent:N2} de ${amount:N2} ({RoundPercent(spent / amount * 100m):F2}%)
                 """);
 
             var committedLine = committed > 0m
-                ? string.Create(CultureInfo.InvariantCulture, $"\nComprometido: ${committed:N2} ({RoundPercent(committed / amount * 100m):F2}%)\nTotal: ${effective:N2} ({percentUsed:F2}%)")
+                ? string.Create(CultureInfo.InvariantCulture, $"\nComprometido: ${committed:N2} ({RoundPercent(committed / amount * 100m):F2}%)\nTotal:     ${effective:N2} ({percentUsed:F2}%)")
                 : string.Empty;
 
             var footer = string.Create(CultureInfo.InvariantCulture, $"""
 
                 Umbral alcanzado: {threshold.Name} ({thresholdPercent:F2}%)
-                Restante: ${remaining:N2}
+                Restante:  ${remaining:N2}
                 """);
 
             return header + committedLine + footer;

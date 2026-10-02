@@ -80,12 +80,18 @@ public sealed class AlertEvaluationBackgroundService : BackgroundService
 
         var result = await evaluationService.EvaluateAsync(_telegramOptions.AppUserId, cancellationToken);
 
-        if (result.AlertsCreated > 0)
+        // Solo conteos: nunca montos, nombres ni payload. ItemAlertsCreated incluye las alertas de
+        // partida (due_today / overdue / unexecuted_month_end), que de otro modo serían invisibles
+        // en el log del worker.
+        if (result.AlertsCreated > 0 || result.ItemAlertsCreated > 0)
         {
             _logger.LogInformation(
-                "Alert evaluation created {Created} deliveries for period {PeriodKey}.",
+                "Alert evaluation for period {PeriodKey}: {BudgetsEvaluated} budgets, {AlertsCreated} threshold alerts, {ItemsEvaluated} pending items, {ItemAlertsCreated} item alerts.",
+                result.PeriodKey,
+                result.BudgetsEvaluated,
                 result.AlertsCreated,
-                result.PeriodKey);
+                result.ItemsEvaluated,
+                result.ItemAlertsCreated);
         }
     }
 }

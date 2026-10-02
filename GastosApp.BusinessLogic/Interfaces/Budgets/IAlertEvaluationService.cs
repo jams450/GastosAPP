@@ -3,16 +3,21 @@ using GastosApp.BusinessLogic.Models.Alerts;
 namespace GastosApp.BusinessLogic.Interfaces
 {
     /// <summary>
-    /// Evaluación de alertas de presupuesto y lectura/reintento del outbox transaccional.
-    /// Todo el alcance es por <c>appUserId</c> recibido explícitamente: nunca se
+    /// Evaluación de alertas de presupuesto y de partida planificada, y lectura/reintento del outbox
+    /// transaccional. Todo el alcance es por <c>appUserId</c> recibido explícitamente: nunca se
     /// infiere de claims ni de la petición.
     /// </summary>
     public interface IAlertEvaluationService
     {
         /// <summary>
-        /// Evalúa únicamente los presupuestos activos del usuario en el mes actual
-        /// (America/Mexico_City). Idempotente: la unicidad de <c>alert_deliveries</c> decide;
-        /// si otro evaluador ya reclamó la entrega, no se crea outbox.
+        /// Evalúa los presupuestos activos del usuario en el mes actual (America/Mexico_City) y
+        /// después las alertas de sus partidas <c>pending</c> del mismo periodo
+        /// (<c>due_today</c>, <c>overdue</c> y <c>unexecuted_month_end</c>; plan §6.2). Las tres
+        /// dependen de <c>Alerts:UnexecutedAlertEnabled</c>: con el interruptor en <c>false</c> —el
+        /// estado de entrega— no se evalúa ninguna partida. Idempotente: la unicidad de
+        /// <c>alert_deliveries</c> y de <c>budget_item_alert_deliveries</c> decide; si otro evaluador
+        /// ya reclamó la entrega, no se crea outbox. Una falla al evaluar partidas no impide la
+        /// evaluación de umbrales ni propaga.
         /// </summary>
         Task<AlertEvaluationResult> EvaluateAsync(int appUserId, CancellationToken cancellationToken = default);
 
