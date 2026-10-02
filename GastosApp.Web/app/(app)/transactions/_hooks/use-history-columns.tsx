@@ -1,9 +1,11 @@
 import { useMemo } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
+import { CalendarClock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { formatCurrency } from "@/lib/format/currency";
 import { tableActionStyles } from "@/lib/ui/table-action-styles";
 import { dateTimeLocalDisplay } from "../_lib/transactions-utils";
+import { canScheduleTransaction } from "../_lib/transactions-schedule";
 import { historyTypeLabel, type HistoryTransactionType, type TransactionHistoryItem, type TransferGroupItem } from "../_lib/transactions-types";
 
 const typeBadgeClass: Record<HistoryTransactionType, string> = {
@@ -39,6 +41,7 @@ type Params = {
   onEditTransfer: (item: TransferGroupItem) => void;
   onDeleteTransfer: (item: TransferGroupItem) => Promise<void>;
   onRepeat?: (item: TransactionHistoryItem) => void;
+  onSchedule?: (item: TransactionHistoryItem) => void;
 };
 
 export function useHistoryColumns({
@@ -54,7 +57,8 @@ export function useHistoryColumns({
   onConvertToMsi,
   onEditTransfer,
   onDeleteTransfer,
-  onRepeat
+  onRepeat,
+  onSchedule
 }: Params) {
   const historyColumns = useMemo<ColumnDef<TransactionHistoryItem>[]>(
     () => [
@@ -164,6 +168,22 @@ export function useHistoryColumns({
                   Repetir
                 </Button>
               ) : null}
+              {/* Un quinto botón de texto desbordaría la celda en pantallas medianas (plan §8.7):
+                  este entra con icono, sin texto, y el nombre vive en title/aria-label. La guarda es
+                  la misma que aplica el modelo: un movimiento con `transferGroupId` no es programable
+                  aunque su tipo sea gasto o ingreso, así que el botón no se ofrece para él. */}
+              {onSchedule && canScheduleTransaction(item) ? (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="h-6 w-6 p-0"
+                  title="Programar recurrente"
+                  aria-label="Programar recurrente"
+                  onClick={() => onSchedule(item)}
+                >
+                  <CalendarClock className="h-3.5 w-3.5" aria-hidden="true" />
+                </Button>
+              ) : null}
               {!isOpeningCredit ? (
                 <Button type="button" variant="ghost" className={`h-6 px-1.5 text-[10px] ${tableActionStyles.edit}`} onClick={() => onEdit(item)}>
                   Editar
@@ -178,7 +198,7 @@ export function useHistoryColumns({
         }
       }
     ],
-    [accountById, selfBillablePartyId, categoryNameById, deleteLoadingId, merchantNameById, onConvertToMsi, onDelete, onEdit, onRepeat, subcategoryNameById]
+    [accountById, selfBillablePartyId, categoryNameById, deleteLoadingId, merchantNameById, onConvertToMsi, onDelete, onEdit, onRepeat, onSchedule, subcategoryNameById]
   );
 
   const transferColumns = useMemo<ColumnDef<TransferGroupItem>[]>(

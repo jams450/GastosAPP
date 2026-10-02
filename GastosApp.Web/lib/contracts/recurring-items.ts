@@ -69,6 +69,23 @@ export type RecurringItemConfig = {
   reason: string | null;
 };
 
+/**
+ * Resultado de `POST /api/recurring-items/from-transaction`. Es un payload de datos, no un error:
+ * el 409 de la colisión viaja con esta misma forma y `conflict: true` + `existing`.
+ *
+ * `template` es `null` solo cuando el cuerpo no trajo propuesta. En `dryRun` la propuesta existe pero
+ * todavía no está escrita, así que su `recurringItemId` llega en `0`: por eso el normalizador de este
+ * resultado acepta la fila sin id, mientras que `normalizeRecurringItem` — que sí representa filas ya
+ * persistidas del catálogo — la descarta.
+ */
+export type RecurringItemFromTransactionResult = {
+  dryRun: boolean;
+  written: boolean;
+  conflict: boolean;
+  template: RecurringItem | null;
+  existing: RecurringItem | null;
+};
+
 function isRecord(value: unknown): value is UnknownRecord {
   return typeof value === "object" && value !== null;
 }
@@ -136,6 +153,32 @@ function toOptionalText(value: unknown): string | null {
   return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
 }
 
+/**
+ * Mapeo común de la fila. `recurringItemId` y `dayOfMonth` se resuelven afuera porque cada consumidor
+ * les aplica una regla distinta: el catálogo exige una fila ya persistida (id > 0) y la propuesta del
+ * `dryRun` llega sin id. Duplicar el resto del mapeo en dos funciones haría que un campo nuevo
+ * existiera en una y no en la otra.
+ */
+function mapRecurringItemFields(input: UnknownRecord): Omit<RecurringItem, "recurringItemId" | "dayOfMonth"> {
+  return {
+    kind: toText(input.kind, ""),
+    name: toText(input.name, "Sin nombre"),
+    amountMode: toText(input.amountMode, "fixed"),
+    amountMxn: toOptionalMoney(input.amountMxn),
+    categoryId: toOptionalInt(input.categoryId),
+    subcategoryId: toOptionalInt(input.subcategoryId),
+    accountId: toOptionalInt(input.accountId),
+    merchantId: toOptionalInt(input.merchantId),
+    startsPeriod: toText(input.startsPeriod, ""),
+    endsPeriod: toOptionalText(input.endsPeriod),
+    active: toBool(input.active),
+    autoExecute: toBool(input.autoExecute),
+    effectiveFrom: toOptionalText(input.effectiveFrom),
+    created: toOptionalText(input.created),
+    updated: toOptionalText(input.updated)
+  };
+}
+
 export function normalizeRecurringItem(input: unknown): RecurringItem | null {
   if (!isRecord(input)) {
     return null;
@@ -155,22 +198,54 @@ export function normalizeRecurringItem(input: unknown): RecurringItem | null {
 
   return {
     recurringItemId,
-    kind: toText(input.kind, ""),
-    name: toText(input.name, "Sin nombre"),
-    amountMode: toText(input.amountMode, "fixed"),
-    amountMxn: toOptionalMoney(input.amountMxn),
     dayOfMonth,
-    categoryId: toOptionalInt(input.categoryId),
-    subcategoryId: toOptionalInt(input.subcategoryId),
-    accountId: toOptionalInt(input.accountId),
-    merchantId: toOptionalInt(input.merchantId),
-    startsPeriod: toText(input.startsPeriod, ""),
-    endsPeriod: toOptionalText(input.endsPeriod),
-    active: toBool(input.active),
-    autoExecute: toBool(input.autoExecute),
-    effectiveFrom: toOptionalText(input.effectiveFrom),
-    created: toOptionalText(input.created),
-    updated: toOptionalText(input.updated)
+    ...mapRecurringItemFields(input)
+  };
+}
+
+/** Id de una propuesta que todavía no existe en la base: el `dryRun` no escribe nada. */
+const UNSAVED_RECURRING_ITEM_ID = 0;
+
+/**
+ * Propuesta del `dryRun`. Comparte el mapeo con `normalizeRecurringItem` y solo se diferencia en el
+ * id: la fila llega con `recurringItemId = 0` porque aún no fue guardada, y exigir `> 0` aquí
+ * descartaría justo la propuesta que el diálogo necesita mostrar. El día sigue siendo obligatorio
+ * porque el backend no puede derivarlo sin fecha.
+ */
+function normalizeRecurringItemProposal(input: unknown): RecurringItem | null {
+  if (!isRecord(input)) {
+    return null;
+  }
+
+  const dayOfMonth = toOptionalInt(input.dayOfMonth);
+  if (dayOfMonth === null) {
+    return null;
+  }
+
+  const recurringItemId = toOptionalInt(input.recurringItemId);
+  return {
+    recurringItemId: recurringItemId !== null && recurringItemId > 0 ? recurringItemId : UNSAVED_RECURRING_ITEM_ID,
+    dayOfMonth,
+    ...mapRecurringItemFields(input)
+  };
+}
+
+/**
+ * Normaliza el resultado de `from-transaction`. Una propiedad ausente es `false` o `null`: el
+ * resultado no inventa una propuesta, y `existing` solo se acepta como fila ya persistida porque en
+ * el 409 es un id real que la UI usa para el enlace a la plantilla existente.
+ */
+export function normalizeRecurringItemFromTransaction(input: unknown): RecurringItemFromTransactionResult {
+  if (!isRecord(input)) {
+    return { dryRun: false, written: false, conflict: false, template: null, existing: null };
+  }
+
+  return {
+    dryRun: toBool(input.dryRun),
+    written: toBool(input.written),
+    conflict: toBool(input.conflict),
+    template: normalizeRecurringItemProposal(input.template),
+    existing: normalizeRecurringItem(input.existing)
   };
 }
 

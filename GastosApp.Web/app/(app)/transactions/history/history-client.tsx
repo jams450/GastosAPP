@@ -9,11 +9,13 @@ import type { Account } from "@/lib/contracts/accounts";
 import { HistorySection } from "../_components/sections/history-section";
 import { EditTransactionModal } from "../_components/history/edit-transaction-modal";
 import { EditTransferModal } from "../_components/history/edit-transfer-modal";
+import { ScheduleRecurringDialog } from "../_components/history/schedule-recurring-dialog";
 import { useHistoryColumns } from "../_hooks/use-history-columns";
 import { useTransactionMutations } from "../_hooks/use-transaction-mutations";
 import { useTransactionsHistory } from "../_hooks/use-transactions-history";
 import { currentLocalDateTimeInput, dateTimeLocalInputValue, parseSelectedNumber } from "../_lib/transactions-utils";
 import { buildRepeatPrefill, repeatSearchParams } from "../_lib/transactions-repeat";
+import { buildSchedulePrefill } from "../_lib/transactions-schedule";
 import type { EditFormState, ExpenseAllocationFormState, TransactionHistoryItem, TransferEditFormState, TransferGroupItem } from "../_lib/transactions-types";
 import { createAllocationRow, resolveDefaultSelfBillablePartyId } from "../_shared/transactions-screen-shared";
 import { useTransactionsCatalogs } from "../_shared/use-transactions-catalogs";
@@ -40,6 +42,7 @@ export function HistoryClient({ username, initialMonth }: Props) {
   const [editError, setEditError] = useState<string | null>(null);
   const [deleteLoadingId, setDeleteLoadingId] = useState<number | null>(null);
   const [deleteTransferGroupId, setDeleteTransferGroupId] = useState<string | null>(null);
+  const [scheduleItem, setScheduleItem] = useState<TransactionHistoryItem | null>(null);
 
   const [dummyAmount, setDummyAmount] = useState("");
   const [dummyDescription, setDummyDescription] = useState("");
@@ -173,6 +176,14 @@ export function HistoryClient({ username, initialMonth }: Props) {
     router.push(`${target}?${repeatSearchParams(prefill)}`);
   }, [router]);
 
+  // A diferencia de `Repetir`, esta acción no navega: el diálogo vive en la misma página y por eso
+  // no necesita estado en la URL. El prefill solo valida que la fila sea programable.
+  const openSchedule = useCallback((item: TransactionHistoryItem) => {
+    const prefill = buildSchedulePrefill(item);
+    if (!prefill) return;
+    setScheduleItem(item);
+  }, []);
+
   const {
     onSaveEdit,
     onSaveTransferEdit,
@@ -241,7 +252,8 @@ export function HistoryClient({ username, initialMonth }: Props) {
     onConvertToMsi: onConvertChargeToMsi,
     onEditTransfer: openTransferEditModal,
     onDeleteTransfer: onDeleteTransferGroup,
-    onRepeat: openRepeat
+    onRepeat: openRepeat,
+    onSchedule: openSchedule
   });
 
   return (
@@ -295,6 +307,18 @@ export function HistoryClient({ username, initialMonth }: Props) {
           onSubmit={(event) => void onSaveTransferEdit(event)}
           saving={editSaving}
           error={editError}
+        />
+
+        <ScheduleRecurringDialog
+          item={scheduleItem}
+          open={Boolean(scheduleItem)}
+          catalogs={catalogs}
+          onClose={() => setScheduleItem(null)}
+          onCreated={async () => {
+            await loadHistory();
+            setSuccessMessage("Partida programada creada. Se repetirá cada mes.");
+          }}
+          onError={setHistoryError}
         />
       </section>
     </>
