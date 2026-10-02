@@ -1,10 +1,11 @@
 "use client";
 
-import { BellRing, CalendarDays, ListChecks, Plus, Wallet } from "lucide-react";
+import { BellRing, CalendarDays, ChevronLeft, ChevronRight, ListChecks, Plus, Wallet } from "lucide-react";
 import { useRef, type KeyboardEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/ui/cn";
 import { tableActionStyles } from "@/lib/ui/table-action-styles";
+import { nextPeriod, periodNavLabel, previousPeriod } from "../_lib/budget-period";
 import type { BudgetsTab } from "../_lib/budgets-ui";
 
 type Props = {
@@ -13,6 +14,8 @@ type Props = {
   /** Etiqueta del botón de alta; `null` lo oculta cuando la pestaña no crea nada. */
   createLabel: string | null;
   onPeriodChange: (value: string) => void;
+  /** Avanza o retrocede el periodo; los botones hacen `onPeriodChange(period ± 1 mes)`. */
+  onPeriodStep: (months: number) => void;
   onTabChange: (tab: BudgetsTab) => void;
   onCreate: () => void;
 };
@@ -23,8 +26,10 @@ const TABS: ReadonlyArray<{ id: BudgetsTab; label: string; icon: typeof Wallet }
   { id: "alertas", label: "Alertas", icon: BellRing }
 ];
 
-export function BudgetsToolbar({ period, tab, createLabel, onPeriodChange, onTabChange, onCreate }: Props) {
+export function BudgetsToolbar({ period, tab, createLabel, onPeriodChange, onPeriodStep, onTabChange, onCreate }: Props) {
   const tabListRef = useRef<HTMLDivElement | null>(null);
+  const previous = previousPeriod(period);
+  const next = nextPeriod(period);
 
   function onTabKeyDown(event: KeyboardEvent<HTMLDivElement>) {
     if (event.key !== "ArrowRight" && event.key !== "ArrowLeft") {
@@ -50,13 +55,37 @@ export function BudgetsToolbar({ period, tab, createLabel, onPeriodChange, onTab
             <CalendarDays className="h-3.5 w-3.5" aria-hidden="true" />
             Periodo
           </label>
-          <input
-            id="budgets-period"
-            type="month"
-            value={period}
-            onChange={(event) => onPeriodChange(event.target.value)}
-            className="input-semantic focus-ring h-10 min-w-44 px-3 text-sm"
-          />
+          <div className="flex items-center gap-1">
+            <Button
+              type="button"
+              variant="ghost"
+              className={`h-10 w-10 shrink-0 px-0 ${tableActionStyles.edit}`}
+              disabled={previous === null}
+              onClick={() => onPeriodStep(-1)}
+              aria-label={previous ? periodNavLabel(previous, -1) : "Mes anterior"}
+              title={previous ? periodNavLabel(previous, -1) : "Mes anterior"}
+            >
+              <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+            </Button>
+            <input
+              id="budgets-period"
+              type="month"
+              value={period}
+              onChange={(event) => onPeriodChange(event.target.value)}
+              className="input-semantic focus-ring h-10 min-w-44 px-3 text-sm"
+            />
+            <Button
+              type="button"
+              variant="ghost"
+              className={`h-10 w-10 shrink-0 px-0 ${tableActionStyles.edit}`}
+              disabled={next === null}
+              onClick={() => onPeriodStep(1)}
+              aria-label={next ? periodNavLabel(next, 1) : "Mes siguiente"}
+              title={next ? periodNavLabel(next, 1) : "Mes siguiente"}
+            >
+              <ChevronRight className="h-4 w-4" aria-hidden="true" />
+            </Button>
+          </div>
         </div>
 
         <div

@@ -83,6 +83,42 @@ export type BudgetPeriodStatus = {
   reachedThreshold: BudgetReachedThreshold | null;
 };
 
+/**
+ * Conteos de un bloque del rollover. `attempted` es siempre
+ * `inserted + skipped + omitted`, para que un descarte por clave ocupada sea visible en vez de
+ * confundirse con una falta de monto derivado.
+ *
+ * Cada conteo es `number | null`: un conteo ausente o no numérico es **desconocido**, no `0`. Un `0`
+ * inventado se leería como "no había nada que clonar" y apagaría la confirmación de una escritura que
+ * el backend sí tenía que hacer.
+ */
+export type BudgetRolloverCounts = {
+  attempted: number | null;
+  inserted: number | null;
+  /** Candidatas que no se insertaron porque la clave única ya existía. */
+  skipped: number | null;
+  /** Candidatas descartadas sin intentar insertar (monto promedio sin historial). */
+  omitted: number | null;
+};
+
+/** Modos de rollover que acepta `POST /api/budgets/rollover`. */
+export type BudgetRolloverMode = "copy" | "remount" | "copy-and-remount";
+
+/** Lo que el backend escribe, o lo que escribiría con `dryRun`. */
+export type BudgetRolloverResponse = {
+  fromPeriod: string;
+  toPeriod: string;
+  /** Modo efectivamente aplicado, ya normalizado por el backend. */
+  mode: string;
+  dryRun: boolean;
+  /** Presupuestos clonados del mes origen con sus umbrales. */
+  budgets: BudgetRolloverCounts;
+  /** Partidas `manual` copiadas con la fecha recalculada al mes destino. */
+  manualItems: BudgetRolloverCounts;
+  /** Partidas `template` regeneradas desde su plantilla de programado. */
+  remountedItems: BudgetRolloverCounts;
+};
+
 function isRecord(value: unknown): value is UnknownRecord {
   return typeof value === "object" && value !== null;
 }
@@ -113,6 +149,33 @@ function toText(value: unknown, fallback: string): string {
 
 function toOptionalText(value: unknown): string | null {
   return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
+}
+
+/**
+ * Conteo entero o `null` de "desconocido". A diferencia de `toFiniteNumber`, **nunca** devuelve
+ * `0` por defecto: un conteo ausente no es un conteo cero.
+ */
+/**
+ * Solo acepta números o cadenas numéricas. Cualquier otro tipo (booleanos, objetos, arreglos)
+ * devuelve `null`: `Number(false)` es `0` y un `0` fabricado apagaría una escritura real, porque la
+ * UI usa `inserted === 0` para decidir que no hay nada que clonar.
+ */
+function toOptionalCount(value: unknown): number | null {
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? Math.trunc(value) : null;
+  }
+
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const trimmed = value.trim();
+  if (trimmed.length === 0) {
+    return null;
+  }
+
+  const parsed = Number(trimmed);
+  return Number.isFinite(parsed) ? Math.trunc(parsed) : null;
 }
 
 function toUsageStatus(value: unknown): BudgetUsageStatus {
@@ -306,4 +369,52 @@ export function normalizeBudgetStatuses(input: unknown): BudgetPeriodStatus[] {
   return input
     .map((item) => normalizeBudgetStatus(item))
     .filter((item): item is BudgetPeriodStatus => item !== null);
+}
+
+function emptyRolloverCounts(): BudgetRolloverCounts {
+  return { attempted: null, inserted: null, skipped: null, omitted: null };
+}
+
+function normalizeRolloverCounts(input: unknown): BudgetRolloverCounts {
+  if (!isRecord(input)) {
+    return emptyRolloverCounts();
+  }
+
+  return {
+    attempted: toOptionalCount(input.attempted ?? input.Attempted),
+    inserted: toOptionalCount(input.inserted ?? input.Inserted),
+    skipped: toOptionalCount(input.skipped ?? input.Skipped),
+    omitted: toOptionalCount(input.omitted ?? input.Omitted)
+  };
+}
+
+/**
+ * Normaliza el resultado del rollover. Un bloque ausente queda con conteos `null` ("desconocido") en
+ * vez de `0`: la UI usa esos ceros para decidir si hay algo que clonar, y un `0` fabricado apagaría
+ * una escritura real. El texto de los periodos cae al propio input crudo porque el backend lo
+ * devuelve ya normalizado.
+ */
+export function normalizeBudgetRollover(input: unknown): BudgetRolloverResponse {
+  if (!isRecord(input)) {
+    return {
+      fromPeriod: "",
+      toPeriod: "",
+      mode: "",
+      dryRun: true,
+      budgets: emptyRolloverCounts(),
+      manualItems: emptyRolloverCounts(),
+      remountedItems: emptyRolloverCounts()
+    };
+  }
+
+  return {
+    fromPeriod: toOptionalText(input.fromPeriod ?? input.FromPeriod) ?? "",
+    toPeriod: toOptionalText(input.toPeriod ?? input.ToPeriod) ?? "",
+    mode: toOptionalText(input.mode ?? input.Mode) ?? "",
+    // `dryRun` ausente se resuelve como `true`: la misma regla que el backend, sin escritura.
+    dryRun: toBool(input.dryRun ?? input.DryRun, true),
+    budgets: normalizeRolloverCounts(input.budgets ?? input.Budgets),
+    manualItems: normalizeRolloverCounts(input.manualItems ?? input.ManualItems),
+    remountedItems: normalizeRolloverCounts(input.remountedItems ?? input.RemountedItems)
+  };
 }

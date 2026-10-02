@@ -1,10 +1,16 @@
 "use client";
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/navigation/page-header";
 import { currentBudgetPeriod } from "@/lib/contracts/budgets";
+import {
+  budgetPeriodQueryValue,
+  periodFromUrlQuery,
+  previousPeriod,
+  shiftPeriod
+} from "./_lib/budget-period";
 import {
   thresholdsChanged,
   toBudgetCreatePayload,
@@ -32,6 +38,7 @@ import { BudgetItemFormDrawer } from "./_components/budget-item-form-drawer";
 import { BudgetItemsPanel } from "./_components/budget-items-panel";
 import { BudgetsKpis } from "./_components/budgets-kpis";
 import { BudgetsResults } from "./_components/budgets-results";
+import { BudgetsRolloverCallout } from "./_components/budgets-rollover-callout";
 import { BudgetsToastStack } from "./_components/budgets-toast-stack";
 import { BudgetsToolbar } from "./_components/budgets-toolbar";
 import { useAlertsHistory } from "./_hooks/use-alerts-history";
@@ -45,9 +52,13 @@ export function BudgetsClient() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const requestedPeriod = searchParams.get("period");
-  const [period, setPeriod] = useState(requestedPeriod && /^\d{4}-(0[1-9]|1[0-2])$/.test(requestedPeriod) ? requestedPeriod : currentBudgetPeriod());
+  // La URL es la fuente externa del periodo: el valor vigente se ajusta en render, no en un efecto
+  // (ver abajo). Sin parámetro, o con uno ilegible, la pantalla muestra el mes en curso.
+  const urlPeriod = periodFromUrlQuery(searchParams.toString(), currentBudgetPeriod());
+  const [period, setPeriod] = useState(urlPeriod);
+  const [lastUrlPeriod, setLastUrlPeriod] = useState(urlPeriod);
   const tab = resolveBudgetsTab(searchParams.get("tab"));
+
   // El filtro por tipo es local: el mismo fetch del periodo sirve a las tres vistas.
   const [kindFilter, setKindFilter] = useState<BudgetItemKindFilter>("all");
 
@@ -59,6 +70,7 @@ export function BudgetsClient() {
     loading,
     error: loadError,
     setError: setLoadError,
+    reload,
     create,
     update,
     toggleActive
@@ -124,6 +136,12 @@ export function BudgetsClient() {
   const totals = useMemo(() => summarizeBudgetStatuses(rows.map((row) => row.status)), [rows]);
   const periodLabel = formatPeriodLabel(period);
 
+  // El ofrecimiento de clonar el mes anterior solo tiene sentido en el resumen, con el periodo ya
+  // cargado y sin presupuestos: es la "regla primaria (sin sorpresas)" del plan, una acción
+  // explícita del usuario y nunca un job. Con un `previousPeriod` inválido no hay origen que clonar.
+  const rolloverSource = previousPeriod(period);
+  const showRollover = tab === "resumen" && !loading && rows.length === 0 && rolloverSource !== null;
+
   useEffect(() => {
     if (!loadError) {
       return;
@@ -133,14 +151,60 @@ export function BudgetsClient() {
     setLoadError(null);
   }, [loadError, errorToast, setLoadError]);
 
+  /**
+   * Query de la pantalla a partir de pestaña y periodo. Ambas claves son opcionales: el
+   * resumen y el mes en curso son la URL limpia, igual que en corte 1 para `?tab=`.
+   */
+  const buildQuery = useCallback((nextTab: BudgetsTab, nextPeriod: string): string => {
+    const params = new URLSearchParams();
+
+    const tabQuery = budgetsTabQueryValue(nextTab);
+    if (tabQuery) {
+      params.set("tab", tabQuery);
+    }
+
+    const periodQuery = budgetPeriodQueryValue(nextPeriod, currentBudgetPeriod());
+    if (periodQuery) {
+      params.set("period", periodQuery);
+    }
+
+    return params.toString();
+  }, []);
+
+  // La URL es la única fuente externa del periodo: atrás/adelante del navegador cambian `?period=`
+  // y la pantalla lo adopta. Se ajusta el estado durante el render comparando contra el último valor
+  // de la URL ya visto — no con un efecto lector, que es lo que peleaba con el escritor: el
+  // `router.replace` tarda en propagarse, así que el lector veía la URL vieja y revertía la elección
+  // del usuario en el mismo render. Al comparar contra la URL (y no contra la query que escribimos),
+  // un `?period=` ausente o ilegible también vuelve al mes en curso en lugar de dejar el mes pegado.
+  if (urlPeriod !== lastUrlPeriod) {
+    setLastUrlPeriod(urlPeriod);
+    setPeriod(urlPeriod);
+  }
+
+  // Una sola escritura: la URL siempre describe la pantalla. Si el query resultante ya es el vigente
+  // no se reemplaza, para no entrar en un ciclo de `replace`.
+  useEffect(() => {
+    const query = buildQuery(tab, period);
+    if (query === searchParams.toString()) {
+      return;
+    }
+
+    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+  }, [buildQuery, pathname, period, router, searchParams, tab]);
+
   function onTabChange(next: BudgetsTab) {
     if (next === tab) {
       return;
     }
 
-    // La URL solo distingue las pestañas no predeterminadas: el resumen es la URL limpia.
-    const query = budgetsTabQueryValue(next);
-    router.replace(query ? `${pathname}?tab=${query}` : pathname, { scroll: false });
+    // Mismo query que el efecto: cambiar de pestaña nunca borra `?period=`.
+    const query = buildQuery(next, period);
+    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+  }
+
+  function onPeriodStep(months: number) {
+    setPeriod((current) => shiftPeriod(current, months) ?? current);
   }
 
   async function onSave() {
@@ -288,6 +352,7 @@ export function BudgetsClient() {
             tab === "partidas" ? "Nueva partida" : tab === "resumen" ? "Nuevo presupuesto" : null
           }
           onPeriodChange={setPeriod}
+          onPeriodStep={onPeriodStep}
           onTabChange={onTabChange}
           onCreate={tab === "partidas" ? onCreateItem : openCreate}
         />
@@ -295,6 +360,23 @@ export function BudgetsClient() {
         {tab === "resumen" ? (
           <div id="budgets-panel-resumen" role="tabpanel" aria-labelledby="budgets-tab-resumen" className="space-y-3">
             {loading ? <BudgetsKpisSkeleton /> : <BudgetsKpis totals={totals} periodLabel={periodLabel} />}
+            {showRollover && rolloverSource ? (
+              <BudgetsRolloverCallout
+                period={period}
+                previousPeriod={rolloverSource}
+                onCompleted={async () => {
+                  success("Plan del mes anterior clonado");
+                  // El mismo `reload` que usan create/update/toggleActive: KPIs y filas del periodo
+                  // reflejean lo recién clonado sin cambiar de pestaña ni de periodo.
+                  await reload();
+                }}
+                onError={(message) => {
+                  if (message) {
+                    errorToast(message);
+                  }
+                }}
+              />
+            ) : null}
             <BudgetsResults
               rows={rows}
               loading={loading}
