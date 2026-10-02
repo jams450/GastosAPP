@@ -59,6 +59,12 @@ export function BudgetsTable({ rows, loading, errorMessage, catalogs, onEdit, on
         cell: ({ row }) => <span className="tabular-nums font-semibold">{formatCurrency(row.original.status.spent)}</span>
       },
       {
+        id: "committed",
+        header: "Comprometido",
+        accessorFn: (row) => row.status.committed,
+        cell: ({ row }) => <span className="tabular-nums font-semibold">{formatCurrency(row.original.status.committed)}</span>
+      },
+      {
         id: "remaining",
         header: "Restante",
         accessorFn: (row) => row.status.remaining,
