@@ -171,6 +171,16 @@ namespace GastosApp.BusinessLogic.Services
                 .ToListAsync();
         }
 
+        public async Task<BudgetItem?> LockBudgetItemAsync(int itemId, int userId)
+        {
+            // El candado de fila se toma en la misma sentencia que la lectura: es lo que serializa
+            // dos enlaces concurrentes de la MISMA partida. El user_id va en el WHERE, no después,
+            // para que un id ajeno no se pueda ni bloquear.
+            return await _context.BudgetItems
+                .FromSqlInterpolated($"SELECT * FROM budget_items WHERE item_id = {itemId} AND user_id = {userId} FOR UPDATE")
+                .FirstOrDefaultAsync();
+        }
+
         public async Task<bool> ClaimBancoppelImportedRowAsync(int accountId, string fingerprint)
         {
             // Sin RETURNING: ExecuteSqlInterpolatedAsync reporta filas afectadas (1 = insertado,
@@ -282,6 +292,8 @@ namespace GastosApp.BusinessLogic.Services
         {
             return await _context.SaveChangesAsync();
         }
+
+        public bool IsInTransaction => _context.Database.CurrentTransaction != null;
 
         public async Task<T> ExecuteInTransactionAsync<T>(Func<Task<T>> operation)
         {

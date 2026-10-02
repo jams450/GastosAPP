@@ -88,3 +88,30 @@ public class BudgetItemPurgeResponse
     public string PeriodKey { get; set; } = string.Empty;
     public int Deleted { get; set; }
 }
+
+/// <summary>
+/// Candidata a match <b>débil</b> de un periodo: misma categoría/subcategoría y mismo mes. Es una
+/// <b>sugerencia</b>, no un enlace: la partida sigue <c>pending</c> y el endpoint no escribe nada.
+/// </summary>
+public class BudgetItemSuggestionResponse
+{
+    public int ItemId { get; set; }
+    public string PeriodKey { get; set; } = string.Empty;
+    /// <summary><c>income</c> o <c>expense</c>.</summary>
+    public string Kind { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public decimal PlannedAmount { get; set; }
+    public DateTime PlannedDate { get; set; }
+    public int? CategoryId { get; set; }
+    public int? SubcategoryId { get; set; }
+    public int? AccountId { get; set; }
+    public int? MerchantId { get; set; }
+    public int TransactionId { get; set; }
+    public decimal TransactionAmount { get; set; }
+    /// <summary>Fecha local del gasto candidato, no el instante UTC.</summary>
+    public DateTime TransactionDate { get; set; }
+    /// <summary>Días entre la fecha planificada y la fecha local del gasto.</summary>
+    public int DistanceDays { get; set; }
+    /// <summary>Siempre <c>weak</c>: esta lista solo expone candidatas débiles.</summary>
+    public string Strength { get; set; } = string.Empty;
+}

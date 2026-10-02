@@ -1,5 +1,6 @@
 using GastosApp.AI.Configuration;
 using GastosApp.API.Configuration;
+using GastosApp.BusinessLogic.Models.Budgets;
 using GastosApp.BusinessLogic.Models.Recurring;
 
 namespace GastosApp.API.Extensions;
@@ -24,11 +25,21 @@ public static class TelegramConfigurationExtensions
         services.AddSingleton(new RecurringItemSettings
         {
             AverageMonths = configuration.GetValue("Plan:AverageMonths", 3),
-            MatchTolerancePct = configuration.GetValue("Plan:MatchTolerancePct", 0m),
             TelegramAlertingAvailable =
                 telegramSection.GetValue<bool>(nameof(TelegramOptions.Enabled)) &&
                 !IsPlaceholder(telegramSection.GetValue<string>(nameof(TelegramOptions.BotToken)) ?? string.Empty) &&
                 telegramSection.GetValue<long>(nameof(TelegramOptions.AllowedUserId)) > 0
+        });
+
+        // Tolerancia del matching de partidas (sección 4.4). Es la única lectora de
+        // Plan:MatchTolerancePct: se movió aquí desde RecurringItemSettings, donde ya no se usaba,
+        // para no dejar dos superficies de configuración para la misma clave. Se registra junto a
+        // las demás POCOs de Plan: por la misma razón que las de arriba.
+        // Default 0 = coincidencia exacta, el valor que el plan propone; no se sobrescribe en
+        // appsettings.* a propósito.
+        services.AddSingleton(new PlanMatchSettings
+        {
+            MatchTolerancePct = configuration.GetValue("Plan:MatchTolerancePct", 0m)
         });
 
         // LlmOptions se enlaza sin validación de arranque: un LLM inválido/caído nunca debe

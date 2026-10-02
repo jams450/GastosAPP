@@ -56,6 +56,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IBudgetService, BudgetService>();
         services.AddScoped<IInvestmentService, InvestmentService>();
         services.AddScoped<IBudgetItemService, BudgetItemService>();
+        services.AddScoped<IBudgetItemMatchService, BudgetItemMatchService>();
         services.AddScoped<IPlanService, PlanService>();
         services.AddScoped<IRecurringItemService, RecurringItemService>();
         services.AddScoped<IAlertEvaluationService, AlertEvaluationService>();

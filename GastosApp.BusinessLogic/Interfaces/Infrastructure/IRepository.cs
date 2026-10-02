@@ -35,6 +35,15 @@ namespace GastosApp.BusinessLogic.Interfaces
         Task<TelegramDraft?> LockTelegramDraftAsync(Guid draftId);
 
         /// <summary>
+        /// Lee la partida con <c>SELECT … FOR UPDATE</c> dentro de la transacción actual y la
+        /// devuelve rastreada para poder mutarla. Bloquear la fila <b>antes</b> de leerla es lo que
+        /// vuelve atómico un enlace que se decide con un "si <c>transaction_id</c> es nulo, escribe":
+        /// dos altas concurrentes no pueden leer el mismo nulo. Mismo patrón que
+        /// <see cref="LockAccountsAsync"/> y <see cref="LockTransactionAsync"/>.
+        /// </summary>
+        Task<BudgetItem?> LockBudgetItemAsync(int itemId, int userId);
+
+        /// <summary>
         /// Reclama una entrega de alerta de forma atómica: inserta <c>alert_deliveries</c> con
         /// <c>ON CONFLICT (budget_id, threshold_id, period_key) DO NOTHING</c> y, solo si insertó,
         /// encola su <c>alert_outbox</c> (<c>pending</c>) en la misma sentencia. Devuelve <c>true</c>
@@ -80,5 +89,13 @@ namespace GastosApp.BusinessLogic.Interfaces
         Task LockTelegramDraftChatAsync(long chatId);
         Task<int> SaveChangesAsync();
         Task<T> ExecuteInTransactionAsync<T>(Func<Task<T>> operation);
+
+        /// <summary>
+        /// <c>true</c> mientras haya una transacción SQL abierta en el contexto actual, incluida la
+        /// que <see cref="ExecuteInTransactionAsync{T}"/> reusa cuando otra ya está en curso. Lo
+        /// consultan los servicios cuyo trabajo debe ocurrir <b>después</b> del commit: escribir
+        /// ahí convertiría un fallo propio en un rollback del trabajo de quien abrió la transacción.
+        /// </summary>
+        bool IsInTransaction { get; }
     }
 }

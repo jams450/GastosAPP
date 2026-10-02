@@ -19,15 +19,18 @@ namespace GastosApp.API.Controllers;
 public class BudgetItemsController : ControllerBase
 {
     private readonly IBudgetItemService _budgetItemService;
+    private readonly IBudgetItemMatchService _budgetItemMatchService;
     private readonly ICurrentUserService _currentUserService;
     private readonly ILogger<BudgetItemsController> _logger;
 
     public BudgetItemsController(
         IBudgetItemService budgetItemService,
+        IBudgetItemMatchService budgetItemMatchService,
         ICurrentUserService currentUserService,
         ILogger<BudgetItemsController> logger)
     {
         _budgetItemService = budgetItemService;
+        _budgetItemMatchService = budgetItemMatchService;
         _currentUserService = currentUserService;
         _logger = logger;
     }
@@ -234,6 +237,39 @@ public class BudgetItemsController : ControllerBase
         }
     }
 
+    /// <summary>
+    /// Candidatas a match de un periodo. <b>Solo lectura: no escribe nada.</b> Devuelve los pares
+    /// <b>débiles</b> (misma categoría/subcategoría, mismo mes) de partidas <c>pending</c> sin
+    /// transacción enlazada; el enlace de una fuerte ya ocurrió solo al capturar el gasto. Es
+    /// <c>period</c> obligatorio y con formato <c>yyyy-MM</c>: sin periodo la lista no tiene
+    /// sentido porque el matching es por mes.
+    /// </summary>
+    [HttpGet("suggestions")]
+    public async Task<IActionResult> GetSuggestions(
+        [FromQuery] string? period,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var userId = GetCurrentUserId();
+            var suggestions = await _budgetItemMatchService.SuggestAsync(
+                userId,
+                period ?? string.Empty,
+                cancellationToken);
+
+            return Ok(suggestions.Select(MapSuggestion));
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { Message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error retrieving budget item match suggestions");
+            return StatusCode(500, new { Message = "An error occurred while retrieving match suggestions" });
+        }
+    }
+
     private static BudgetItemWriteInput MapWriteInput(BudgetItemCreateRequest request) => new()
     {
         Kind = request.Kind ?? string.Empty,
@@ -280,6 +316,25 @@ public class BudgetItemsController : ControllerBase
         Notes = item.Notes,
         Created = item.Created,
         Updated = item.Updated
+    };
+
+    internal static BudgetItemSuggestionResponse MapSuggestion(BudgetItemSuggestion suggestion) => new()
+    {
+        ItemId = suggestion.ItemId,
+        PeriodKey = suggestion.PeriodKey,
+        Kind = suggestion.Kind,
+        Name = suggestion.Name,
+        PlannedAmount = suggestion.PlannedAmount,
+        PlannedDate = suggestion.PlannedDate,
+        CategoryId = suggestion.CategoryId,
+        SubcategoryId = suggestion.SubcategoryId,
+        AccountId = suggestion.AccountId,
+        MerchantId = suggestion.MerchantId,
+        TransactionId = suggestion.TransactionId,
+        TransactionAmount = suggestion.TransactionAmount,
+        TransactionDate = suggestion.TransactionDate,
+        DistanceDays = suggestion.DistanceDays,
+        Strength = suggestion.Strength
     };
 
     private int GetCurrentUserId()

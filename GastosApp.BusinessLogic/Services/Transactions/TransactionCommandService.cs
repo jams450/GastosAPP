@@ -1,4 +1,5 @@
 using GastosApp.BusinessLogic.Interfaces;
+using GastosApp.BusinessLogic.Models.Budgets;
 using GastosApp.BusinessLogic.Models.Transactions;
 using GastosApp.Models.Entities;
 using Microsoft.EntityFrameworkCore;
@@ -15,6 +16,7 @@ namespace GastosApp.BusinessLogic.Services
         private readonly ITransactionValidationService _validation;
         private readonly ITransactionTagService _tagService;
         private readonly ICatalogRuleService _catalogRuleService;
+        private readonly IBudgetItemMatchService _budgetItemMatchService;
         private readonly ILogger<TransactionCommandService> _logger;
 
         public TransactionCommandService(
@@ -25,6 +27,7 @@ namespace GastosApp.BusinessLogic.Services
             ITransactionValidationService validation,
             ITransactionTagService tagService,
             ICatalogRuleService catalogRuleService,
+            IBudgetItemMatchService budgetItemMatchService,
             ILogger<TransactionCommandService> logger)
         {
             _repository = repository;
@@ -34,12 +37,13 @@ namespace GastosApp.BusinessLogic.Services
             _validation = validation;
             _tagService = tagService;
             _catalogRuleService = catalogRuleService;
+            _budgetItemMatchService = budgetItemMatchService;
             _logger = logger;
         }
 
-        public Task<Transaction> CreateIncomeAsync(Transaction transaction, int userId, IEnumerable<(int InstallmentId, decimal Amount)>? creditAllocations = null, IEnumerable<string>? tags = null)
+        public async Task<Transaction> CreateIncomeAsync(Transaction transaction, int userId, IEnumerable<(int InstallmentId, decimal Amount)>? creditAllocations = null, IEnumerable<string>? tags = null)
         {
-            return _repository.ExecuteInTransactionAsync(async () =>
+            var created = await _repository.ExecuteInTransactionAsync(async () =>
             {
                 if (transaction.Amount <= 0)
                 {
@@ -92,16 +96,20 @@ namespace GastosApp.BusinessLogic.Services
 
                 return result;
             });
+
+            await TryMatchBudgetItemsAsync(created.TransactionId, userId);
+
+            return created;
         }
 
-        public Task<Transaction> CreateExpenseAsync(Transaction transaction, int userId, IEnumerable<ExpenseAllocationInput>? allocations = null, IEnumerable<string>? tags = null, int? msiMonths = null)
+        public async Task<Transaction> CreateExpenseAsync(Transaction transaction, int userId, IEnumerable<ExpenseAllocationInput>? allocations = null, IEnumerable<string>? tags = null, int? msiMonths = null)
         {
             if (msiMonths.HasValue && msiMonths.Value > 60)
             {
                 throw new ArgumentException("Meses MSI debe estar entre 1 y 60");
             }
 
-            return _repository.ExecuteInTransactionAsync(async () =>
+            var created = await _repository.ExecuteInTransactionAsync(async () =>
             {
                 if (transaction.Amount <= 0)
                 {
@@ -162,6 +170,10 @@ namespace GastosApp.BusinessLogic.Services
 
                 return result;
             });
+
+            await TryMatchBudgetItemsAsync(created.TransactionId, userId);
+
+            return created;
         }
 
         public Task<(Transaction? Transaction, string? ErrorMessage)> UpdateTransactionWithDetailsForUserAsync(
@@ -281,6 +293,58 @@ namespace GastosApp.BusinessLogic.Services
         private static bool IsTransfer(Transaction transaction)
         {
             return string.Equals(transaction.Type, TransactionDomainConstants.TransactionType.Transfer, StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
+        /// Hook <b>post-commit</b> del matching de partidas (plan §4.4). Se invoca después de que
+        /// <c>ExecuteInTransactionAsync</c> confirmó el alta, nunca dentro: enlazar aquí convertiría
+        /// un fallo de matching en un rollback del gasto, y el gasto ya es un hecho. Por eso el
+        /// <c>try/catch</c> es total —un problema del matching nunca rompe ni revierte el alta— y el
+        /// log solo lleva el tipo de excepción y el id, nunca montos, nombres ni descripciones.
+        /// </summary>
+        /// <remarks>
+        /// Cuando el alta corre dentro de una transacción de otro (importación de Bancoppel, motor de
+        /// programados, confirmación de Telegram) no se hace nada: <c>ExecuteInTransactionAsync</c> es
+        /// reentrante y no hubo commit propio, así que "post-commit" sería una mentira y el enlace
+        /// caería dentro de la transacción ajena. Esas partidas se enlazan por su propio camino —el
+        /// motor las enlaza él mismo— o quedan disponibles para la UI.
+        /// </remarks>
+        private async Task TryMatchBudgetItemsAsync(int transactionId, int userId)
+        {
+            if (_repository.IsInTransaction)
+            {
+                return;
+            }
+
+            try
+            {
+                var outcome = await _budgetItemMatchService.TryMatchTransactionAsync(
+                    userId,
+                    transactionId,
+                    CancellationToken.None);
+
+                if (outcome.Status == BudgetItemMatchOutcomeStatus.Linked)
+                {
+                    _logger.LogInformation(
+                        "Budget item {ItemId} matched transaction {TransactionId}",
+                        outcome.ItemId,
+                        transactionId);
+                }
+            }
+            catch (Exception ex)
+            {
+                // El gasto ya está confirmado: aquí solo se registra el tipo de fallo y se sigue.
+                // El matching es best-effort y la partida seguirá pending y visible en la UI.
+                //
+                // La excepción NO se entrega al logger. LogError(ex, …) vuelca el mensaje, la pila y
+                // las excepciones internas, y el mensaje de este servicio puede llevar lo que la
+                // transacción traía —monto, comercio, descripción— si el fallo nació abajo. Solo el
+                // tipo: dice qué se rompió sin decir de qué gasto era.
+                _logger.LogError(
+                    "Budget item matching failed for transaction {TransactionId} ({ExceptionType}); the transaction stays committed",
+                    transactionId,
+                    ex.GetType().Name);
+            }
         }
 
         /// <summary>

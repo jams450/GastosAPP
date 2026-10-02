@@ -83,12 +83,6 @@ namespace GastosApp.BusinessLogic.Models.Recurring
         public int AverageMonths { get; init; } = 3;
 
         /// <summary>
-        /// <c>Plan:MatchTolerancePct</c>. Tolerancia de monto del auto-match (sección 4.4).
-        /// La consume la Fase 3.4; se declara aquí para no abrir una segunda superficie de configuración.
-        /// </summary>
-        public decimal MatchTolerancePct { get; init; }
-
-        /// <summary>
         /// <c>true</c> solo si <c>Telegram:Enabled</c> está activo, el <c>BotToken</c> no es un
         /// placeholder y <c>AllowedUserId &gt; 0</c>. Único requisito para permitir <c>auto_execute</c>
         /// (secciones 4.6 regla 3-bis y 7.4): sin salida de alertas, una programada que mueve dinero
