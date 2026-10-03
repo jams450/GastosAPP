@@ -4,6 +4,8 @@ import { parseAnnualSummaryYear } from "@/lib/contracts/account-annual-summary";
 import { currentYearInMexicoCity } from "../_lib/accounts-annual-ui";
 import { AccountAnnualSummaryClient } from "./account-annual-summary-client";
 
+export const metadata: import("next").Metadata = { title: "Resumen anual de cuenta" };
+
 type PageProps = {
   params: Promise<{ id: string }>;
   searchParams: Promise<Record<string, string | string[] | undefined>>;

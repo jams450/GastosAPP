@@ -2,6 +2,8 @@ import { redirect } from "next/navigation";
 import { getServerSession } from "@/lib/auth/session";
 import { SubcategoriesClient } from "./subcategories-client";
 
+export const metadata: import("next").Metadata = { title: "Subcategorías" };
+
 export default async function SubcategoriesCatalogPage() {
   const session = await getServerSession();
 

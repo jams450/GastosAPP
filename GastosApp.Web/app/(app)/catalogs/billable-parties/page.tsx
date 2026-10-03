@@ -2,6 +2,8 @@ import { redirect } from "next/navigation";
 import { getServerSession } from "@/lib/auth/session";
 import { BillablePartiesClient } from "./billable-parties-client";
 
+export const metadata: import("next").Metadata = { title: "Entidades facturables" };
+
 export default async function BillablePartiesCatalogPage() {
   const session = await getServerSession();
 

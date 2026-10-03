@@ -2,6 +2,8 @@ import { redirect } from "next/navigation";
 import { getServerSession } from "@/lib/auth/session";
 import { MerchantsClient } from "./merchants-client";
 
+export const metadata: import("next").Metadata = { title: "Comercios" };
+
 export default async function MerchantsCatalogPage() {
   const session = await getServerSession();
 

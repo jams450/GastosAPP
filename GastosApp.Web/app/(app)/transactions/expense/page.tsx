@@ -2,6 +2,8 @@ import { requireTransactionsSession } from "../_lib/transactions-route-guard";
 import { parseRepeatPrefill } from "../_lib/transactions-repeat";
 import { ExpenseClient } from "./expense-client";
 
+export const metadata: import("next").Metadata = { title: "Registrar gasto" };
+
 export default async function TransactionsExpensePage(props: {
   searchParams?: Promise<{ repeat?: string }>;
 }) {

@@ -2,6 +2,8 @@ import { redirect } from "next/navigation";
 import { getServerSession } from "@/lib/auth/session";
 import { UsersClient } from "./users-client";
 
+export const metadata: import("next").Metadata = { title: "Usuarios" };
+
 export default async function UsersPage() {
   const session = await getServerSession();
   if (!session) redirect("/login");

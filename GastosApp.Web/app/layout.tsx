@@ -16,10 +16,7 @@ const themeInitScript = `
 `;
 
 export const metadata: Metadata = {
-  title: {
-    default: "Amitzi Finance",
-    template: "%s · Amitzi Finance"
-  },
+  title: "Finanzas personales",
   description: "Amitzi Finance: claridad y control para tus finanzas personales.",
   icons: { icon: "/icon.svg" }
 };

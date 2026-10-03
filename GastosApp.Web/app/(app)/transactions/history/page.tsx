@@ -12,6 +12,8 @@ function resolveInitialMonth(month: string | undefined) {
   return /^\d{4}-\d{2}$/.test(month ?? "") ? month! : currentMonthInput();
 }
 
+export const metadata: import("next").Metadata = { title: "Historial de transacciones" };
+
 export default async function TransactionsHistoryPage({ searchParams }: Props) {
   const session = await requireTransactionsSession();
   const params = await searchParams;
