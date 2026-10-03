@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertCircle, RotateCcw, Wallet } from "lucide-react";
+import { AlertCircle, CalendarDays, CircleCheck, Clock3, Layers3, RotateCcw, TrendingUp, Wallet } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { currentBudgetPeriod } from "@/lib/contracts/budgets";
 import type { ExpectedInvestmentIncome } from "@/lib/contracts/investments";
@@ -109,23 +109,39 @@ export function BudgetIncomeBlock({ income, expected, expectedError, loading, er
         </span>
       </div>
 
-      <dl className="m-0 mt-4 space-y-2.5">
-        <IncomeRow label="Programado" hint="Partidas de ingreso del mes" amount={income.plannedIncome} />
-        <IncomeRow label="Comprometido" hint="Ingreso planificado aún no ejecutado" amount={income.committedIncome} />
-        <IncomeRow label="Proyectado" hint="Promedios: estimación informativa" amount={income.projectedIncome} />
-        <IncomeRow label="Ejecutado (real)" hint="Transacciones de ingreso del mes" amount={income.executedIncome} strong />
-        <div className="flex items-baseline justify-between gap-3">
-          <dt className="min-w-0">
-            <p className="m-0 text-xs font-semibold text-primary">Pendiente</p>
-            <p className="m-0 text-[11px] font-medium text-muted">
-              {pendingExceeded
-                ? `El ingreso real superó lo programado por ${formatCurrency(Math.abs(income.pendingIncome))}`
-                : "Programado menos ejecutado"}
-            </p>
-          </dt>
-          <dd className="m-0 shrink-0 text-sm font-bold tabular-nums text-primary">{formatCurrency(income.pendingIncome)}</dd>
-        </div>
+      <dl className="m-0 mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+        <IncomeKpi label="Programado" hint="Partidas de ingreso del mes" amount={income.plannedIncome} Icon={CalendarDays} tone="accent" />
+        <IncomeKpi label="Ejecutado (real)" hint="Transacciones de ingreso del mes" amount={income.executedIncome} Icon={CircleCheck} tone="success" />
+        <IncomeKpi
+          label="Pendiente"
+          hint={pendingExceeded
+            ? `El ingreso real superó lo programado por ${formatCurrency(Math.abs(income.pendingIncome))}`
+            : "Programado menos ejecutado"}
+          amount={income.pendingIncome}
+          Icon={Clock3}
+          tone={pendingExceeded ? "danger" : "warning"}
+        />
+        <IncomeKpi label="Comprometido" hint="Ingreso planificado aún no ejecutado" amount={income.committedIncome} Icon={Layers3} tone="info" />
+        <IncomeKpi
+          label="Rendimiento posible"
+          hint={expectedError !== null ? "Rendimiento no disponible" : hasExpectedPlan ? "Posible · no realizado" : "Sin plan vigente"}
+          valueLabel={expectedError !== null ? "No disponible" : undefined}
+          amount={hasExpectedPlan ? expected.expectedInterest : 0}
+          Icon={TrendingUp}
+          tone="info"
+        />
       </dl>
+
+      <div className="dashboard-card mt-3 flex items-center gap-3 p-4" aria-label="Proyección por promedios">
+        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-[var(--color-accent-soft)] text-[var(--color-accent)]">
+          <TrendingUp className="h-4 w-4" aria-hidden="true" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="m-0 text-[11px] font-semibold uppercase tracking-[0.1em] text-muted">Proyectado por promedios</p>
+          <p className="m-0 mt-0.5 text-xs font-medium text-muted">Estimación informativa</p>
+        </div>
+        <p className="m-0 shrink-0 text-lg font-bold tabular-nums text-primary">{formatCurrency(income.projectedIncome)}</p>
+      </div>
 
       <div
         className="dashboard-track mt-3 h-1.5 w-full overflow-hidden rounded-full"
@@ -168,16 +184,41 @@ export function BudgetIncomeBlock({ income, expected, expectedError, loading, er
   );
 }
 
-function IncomeRow({ label, hint, amount, strong = false }: { label: string; hint: string; amount: number; strong?: boolean }) {
+function IncomeKpi({
+  label,
+  hint,
+  amount,
+  Icon,
+  tone,
+  valueLabel,
+}: {
+  label: string;
+  hint: string;
+  amount: number;
+  Icon: typeof Wallet;
+  tone: "accent" | "success" | "warning" | "danger" | "info";
+  valueLabel?: string;
+}) {
+  const toneClasses = {
+    accent: "bg-[var(--color-accent-soft)] text-[var(--color-accent)]",
+    success: "bg-[var(--color-success)]/12 text-[var(--color-success)]",
+    warning: "bg-[var(--color-warning)]/12 text-[var(--color-warning)]",
+    danger: "bg-[var(--color-danger)]/12 text-[var(--color-danger)]",
+    info: "bg-[var(--color-info)]/12 text-[var(--color-info)]",
+  }[tone];
+
   return (
-    <div className="flex items-baseline justify-between gap-3">
-      <dt className="min-w-0">
-        <p className="m-0 text-xs font-semibold text-primary">{label}</p>
-        <p className="m-0 text-[11px] font-medium text-muted">{hint}</p>
-      </dt>
-      <dd className={`m-0 shrink-0 tabular-nums text-primary ${strong ? "text-base font-bold" : "text-sm font-bold"}`}>
-        {formatCurrency(amount)}
-      </dd>
+    <div className="dashboard-card dashboard-card-interactive p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <dt className="text-[11px] font-semibold uppercase tracking-[0.1em] text-muted">{label}</dt>
+          <p className="m-0 mt-1 text-[11px] font-medium text-muted">{hint}</p>
+        </div>
+        <span className={`grid h-9 w-9 shrink-0 place-items-center rounded-xl ${toneClasses}`}>
+          <Icon className="h-4 w-4" aria-hidden="true" />
+        </span>
+      </div>
+      <dd className="m-0 mt-4 text-xl font-bold tabular-nums text-primary">{valueLabel ?? formatCurrency(amount)}</dd>
     </div>
   );
 }
