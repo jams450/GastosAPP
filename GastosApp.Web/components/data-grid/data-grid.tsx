@@ -42,6 +42,7 @@ type DataGridProps<TData> = {
   stickyHeader?: boolean;
   stickyActionsColumn?: boolean;
   enableGlobalFilter?: boolean;
+  mobileCards?: (row: TData, actions: ReactNode) => ReactNode;
   globalFilterPlaceholder?: string;
   globalFilterFn?: FilterFn<TData>;
 };
@@ -72,6 +73,7 @@ export function DataGrid<TData>({
   stickyHeader = true,
   stickyActionsColumn = true,
   enableGlobalFilter = false,
+  mobileCards,
   globalFilterPlaceholder = "Buscar...",
   globalFilterFn
 }: DataGridProps<TData>) {
@@ -219,7 +221,16 @@ export function DataGrid<TData>({
         </div>
       ) : null}
 
-      <div className="table-shell mb-0 max-w-full overflow-x-auto overscroll-x-contain rounded-xl border border-strong bg-[var(--table-surface-bg)] shadow-[var(--shadow-sm)]">
+      {mobileCards ? (
+        <div className="grid gap-2 md:hidden">
+          {loading ? <p className="text-muted p-3 text-sm">Cargando...</p> : errorMessage ? <p className="p-3 text-sm text-[var(--color-danger)]">{errorMessage}</p> : table.getRowModel().rows.length === 0 ? <p className="text-muted p-3 text-sm">{emptyMessage}</p> : table.getRowModel().rows.map((row) => {
+            const actionCell = row.getVisibleCells().find((cell) => cell.column.id === "actions");
+            const actions = actionCell ? flexRender(actionCell.column.columnDef.cell, actionCell.getContext()) : null;
+            return <div key={row.id}>{mobileCards(row.original, actions)}</div>;
+          })}
+        </div>
+      ) : null}
+      <div className={cn("table-shell mb-0 max-w-full overflow-x-auto overscroll-x-contain rounded-xl border border-strong bg-[var(--table-surface-bg)] shadow-[var(--shadow-sm)]", mobileCards ? "hidden md:block" : undefined)}>
         <table className="w-full min-w-full">
           <thead className="table-head bg-[var(--table-head-bg)]">
             {table.getHeaderGroups().map((headerGroup) => (
