@@ -8,7 +8,7 @@
  */
 
 /**
- * The seven allowed institution codes, mirroring
+ * The ten allowed institution codes, mirroring
  * `GastosApp.BusinessLogic/Models/Investments/InvestmentInstitutions.cs`,
  * `lib/contracts/investment-institutions.ts` and the PostgreSQL CHECK
  * `ck_investment_products_institution`. Free text is rejected here and on the server.
@@ -20,7 +20,10 @@ const INSTITUTION_CODES: ReadonlySet<string> = new Set([
   "klar",
   "finsus",
   "didi",
-  "mercado_libre"
+  "mercado_libre",
+  "openbank",
+  "mifel",
+  "otra"
 ]);
 
 export function isAllowedInstitution(value: unknown): boolean {

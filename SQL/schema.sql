@@ -1142,7 +1142,7 @@ CREATE TABLE IF NOT EXISTS investment_products (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     created_by VARCHAR(100), updated_by VARCHAR(100),
     CONSTRAINT ck_investment_products_institution
-        CHECK (institution IN ('revolut', 'cetes', 'nu', 'klar', 'finsus', 'didi', 'mercado_libre'))
+        CHECK (institution IN ('revolut', 'cetes', 'nu', 'klar', 'finsus', 'didi', 'mercado_libre', 'openbank', 'mifel', 'otra'))
 );
 CREATE INDEX IF NOT EXISTS idx_investment_products_user_active ON investment_products(user_id, active);
 CREATE UNIQUE INDEX IF NOT EXISTS ux_investment_products_active_account ON investment_products(user_id, account_id) WHERE active;

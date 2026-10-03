@@ -27,7 +27,7 @@ financial advice.
 
 ## Institution catalog
 
-The institution is a controlled **code**, never free text. Seven codes exist in V1:
+The institution is a controlled **code**, never free text. Ten codes exist in V1. `otra` is a controlled option labeled "Otra", not permission to send free text:
 
 | Code | Label |
 |---|---|
@@ -38,20 +38,31 @@ The institution is a controlled **code**, never free text. Seven codes exist in 
 | `finsus` | Finsus |
 | `didi` | DiDi |
 | `mercado_libre` | Mercado Libre |
+| `openbank` | Openbank |
+| `mifel` | Mifel |
+| `otra` | Otra |
 
-The catalog is enforced in four layers that must stay in sync:
+The catalog is enforced at these boundaries, which must stay in sync:
 
 | Layer | Location |
 |---|---|
 | Domain constants + validation | `GastosApp.BusinessLogic/Models/Investments/InvestmentInstitutions.cs` |
 | Server normalization | `InvestmentInstitutions.Normalize` (called by create/update) |
-| PostgreSQL CHECK | `ck_investment_products_institution` in `SQL/schema.sql` and `SQL/migrations/2026-09-29_fixed_income_investments_v1.sql` |
+| PostgreSQL CHECK | `ck_investment_products_institution` in `SQL/schema.sql` and `SQL/migrations/2026-10-03_investment_institution_codes.sql` |
 | Frontend select | `GastosApp.Web/lib/contracts/investment-institutions.ts` |
+| Frontend form validation | `GastosApp.Web/app/(app)/investments/_lib/investment-form-model.ts` |
 
 `Normalize` trims, lowercases and folds spaces/hyphens to underscores, so input such as `Mercado
 Libre` or `MERCADO-LIBRE` resolves to `mercado_libre`; anything that does not resolve to one of the
-seven codes is rejected with `400`. The stored value is always the canonical lowercase code, and
+ten codes is rejected with `400`. The stored value is always the canonical lowercase code, and
 responses expose both the code (`institution`) and a human-readable `institutionLabel`.
+
+Existing databases require `SQL/migrations/2026-10-03_investment_institution_codes.sql` after the
+original `2026-09-29_fixed_income_investments_v1.sql` migration, before accepting the new codes.
+The new migration transactionally replaces the named CHECK, can be reapplied, and does not rewrite
+products or historical snapshots. Constraint replacement locks the table and validates existing rows;
+plan an authorized deployment window. New databases use the expanded CHECK in `SQL/schema.sql`.
+The historical V1 migration retains its original seven-code catalog and is not a downgrade script.
 
 ## Offer capture, validity and inferred validity
 

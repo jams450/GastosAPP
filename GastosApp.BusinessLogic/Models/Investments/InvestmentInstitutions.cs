@@ -14,6 +14,9 @@ public static class InvestmentInstitutions
     public const string Finsus = "finsus";
     public const string Didi = "didi";
     public const string MercadoLibre = "mercado_libre";
+    public const string Openbank = "openbank";
+    public const string Mifel = "mifel";
+    public const string Otra = "otra";
 
     public static readonly IReadOnlyList<string> AllowedCodes =
     [
@@ -23,7 +26,10 @@ public static class InvestmentInstitutions
         Klar,
         Finsus,
         Didi,
-        MercadoLibre
+        MercadoLibre,
+        Openbank,
+        Mifel,
+        Otra
     ];
 
     /// <summary>Human-readable label for a canonical code. Falls back to the raw value for legacy rows.</summary>
@@ -36,6 +42,9 @@ public static class InvestmentInstitutions
         Finsus => "Finsus",
         Didi => "DiDi",
         MercadoLibre => "Mercado Libre",
+        Openbank => "Openbank",
+        Mifel => "Mifel",
+        Otra => "Otra",
         _ => code ?? string.Empty
     };
 
@@ -43,7 +52,7 @@ public static class InvestmentInstitutions
 
     /// <summary>
     /// Normalizes caller input to the canonical lowercase code. Case, padding, spaces and hyphens are
-    /// folded, but the value must still resolve to one of the seven catalog codes.
+    /// folded, but the value must still resolve to one of the ten catalog codes.
     /// </summary>
     public static string Normalize(string? value, string name = "Institution")
     {

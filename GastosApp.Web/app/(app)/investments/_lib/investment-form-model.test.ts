@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
+  INVESTMENT_INSTITUTIONS,
+  institutionLabel,
+  isInvestmentInstitutionCode
+} from "../../../../lib/contracts/investment-institutions.ts";
+import {
   eligibleLinkAccounts,
   emptyOffer,
   emptyProductForm,
@@ -34,16 +39,40 @@ function validForm(overrides: Partial<ProductFormValues> = {}): ProductFormValue
   };
 }
 
-test("the institution catalog accepts exactly the seven V1 codes", () => {
-  for (const code of ["revolut", "cetes", "nu", "klar", "finsus", "didi", "mercado_libre"]) {
+test("the institution catalog and form accept exactly the ten V1 codes in order", () => {
+  const expected = [
+    { code: "revolut", label: "Revolut" },
+    { code: "cetes", label: "CETES" },
+    { code: "nu", label: "Nu" },
+    { code: "klar", label: "Klar" },
+    { code: "finsus", label: "Finsus" },
+    { code: "didi", label: "DiDi" },
+    { code: "mercado_libre", label: "Mercado Libre" },
+    { code: "openbank", label: "Openbank" },
+    { code: "mifel", label: "Mifel" },
+    { code: "otra", label: "Otra" }
+  ];
+  assert.deepEqual(INVESTMENT_INSTITUTIONS, expected);
+  for (const { code, label } of expected) {
     assert.equal(isAllowedInstitution(code), true, `${code} debe ser válido`);
+    assert.equal(isInvestmentInstitutionCode(code), true);
+    assert.equal(institutionLabel(code), label);
   }
 
   // Free text and near-misses must be rejected: the server enforces the same list.
-  for (const value of ["Nu", "nu ", "banco_nu", "mercado libre", "", null, undefined, 42]) {
+  for (const value of ["Nu", "nu ", "banco_nu", "mercado libre", "Openbank", "mifel ", "Otra", "otro", "", null, undefined, 42]) {
     assert.equal(isAllowedInstitution(value), false, `${String(value)} debe ser inválido`);
+    assert.equal(isInvestmentInstitutionCode(value), false);
   }
 });
+
+for (const institution of ["openbank", "mifel", "otra"]) {
+  test(`${institution} produces a valid form and preserves its payload code`, () => {
+    const form = validForm({ institution });
+    assert.deepEqual(validateProductForm(form), {});
+    assert.equal(toProductPayload(form).institution, institution);
+  });
+}
 
 test("validateProductForm rejects a free-text institution", () => {
   assert.equal(validateProductForm(validForm()).institution, undefined);
