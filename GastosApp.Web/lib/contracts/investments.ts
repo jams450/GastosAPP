@@ -327,3 +327,73 @@ export function normalizePlanProjection(input: unknown): InvestmentPlanProjectio
     exclusions: asArray(input.exclusions).map(normalizeExclusion)
   };
 }
+
+/**
+ * Rendimiento mensual esperado de renta fija para un periodo (`yyyy-MM`).
+ *
+ * Es una lectura de la serie generada por el backend, no un cálculo del frontend: el interés
+ * compuesto sin aportaciones vive en `InvestmentCalculator` y aquí solo se consume tal cual.
+ * El importe es un **supuesto de proyección, nunca un ingreso real**: por eso viaja en una línea
+ * aparte y jamás se mezcla con `committedIncome`/`executedIncome` del plan.
+ */
+export type ExpectedInvestmentIncome = {
+  period: string;
+  expectedInterest: number;
+  allocationCount: number;
+  hasPlan: boolean;
+};
+
+/** `null` ante un payload inutilizable para que el lector muestre un estado explícito. */
+export function normalizeExpectedInvestmentIncome(input: unknown): ExpectedInvestmentIncome | null {
+  if (!isRecord(input)) return null;
+  const period = asString(input.period);
+  if (!MONTH_PATTERN.test(period)) return null;
+
+  const allocationCount = asInt(input.allocationCount);
+
+  return {
+    period,
+    expectedInterest: asNumber(input.expectedInterest),
+    allocationCount: allocationCount < 0 ? 0 : allocationCount,
+    hasPlan: input.hasPlan === true
+  };
+}
+
+function roundExpectedMoney(value: number): number {
+  return Math.round(value * 100) / 100;
+}
+
+/**
+ * Suma el `interest` de la serie del backend para `period`, asignación por asignación.
+ *
+ * Solo cuentan las filas cuyo `month` es exactamente el periodo pedido y cuyo interés es finito:
+ * una fila no numérica (`NaN` tras normalizar) no aporta ni se cuenta como asignación, en vez de
+ * contaminar la suma. `allocationCount` es la cantidad de asignaciones que aportan a ese mes, no
+ * el total del plan, para que el conteo sea coherente con la suma que acompaña.
+ */
+export function sumExpectedInvestmentIncome(
+  projection: InvestmentPlanProjection,
+  period: string
+): { expectedInterest: number; allocationCount: number } {
+  let total = 0;
+  let allocationCount = 0;
+
+  for (const allocation of projection.allocations) {
+    let contributes = false;
+
+    for (const row of allocation.projection) {
+      if (row.month !== period || !Number.isFinite(row.interest)) {
+        continue;
+      }
+
+      total += row.interest;
+      contributes = true;
+    }
+
+    if (contributes) {
+      allocationCount += 1;
+    }
+  }
+
+  return { expectedInterest: roundExpectedMoney(total), allocationCount };
+}

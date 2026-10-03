@@ -24,6 +24,7 @@ import {
   type BudgetPeriodStatus
 } from "@/lib/contracts/budgets";
 import { normalizePlanSummary, type PlanSummary } from "@/lib/contracts/plan";
+import { normalizeExpectedInvestmentIncome, type ExpectedInvestmentIncome } from "@/lib/contracts/investments";
 import { csrfFetch } from "@/lib/security/csrf-client";
 
 export type BudgetScopeType = "category" | "subcategory";
@@ -181,6 +182,25 @@ export async function fetchPlanSummary(period: string): Promise<PlanSummary> {
   }
 
   return summary;
+}
+
+/**
+ * Rendimientos esperados de renta fija del periodo. El BFF ya suma la serie del backend para el
+ * mes pedido; aquí solo se valida la forma, igual que `fetchPlanSummary`. Es una lectura
+ * secundaria del bloque de ingresos: si falla, el bloque se muestra sin rendimientos.
+ */
+export async function fetchExpectedInvestmentIncome(period: string): Promise<ExpectedInvestmentIncome> {
+  const response = await fetch(`/api/bff/investments/expected-income?period=${encodeURIComponent(period)}`, { cache: "no-store" });
+  if (!response.ok) {
+    throw await parseApiError(response, "No se pudieron cargar los rendimientos esperados");
+  }
+
+  const income = normalizeExpectedInvestmentIncome(await response.json().catch(() => null));
+  if (!income) {
+    throw new Error("Los rendimientos esperados recibidos no son utilizables");
+  }
+
+  return income;
 }
 
 export function fetchAlertDeliveries(period: string): Promise<AlertDelivery[]> {

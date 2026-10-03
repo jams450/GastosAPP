@@ -35,6 +35,7 @@ import type { BudgetItem } from "@/lib/contracts/budget-items";
 import type { RecurringItem } from "@/lib/contracts/recurring-items";
 import { AlertsHistoryPanel } from "./_components/alerts-history-panel";
 import { BudgetFormDrawer } from "./_components/budget-form-drawer";
+import { BudgetIncomeBlock } from "./_components/budget-income-block";
 import { BudgetItemFormDrawer } from "./_components/budget-item-form-drawer";
 import { BudgetItemsPanel } from "./_components/budget-items-panel";
 import { BudgetTemplatesPanel } from "./_components/budget-templates-panel";
@@ -50,6 +51,7 @@ import { useBudgetItemForm } from "./_hooks/use-budget-item-form";
 import { useBudgetItemSuggestions } from "./_hooks/use-budget-item-suggestions";
 import { useBudgetItems } from "./_hooks/use-budget-items";
 import { useBudgetTemplates } from "./_hooks/use-budget-templates";
+import { usePlanIncome } from "./_hooks/use-plan-income";
 import { useBudgetsAdmin, type BudgetRow } from "./_hooks/use-budgets-admin";
 import { useBudgetsToasts } from "./_hooks/use-budgets-toasts";
 
@@ -138,6 +140,16 @@ export function BudgetsClient() {
     error: suggestionsError,
     reload: reloadSuggestions
   } = useBudgetItemSuggestions(period, tab === "sugerencias");
+  // Bloque de ingresos del Resumen: presupuestado vs real más rendimientos esperados como línea
+  // aparte. Solo se pide con el Resumen visible; el periodo es el mismo de todo el módulo.
+  const {
+    income: planIncome,
+    expected: expectedIncome,
+    expectedError: expectedIncomeError,
+    loading: planIncomeLoading,
+    error: planIncomeError,
+    reload: reloadPlanIncome
+  } = usePlanIncome(period, tab === "resumen");
   const {
     openForm: openItemForm,
     editing: editingItem,
@@ -416,6 +428,22 @@ export function BudgetsClient() {
         {tab === "resumen" ? (
           <div id="budgets-panel-resumen" role="tabpanel" aria-labelledby="budgets-tab-resumen" className="space-y-3">
             {loading ? <BudgetsKpisSkeleton /> : <BudgetsKpis totals={totals} periodLabel={periodLabel} />}
+            {/*
+              Ingresos debajo de los KPIs de gasto y encima del callout de remontar: las dos
+              lecturas del resumen quedan adyacentes, y la acción condicional (que solo existe sin
+              presupuestos) queda pegada al grid al que afecta. Fuera del grid por decisión
+              fundacional: los ingresos no caben en `budgets`.
+            */}
+            <BudgetIncomeBlock
+              income={planIncome}
+              expected={expectedIncome}
+              expectedError={expectedIncomeError}
+              loading={planIncomeLoading}
+              error={planIncomeError}
+              onRetry={() => void reloadPlanIncome()}
+              period={period}
+              periodLabel={periodLabel}
+            />
             {showRollover && rolloverSource ? (
               <BudgetsRolloverCallout
                 period={period}
