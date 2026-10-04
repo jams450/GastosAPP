@@ -6,6 +6,10 @@ using GastosApp.BusinessLogic.Services.Catalog;
 using GastosApp.Models.Entities;
 using Microsoft.Extensions.Logging.Abstractions;
 
+await TelegramFinancialQueryTests.RunAsync();
+await TelegramBudgetQueryTests.RunAsync();
+await TelegramAlertQueryTests.RunAsync();
+
 var checks = 0;
 void Check(bool condition, string name)
 {
