@@ -1,9 +1,12 @@
-import { useId, useState } from "react";
-import type { ColumnDef } from "@tanstack/react-table";
+import { useId, useState, type ReactNode } from "react";
+import { flexRender, type ColumnDef } from "@tanstack/react-table";
 import { DataGrid } from "@/components/data-grid/data-grid";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { formatCurrency } from "@/lib/format/currency";
+import { dateTimeLocalDisplay } from "../../_lib/transactions-utils";
+import { historyTypeLabel, type TransactionHistoryItem } from "../../_lib/transactions-types";
 import type { CategoryType } from "@/lib/contracts/categories";
 
 type FilterType = "all" | CategoryType;
@@ -18,6 +21,38 @@ type HistoryFilters = {
   accountId: number | "all";
   categoryId: number | "all";
 };
+
+function renderTransactionCard(item: TransactionHistoryItem, actions: ReactNode, columns: ColumnDef<unknown>[]) {
+  const value = (id: string) => {
+    const column = columns.find((candidate) => candidate.id === id || ("accessorKey" in candidate && candidate.accessorKey === id));
+    const cell = column?.cell;
+    if (!column || !cell || typeof cell !== "function") return "—";
+    const context = {
+      row: { original: item },
+      getValue: () => (item as unknown as Record<string, unknown>)[id],
+      renderValue: () => (item as unknown as Record<string, unknown>)[id]
+    } as never;
+    return flexRender(cell, context);
+  };
+
+  return (
+    <article className="app-panel grid gap-2 rounded-xl p-3 text-sm">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="truncate font-semibold text-primary">{item.description || historyTypeLabel[item.type]}</p>
+          <p className="text-muted mt-1 text-xs">{dateTimeLocalDisplay(item.transactionDate)} · {item.accountName}</p>
+        </div>
+        <span className="shrink-0 font-semibold tabular-nums">{item.type === "income" ? "+" : item.type === "expense" || item.type === "opening_credit" ? "−" : ""}{formatCurrency(Math.abs(item.amount))}</span>
+      </div>
+      <p className="text-muted text-xs">{historyTypeLabel[item.type]} · {value("categoryId")} · {value("subcategoryId")} · {value("merchantId")}</p>
+      {item.type === "expense" && item.allocations.length ? <p className="text-muted text-xs">¿Alguien más paga?: {value("sharedExpense")}</p> : null}
+      {item.tags.length ? <p className="text-muted text-xs">Etiquetas: {item.tags.join(", ")}</p> : null}
+      {item.type === "expense" && item.creditMonths !== null ? <p className="text-muted text-xs">{item.creditMonths} meses · {item.creditRemainingAmount === null ? "—" : `Pendiente ${formatCurrency(item.creditRemainingAmount)}`} · {item.creditStatus ?? "Pendiente"}</p> : null}
+      {item.allocations.length ? <p className="text-muted text-xs">{item.allocations.map((allocation) => `${allocation.billablePartyName}: ${formatCurrency(allocation.calculatedAmount)}`).join(" · ")}</p> : null}
+      <div className="flex flex-wrap gap-2 border-t border-[var(--color-border)] pt-2 [&_button]:min-h-9">{actions}</div>
+    </article>
+  );
+}
 
 type Props = {
   historyMonth: string;
@@ -190,6 +225,7 @@ export function HistoryPanel({
               density="compact"
               loading={historyLoading}
               stickyActionsColumn
+              mobileCards={(item, actions) => renderTransactionCard(item as TransactionHistoryItem, actions, historyColumns)}
               enableGlobalFilter
               globalFilterPlaceholder="Buscar transacciones..."
               emptyMessage={hasActiveFilters ? "Sin resultados con filtros actuales" : "No hay transacciones normales en este mes"}

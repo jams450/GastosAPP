@@ -9,7 +9,7 @@ export default async function DashboardPage() {
 
   return (
     <>
-      <PageHeader section="Panel principal" title="Dashboard" subtitle="Resumen, efectivo, crédito y proyección" />
+      <PageHeader section="Panel principal" title="Dashboard" />
       <AccountsOverview />
     </>
   );
