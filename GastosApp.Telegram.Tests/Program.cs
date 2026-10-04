@@ -2,6 +2,7 @@ using System.Reflection;
 using GastosApp.AI.Intent;
 using GastosApp.API.Services.Telegram;
 using GastosApp.BusinessLogic.Interfaces;
+using GastosApp.BusinessLogic.Services.Catalog;
 using GastosApp.Models.Entities;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -11,6 +12,42 @@ void Check(bool condition, string name)
     if (!condition) throw new Exception(name);
     checks++;
 }
+var catalogAccounts = new[]
+{
+    new Account { AccountId = 1, Name = "Cuenta principal ahorro" },
+    new Account { AccountId = 2, Name = "Cuenta principal" }
+};
+foreach (var (input, expected) in new[]
+{
+    ("Cuenta principal", catalogAccounts[1]),
+    ("Cuenta principal ahorro", catalogAccounts[0]),
+    ("  CUÉNTA\t PRINCIPÁL  ", catalogAccounts[1])
+})
+{
+    var match = CatalogNameMatcher.Match(input, catalogAccounts, account => account.Name);
+    Check(ReferenceEquals(match.Value, expected) && match.Score == 1.0 && match.Suggestions.Count == 0,
+        $"Unique normalized exact account resolves: {input}");
+}
+var duplicateAccounts = new[]
+{
+    new Account { AccountId = 3, Name = "  CUÉNTA  PRINCIPÁL " },
+    catalogAccounts[0],
+    catalogAccounts[1]
+};
+var duplicateMatch = CatalogNameMatcher.Match("Cuenta principal", duplicateAccounts, account => account.Name);
+Check(duplicateMatch.Value is null && duplicateMatch.Score == 1.0 &&
+    duplicateMatch.Suggestions.SequenceEqual(new[] { duplicateAccounts[0], catalogAccounts[1], catalogAccounts[0] }),
+    "Duplicate normalized exact accounts remain ambiguous with ranked suggestions");
+var fuzzyMatch = CatalogNameMatcher.Match("Cuenta prin", catalogAccounts, account => account.Name);
+Check(fuzzyMatch.Value is null && fuzzyMatch.Score == 0.92 &&
+    fuzzyMatch.Suggestions.SequenceEqual(new[] { catalogAccounts[1], catalogAccounts[0] }),
+    "Fuzzy prefix tie remains ambiguous with name-ordered suggestions");
+var fuzzyUniqueMatch = CatalogNameMatcher.Match("Cuenta principa", new[] { catalogAccounts[1] }, account => account.Name);
+Check(ReferenceEquals(fuzzyUniqueMatch.Value, catalogAccounts[1]) && fuzzyUniqueMatch.Score == 0.92,
+    "Unique confident fuzzy account still resolves");
+var weakMatch = CatalogNameMatcher.Match("xyz", catalogAccounts, account => account.Name);
+Check(weakMatch.Value is null && weakMatch.Score < CatalogNameMatcher.AutoMatchThreshold,
+    "Low-confidence account remains unresolved");
 IntentResult State(IntentKind kind = IntentKind.RegistrarGasto) => new(kind, null, null, null, null, null, null, null, null, null);
 var store = new DraftStore();
 var repository = Stub<IRepository>.Create((m, a) => m.Name switch

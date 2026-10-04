@@ -48,8 +48,10 @@ public static class CatalogNameMatcher
         var best = scored[0];
         var second = scored.Count > 1 ? scored[1].Score : 0d;
 
-        var autoResolve = best.Score >= AutoMatchThreshold
-            && (second < AutoMatchThreshold || best.Score - second >= ClearLeadGap);
+        // Una coincidencia normalizada exacta tiene prioridad; dos exactas siguen siendo ambiguas.
+        var uniqueExactMatch = best.Score == 1.0 && second < 1.0;
+        var autoResolve = uniqueExactMatch || (best.Score >= AutoMatchThreshold
+            && (second < AutoMatchThreshold || best.Score - second >= ClearLeadGap));
 
         if (autoResolve)
         {
