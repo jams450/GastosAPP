@@ -10,4 +10,5 @@ public sealed record IntentResult(
     DateOnly? Fecha,
     TimeOnly? Hora,
     string? Descripcion,
-    string? PreguntaAclaratoria);
+    string? PreguntaAclaratoria,
+    bool NewMovement = false);

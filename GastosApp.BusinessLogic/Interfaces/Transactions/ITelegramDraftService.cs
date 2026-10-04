@@ -17,10 +17,10 @@ public interface ITelegramDraftService
 
     Task<TelegramDraft?> GetAsync(Guid draftId, CancellationToken cancellationToken = default);
 
-    Task<TelegramDraft?> GetPendingAsync(long chatId, CancellationToken cancellationToken = default);
+    Task<TelegramDraft?> GetPendingAsync(long chatId, int identityId, CancellationToken cancellationToken = default);
 
     /// <summary>Cancela el borrador pendiente del chat. Devuelve <c>true</c> si había algo que cancelar.</summary>
-    Task<bool> CancelAsync(long chatId, CancellationToken cancellationToken = default);
+    Task<bool> CancelAsync(long chatId, int identityId, CancellationToken cancellationToken = default);
 
     /// <summary>Marca <c>expired</c> los borradores pendientes con TTL vencido. Devuelve cuántos afectó.</summary>
     Task<int> ExpireStaleAsync(DateTime utcNow, CancellationToken cancellationToken = default);

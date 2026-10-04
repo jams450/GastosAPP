@@ -32,7 +32,7 @@ public class TelegramDraftService : ITelegramDraftService
             throw new ArgumentException("El chat de Telegram es obligatorio.", nameof(draft));
         }
 
-        if (draft.Amount <= 0)
+        if (draft.Amount is <= 0)
         {
             throw new ArgumentException("El monto del borrador debe ser mayor a cero.", nameof(draft));
         }
@@ -46,7 +46,7 @@ public class TelegramDraftService : ITelegramDraftService
         draft.Status = TelegramDraftStatus.Pending;
         draft.Intent = string.IsNullOrWhiteSpace(draft.Intent) ? TelegramDraftIntent.Expense : draft.Intent;
         draft.Source = string.IsNullOrWhiteSpace(draft.Source) ? TelegramDraftSource.Manual : draft.Source;
-        draft.TransactionDate = _validation.EnsureUtc(draft.TransactionDate);
+        draft.TransactionDate = draft.TransactionDate is { } date ? _validation.EnsureUtc(date) : null;
         draft.ExpiresAt = draft.ExpiresAt == default || draft.ExpiresAt <= now
             ? now + DefaultTtl
             : _validation.EnsureUtc(draft.ExpiresAt);
@@ -62,7 +62,7 @@ public class TelegramDraftService : ITelegramDraftService
 
             // Un solo borrador pendiente por chat: el más reciente reemplaza al anterior.
             await _repository.GetTrack<TelegramDraft>()
-                .Where(d => d.ChatId == draft.ChatId && d.Status == TelegramDraftStatus.Pending)
+                .Where(d => d.ChatId == draft.ChatId && d.TelegramIdentityId == draft.TelegramIdentityId && d.Status == TelegramDraftStatus.Pending)
                 .ExecuteUpdateAsync(s => s
                     .SetProperty(d => d.Status, TelegramDraftStatus.Cancelled)
                     .SetProperty(d => d.Updated, (DateTime?)now), cancellationToken);
@@ -78,18 +78,18 @@ public class TelegramDraftService : ITelegramDraftService
         return await _repository.GetByIdAsync<TelegramDraft>(draftId);
     }
 
-    public async Task<TelegramDraft?> GetPendingAsync(long chatId, CancellationToken cancellationToken = default)
+    public async Task<TelegramDraft?> GetPendingAsync(long chatId, int identityId, CancellationToken cancellationToken = default)
     {
-        return await _repository.Get<TelegramDraft>(d => d.ChatId == chatId && d.Status == TelegramDraftStatus.Pending)
+        return await _repository.Get<TelegramDraft>(d => d.ChatId == chatId && d.TelegramIdentityId == identityId && d.Status == TelegramDraftStatus.Pending)
             .OrderByDescending(d => d.ExpiresAt)
             .FirstOrDefaultAsync(cancellationToken);
     }
 
-    public async Task<bool> CancelAsync(long chatId, CancellationToken cancellationToken = default)
+    public async Task<bool> CancelAsync(long chatId, int identityId, CancellationToken cancellationToken = default)
     {
         var now = DateTime.UtcNow;
         var affected = await _repository.GetTrack<TelegramDraft>()
-            .Where(d => d.ChatId == chatId && d.Status == TelegramDraftStatus.Pending)
+            .Where(d => d.ChatId == chatId && d.TelegramIdentityId == identityId && d.Status == TelegramDraftStatus.Pending)
             .ExecuteUpdateAsync(s => s
                 .SetProperty(d => d.Status, TelegramDraftStatus.Cancelled)
                 .SetProperty(d => d.Updated, (DateTime?)now), cancellationToken);
@@ -121,7 +121,7 @@ public class TelegramDraftService : ITelegramDraftService
     {
         ArgumentNullException.ThrowIfNull(createExpense);
 
-        return await _repository.ExecuteInTransactionAsync(async () =>
+        return await _repository.ExecuteTelegramConfirmationAsync(async () =>
         {
             var draft = await _repository.LockTelegramDraftAsync(draftId);
             if (draft == null || draft.ChatId != chatId)
@@ -144,6 +144,10 @@ public class TelegramDraftService : ITelegramDraftService
 
             // El callback debe usar ITransactionService: reutiliza esta misma transacción
             // (IRepository.ExecuteInTransactionAsync detecta CurrentTransaction).
+            if (draft.Amount is not > 0 || draft.TransactionDate is null || draft.AccountId is null || draft.CategoryId is null
+                || (draft.StructuredState is not null && !draft.SummaryReady))
+                throw new InvalidOperationException("The draft is incomplete or has not been summarized.");
+
             var transaction = await createExpense(draft);
             if (transaction == null)
             {

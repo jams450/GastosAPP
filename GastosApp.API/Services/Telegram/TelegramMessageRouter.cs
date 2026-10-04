@@ -1,4 +1,5 @@
 using GastosApp.AI.Configuration;
+using GastosApp.BusinessLogic.Interfaces;
 using GastosApp.AI.Intent;
 using GastosApp.API.Extensions;
 using GastosApp.Models.Entities;
@@ -24,6 +25,8 @@ public sealed class TelegramMessageRouter
     private const string GenericMessage =
         "No pude interpretar el mensaje. Puedes usar /gasto <monto>; <cuenta>; <categoría> o /ingreso <monto>; <cuenta>; <categoría>, o pedir un resumen de tus finanzas.";
 
+    private readonly TelegramConversationService _conversation;
+    private readonly IRepository _repository;
     private readonly TelegramTransactionService _expenses;
     private readonly TelegramQueryService _queries;
     private readonly IExpenseIntentExtractor _extractor;
@@ -32,27 +35,45 @@ public sealed class TelegramMessageRouter
 
     public TelegramMessageRouter(
         TelegramTransactionService expenses,
+        TelegramConversationService conversation,
+        IRepository repository,
         TelegramQueryService queries,
         IExpenseIntentExtractor extractor,
         IOptions<LlmOptions> llm,
         ILogger<TelegramMessageRouter> logger)
     {
         _expenses = expenses;
+        _conversation = conversation;
+        _repository = repository;
         _queries = queries;
         _extractor = extractor;
         _llm = llm;
         _logger = logger;
     }
 
-    public Task<string> RouteAsync(string text, TelegramIdentity identity, CancellationToken cancellationToken)
-    {
-        var command = TelegramCommandParser.Parse(text);
-        return command.Kind == TelegramCommandKind.None
-            ? HandleFreeTextAsync(text, identity, cancellationToken)
-            : _expenses.ExecuteCommandAsync(command, identity, cancellationToken);
-    }
+    public Task<string> RouteAsync(string text, TelegramIdentity identity, CancellationToken cancellationToken) =>
+        _repository.ExecuteInTransactionAsync(async () =>
+        {
+            await _repository.LockTelegramIdentityAsync(identity.TelegramIdentityId);
+            var pending = await _conversation.PendingAsync(identity, cancellationToken);
+            var limit = await _conversation.CountAsync(pending);
+            if (limit is not null) return limit;
+            if (text.Length > TelegramConversationService.MaxInputLength)
+                return "El mensaje excede el límite de 2000 caracteres. Reduce el texto.";
+            var command = TelegramCommandParser.Parse(text);
+            // The parser ignores slash-command arguments. Confirmation must be standalone:
+            // never save an old summary when this message also contains a correction.
+            if (command.Kind == TelegramCommandKind.Confirm &&
+                text.Trim().Any(char.IsWhiteSpace))
+                return "Envía /confirmar o sí sin texto adicional. Envía la corrección por separado y revisa el nuevo resumen antes de confirmar.";
+            if (pending is not null && command.Kind is TelegramCommandKind.Expense or TelegramCommandKind.Income)
+                return "Ya hay un borrador pendiente. Corrígelo con texto libre o usa /cancelar.";
+            return command.Kind == TelegramCommandKind.None
+                ? await HandleFreeTextAsync(text, identity, pending, cancellationToken)
+                : await _expenses.ExecuteCommandAsync(command, identity, cancellationToken);
+        });
 
-    private async Task<string> HandleFreeTextAsync(string text, TelegramIdentity identity, CancellationToken cancellationToken)
+    private async Task<string> HandleFreeTextAsync(string text, TelegramIdentity identity, TelegramDraft? pending, CancellationToken cancellationToken)
     {
         // Sin configuración LLM usable: comandos manuales siguen funcionando y el texto libre responde genérico.
         if (!TelegramConfigurationExtensions.IsLlmUsable(_llm.Value))
@@ -76,20 +97,16 @@ public sealed class TelegramMessageRouter
                 categories.Select(c => c.Name).Take(MaxCatalogNames).ToList(),
                 incomeCategories.Select(c => c.Name).Take(MaxCatalogNames).ToList(),
                 subcategories.Select(s => s.Name).Take(MaxCatalogNames).ToList(),
-                merchants.Select(m => m.Name).Take(MaxCatalogNames).ToList());
+                merchants.Select(m => m.Name).Take(MaxCatalogNames).ToList(),
+                TelegramConversationService.Read(pending));
 
             var intent = await _extractor.ExtractAsync(request, cancellationToken);
 
+            if (pending is not null || intent.Kind is IntentKind.RegistrarGasto or IntentKind.RegistrarIngreso)
+                return await _conversation.ApplyAsync(intent, identity, pending, cancellationToken);
+
             switch (intent.Kind)
             {
-                case IntentKind.RegistrarGasto:
-                    return await _expenses.HandleExpenseIntentAsync(
-                        intent, identity, accounts, categories, subcategories, merchants, cancellationToken);
-
-                case IntentKind.RegistrarIngreso:
-                    return await _expenses.HandleIncomeIntentAsync(
-                        intent, identity, accounts, incomeCategories, subcategories, merchants, cancellationToken);
-
                 case IntentKind.Consulta:
                     return await _queries.ConsultaAsync(text, identity, cancellationToken);
 
@@ -105,7 +122,7 @@ public sealed class TelegramMessageRouter
         {
             // Nunca se loguea el cuerpo del mensaje ni el prompt: solo el tipo de error.
             _logger.LogWarning("Telegram free text handling failed: {ErrorType}", exception.GetType().Name);
-            return GenericMessage;
+            throw;
         }
     }
 }

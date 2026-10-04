@@ -227,8 +227,18 @@ namespace GastosApp.BusinessLogic.Context
             {
                 // UUID generado en C#: nunca por la base de datos.
                 entity.Property(e => e.DraftId).ValueGeneratedNever();
-                // Un solo borrador pendiente por chat (índice parcial).
-                entity.HasIndex(e => e.ChatId).IsUnique().HasFilter("status = 'pending'");
+                // One pending conversation per authorized identity and chat.
+                entity.HasIndex(e => new { e.TelegramIdentityId, e.ChatId }).IsUnique()
+                    .HasDatabaseName("uq_telegram_expense_drafts_pending_chat").HasFilter("status = 'pending'");
+                entity.Property(e => e.MessageCount).HasDefaultValue(0);
+                entity.Property(e => e.SummaryReady).HasDefaultValue(false);
+                entity.ToTable("telegram_expense_drafts", table =>
+                {
+                    table.HasCheckConstraint("telegram_expense_drafts_amount_check", "amount IS NULL OR amount > 0");
+                    table.HasCheckConstraint("telegram_expense_drafts_message_count_check", "message_count BETWEEN 0 AND 20");
+                    table.HasCheckConstraint("telegram_expense_drafts_state_check", "structured_state IS NULL OR length(structured_state) <= 4096");
+                    table.HasCheckConstraint("telegram_expense_drafts_confirmed_complete_check", "status <> 'confirmed' OR (amount IS NOT NULL AND transaction_date IS NOT NULL AND account_id IS NOT NULL AND category_id IS NOT NULL)");
+                });
                 entity.HasIndex(e => e.ExpiresAt);
                 entity.HasIndex(e => new { e.TelegramIdentityId, e.Status });
                 entity.HasOne(e => e.TelegramIdentity).WithMany().HasForeignKey(e => e.TelegramIdentityId).OnDelete(DeleteBehavior.Cascade);

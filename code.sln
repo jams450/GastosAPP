@@ -1,4 +1,4 @@
-Microsoft Visual Studio Solution File, Format Version 12.00
+﻿Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.5.2.0
 MinimumVisualStudioVersion = 10.0.40219.1
@@ -9,6 +9,8 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GastosApp.Models", "GastosApp.Models\GastosApp.Models.csproj", "{FB336144-FAED-936F-1C15-FD55EC02F4A3}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GastosApp.AI", "GastosApp.AI\GastosApp.AI.csproj", "{C4E5A9B0-1D2F-4E7A-9B3C-6F8D0E1A2B3C}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GastosApp.Telegram.Tests", "GastosApp.Telegram.Tests\GastosApp.Telegram.Tests.csproj", "{B1755BE7-EFB2-446C-93EA-E039D6AB990B}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -32,6 +34,10 @@ Global
 		{C4E5A9B0-1D2F-4E7A-9B3C-6F8D0E1A2B3C}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{C4E5A9B0-1D2F-4E7A-9B3C-6F8D0E1A2B3C}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{C4E5A9B0-1D2F-4E7A-9B3C-6F8D0E1A2B3C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B1755BE7-EFB2-446C-93EA-E039D6AB990B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B1755BE7-EFB2-446C-93EA-E039D6AB990B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B1755BE7-EFB2-446C-93EA-E039D6AB990B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B1755BE7-EFB2-446C-93EA-E039D6AB990B}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

@@ -33,6 +33,8 @@ namespace GastosApp.BusinessLogic.Interfaces
         Task LinkBancoppelImportedRowAsync(int accountId, string fingerprint, int transactionId);
         Task<bool> ClaimTelegramProcessedUpdateAsync(long updateId, int? telegramIdentityId, string status, DateTime claimedAt, Guid claimToken);
         Task<TelegramDraft?> LockTelegramDraftAsync(Guid draftId);
+        Task LockTelegramIdentityAsync(int identityId);
+        Task<TelegramProcessedUpdate?> LockTelegramProcessedUpdateAsync(long updateId);
 
         /// <summary>
         /// Lee la partida con <c>SELECT … FOR UPDATE</c> dentro de la transacción actual y la
@@ -114,6 +116,7 @@ namespace GastosApp.BusinessLogic.Interfaces
         Task LockTelegramDraftChatAsync(long chatId);
         Task<int> SaveChangesAsync();
         Task<T> ExecuteInTransactionAsync<T>(Func<Task<T>> operation);
+        Task<T> ExecuteTelegramConfirmationAsync<T>(Func<Task<T>> operation);
 
         /// <summary>
         /// <c>true</c> mientras haya una transacción SQL abierta en el contexto actual, incluida la

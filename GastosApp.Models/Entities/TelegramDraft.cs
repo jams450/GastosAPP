@@ -34,12 +34,10 @@ namespace GastosApp.Models.Entities
         public string Intent { get; set; } = TelegramDraftIntent.Expense;
 
         [Column("amount", TypeName = "decimal(15,2)")]
-        [Required]
-        public decimal Amount { get; set; }
+        public decimal? Amount { get; set; }
 
         [Column("transaction_date", TypeName = "timestamp with time zone")]
-        [Required]
-        public DateTime TransactionDate { get; set; }
+        public DateTime? TransactionDate { get; set; }
 
         [Column("account_id")]
         public int? AccountId { get; set; }
@@ -77,6 +75,16 @@ namespace GastosApp.Models.Entities
         [Required]
         [StringLength(20)]
         public string Source { get; set; } = TelegramDraftSource.Manual;
+
+        [Column("structured_state")]
+        [StringLength(4096)]
+        public string? StructuredState { get; set; }
+
+        [Column("message_count")]
+        public int MessageCount { get; set; }
+
+        [Column("summary_ready")]
+        public bool SummaryReady { get; set; }
 
         [Column("expires_at", TypeName = "timestamp with time zone")]
         [Required]

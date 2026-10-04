@@ -313,6 +313,21 @@ namespace GastosApp.BusinessLogic.Services
             return affected == 1;
         }
 
+        public async Task<TelegramProcessedUpdate?> LockTelegramProcessedUpdateAsync(long updateId)
+        {
+            return await _context.TelegramProcessedUpdates
+                .FromSqlInterpolated($"SELECT * FROM telegram_processed_updates WHERE update_id = {updateId} FOR UPDATE")
+                .SingleOrDefaultAsync();
+        }
+
+        public async Task LockTelegramIdentityAsync(int identityId)
+        {
+            // Serialize even the first message (there is no draft row yet).
+            await _context.TelegramIdentities
+                .FromSqlInterpolated($"SELECT * FROM telegram_identities WHERE telegram_identity_id = {identityId} FOR UPDATE")
+                .ToListAsync();
+        }
+
         public async Task<TelegramDraft?> LockTelegramDraftAsync(Guid draftId)
         {
             return await _context.TelegramDrafts
@@ -333,6 +348,27 @@ namespace GastosApp.BusinessLogic.Services
         }
 
         public bool IsInTransaction => _context.Database.CurrentTransaction != null;
+
+        public async Task<T> ExecuteTelegramConfirmationAsync<T>(Func<Task<T>> operation)
+        {
+            var transaction = _context.Database.CurrentTransaction;
+            if (transaction is null) return await ExecuteInTransactionAsync(operation);
+            const string savepoint = "telegram_confirmation";
+            await transaction.CreateSavepointAsync(savepoint);
+            try
+            {
+                var result = await operation();
+                await transaction.ReleaseSavepointAsync(savepoint);
+                return result;
+            }
+            catch
+            {
+                await transaction.RollbackToSavepointAsync(savepoint);
+                // Discard tracked balance/transaction changes that were rolled back.
+                _context.ChangeTracker.Clear();
+                throw;
+            }
+        }
 
         public async Task<T> ExecuteInTransactionAsync<T>(Func<Task<T>> operation)
         {

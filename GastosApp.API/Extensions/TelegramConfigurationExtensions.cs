@@ -9,6 +9,7 @@ public static class TelegramConfigurationExtensions
 {
     public static IServiceCollection AddApiTelegramConfiguration(this IServiceCollection services, IConfiguration configuration)
     {
+        services.AddScoped<GastosApp.API.Services.Telegram.TelegramConversationService>();
         var telegramSection = configuration.GetSection(TelegramOptions.SectionName);
         var llmSection = configuration.GetSection(LlmOptions.SectionName);
         var telegramEnabled = telegramSection.GetValue<bool>(nameof(TelegramOptions.Enabled));

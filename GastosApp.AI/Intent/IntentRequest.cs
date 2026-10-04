@@ -8,4 +8,5 @@ public sealed record IntentRequest(
     IReadOnlyList<string> Categorias,
     IReadOnlyList<string> CategoriasIngreso,
     IReadOnlyList<string> Subcategorias,
-    IReadOnlyList<string> Comercios);
+    IReadOnlyList<string> Comercios,
+    IntentResult? Draft = null);

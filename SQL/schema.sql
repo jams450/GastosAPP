@@ -392,8 +392,8 @@ CREATE TABLE telegram_expense_drafts (
     chat_id BIGINT NOT NULL,
     status VARCHAR(20) NOT NULL CHECK (status IN ('pending', 'confirmed', 'cancelled', 'expired')),
     intent VARCHAR(20) NOT NULL CHECK (intent IN ('expense', 'income')),
-    amount NUMERIC(15,2) NOT NULL CHECK (amount > 0),
-    transaction_date TIMESTAMPTZ NOT NULL,
+    amount NUMERIC(15,2) CONSTRAINT telegram_expense_drafts_amount_check CHECK (amount IS NULL OR amount > 0),
+    transaction_date TIMESTAMPTZ,
     account_id INT,
     category_id INT,
     subcategory_id INT,
@@ -404,6 +404,12 @@ CREATE TABLE telegram_expense_drafts (
     raw_merchant_name VARCHAR(150),
     description VARCHAR(500),
     source VARCHAR(20) NOT NULL CHECK (source IN ('manual', 'ai')),
+    structured_state VARCHAR(4096),
+    message_count INT NOT NULL DEFAULT 0 CONSTRAINT telegram_expense_drafts_message_count_check CHECK (message_count BETWEEN 0 AND 20),
+    summary_ready BOOLEAN NOT NULL DEFAULT FALSE,
+    CONSTRAINT telegram_expense_drafts_confirmed_complete_check CHECK
+      (status <> 'confirmed' OR (amount IS NOT NULL AND transaction_date IS NOT NULL AND account_id IS NOT NULL AND category_id IS NOT NULL)),
+    CONSTRAINT telegram_expense_drafts_state_check CHECK (structured_state IS NULL OR length(structured_state) <= 4096),
     expires_at TIMESTAMPTZ NOT NULL,
     confirmed_at TIMESTAMPTZ,
     transaction_id INT,
@@ -428,7 +434,7 @@ CREATE TABLE telegram_processed_updates (
 );
 
 -- Telegram indexes
-CREATE UNIQUE INDEX uq_telegram_expense_drafts_pending_chat ON telegram_expense_drafts(chat_id) WHERE status = 'pending';
+CREATE UNIQUE INDEX uq_telegram_expense_drafts_pending_chat ON telegram_expense_drafts(telegram_identity_id, chat_id) WHERE status = 'pending';
 CREATE INDEX idx_telegram_expense_drafts_expires_at ON telegram_expense_drafts(expires_at);
 CREATE INDEX idx_telegram_expense_drafts_identity_status ON telegram_expense_drafts(telegram_identity_id, status);
 CREATE INDEX idx_telegram_processed_updates_status_claimed ON telegram_processed_updates(status, claimed_at);

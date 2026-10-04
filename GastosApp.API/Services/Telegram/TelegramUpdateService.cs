@@ -13,6 +13,7 @@ public sealed class TelegramUpdateService : ITelegramUpdateService
     private static readonly TimeSpan MaintenanceInterval = TimeSpan.FromHours(6);
     private static long _lastMaintenanceTicks;
 
+    private readonly IRepository _repository;
     private readonly TelegramMessageRouter _router;
     private readonly TelegramBotClientProvider _bot;
     private readonly TelegramRateLimiter _rateLimiter;
@@ -22,6 +23,7 @@ public sealed class TelegramUpdateService : ITelegramUpdateService
 
     public TelegramUpdateService(
         TelegramMessageRouter router,
+        IRepository repository,
         TelegramBotClientProvider bot,
         TelegramRateLimiter rateLimiter,
         ITelegramUpdateLedger ledger,
@@ -29,6 +31,7 @@ public sealed class TelegramUpdateService : ITelegramUpdateService
         ILogger<TelegramUpdateService> logger)
     {
         _router = router;
+        _repository = repository;
         _bot = bot;
         _rateLimiter = rateLimiter;
         _ledger = ledger;
@@ -51,7 +54,7 @@ public sealed class TelegramUpdateService : ITelegramUpdateService
 
         try
         {
-            await ProcessAsync(update, identity, cancellationToken);
+            await ProcessAsync(update, identity, claimToken, cancellationToken);
 
             // MarkDone solo cuando el procesamiento local terminó (efecto DB y respuesta intentada).
             await _ledger.MarkDoneAsync(update.Id, claimToken, cancellationToken);
@@ -70,7 +73,7 @@ public sealed class TelegramUpdateService : ITelegramUpdateService
         await TryRunMaintenanceAsync(cancellationToken);
     }
 
-    private async Task ProcessAsync(Update update, TelegramIdentity identity, CancellationToken cancellationToken)
+    private async Task ProcessAsync(Update update, TelegramIdentity identity, Guid claimToken, CancellationToken cancellationToken)
     {
         var message = update.Message;
         var text = message?.Text;
@@ -88,7 +91,16 @@ public sealed class TelegramUpdateService : ITelegramUpdateService
         }
 
         // El router decide: comandos/atajos deterministas o texto libre (extracción + intención).
-        var reply = await _router.RouteAsync(text, identity, cancellationToken);
+        var reply = await _repository.ExecuteInTransactionAsync(async () =>
+        {
+            var owned = await _repository.LockTelegramProcessedUpdateAsync(update.Id);
+            if (owned?.ClaimToken != claimToken || owned.Status != TelegramProcessedUpdateStatus.Processing)
+                throw new InvalidOperationException("Telegram update claim ownership was lost.");
+            var response = await _router.RouteAsync(text, identity, cancellationToken);
+            if (!await _ledger.MarkDoneAsync(update.Id, claimToken, cancellationToken))
+                throw new InvalidOperationException("Telegram update completion lost ownership.");
+            return response;
+        });
 
         if (!string.IsNullOrWhiteSpace(reply))
         {

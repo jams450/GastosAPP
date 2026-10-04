@@ -315,7 +315,7 @@ public sealed class TelegramTransactionService
     private async Task<string> ConfirmAsync(TelegramIdentity identity, CancellationToken cancellationToken)
     {
         var chatId = identity.TelegramChatId;
-        var pending = await _drafts.GetPendingAsync(chatId, cancellationToken);
+        var pending = await _drafts.GetPendingAsync(chatId, identity.TelegramIdentityId, cancellationToken);
 
         // La confirmación exige el mismo chat y la misma identidad.
         if (pending is null || pending.TelegramIdentityId != identity.TelegramIdentityId)
@@ -325,7 +325,10 @@ public sealed class TelegramTransactionService
 
         try
         {
-            var result = await _drafts.ConfirmAsync(
+            if (pending.StructuredState is not null && !pending.SummaryReady)
+            return "Completa o corrige el borrador antes de confirmar. Usa /pendiente para revisar.";
+
+        var result = await _drafts.ConfirmAsync(
                 pending.DraftId,
                 chatId,
                 draft => CreateTransactionAsync(draft, identity.UserId, cancellationToken),
@@ -370,9 +373,9 @@ public sealed class TelegramTransactionService
             CategoryId = draft.CategoryId,
             SubcategoryId = draft.SubcategoryId,
             MerchantId = draft.MerchantId,
-            Amount = draft.Amount,
+            Amount = draft.Amount!.Value,
             Description = draft.Description,
-            TransactionDate = draft.TransactionDate
+            TransactionDate = draft.TransactionDate!.Value
         };
 
         return _transactions.CreateExpenseAsync(transaction, userId);
@@ -400,9 +403,9 @@ public sealed class TelegramTransactionService
             CategoryId = draft.CategoryId,
             SubcategoryId = draft.SubcategoryId,
             MerchantId = draft.MerchantId,
-            Amount = draft.Amount,
+            Amount = draft.Amount!.Value,
             Description = draft.Description,
-            TransactionDate = draft.TransactionDate
+            TransactionDate = draft.TransactionDate!.Value
         };
 
         return _transactions.CreateIncomeAsync(transaction, userId);
@@ -410,13 +413,13 @@ public sealed class TelegramTransactionService
 
     private async Task<string> CancelAsync(TelegramIdentity identity, CancellationToken cancellationToken)
     {
-        var cancelled = await _drafts.CancelAsync(identity.TelegramChatId, cancellationToken);
+        var cancelled = await _drafts.CancelAsync(identity.TelegramChatId, identity.TelegramIdentityId, cancellationToken);
         return cancelled ? "Borrador cancelado." : "No hay ningún borrador pendiente por cancelar.";
     }
 
     private async Task<string> DescribePendingAsync(TelegramIdentity identity, CancellationToken cancellationToken)
     {
-        var pending = await _drafts.GetPendingAsync(identity.TelegramChatId, cancellationToken);
+        var pending = await _drafts.GetPendingAsync(identity.TelegramChatId, identity.TelegramIdentityId, cancellationToken);
         if (pending is null || pending.TelegramIdentityId != identity.TelegramIdentityId)
         {
             return "No hay ningún borrador pendiente.";
@@ -521,6 +524,7 @@ public sealed class TelegramTransactionService
             RawMerchantName = merchant?.Name,
             Description = description,
             Source = source,
+            MessageCount = 1,
             Intent = intent
         };
 
@@ -761,12 +765,12 @@ public sealed class TelegramTransactionService
     {
         var lines = new List<string>
         {
-            $"- Monto: {FormatMoney(draft.Amount)}",
+            $"- Monto: {FormatMoney(draft.Amount ?? 0)}",
             $"- Cuenta: {draft.RawAccountName ?? SinValor}",
             $"- Categoría: {draft.RawCategoryName ?? SinValor}",
             $"- Subcategoría: {draft.RawSubcategoryName ?? SinValor}",
             $"- Comercio: {draft.RawMerchantName ?? SinValor}",
-            $"- Fecha: {FormatDate(draft.TransactionDate)}"
+            $"- Fecha: {FormatDate(draft.TransactionDate!.Value)}"
         };
 
         if (!string.IsNullOrWhiteSpace(draft.Description))
