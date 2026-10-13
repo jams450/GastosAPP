@@ -164,7 +164,7 @@ export function useHistoryColumns({
           return (
             <div className="flex gap-1">
               {onRepeat && (item.type === "income" || item.type === "expense") ? (
-                <Button type="button" variant="secondary" className="h-6 px-2 text-[10px] font-semibold" onClick={() => onRepeat(item)}>
+                <Button type="button" variant="secondary" className="h-6 border border-violet-400/60 bg-violet-500/15 px-2 text-[10px] font-semibold text-violet-800 hover:bg-violet-500/25 dark:border-violet-700/60 dark:bg-violet-500/25 dark:text-violet-200 dark:hover:bg-violet-500/35" onClick={() => onRepeat(item)}>
                   Repetir
                 </Button>
               ) : null}
@@ -176,12 +176,12 @@ export function useHistoryColumns({
                 <Button
                   type="button"
                   variant="secondary"
-                  className="h-6 w-6 p-0"
+                  className="h-6 w-6 border border-emerald-400/60 bg-emerald-500/15 p-0 text-emerald-800 hover:bg-emerald-500/25 dark:border-emerald-700/60 dark:bg-emerald-500/25 dark:text-emerald-200 dark:hover:bg-emerald-500/35"
                   title="Programar recurrente"
                   aria-label="Programar recurrente"
                   onClick={() => onSchedule(item)}
                 >
-                  <CalendarClock className="h-3.5 w-3.5" aria-hidden="true" />
+                  <CalendarClock className="pointer-events-none h-4 w-4 shrink-0 text-current" aria-hidden="true" />
                 </Button>
               ) : null}
               {!isOpeningCredit ? (
@@ -191,7 +191,7 @@ export function useHistoryColumns({
               ) : null}
               <Button type="button" variant="ghost" className={`h-6 px-1.5 text-[10px] ${tableActionStyles.delete}`} disabled={deleteLoadingId === item.transactionId} onClick={() => void onDelete(item)}>Borrar</Button>
               {canConvertToMsi ? (
-                <Button type="button" variant="secondary" className="h-6 px-2 text-[10px] font-semibold" onClick={() => void onConvertToMsi(item)}>Convertir MSI</Button>
+                <Button type="button" variant="secondary" className="h-6 border border-amber-400/60 bg-amber-500/15 px-2 text-[10px] font-semibold text-amber-800 hover:bg-amber-500/25 dark:border-amber-700/60 dark:bg-amber-500/25 dark:text-amber-200 dark:hover:bg-amber-500/35" onClick={() => void onConvertToMsi(item)}>Convertir MSI</Button>
               ) : null}
             </div>
           );
