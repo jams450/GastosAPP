@@ -1,14 +1,19 @@
 "use client";
 
 import type { ColumnDef } from "@tanstack/react-table";
-import { AlertCircle, ClipboardList, Plus } from "lucide-react";
+import { AlertCircle, ClipboardList, Link2, Plus, Receipt, X } from "lucide-react";
 import { useMemo, useState } from "react";
+import type { FormEvent } from "react";
 import { DataGrid } from "@/components/data-grid/data-grid";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
+import type { Account } from "@/lib/contracts/accounts";
 import { toDateInputValue, type BudgetItem } from "@/lib/contracts/budget-items";
 import { formatCurrency } from "@/lib/format/currency";
 import { cn } from "@/lib/ui/cn";
 import { tableActionStyles } from "@/lib/ui/table-action-styles";
+import type { BudgetItemLinkCandidate } from "../_lib/budgets-api";
 import {
   budgetItemKindBadgeClass,
   budgetItemKindLabel,
@@ -32,6 +37,8 @@ type Props = {
   onCancel: (item: BudgetItem) => void;
   onRestore: (item: BudgetItem) => void;
   onIgnore: (item: BudgetItem) => void;
+  onRequestLink: (item: BudgetItem) => void;
+  onRequestExpense: (item: BudgetItem) => void;
 };
 
 const KIND_FILTERS: ReadonlyArray<{ id: BudgetItemKindFilter; label: string }> = [
@@ -82,7 +89,9 @@ export function BudgetItemsPanel({
   onEdit,
   onCancel,
   onRestore,
-  onIgnore
+  onIgnore,
+  onRequestLink,
+  onRequestExpense
 }: Props) {
   const [showCancelled, setShowCancelled] = useState(false);
 
@@ -155,11 +164,13 @@ export function BudgetItemsPanel({
             onCancel={onCancel}
             onRestore={onRestore}
             onIgnore={onIgnore}
+            onRequestLink={onRequestLink}
+            onRequestExpense={onRequestExpense}
           />
         )
       }
     ],
-    [busyItemId, catalogs, onCancel, onEdit, onIgnore, onRestore]
+    [busyItemId, catalogs, onCancel, onEdit, onIgnore, onRequestExpense, onRequestLink, onRestore]
   );
 
   if (errorMessage) {
@@ -280,6 +291,8 @@ export function BudgetItemsPanel({
                             onCancel={onCancel}
                             onRestore={onRestore}
                             onIgnore={onIgnore}
+                            onRequestLink={onRequestLink}
+                            onRequestExpense={onRequestExpense}
                             mobile
                           />
                         </div>
@@ -321,7 +334,9 @@ function ItemActions({
   onEdit,
   onCancel,
   onRestore,
-  onIgnore
+  onIgnore,
+  onRequestLink,
+  onRequestExpense
 }: {
   item: BudgetItem;
   busy: boolean;
@@ -330,6 +345,8 @@ function ItemActions({
   onCancel: (item: BudgetItem) => void;
   onRestore: (item: BudgetItem) => void;
   onIgnore: (item: BudgetItem) => void;
+  onRequestLink: (item: BudgetItem) => void;
+  onRequestExpense: (item: BudgetItem) => void;
 }) {
   const actions = getItemActions(item.status);
 
@@ -337,8 +354,38 @@ function ItemActions({
     return <p className="m-0 text-[11px] font-medium text-muted">{actions.terminalReason}</p>;
   }
 
+  // Enlazar y registrar gasto solo tienen sentido sobre una partida "pending": una ejecutada ya
+  // tiene su transacción y una ignorada liberó su monto.
+  const isPending = item.status === "pending";
+
   return (
     <div className={cn("flex justify-end gap-1.5", mobile && "grid grid-cols-2 gap-1.5")} role="group" aria-label={`Acciones para la partida ${item.name}`}>
+      {isPending ? (
+        <Button
+          type="button"
+          variant="ghost"
+          className="h-8 border px-2 text-[11px] font-semibold border-emerald-400/50 bg-emerald-500/15 text-emerald-700 hover:border-emerald-500/70 hover:bg-emerald-500/25 dark:border-emerald-700/60 dark:bg-emerald-500/25 dark:text-emerald-300"
+          onClick={() => onRequestLink(item)}
+          aria-label={`Enlazar un movimiento existente a la partida ${item.name}`}
+        >
+          <Link2 className="mr-1 h-3.5 w-3.5" aria-hidden="true" />
+          <span>Enlazar</span>
+        </Button>
+      ) : null}
+
+      {isPending && item.kind === "expense" ? (
+        <Button
+          type="button"
+          variant="ghost"
+          className={`h-8 border px-2 text-[11px] font-semibold ${tableActionStyles.create}`}
+          onClick={() => onRequestExpense(item)}
+          aria-label={`Registrar el gasto de la partida ${item.name}`}
+        >
+          <Receipt className="mr-1 h-3.5 w-3.5" aria-hidden="true" />
+          <span>Registrar gasto</span>
+        </Button>
+      ) : null}
+
       {actions.canEdit ? (
         <Button
           type="button"
@@ -394,6 +441,248 @@ function ItemActions({
           <span>Cancelar</span>
         </Button>
       ) : null}
+    </div>
+  );
+}
+
+/** Borrador del alta de gasto desde una partida: la categoría/alcance los fija la partida. */
+export type BudgetItemExpenseDraft = {
+  accountId: number;
+  amount: number;
+  description: string;
+  transactionDate: string;
+};
+
+/** Fecha local `yyyy-MM-ddTHH:mm` a mediodía de la fecha planificada, para no correr el día. */
+function toDateTimeLocalValue(value: string | null): string {
+  const iso = toDateInputValue(value);
+  return iso ? `${iso}T12:00` : "";
+}
+
+function formatCandidateDate(value: string | null): string {
+  if (!value) {
+    return "Sin fecha";
+  }
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return "Sin fecha";
+  }
+
+  return new Intl.DateTimeFormat("es-MX", { dateStyle: "medium", timeZone: "America/Mexico_City" }).format(parsed);
+}
+
+/**
+ * Selección de un movimiento existente para enlazarlo a la partida. La lista la resuelve el API
+ * (mismo mes y mismo alcance, cualquier monto) y el monto mostrado es el real de la transacción.
+ */
+export function BudgetItemLinkDialog({
+  item,
+  candidates,
+  loading,
+  errorMessage,
+  submittingTransactionId,
+  onSelect,
+  onClose,
+  onRetry
+}: {
+  item: BudgetItem;
+  candidates: BudgetItemLinkCandidate[];
+  loading: boolean;
+  errorMessage: string | null;
+  submittingTransactionId: number | null;
+  onSelect: (transactionId: number) => void;
+  onClose: () => void;
+  onRetry: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-0 sm:items-center sm:p-4" role="dialog" aria-modal="true" aria-labelledby="budget-item-link-title">
+      <div className="dashboard-card max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-none p-4 sm:rounded-2xl">
+        <header className="flex items-start justify-between gap-2">
+          <div>
+            <h2 id="budget-item-link-title" className="m-0 text-base font-semibold text-primary">Enlazar movimiento a {item.name}</h2>
+            <p className="m-0 mt-1 text-xs text-muted">Mismo mes y misma categoría/subcategoría. El monto real del movimiento es el que manda.</p>
+          </div>
+          <Button
+            type="button"
+            variant="ghost"
+            className="h-8 w-8 shrink-0 p-0"
+            onClick={onClose}
+            aria-label="Cerrar el enlazado de movimientos"
+          >
+            <X className="h-4 w-4" aria-hidden="true" />
+          </Button>
+        </header>
+
+        {loading ? (
+          <p className="mt-4 text-sm text-muted" role="status">Cargando movimientos…</p>
+        ) : errorMessage ? (
+          <div className="mt-4 space-y-2" role="alert">
+            <p className="m-0 text-sm text-[var(--color-danger)]">{errorMessage}</p>
+            <Button type="button" variant="ghost" className="h-8 border px-2 text-[11px] font-semibold" onClick={onRetry}>
+              Reintentar
+            </Button>
+          </div>
+        ) : candidates.length === 0 ? (
+          <p className="mt-4 text-sm text-muted">
+            No hay movimientos del mismo mes con la misma categoría o subcategoría, o ya están enlazados a otra partida.
+          </p>
+        ) : (
+          <ul className="mt-4 space-y-2">
+            {candidates.map((candidate) => (
+              <li key={candidate.transactionId} className="dashboard-subtle flex items-center justify-between gap-3 p-3">
+                <div className="min-w-0">
+                  <p className="m-0 text-sm font-bold tabular-nums text-primary">{formatCurrency(candidate.amount)}</p>
+                  <p className="m-0 text-[11px] font-medium text-muted">
+                    {formatCandidateDate(candidate.transactionDate)} · #{candidate.transactionId}
+                  </p>
+                  <p className="m-0 truncate text-[11px] text-muted">{candidate.description ?? "Sin descripción"}</p>
+                </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="h-8 shrink-0 border px-2 text-[11px] font-semibold border-emerald-400/50 bg-emerald-500/15 text-emerald-700 hover:border-emerald-500/70 hover:bg-emerald-500/25 dark:border-emerald-700/60 dark:bg-emerald-500/25 dark:text-emerald-300"
+                  loading={submittingTransactionId === candidate.transactionId}
+                  disabled={submittingTransactionId !== null}
+                  onClick={() => onSelect(candidate.transactionId)}
+                  aria-label={`Enlazar el movimiento ${candidate.transactionId} a la partida ${item.name}`}
+                >
+                  <span>Enlazar</span>
+                </Button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Alta de gasto desde la partida: el monto planificado llega precargado y es editable; el alcance
+ * lo fija la partida (lo muestra como contexto) y la fecha se valida contra su mes. Al confirmar,
+ * el API enlaza la transacción a la partida.
+ */
+export function BudgetItemExpenseDialog({
+  item,
+  accounts,
+  catalogs,
+  submitting,
+  errorMessage,
+  onSubmit,
+  onClose
+}: {
+  item: BudgetItem;
+  accounts: Account[];
+  catalogs: BudgetItemCatalogIndex;
+  submitting: boolean;
+  errorMessage: string | null;
+  onSubmit: (draft: BudgetItemExpenseDraft) => void;
+  onClose: () => void;
+}) {
+  const [accountId, setAccountId] = useState<number | null>(null);
+  const [amount, setAmount] = useState(item.plannedAmount.toFixed(2));
+  const [description, setDescription] = useState(item.name);
+  const [transactionDate, setTransactionDate] = useState(toDateTimeLocalValue(item.plannedDate));
+  const scope = describeScope(item, catalogs);
+  const amountNumber = Number(amount);
+  const canSubmit =
+    accountId !== null &&
+    Number.isFinite(amountNumber) &&
+    amountNumber > 0 &&
+    description.trim().length > 0 &&
+    transactionDate.length > 0;
+
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!canSubmit || accountId === null) {
+      return;
+    }
+
+    onSubmit({ accountId, amount: amountNumber, description: description.trim(), transactionDate });
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-0 sm:items-center sm:p-4" role="dialog" aria-modal="true" aria-labelledby="budget-item-expense-title">
+      <form onSubmit={handleSubmit} className="dashboard-card max-h-[85vh] w-full max-w-lg space-y-4 overflow-y-auto rounded-none p-4 sm:rounded-2xl">
+        <header className="flex items-start justify-between gap-2">
+          <div>
+            <h2 id="budget-item-expense-title" className="m-0 text-base font-semibold text-primary">Registrar gasto de {item.name}</h2>
+            <p className="m-0 mt-1 text-xs text-muted">
+              {scope.label}
+              {scope.hint ? ` · ${scope.hint}` : ""} · Planificado {formatCurrency(item.plannedAmount)}
+            </p>
+          </div>
+          <Button
+            type="button"
+            variant="ghost"
+            className="h-8 w-8 shrink-0 p-0"
+            onClick={onClose}
+            aria-label="Cerrar el registro de gasto de la partida"
+          >
+            <X className="h-4 w-4" aria-hidden="true" />
+          </Button>
+        </header>
+
+        <Select label="Cuenta *" value={accountId ?? ""} onChange={(event) => setAccountId(Number(event.target.value) || null)} required>
+          <option value="">Selecciona una cuenta</option>
+          {accounts.map((account) => (
+            <option key={account.accountId} value={account.accountId}>
+              {account.name}
+            </option>
+          ))}
+        </Select>
+
+        <Input
+          label="Monto real *"
+          type="number"
+          step="0.01"
+          min="0.01"
+          value={amount}
+          onChange={(event) => setAmount(event.target.value)}
+          className="text-right"
+          required
+        />
+        <p className="-mt-2 px-1 text-[11px] text-muted">Precargado con lo planificado; puedes editarlo: el monto real es el que cuenta.</p>
+
+        <Input
+          label="Fecha y hora *"
+          type="datetime-local"
+          step="60"
+          value={transactionDate}
+          onChange={(event) => setTransactionDate(event.target.value)}
+          required
+        />
+        <p className="-mt-2 px-1 text-[11px] text-muted">Debe caer en {item.periodKey} para poder enlazarla a la partida.</p>
+
+        <Input
+          label="Descripción *"
+          type="text"
+          value={description}
+          onChange={(event) => setDescription(event.target.value)}
+          maxLength={120}
+          required
+        />
+
+        {errorMessage ? (
+          <p className="m-0 text-sm text-[var(--color-danger)]" role="alert">{errorMessage}</p>
+        ) : null}
+
+        <div className="flex justify-end gap-2">
+          <Button type="button" variant="ghost" className="h-9 border px-3 text-xs font-semibold" onClick={onClose}>
+            Cancelar
+          </Button>
+          <Button
+            type="submit"
+            loading={submitting}
+            loadingText="Registrando..."
+            disabled={!canSubmit}
+            className={`h-9 px-3 text-xs font-bold ${tableActionStyles.create}`}
+          >
+            Registrar y enlazar
+          </Button>
+        </div>
+      </form>
     </div>
   );
 }

@@ -4,11 +4,16 @@ using GastosApp.BusinessLogic.Models.Transactions;
 using GastosApp.Models.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Npgsql;
 
 namespace GastosApp.BusinessLogic.Services
 {
     public class TransactionCommandService : ITransactionCommandService
     {
+        // Índice único parcial uq_budget_items_transaction, reconocido por nombre porque vive solo
+        // en SQL (mismo criterio que BudgetItemMatchService).
+        private const string BudgetItemTransactionUniqueIndexName = "uq_budget_items_transaction";
+
         private readonly IRepository _repository;
         private readonly IAccountService _accountService;
         private readonly IExpenseAllocationService _allocationService;
@@ -102,7 +107,7 @@ namespace GastosApp.BusinessLogic.Services
             return created;
         }
 
-        public async Task<Transaction> CreateExpenseAsync(Transaction transaction, int userId, IEnumerable<ExpenseAllocationInput>? allocations = null, IEnumerable<string>? tags = null, int? msiMonths = null)
+        public async Task<Transaction> CreateExpenseAsync(Transaction transaction, int userId, IEnumerable<ExpenseAllocationInput>? allocations = null, IEnumerable<string>? tags = null, int? msiMonths = null, int? budgetItemId = null)
         {
             if (msiMonths.HasValue && msiMonths.Value > 60)
             {
@@ -145,6 +150,19 @@ namespace GastosApp.BusinessLogic.Services
                 transaction.CounterpartyAccountId = null;
                 transaction.TransactionDate = _validation.EnsureUtc(transaction.TransactionDate);
 
+                // Alta "desde partida": se valida aquí, antes de escribir, para que un id ajeno, un
+                // mes distinto o un alcance que no coincide respondan 400 sin alta parcial. El
+                // enlace en sí se confirma después del commit (ver TryLinkBudgetItemAfterCreateAsync).
+                if (budgetItemId.HasValue)
+                {
+                    await ValidateBudgetItemLinkForNewExpenseAsync(
+                        userId,
+                        budgetItemId.Value,
+                        transaction.CategoryId,
+                        transaction.SubcategoryId,
+                        transaction.TransactionDate);
+                }
+
                 var result = await _repository.Save(transaction);
                 var allocationResult = await _allocationService.ReplaceExpenseAllocationsAsync(result.TransactionId, userId, allocations, true);
                 if (!allocationResult.Success)
@@ -171,9 +189,161 @@ namespace GastosApp.BusinessLogic.Services
                 return result;
             });
 
+            if (budgetItemId.HasValue)
+            {
+                await TryLinkBudgetItemAfterCreateAsync(budgetItemId.Value, created.TransactionId, userId);
+            }
+
             await TryMatchBudgetItemsAsync(created.TransactionId, userId);
 
             return created;
+        }
+
+        /// <summary>
+        /// Enlace manual de una transacción existente a una partida <c>pending</c>: exige mismo mes,
+        /// mismo tipo y mismo alcance, y admite cualquier monto (el real manda). La fila se bloquea
+        /// con <c>SELECT … FOR UPDATE</c> antes de leerla, así que dos enlaces concurrentes sobre la
+        /// misma partida no pueden enlazarse los dos; la carrera simétrica —una transacción
+        /// reclamada por dos partidas— la cierra <c>uq_budget_items_transaction</c>, tratada como
+        /// carrera ya resuelta y no como error.
+        /// </summary>
+        public Task<BudgetItemLinkOutcome> LinkBudgetItemAsync(int userId, int itemId, int transactionId, CancellationToken cancellationToken)
+        {
+            return _repository.ExecuteInTransactionAsync(async () =>
+            {
+                var item = await _repository.LockBudgetItemAsync(itemId, userId);
+                if (item == null)
+                {
+                    return BudgetItemLinkOutcome.Of(BudgetItemLinkOutcomeStatus.ItemNotFound, itemId, transactionId);
+                }
+
+                if (item.Status != BudgetItemStatus.Pending || item.TransactionId.HasValue)
+                {
+                    return BudgetItemLinkOutcome.Of(BudgetItemLinkOutcomeStatus.ItemNotLinkable, itemId, transactionId);
+                }
+
+                var transaction = await _repository.Get<Transaction>(t =>
+                        t.TransactionId == transactionId && t.Account.UserId == userId)
+                    .Select(t => new
+                    {
+                        t.TransactionId,
+                        t.Type,
+                        t.CategoryId,
+                        t.SubcategoryId,
+                        t.TransactionDate
+                    })
+                    .FirstOrDefaultAsync(cancellationToken);
+
+                if (transaction == null)
+                {
+                    return BudgetItemLinkOutcome.Of(BudgetItemLinkOutcomeStatus.TransactionNotFound, itemId, transactionId);
+                }
+
+                var reason = EvaluateLinkEligibility(
+                    item.Kind,
+                    item.PeriodKey,
+                    item.CategoryId,
+                    item.SubcategoryId,
+                    transaction.Type,
+                    transaction.CategoryId,
+                    transaction.SubcategoryId,
+                    transaction.TransactionDate);
+
+                if (reason != null)
+                {
+                    return BudgetItemLinkOutcome.Of(reason.Value, itemId, transactionId);
+                }
+
+                // Atajo para el caso simétrico: evita provocar a propósito la violación del índice.
+                // La garantía es el índice, no este chequeo.
+                var claimedByOther = await _repository.Get<BudgetItem>(i =>
+                        i.TransactionId == transactionId && i.ItemId != itemId)
+                    .AnyAsync(cancellationToken);
+
+                if (claimedByOther)
+                {
+                    return BudgetItemLinkOutcome.Of(BudgetItemLinkOutcomeStatus.TransactionAlreadyLinked, itemId, transactionId);
+                }
+
+                item.Status = BudgetItemStatus.Executed;
+                item.TransactionId = transactionId;
+
+                try
+                {
+                    await _repository.SaveChangesAsync();
+                }
+                catch (DbUpdateException ex) when (IsTransactionLinkRace(ex))
+                {
+                    return BudgetItemLinkOutcome.Of(BudgetItemLinkOutcomeStatus.TransactionAlreadyLinked, itemId, transactionId);
+                }
+
+                return BudgetItemLinkOutcome.Of(BudgetItemLinkOutcomeStatus.Linked, itemId, transactionId);
+            });
+        }
+
+        /// <summary>
+        /// Gastos del mes de la partida que comparten su alcance y todavía no están enlazados a
+        /// ninguna partida. Es la lista que la UI ofrece para elegir a mano; el monto no filtra:
+        /// el gasto real puede diferir del planificado. <c>null</c> cuando la partida no existe o no
+        /// es del usuario (404, sin oráculo de existencia).
+        /// </summary>
+        public async Task<IReadOnlyList<BudgetItemLinkCandidate>?> ListBudgetItemLinkCandidatesAsync(int userId, int itemId, CancellationToken cancellationToken)
+        {
+            var item = await _repository.Get<BudgetItem>(i => i.ItemId == itemId && i.UserId == userId)
+                .Select(i => new
+                {
+                    i.ItemId,
+                    i.Kind,
+                    i.PeriodKey,
+                    i.CategoryId,
+                    i.SubcategoryId
+                })
+                .FirstOrDefaultAsync(cancellationToken);
+
+            if (item == null)
+            {
+                return null;
+            }
+
+            var (_, _, startUtc, nextStartUtc) = MonthRangeResolver.ResolveUtcRange(item.PeriodKey, null);
+            var kind = (item.Kind ?? string.Empty).Trim().ToLowerInvariant();
+
+            // kind en vez de type: budget_items.kind y transactions.type son columnas distintas y se
+            // comparan ignorando mayúsculas en memoria, así que SQL baja a minúsculas para coincidir.
+            var transactions = _repository.Get<Transaction>(t =>
+                t.Account.UserId == userId &&
+                t.TransactionDate >= startUtc &&
+                t.TransactionDate < nextStartUtc &&
+                t.Type.ToLower() == kind &&
+                !_repository.Get<BudgetItem>().Any(linked => linked.TransactionId == t.TransactionId));
+
+            if (item.SubcategoryId.HasValue)
+            {
+                transactions = transactions.Where(t => t.SubcategoryId == item.SubcategoryId);
+            }
+            else if (item.CategoryId.HasValue)
+            {
+                transactions = transactions.Where(t => t.CategoryId == item.CategoryId);
+            }
+            else
+            {
+                // El XOR de ck_budget_items_scope garantiza que una partida trae categoría o
+                // subcategoría; sin alcance no hay candidata válida.
+                return Array.Empty<BudgetItemLinkCandidate>();
+            }
+
+            return await transactions
+                .OrderByDescending(t => t.TransactionDate)
+                .Select(t => new BudgetItemLinkCandidate
+                {
+                    TransactionId = t.TransactionId,
+                    Amount = t.Amount,
+                    TransactionDate = t.TransactionDate,
+                    CategoryId = t.CategoryId,
+                    SubcategoryId = t.SubcategoryId,
+                    Description = t.Description
+                })
+                .ToListAsync(cancellationToken);
         }
 
         public Task<(Transaction? Transaction, string? ErrorMessage)> UpdateTransactionWithDetailsForUserAsync(
@@ -345,6 +515,153 @@ namespace GastosApp.BusinessLogic.Services
                     transactionId,
                     ex.GetType().Name);
             }
+        }
+
+        /// <summary>
+        /// Enlace explícito post-commit de un alta "desde partida". Sigue la misma reserva que el
+        /// matching automático: nada dentro de una transacción ajena (el alta ya la cerró) y un
+        /// fallo nunca revierte el gasto. La elegibilidad ya se validó antes de escribir, así que
+        /// aquí solo se registra el desenlace; el id no se pierde porque la partida sigue visible.
+        /// </summary>
+        private async Task TryLinkBudgetItemAfterCreateAsync(int budgetItemId, int transactionId, int userId)
+        {
+            if (_repository.IsInTransaction)
+            {
+                return;
+            }
+
+            try
+            {
+                var outcome = await LinkBudgetItemAsync(userId, budgetItemId, transactionId, CancellationToken.None);
+                if (outcome.Status == BudgetItemLinkOutcomeStatus.Linked)
+                {
+                    _logger.LogInformation(
+                        "Budget item {ItemId} linked transaction {TransactionId} by explicit request",
+                        outcome.ItemId,
+                        transactionId);
+                    return;
+                }
+
+                _logger.LogWarning(
+                    "Explicit budget item link did not apply for transaction {TransactionId}: {Status}",
+                    transactionId,
+                    outcome.Status);
+            }
+            catch (Exception ex)
+            {
+                // Mismo criterio que el matching: solo el tipo de excepción, nunca montos ni nombres.
+                _logger.LogError(
+                    "Explicit budget item link failed for transaction {TransactionId} ({ExceptionType}); the transaction stays committed",
+                    transactionId,
+                    ex.GetType().Name);
+            }
+        }
+
+        /// <summary>
+        /// Validación previa al alta "desde partida": existe, es del usuario, está <c>pending</c>,
+        /// sin transacción, y coincide en mes, tipo y alcance con el gasto que se va a crear. Se
+        /// lanza <see cref="ArgumentException"/> (400) para que la entrada inválida no deje gasto.
+        /// </summary>
+        private async Task ValidateBudgetItemLinkForNewExpenseAsync(
+            int userId,
+            int budgetItemId,
+            int? categoryId,
+            int? subcategoryId,
+            DateTime transactionDateUtc)
+        {
+            var item = await _repository.Get<BudgetItem>(i => i.ItemId == budgetItemId && i.UserId == userId)
+                .Select(i => new
+                {
+                    i.ItemId,
+                    i.Kind,
+                    i.PeriodKey,
+                    i.CategoryId,
+                    i.SubcategoryId,
+                    i.Status,
+                    i.TransactionId
+                })
+                .FirstOrDefaultAsync();
+
+            if (item == null)
+            {
+                throw new ArgumentException("La partida indicada no existe.");
+            }
+
+            if (item.Status != BudgetItemStatus.Pending || item.TransactionId.HasValue)
+            {
+                throw new ArgumentException("La partida ya no está pendiente; recarga las partidas e inténtalo de nuevo.");
+            }
+
+            var reason = EvaluateLinkEligibility(
+                item.Kind,
+                item.PeriodKey,
+                item.CategoryId,
+                item.SubcategoryId,
+                TransactionDomainConstants.TransactionType.Expense,
+                categoryId,
+                subcategoryId,
+                transactionDateUtc);
+
+            if (reason != null)
+            {
+                throw new ArgumentException("El gasto debe estar en el mes y la categoría/subcategoría de la partida.");
+            }
+        }
+
+        /// <summary>
+        /// Regla pura del enlace manual y del alta "desde partida": <b>mismo mes</b>, <b>mismo tipo</b>
+        /// y <b>mismo alcance</b>. El monto es intencionalmente libre: el real manda una vez enlazado.
+        /// La fecha de la transacción se resuelve al día local antes de derivar el periodo.
+        /// </summary>
+        private static BudgetItemLinkOutcomeStatus? EvaluateLinkEligibility(
+            string itemKind,
+            string itemPeriodKey,
+            int? itemCategoryId,
+            int? itemSubcategoryId,
+            string transactionType,
+            int? transactionCategoryId,
+            int? transactionSubcategoryId,
+            DateTime transactionDateUtc)
+        {
+            if (!string.Equals(itemKind?.Trim(), transactionType?.Trim(), StringComparison.OrdinalIgnoreCase))
+            {
+                return BudgetItemLinkOutcomeStatus.Mismatch;
+            }
+
+            var periodKey = MonthRangeResolver.ToPeriodKey(MonthRangeResolver.ResolveLocalDate(transactionDateUtc));
+            if (!string.Equals(itemPeriodKey, periodKey, StringComparison.Ordinal))
+            {
+                return BudgetItemLinkOutcomeStatus.Mismatch;
+            }
+
+            if (itemSubcategoryId.HasValue)
+            {
+                return itemSubcategoryId == transactionSubcategoryId
+                    ? null
+                    : BudgetItemLinkOutcomeStatus.Mismatch;
+            }
+
+            if (itemCategoryId.HasValue)
+            {
+                return itemCategoryId == transactionCategoryId
+                    ? null
+                    : BudgetItemLinkOutcomeStatus.Mismatch;
+            }
+
+            return BudgetItemLinkOutcomeStatus.Mismatch;
+        }
+
+        /// <summary>
+        /// Carrera sobre <c>uq_budget_items_transaction</c>, reconocida por nombre porque el índice
+        /// vive solo en SQL.
+        /// </summary>
+        private static bool IsTransactionLinkRace(DbUpdateException ex)
+        {
+            return ex.InnerException is PostgresException
+            {
+                SqlState: PostgresErrorCodes.UniqueViolation,
+                ConstraintName: BudgetItemTransactionUniqueIndexName
+            };
         }
 
         /// <summary>

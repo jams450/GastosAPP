@@ -7,6 +7,7 @@ import { DataGrid } from "@/components/data-grid/data-grid";
 import { Button } from "@/components/ui/button";
 import type { BudgetItemSuggestion } from "@/lib/contracts/budget-items";
 import { formatCurrency } from "@/lib/format/currency";
+import { cn } from "@/lib/ui/cn";
 import {
   describeSuggestionContext,
   describeSuggestionScope,
@@ -28,6 +29,10 @@ type Props = {
   periodLabel: string;
   catalogs: SuggestionCatalogs;
   onRetry: () => void;
+  /** Enlaza el par sugerido. El backend valida mes y alcance; el monto puede diferir. */
+  onLink: (suggestion: BudgetItemSuggestion) => void;
+  /** Fila cuyo enlace está en vuelo, para no disparar dos enlaces a la vez. */
+  linkingSuggestionKey: string | null;
   /** Lleva a la pestaña de partidas, que sí sabe escribir sobre la partida. Solo navegación. */
   onOpenItem: () => void;
 };
@@ -46,31 +51,65 @@ function SuggestionSkeleton() {
   );
 }
 
-/** La fila no ofrece "enlazar": el backend no expone ese endpoint. Solo lleva a la partida. */
-function OpenItemAction({ suggestion, onOpenItem }: { suggestion: BudgetItemSuggestion; onOpenItem: () => void }) {
+/**
+ * Acciones de una sugerencia: enlazar el par (acción real, confirmada por el usuario) o ir a la
+ * partida. La sugerencia sigue siendo solo una propuesta: nada se enlaza sin este clic.
+ */
+function SuggestionActions({
+  suggestion,
+  linkingSuggestionKey,
+  onLink,
+  onOpenItem,
+  mobile = false
+}: {
+  suggestion: BudgetItemSuggestion;
+  linkingSuggestionKey: string | null;
+  onLink: (suggestion: BudgetItemSuggestion) => void;
+  onOpenItem: () => void;
+  mobile?: boolean;
+}) {
+  const key = suggestionRowKey(suggestion);
+  const busy = linkingSuggestionKey === key;
+  const disabled = linkingSuggestionKey !== null;
+
   return (
-    <Button
-      type="button"
-      variant="ghost"
-      className="h-8 border px-2 text-[11px] font-semibold border-blue-400/60 bg-blue-500/15 text-blue-700 hover:border-blue-500/70 hover:bg-blue-500/25 dark:border-blue-700/60 dark:bg-blue-500/25 dark:text-blue-300"
-      onClick={onOpenItem}
-      aria-label={`Ver la partida ${suggestion.name} en la pestaña de partidas`}
-    >
-      <ListChecks className="h-3.5 w-3.5" aria-hidden="true" />
-      <span>Ver en partidas</span>
-    </Button>
+    <div className={cn("flex justify-end gap-1.5", mobile && "grid grid-cols-2 gap-1.5")} role="group" aria-label={`Acciones para la sugerencia de ${suggestion.name}`}>
+      <Button
+        type="button"
+        variant="ghost"
+        className="h-8 border px-2 text-[11px] font-semibold border-emerald-400/50 bg-emerald-500/15 text-emerald-700 hover:border-emerald-500/70 hover:bg-emerald-500/25 dark:border-emerald-700/60 dark:bg-emerald-500/25 dark:text-emerald-300"
+        loading={busy}
+        loadingText="Enlazando..."
+        disabled={disabled}
+        onClick={() => onLink(suggestion)}
+        aria-label={`Enlazar la transacción ${suggestion.transactionId} a la partida ${suggestion.name}`}
+      >
+        <Link2 className="mr-1 h-3.5 w-3.5" aria-hidden="true" />
+        <span>Enlazar</span>
+      </Button>
+      <Button
+        type="button"
+        variant="ghost"
+        className="h-8 border px-2 text-[11px] font-semibold border-blue-400/60 bg-blue-500/15 text-blue-700 hover:border-blue-500/70 hover:bg-blue-500/25 dark:border-blue-700/60 dark:bg-blue-500/25 dark:text-blue-300"
+        onClick={onOpenItem}
+        aria-label={`Ver la partida ${suggestion.name} en la pestaña de partidas`}
+      >
+        <ListChecks className="h-3.5 w-3.5" aria-hidden="true" />
+        <span>Ver en partidas</span>
+      </Button>
+    </div>
   );
 }
 
 /**
  * Sugerencias de enlace partida ↔ transacción.
  *
- * **Solo lectura.** El backend devuelve pares *débiles* (misma categoría o subcategoría del mismo
- * mes) y deliberadamente no los enlaza: la fuerza débil no identifica. No existe ningún endpoint
- * para enlazar a mano, así que esta vista no finge uno; la fila ofrece lo único real y no
- * destructivo —ir a la partida para decidir ahí— y el texto explica por qué no hay botón de enlace.
+ * **Acción de enlace manual disponible.** El backend devuelve pares *débiles* (misma categoría o
+ * subcategoría del mismo mes) y no los enlaza solo, porque la fuerza débil no identifica: la fila
+ * ofrece "Enlazar" para que el usuario confirme el par, o "Ver en partidas" para decidir ahí. El
+ * monto puede diferir; el de la transacción es el autoritativo.
  */
-export function BudgetSuggestionsPanel({ suggestions, loading, errorMessage, periodLabel, catalogs, onRetry, onOpenItem }: Props) {
+export function BudgetSuggestionsPanel({ suggestions, loading, errorMessage, periodLabel, catalogs, onRetry, onLink, linkingSuggestionKey, onOpenItem }: Props) {
   const columns = useMemo<ColumnDef<BudgetItemSuggestion>[]>(
     () => [
       {
@@ -152,10 +191,17 @@ export function BudgetSuggestionsPanel({ suggestions, loading, errorMessage, per
         id: "actions",
         header: "",
         enableSorting: false,
-        cell: ({ row }) => <OpenItemAction suggestion={row.original} onOpenItem={onOpenItem} />
+        cell: ({ row }) => (
+          <SuggestionActions
+            suggestion={row.original}
+            linkingSuggestionKey={linkingSuggestionKey}
+            onLink={onLink}
+            onOpenItem={onOpenItem}
+          />
+        )
       }
     ],
-    [catalogs, onOpenItem]
+    [catalogs, linkingSuggestionKey, onLink, onOpenItem]
   );
 
   if (errorMessage) {
@@ -210,7 +256,7 @@ export function BudgetSuggestionsPanel({ suggestions, loading, errorMessage, per
       <p className="app-panel m-0 flex items-start gap-2 px-3 py-2 text-[11px] font-medium text-muted">
         <Link2 className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
         <span>
-          Sugerencias de solo lectura: el enlace débil no identifica la partida, así que nada se enlaza solo. Revisa cada par y, si aplica, atiende la partida en su pestaña.
+          Sugerencias calculadas por categoría y mes: nada se enlaza solo para no mover tu presupuesto sin decidirlo. Enlaza el par que corresponda con un clic o revisa la partida en su pestaña.
         </span>
       </p>
 
@@ -256,7 +302,13 @@ export function BudgetSuggestionsPanel({ suggestions, loading, errorMessage, per
                 </p>
 
                 <div className="mt-3 flex justify-end">
-                  <OpenItemAction suggestion={suggestion} onOpenItem={onOpenItem} />
+                  <SuggestionActions
+                    suggestion={suggestion}
+                    linkingSuggestionKey={linkingSuggestionKey}
+                    onLink={onLink}
+                    onOpenItem={onOpenItem}
+                    mobile
+                  />
                 </div>
               </article>
             </li>

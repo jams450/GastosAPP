@@ -2,6 +2,7 @@
 
 import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import Link from "next/link";
 import { toDateInputValue } from "@/lib/contracts/budget-items";
 import type { RecurringItem } from "@/lib/contracts/recurring-items";
 import { formatCurrency } from "@/lib/format/currency";
@@ -39,10 +40,6 @@ function formatPlannedDay(dayOfMonth: number, period: string): string {
  * las filtra) en vez de ofrecer un botón que choque con el 400 del backend.
  */
 export function BudgetTemplatesPanel({ templates, period, periodLabel, addingId, onAdd }: Props) {
-  if (templates.length === 0) {
-    return null;
-  }
-
   return (
     <section aria-label="Programadas sin partida este mes" className="app-panel px-3 py-2">
       <div className="flex flex-wrap items-baseline justify-between gap-1">
@@ -52,6 +49,15 @@ export function BudgetTemplatesPanel({ templates, period, periodLabel, addingId,
         </p>
       </div>
 
+      <p className="m-0 mt-1 text-[11px] leading-relaxed text-muted">
+        Las programadas que aparecen aquí dependen de su configuración y vigencia para este periodo. Si no ves una, revisa el catálogo de{" "}
+        <Link href="/catalogs/recurring-items" className="focus-ring font-semibold text-[var(--color-accent)] underline">
+          Programadas
+        </Link>.
+      </p>
+      {templates.length === 0 ? (
+        <p className="m-0 mt-2 text-xs text-muted">No hay programadas disponibles para agregar en este periodo.</p>
+      ) : null}
       <ul className="m-0 mt-2 space-y-1.5 p-0" style={{ listStyle: "none" }}>
         {templates.map((template) => {
           const busy = addingId === template.recurringItemId;

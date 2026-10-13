@@ -12,6 +12,8 @@ export type IncomeExpenseTransactionRequest = {
   msiMonths?: number;
   creditAllocations?: CreditInstallmentAllocation[];
   allocations?: TransactionAllocation[];
+  /** Partida `pending` a la que se enlaza el gasto al crearse (alta "desde partida"). */
+  budgetItemId?: number;
 };
 
 export type TransferTransactionRequest = {
@@ -202,6 +204,9 @@ export function validateIncomeExpensePayload(input: unknown): ValidationResult<I
   const msiMonths = toOptionalMsiMonths(input.msiMonths);
   const creditAllocations = toCreditAllocations(input.creditAllocations);
   const allocations = toTransactionAllocations(input.allocations);
+  // Opcional y nunca obligatorio: sin partida el alta es la de siempre. Un valor no numérico o
+  // no positivo se normaliza a `undefined` y el API crea el gasto sin enlace, igual que hoy.
+  const budgetItemId = toOptionalPositiveNumber(input.budgetItemId);
 
   if (!accountId || !categoryId || !amount || !description || !transactionDate) {
     return {
@@ -223,7 +228,8 @@ export function validateIncomeExpensePayload(input: unknown): ValidationResult<I
       transactionDate,
       msiMonths,
       creditAllocations,
-      allocations
+      allocations,
+      budgetItemId
     }
   };
 }

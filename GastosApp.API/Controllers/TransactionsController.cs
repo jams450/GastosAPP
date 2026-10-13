@@ -14,6 +14,7 @@ namespace GastosApp.API.Controllers
     public class TransactionsController : ControllerBase
     {
         private readonly ITransactionService _transactionService;
+        private readonly ITransactionCommandService _transactionCommandService;
         private readonly ITransactionQueryService _transactionQueryService;
         private readonly IAccountService _accountService;
         private readonly ICurrentUserService _currentUserService;
@@ -22,6 +23,7 @@ namespace GastosApp.API.Controllers
 
         public TransactionsController(
             ITransactionService transactionService,
+            ITransactionCommandService transactionCommandService,
             ITransactionQueryService transactionQueryService,
             IAccountService accountService,
             ICurrentUserService currentUserService,
@@ -29,6 +31,7 @@ namespace GastosApp.API.Controllers
             ILogger<TransactionsController> logger)
         {
             _transactionService = transactionService;
+            _transactionCommandService = transactionCommandService;
             _transactionQueryService = transactionQueryService;
             _accountService = accountService;
             _currentUserService = currentUserService;
@@ -308,12 +311,13 @@ namespace GastosApp.API.Controllers
                     Value = a.Value
                 });
 
-            var createdTransaction = await _transactionService.CreateExpenseAsync(
+            var createdTransaction = await _transactionCommandService.CreateExpenseAsync(
                 transaction,
                 userId,
                 allocationInputs,
                 request.Tags,
-                account.IsCredit ? request.MsiMonths : null);
+                account.IsCredit ? request.MsiMonths : null,
+                request.BudgetItemId);
 
             _logger.LogInformation("Expense transaction created: {TransactionId}", createdTransaction.TransactionId);
 

@@ -31,13 +31,25 @@ import {
   validateBudgetItemForm
 } from "./_lib/budget-item-form-model";
 import type { BudgetItemKindFilter } from "./_lib/budget-items-model";
-import type { BudgetItem } from "@/lib/contracts/budget-items";
+import type { BudgetItem, BudgetItemSuggestion } from "@/lib/contracts/budget-items";
 import type { RecurringItem } from "@/lib/contracts/recurring-items";
+import {
+  createExpenseFromBudgetItem,
+  fetchBudgetItemLinkCandidates,
+  linkBudgetItemTransaction,
+  type BudgetItemLinkCandidate
+} from "./_lib/budgets-api";
+import { suggestionRowKey } from "./_lib/budget-suggestions-model";
 import { AlertsHistoryPanel } from "./_components/alerts-history-panel";
 import { BudgetFormDrawer } from "./_components/budget-form-drawer";
 import { BudgetIncomeBlock } from "./_components/budget-income-block";
 import { BudgetItemFormDrawer } from "./_components/budget-item-form-drawer";
-import { BudgetItemsPanel } from "./_components/budget-items-panel";
+import {
+  BudgetItemExpenseDialog,
+  BudgetItemLinkDialog,
+  BudgetItemsPanel,
+  type BudgetItemExpenseDraft
+} from "./_components/budget-items-panel";
 import { BudgetTemplatesPanel } from "./_components/budget-templates-panel";
 import { BudgetSuggestionsPanel } from "./_components/budget-suggestions-panel";
 import { BudgetsKpis } from "./_components/budgets-kpis";
@@ -134,6 +146,18 @@ export function BudgetsClient() {
     error: templatesError
   } = useBudgetTemplates(period, allItems, tab === "partidas");
   const [addingTemplateId, setAddingTemplateId] = useState<number | null>(null);
+
+  // Enlace manual: la lista de movimientos candidatos la resuelve el API para la partida elegida.
+  const [linkItem, setLinkItem] = useState<BudgetItem | null>(null);
+  const [linkCandidates, setLinkCandidates] = useState<BudgetItemLinkCandidate[]>([]);
+  const [linkLoading, setLinkLoading] = useState(false);
+  const [linkError, setLinkError] = useState<string | null>(null);
+  const [linkingTransactionId, setLinkingTransactionId] = useState<number | null>(null);
+  const [linkingSuggestionKey, setLinkingSuggestionKey] = useState<string | null>(null);
+  // Alta de gasto desde la partida: el monto planificado llega precargado y editable.
+  const [expenseItem, setExpenseItem] = useState<BudgetItem | null>(null);
+  const [expenseSubmitting, setExpenseSubmitting] = useState(false);
+  const [expenseError, setExpenseError] = useState<string | null>(null);
   const {
     suggestions,
     loading: suggestionsLoading,
@@ -388,6 +412,119 @@ export function BudgetsClient() {
     onTabChange("partidas");
   }
 
+  async function loadLinkCandidates(item: BudgetItem) {
+    setLinkItem(item);
+    setLinkCandidates([]);
+    setLinkError(null);
+    setLinkLoading(true);
+
+    try {
+      setLinkCandidates(await fetchBudgetItemLinkCandidates(item.itemId));
+    } catch (err) {
+      setLinkError(err instanceof Error ? err.message : "No se pudieron cargar los movimientos");
+    } finally {
+      setLinkLoading(false);
+    }
+  }
+
+  function closeLinkDialog() {
+    setLinkItem(null);
+    setLinkCandidates([]);
+    setLinkError(null);
+    setLinkingTransactionId(null);
+  }
+
+  /** Enlace de un movimiento existente a la partida. El API valida mes y alcance; el monto es libre. */
+  async function onLinkTransaction(item: BudgetItem, transactionId: number) {
+    setLinkingTransactionId(transactionId);
+
+    try {
+      await linkBudgetItemTransaction(item.itemId, transactionId);
+      success("Movimiento enlazado a la partida");
+      closeLinkDialog();
+      await reload();
+      await reloadSuggestions();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "No se pudo enlazar el movimiento";
+      // El diálogo sigue abierto para poder elegir otra fila sin recargar la lista.
+      setLinkError(message);
+      errorToast(message);
+    } finally {
+      setLinkingTransactionId(null);
+    }
+  }
+
+  /** Enlace directo de una sugerencia ya calculada (mismo mes y categoría). */
+  async function onLinkSuggestion(suggestion: BudgetItemSuggestion) {
+    setLinkingSuggestionKey(suggestionRowKey(suggestion));
+
+    try {
+      await linkBudgetItemTransaction(suggestion.itemId, suggestion.transactionId);
+      success("Movimiento enlazado a la partida");
+      await reload();
+      await reloadSuggestions();
+    } catch (err) {
+      errorToast(err instanceof Error ? err.message : "No se pudo enlazar el movimiento");
+    } finally {
+      setLinkingSuggestionKey(null);
+    }
+  }
+
+  function closeExpenseDialog() {
+    setExpenseItem(null);
+    setExpenseError(null);
+    setExpenseSubmitting(false);
+  }
+
+  /**
+   * Alta de gasto desde la partida. La categoría y la subcategoría las fija la partida (el usuario
+   * solo edita monto, cuenta, fecha y descripción); si la partida es por subcategoría, se resuelve
+   * su categoría padre porque el API exige ambas al crear el gasto.
+   */
+  async function onSubmitExpenseDraft(draft: BudgetItemExpenseDraft) {
+    if (!expenseItem) {
+      return;
+    }
+
+    const parentCategoryId = expenseItem.subcategoryId !== null
+      ? itemCatalogs.subcategoryById.get(expenseItem.subcategoryId)?.categoryId ?? null
+      : null;
+    const categoryId = expenseItem.categoryId ?? parentCategoryId;
+
+    if (categoryId === null) {
+      setExpenseError("La partida no tiene una categoría utilizable para registrar el gasto.");
+      return;
+    }
+
+    const parsedDate = new Date(draft.transactionDate);
+    if (Number.isNaN(parsedDate.getTime())) {
+      setExpenseError("Selecciona una fecha válida.");
+      return;
+    }
+
+    setExpenseSubmitting(true);
+    setExpenseError(null);
+
+    try {
+      await createExpenseFromBudgetItem(expenseItem.itemId, {
+        accountId: draft.accountId,
+        categoryId,
+        subcategoryId: expenseItem.subcategoryId,
+        amount: draft.amount,
+        description: draft.description,
+        transactionDate: parsedDate.toISOString()
+      });
+      success("Gasto registrado y enlazado a la partida");
+      closeExpenseDialog();
+      await reload();
+      await reloadSuggestions();
+    } catch (err) {
+      setExpenseError(err instanceof Error ? err.message : "No se pudo registrar el gasto");
+    } finally {
+      setExpenseSubmitting(false);
+    }
+  }
+
   async function onPurgeItems() {
     // La purga borra de forma permanente: se confirma antes, como en el resto de la app.
     if (!window.confirm("¿Eliminar definitivamente las partidas canceladas de este periodo?")) {
@@ -494,6 +631,11 @@ export function BudgetsClient() {
               onCancel={onCancelItem}
               onRestore={onRestoreItem}
               onIgnore={onIgnoreItem}
+              onRequestLink={(item) => void loadLinkCandidates(item)}
+              onRequestExpense={(item) => {
+                setExpenseError(null);
+                setExpenseItem(item);
+              }}
             />
 
             {cancelledCount > 0 ? (
@@ -533,6 +675,8 @@ export function BudgetsClient() {
               periodLabel={periodLabel}
               catalogs={itemCatalogs}
               onRetry={() => void reloadSuggestions()}
+              onLink={(suggestion) => void onLinkSuggestion(suggestion)}
+              linkingSuggestionKey={linkingSuggestionKey}
               onOpenItem={onOpenSuggestionItem}
             />
           </div>
@@ -571,6 +715,32 @@ export function BudgetsClient() {
         onChange={onItemFormChange}
         onSubmit={onSaveItem}
       />
+
+      {linkItem ? (
+        <BudgetItemLinkDialog
+          item={linkItem}
+          candidates={linkCandidates}
+          loading={linkLoading}
+          errorMessage={linkError}
+          submittingTransactionId={linkingTransactionId}
+          onSelect={(transactionId) => void onLinkTransaction(linkItem, transactionId)}
+          onClose={closeLinkDialog}
+          onRetry={() => void loadLinkCandidates(linkItem)}
+        />
+      ) : null}
+
+      {expenseItem ? (
+        <BudgetItemExpenseDialog
+          key={expenseItem.itemId}
+          item={expenseItem}
+          accounts={itemAccounts}
+          catalogs={itemCatalogs}
+          submitting={expenseSubmitting}
+          errorMessage={expenseError}
+          onSubmit={(draft) => void onSubmitExpenseDraft(draft)}
+          onClose={closeExpenseDialog}
+        />
+      ) : null}
     </>
   );
 }

@@ -161,6 +161,102 @@ export function cancelBudgetItem(itemId: number): Promise<void> {
   return sendJson(`/api/bff/budget-items/${itemId}/cancel`, "POST", {}, "No se pudo cancelar la partida");
 }
 
+/** Gasto ya registrado que puede enlazarse a una partida: mismo mes y alcance, cualquier monto. */
+export type BudgetItemLinkCandidate = {
+  transactionId: number;
+  amount: number;
+  transactionDate: string | null;
+  categoryId: number | null;
+  subcategoryId: number | null;
+  description: string | null;
+};
+
+/** Alta de gasto disparada desde una partida: el monto real puede diferir del planificado. */
+export type BudgetItemExpensePayload = {
+  accountId: number;
+  categoryId: number;
+  subcategoryId: number | null;
+  amount: number;
+  description: string;
+  transactionDate: string;
+};
+
+function toOptionalPositiveId(value: unknown): number | null {
+  const parsed = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
+
+/** El BFF responde el array crudo del API; aquí solo se valida la forma antes de usarla. */
+export function normalizeBudgetItemLinkCandidates(input: unknown): BudgetItemLinkCandidate[] {
+  if (!Array.isArray(input)) {
+    return [];
+  }
+
+  return input
+    .map((row) => {
+      if (!row || typeof row !== "object") {
+        return null;
+      }
+
+      const record = row as Record<string, unknown>;
+      const transactionId = toOptionalPositiveId(record.transactionId);
+      const amount = typeof record.amount === "number" ? record.amount : Number(record.amount);
+      if (!transactionId || !Number.isFinite(amount)) {
+        return null;
+      }
+
+      const description = typeof record.description === "string" && record.description.trim().length > 0
+        ? record.description
+        : null;
+
+      return {
+        transactionId,
+        amount,
+        transactionDate: typeof record.transactionDate === "string" ? record.transactionDate : null,
+        categoryId: toOptionalPositiveId(record.categoryId),
+        subcategoryId: toOptionalPositiveId(record.subcategoryId),
+        description
+      } satisfies BudgetItemLinkCandidate;
+    })
+    .filter((row): row is BudgetItemLinkCandidate => Boolean(row));
+}
+
+/**
+ * Gastos candidatos de la partida. El API decide el mes y el alcance con la partida del usuario;
+ * el cliente no manda filtros para no ampliar la consulta.
+ */
+export async function fetchBudgetItemLinkCandidates(itemId: number): Promise<BudgetItemLinkCandidate[]> {
+  const response = await fetch(`/api/bff/budget-items/${itemId}/link`, { cache: "no-store" });
+  if (!response.ok) {
+    throw await parseApiError(response, "No se pudieron cargar los gastos para enlazar");
+  }
+
+  return normalizeBudgetItemLinkCandidates(await response.json().catch(() => null));
+}
+
+/** Enlace manual: exige mismo mes y alcance (lo valida el API); el monto real no viaja. */
+export function linkBudgetItemTransaction(itemId: number, transactionId: number): Promise<void> {
+  return sendJson(
+    `/api/bff/budget-items/${itemId}/link`,
+    "POST",
+    { transactionId },
+    "No se pudo enlazar el gasto a la partida"
+  );
+}
+
+/**
+ * Alta de gasto desde una partida: viaja `budgetItemId` y el API enlaza la partida después del
+ * commit. El monto puede diferir del planificado; el de la transacción es el autoritativo.
+ */
+export function createExpenseFromBudgetItem(itemId: number, payload: BudgetItemExpensePayload): Promise<void> {
+  return sendJson(
+    "/api/bff/transactions/expense",
+    "POST",
+    { ...payload, budgetItemId: itemId },
+    "No se pudo registrar el gasto de la partida"
+  );
+}
+
 export async function purgeCancelledBudgetItems(period: string): Promise<BudgetItemPurgeResult | null> {
   const response = await csrfFetch(`/api/bff/budget-items/purge?period=${encodeURIComponent(period)}`, { method: "DELETE" });
   if (!response.ok) {

@@ -20,17 +20,20 @@ public class BudgetItemsController : ControllerBase
 {
     private readonly IBudgetItemService _budgetItemService;
     private readonly IBudgetItemMatchService _budgetItemMatchService;
+    private readonly ITransactionCommandService _transactionCommandService;
     private readonly ICurrentUserService _currentUserService;
     private readonly ILogger<BudgetItemsController> _logger;
 
     public BudgetItemsController(
         IBudgetItemService budgetItemService,
         IBudgetItemMatchService budgetItemMatchService,
+        ITransactionCommandService transactionCommandService,
         ICurrentUserService currentUserService,
         ILogger<BudgetItemsController> logger)
     {
         _budgetItemService = budgetItemService;
         _budgetItemMatchService = budgetItemMatchService;
+        _transactionCommandService = transactionCommandService;
         _currentUserService = currentUserService;
         _logger = logger;
     }
@@ -270,6 +273,89 @@ public class BudgetItemsController : ControllerBase
         }
     }
 
+    /// <summary>
+    /// Gastos candidatos a enlazarse con la partida: mismo mes y mismo alcance, sin importar el
+    /// monto, excluyendo los ya enlazados a otra partida. <b>Solo lectura.</b> 404 cuando la partida
+    /// no existe o no es del usuario, sin oráculo de existencia.
+    /// </summary>
+    [HttpGet("{id:int}/link/candidates")]
+    public async Task<IActionResult> GetLinkCandidates(int id, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var userId = GetCurrentUserId();
+            var candidates = await _transactionCommandService.ListBudgetItemLinkCandidatesAsync(userId, id, cancellationToken);
+            if (candidates == null)
+            {
+                return NotFound(new { Message = $"Budget item with ID {id} not found" });
+            }
+
+            return Ok(candidates.Select(c => new
+            {
+                c.TransactionId,
+                c.Amount,
+                c.TransactionDate,
+                c.CategoryId,
+                c.SubcategoryId,
+                c.Description
+            }));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error retrieving link candidates for budget item {Id}", id);
+            return StatusCode(500, new { Message = "An error occurred while retrieving link candidates" });
+        }
+    }
+
+    /// <summary>
+    /// Enlace manual de una transacción ya registrada a esta partida. Exige mismo mes, mismo tipo y
+    /// mismo alcance; <b>el monto puede diferir</b> y el de la transacción es el autoritativo. La
+    /// partida pasa a <c>executed</c> y queda ligada en la misma escritura atómica.
+    /// </summary>
+    [HttpPost("{id:int}/link")]
+    public async Task<IActionResult> LinkTransaction(int id, [FromBody] BudgetItemLinkRequest request)
+    {
+        if (request?.TransactionId is not > 0)
+        {
+            return BadRequest(new { Message = "transactionId is required." });
+        }
+
+        try
+        {
+            var userId = GetCurrentUserId();
+            var outcome = await _transactionCommandService.LinkBudgetItemAsync(
+                userId,
+                id,
+                request.TransactionId.Value,
+                HttpContext.RequestAborted);
+
+            switch (outcome.Status)
+            {
+                case BudgetItemLinkOutcomeStatus.Linked:
+                    var item = await _budgetItemService.GetAsync(id, userId);
+                    _logger.LogInformation("Budget item {Id} linked transaction {TransactionId}", id, outcome.TransactionId);
+                    return Ok(MapItem(item!));
+                case BudgetItemLinkOutcomeStatus.ItemNotFound:
+                    return NotFound(new { Message = $"Budget item with ID {id} not found" });
+                case BudgetItemLinkOutcomeStatus.TransactionNotFound:
+                    return NotFound(new { Message = $"Transaction with ID {request.TransactionId.Value} not found" });
+                case BudgetItemLinkOutcomeStatus.Mismatch:
+                    return BadRequest(new { Message = "El gasto debe estar en el mes y la categoría/subcategoría de la partida." });
+                case BudgetItemLinkOutcomeStatus.ItemNotLinkable:
+                    return Conflict(new { Message = "La partida ya no está pendiente o ya tiene una transacción enlazada." });
+                case BudgetItemLinkOutcomeStatus.TransactionAlreadyLinked:
+                    return Conflict(new { Message = "La transacción ya está enlazada a otra partida." });
+                default:
+                    return StatusCode(500, new { Message = "Unexpected link outcome" });
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error linking transaction to budget item {Id}", id);
+            return StatusCode(500, new { Message = "An error occurred while linking the transaction" });
+        }
+    }
+
     private static BudgetItemWriteInput MapWriteInput(BudgetItemCreateRequest request) => new()
     {
         Kind = request.Kind ?? string.Empty,
@@ -343,4 +429,13 @@ public class BudgetItemsController : ControllerBase
         return _currentUserService.GetUserId()
             ?? throw new UnauthorizedAccessException("Missing or invalid user identity claim");
     }
+}
+
+/// <summary>
+/// Cuerpo del enlace manual. Solo viaja el id de la transacción: la partida va en la ruta y el
+/// usuario en el token. El monto <b>no</b> viaja: el de la transacción es el autoritativo.
+/// </summary>
+public class BudgetItemLinkRequest
+{
+    public int? TransactionId { get; set; }
 }
