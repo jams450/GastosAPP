@@ -177,7 +177,6 @@ export function BudgetItemFormDrawer({
     <div
       className="drawer-enter-backdrop fixed inset-0 z-[70] flex items-end justify-end bg-[var(--color-overlay)] backdrop-blur-sm sm:items-stretch"
       role="presentation"
-      onClick={onClose}
     >
       <div
         ref={drawerRef}

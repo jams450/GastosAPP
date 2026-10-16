@@ -51,7 +51,7 @@ export function InvestmentFormDrawer({ title, saving, onClose, onSubmit, childre
   }, []);
 
   return (
-    <div className="drawer-enter-backdrop fixed inset-0 z-[70] flex items-end justify-end bg-[var(--color-overlay)] backdrop-blur-sm sm:items-stretch" role="presentation" onClick={onClose}>
+    <div className="drawer-enter-backdrop fixed inset-0 z-[70] flex items-end justify-end bg-[var(--color-overlay)] backdrop-blur-sm sm:items-stretch" role="presentation">
       <div ref={drawerRef} className="drawer-enter-panel app-sidebar relative flex h-[100dvh] w-full flex-col border-l sm:h-full sm:max-w-xl" role="dialog" aria-modal="true" aria-labelledby={titleId} onClick={(event) => event.stopPropagation()}>
         <div className="drawer-header-semantic">
           <div className="mb-1 h-1 w-12 bg-[var(--color-accent)]/70 sm:hidden" />

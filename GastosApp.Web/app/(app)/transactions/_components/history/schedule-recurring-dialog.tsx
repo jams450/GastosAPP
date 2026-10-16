@@ -260,7 +260,6 @@ export function ScheduleRecurringDialog({ item, open, catalogs, onClose, onCreat
     <div
       className="fixed inset-0 z-[100] flex items-center justify-center overflow-y-auto bg-[var(--color-overlay)] p-4 backdrop-blur-sm"
       role="presentation"
-      onClick={saving || loading ? undefined : onClose}
     >
       <section
         className="app-card w-full max-w-2xl p-4"

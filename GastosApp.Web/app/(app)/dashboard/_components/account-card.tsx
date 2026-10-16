@@ -522,7 +522,7 @@ function CreditDetails({ account, timezone }: { account: DashboardAccountOvervie
       </div>
 
       {open && portalRoot ? createPortal(
-        <div className="fixed inset-0 z-50 grid place-items-center bg-[var(--color-overlay)] p-4 backdrop-blur-sm" onMouseDown={(event) => { if (event.target === event.currentTarget) setOpen(false); }}>
+        <div className="fixed inset-0 z-50 grid place-items-center bg-[var(--color-overlay)] p-4 backdrop-blur-sm">
           <Card ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby={dialogTitleId} className="app-card flex max-h-[85vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl shadow-[var(--shadow-md)]">
             <div className="border-default flex items-start justify-between gap-3 border-b px-5 py-4">
               <div>

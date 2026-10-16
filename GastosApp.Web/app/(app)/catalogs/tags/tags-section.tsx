@@ -191,7 +191,7 @@ export function TagsSection({ tags, onCatalogChanged, onError, onSuccess }: Prop
       </section>
 
       {tagModalOpen ? (
-        <div className="drawer-enter-backdrop fixed inset-0 z-[70] flex items-end justify-end bg-[var(--color-overlay)] backdrop-blur-sm sm:items-stretch" role="presentation" onClick={() => setTagModalOpen(false)}>
+        <div className="drawer-enter-backdrop fixed inset-0 z-[70] flex items-end justify-end bg-[var(--color-overlay)] backdrop-blur-sm sm:items-stretch" role="presentation">
           <Card className="drawer-enter-panel relative flex h-[100dvh] w-full max-w-none flex-col app-sidebar border-l p-0 sm:h-full sm:max-w-xl" onClick={(event) => event.stopPropagation()}>
             <div className="drawer-header-semantic">
               <div className="mb-1 h-1 w-12 bg-[var(--color-accent)]/70 sm:hidden" />
