@@ -94,6 +94,37 @@ namespace GastosApp.BusinessLogic.Services
         }
 
         /// <summary>
+        /// Construye el par (partida, transacción) desde la mitad de la partida y los campos de la
+        /// transacción. Es el único constructor que el servicio usa para sugerir, y existe para que
+        /// la identidad de la transacción —<b>cuenta y comercio incluidos</b>— no pueda quedarse
+        /// fuera: sin ellos <see cref="IsStrongMatch"/> no reconoce la cuenta con monto exacto ni el
+        /// comercio con tolerancia, y un acierto exacto se degrada a la débil "mismo mes".
+        /// </summary>
+        public static BudgetItemMatchInput CreateInput(
+            BudgetItemMatchInput item,
+            int transactionId,
+            string transactionType,
+            int? transactionCategoryId,
+            int? transactionSubcategoryId,
+            int? transactionAccountId,
+            int? transactionMerchantId,
+            decimal transactionAmount,
+            DateOnly transactionLocalDate)
+        {
+            return item with
+            {
+                TransactionId = transactionId,
+                TransactionType = transactionType,
+                TransactionCategoryId = transactionCategoryId,
+                TransactionSubcategoryId = transactionSubcategoryId,
+                TransactionAccountId = transactionAccountId,
+                TransactionMerchantId = transactionMerchantId,
+                TransactionAmount = transactionAmount,
+                TransactionLocalDate = transactionLocalDate
+            };
+        }
+
+        /// <summary>
         /// Elige la candidata que se enlaza (plan §4.4 punto 3): la de fecha más cercana a
         /// <c>planned_date</c>. El resto queda como gasto normal — no hay doble conteo porque el
         /// índice único parcial <c>uq_budget_items_transaction</c> admite una sola fila por
@@ -153,6 +184,37 @@ namespace GastosApp.BusinessLogic.Services
                 .Select(input => Evaluate(input, tolerancePct))
                 .Where(candidate => candidate.Strength == BudgetItemMatchStrength.Weak)
                 .OrderBy(candidate => candidate.Input.ItemId)
+                .ThenBy(candidate => candidate.DistanceDays)
+                .ThenBy(candidate => candidate.Input.TransactionId)
+                .ToList();
+        }
+
+        /// <summary>
+        /// Candidatas que la UI puede mostrar, <b>de más fuerte a más débil</b>: primero las fuertes
+        /// (cuenta+alcance+monto exacto, o comercio+monto en tolerancia) y después las débiles
+        /// (misma categoría/subcategoría en el mismo mes). <b>No escribe ni decide nada</b>: solo
+        /// filtra y ordena para la sugerencia manual.
+        /// </summary>
+        /// <remarks>
+        /// <para><b>No reutiliza <see cref="SelectWeak"/>.</b> Esa función define el contrato
+        /// histórico "solo débiles" y no debe cambiar para otros consumidores; esta selección es
+        /// específica de la sugerencia e incluye las fuertes, que ahora se reconocen porque el par
+        /// lleva cuenta y comercio.</para>
+        /// <para>Orden: fuerza descendente, luego <c>ItemId</c>, cercanía y <c>TransactionId</c>, el
+        /// mismo desempate estable de <see cref="SelectWeak"/> para no depender del orden en que EF
+        /// devolvió las filas. La fuerza viaja además en cada candidata para que el servicio no la
+        /// vuelva a adivinar.</para>
+        /// </remarks>
+        public static IReadOnlyList<BudgetItemMatchCandidate> SelectSuggestions(
+            IEnumerable<BudgetItemMatchInput> inputs,
+            decimal tolerancePct)
+        {
+            return inputs
+                .Select(input => Evaluate(input, tolerancePct))
+                .Where(candidate => candidate.Strength == BudgetItemMatchStrength.Strong ||
+                                    candidate.Strength == BudgetItemMatchStrength.Weak)
+                .OrderByDescending(candidate => candidate.Strength)
+                .ThenBy(candidate => candidate.Input.ItemId)
                 .ThenBy(candidate => candidate.DistanceDays)
                 .ThenBy(candidate => candidate.Input.TransactionId)
                 .ToList();

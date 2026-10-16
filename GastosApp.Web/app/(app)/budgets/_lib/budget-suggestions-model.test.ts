@@ -65,6 +65,14 @@ test("sortBudgetItemSuggestions ordena por fecha planeada, luego cercanía y lue
   assert.deepEqual(sortBudgetItemSuggestions([]), []);
 });
 
+test("una coincidencia fuerte posterior aparece antes de coincidencias débiles del mismo día", () => {
+  const weak = suggestion({ transactionId: 1, distanceDays: 0, strength: "weak" });
+  const strong = suggestion({ transactionId: 2, distanceDays: 5, strength: "strong" });
+  assert.deepEqual(sortBudgetItemSuggestions([weak, strong]).map(row => row.transactionId), [2, 1]);
+  assert.equal(suggestionStrengthLabel("strong"), "Coincidencia fuerte");
+  assert.equal(suggestionStrengthBadgeClass("strong"), "tabler-badge tabler-badge-solid tabler-badge-success");
+});
+
 test("describeSuggestionScope resuelve subcategoría, categoría y sin alcance", () => {
   assert.deepEqual(describeSuggestionScope(suggestion({ subcategoryId: 9 }), catalogs), {
     label: "Renta",
@@ -113,7 +121,7 @@ test("describeSuggestionContext resuelve cuenta y comercio, y omite lo que no vi
 test("las etiquetas de fuerza y tipo no dependen del color para explicarse", () => {
   assert.equal(suggestionStrengthLabel("weak"), "Coincidencia débil");
   assert.equal(suggestionStrengthLabel(""), "Sin fuerza definida");
-  assert.equal(suggestionStrengthLabel("strong"), "strong", "una fuerza inesperada se muestra tal cual");
+  assert.equal(suggestionStrengthLabel("unexpected"), "unexpected", "una fuerza inesperada se muestra tal cual");
   assert.equal(suggestionStrengthBadgeClass("weak"), "tabler-badge tabler-badge-solid tabler-badge-warning");
   assert.equal(suggestionStrengthBadgeClass("lo-que-sea"), "tabler-badge tabler-badge-solid tabler-badge-muted");
 

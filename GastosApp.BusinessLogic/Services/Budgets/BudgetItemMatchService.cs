@@ -246,6 +246,8 @@ namespace GastosApp.BusinessLogic.Services
                     t.Amount,
                     t.CategoryId,
                     t.SubcategoryId,
+                    t.AccountId,
+                    t.MerchantId,
                     t.TransactionDate
                 })
                 .ToListAsync(cancellationToken);
@@ -262,38 +264,41 @@ namespace GastosApp.BusinessLogic.Services
             {
                 foreach (var candidate in transactions)
                 {
-                    inputs.Add(new BudgetItemMatchInput
-                    {
-                        ItemId = item.ItemId,
-                        ItemKind = item.Kind,
-                        ItemCategoryId = item.CategoryId,
-                        ItemSubcategoryId = item.SubcategoryId,
-                        ItemAccountId = item.AccountId,
-                        ItemMerchantId = item.MerchantId,
-                        PeriodKey = periodKey,
-                        PlannedAmount = item.PlannedAmount,
-                        PlannedDate = DateOnly.FromDateTime(item.PlannedDate),
-                        TransactionId = candidate.TransactionId,
-                        TransactionType = candidate.Type,
-                        TransactionCategoryId = candidate.CategoryId,
-                        TransactionSubcategoryId = candidate.SubcategoryId,
-                        TransactionAmount = candidate.Amount,
-                        TransactionLocalDate = DateOnly.FromDateTime(
-                            MonthRangeResolver.ResolveLocalDate(candidate.TransactionDate))
-                    });
+                    inputs.Add(BudgetItemMatcher.CreateInput(
+                        new BudgetItemMatchInput
+                        {
+                            ItemId = item.ItemId,
+                            ItemKind = item.Kind,
+                            ItemCategoryId = item.CategoryId,
+                            ItemSubcategoryId = item.SubcategoryId,
+                            ItemAccountId = item.AccountId,
+                            ItemMerchantId = item.MerchantId,
+                            PeriodKey = periodKey,
+                            PlannedAmount = item.PlannedAmount,
+                            PlannedDate = DateOnly.FromDateTime(item.PlannedDate)
+                        },
+                        transactionId: candidate.TransactionId,
+                        transactionType: candidate.Type,
+                        transactionCategoryId: candidate.CategoryId,
+                        transactionSubcategoryId: candidate.SubcategoryId,
+                        transactionAccountId: candidate.AccountId,
+                        transactionMerchantId: candidate.MerchantId,
+                        transactionAmount: candidate.Amount,
+                        transactionLocalDate: DateOnly.FromDateTime(
+                            MonthRangeResolver.ResolveLocalDate(candidate.TransactionDate))));
                 }
             }
 
-            var weak = BudgetItemMatcher.SelectWeak(inputs, tolerancePct);
-            if (weak.Count == 0)
+            var selection = BudgetItemMatcher.SelectSuggestions(inputs, tolerancePct);
+            if (selection.Count == 0)
             {
                 return Array.Empty<BudgetItemSuggestion>();
             }
 
             var itemsById = items.ToDictionary(i => i.ItemId);
-            var suggestions = new List<BudgetItemSuggestion>(weak.Count);
+            var suggestions = new List<BudgetItemSuggestion>(selection.Count);
 
-            foreach (var candidate in weak)
+            foreach (var candidate in selection)
             {
                 var item = itemsById[candidate.Input.ItemId];
                 suggestions.Add(new BudgetItemSuggestion
@@ -311,7 +316,10 @@ namespace GastosApp.BusinessLogic.Services
                     TransactionId = candidate.Input.TransactionId,
                     TransactionAmount = candidate.Input.TransactionAmount,
                     TransactionDate = candidate.Input.TransactionLocalDate.ToDateTime(TimeOnly.MinValue),
-                    DistanceDays = candidate.DistanceDays
+                    DistanceDays = candidate.DistanceDays,
+                    // La fuerza real, en minúsculas como el contrato: una fuerte no puede salir
+                    // etiquetada de débil. La selección ya garantiza que no hay None.
+                    Strength = candidate.Strength.ToString().ToLowerInvariant()
                 });
             }
 

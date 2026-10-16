@@ -19,9 +19,11 @@ export type SuggestionCatalogs = {
   merchantById: ReadonlyMap<number, Pick<Merchant, "merchantId" | "name">>;
 };
 
-/** Orden de lectura: primero la fecha de la partida, luego la cercanía del par y el id como desempate. */
+/** Prioriza coincidencias fuertes; entre candidatas de igual fuerza conserva fecha, cercanía e id. */
 export function sortBudgetItemSuggestions(suggestions: BudgetItemSuggestion[]): BudgetItemSuggestion[] {
   return [...suggestions].sort((left, right) => {
+    const byStrength = Number(right.strength === "strong") - Number(left.strength === "strong");
+    if (byStrength !== 0) return byStrength;
     // Sin fecha la sugerencia va al final en vez de ganar el orden por tener "".
     const byDate = compareDates(left.plannedDate, right.plannedDate);
     if (byDate !== 0) {
@@ -104,6 +106,8 @@ export function describeSuggestionContext(suggestion: BudgetItemSuggestion, cata
 /** La fuerza de la coincidencia se dice con palabras, no solo con el color del badge. */
 export function suggestionStrengthLabel(strength: string): string {
   switch (strength) {
+    case "strong":
+      return "Coincidencia fuerte";
     case "weak":
       return "Coincidencia débil";
     default:
@@ -114,6 +118,7 @@ export function suggestionStrengthLabel(strength: string): string {
 const SUGGESTION_BADGE_BASE = "tabler-badge tabler-badge-solid";
 
 export function suggestionStrengthBadgeClass(strength: string): string {
+  if (strength === "strong") return `${SUGGESTION_BADGE_BASE} tabler-badge-success`;
   return strength === "weak" ? `${SUGGESTION_BADGE_BASE} tabler-badge-warning` : `${SUGGESTION_BADGE_BASE} tabler-badge-muted`;
 }
 

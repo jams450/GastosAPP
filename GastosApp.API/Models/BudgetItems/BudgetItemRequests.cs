@@ -119,6 +119,6 @@ public class BudgetItemSuggestionResponse
     public DateTime TransactionDate { get; set; }
     /// <summary>Días entre la fecha planificada y la fecha local del gasto.</summary>
     public int DistanceDays { get; set; }
-    /// <summary>Siempre <c>weak</c>: esta lista solo expone candidatas débiles.</summary>
+    /// <summary>Fuerza observada de la sugerencia: <c>strong</c> o <c>weak</c>.</summary>
     public string Strength { get; set; } = string.Empty;
 }

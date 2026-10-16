@@ -104,8 +104,8 @@ function SuggestionActions({
 /**
  * Sugerencias de enlace partida ↔ transacción.
  *
- * **Acción de enlace manual disponible.** El backend devuelve pares *débiles* (misma categoría o
- * subcategoría del mismo mes) y no los enlaza solo, porque la fuerza débil no identifica: la fila
+ * **Acción de enlace manual disponible.** Las coincidencias fuertes por cuenta/monto o comercio
+ * aparecen antes de las débiles por alcance y fecha. Consultar sugerencias no enlaza datos: la fila
  * ofrece "Enlazar" para que el usuario confirme el par, o "Ver en partidas" para decidir ahí. El
  * monto puede diferir; el de la transacción es el autoritativo.
  */

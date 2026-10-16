@@ -43,7 +43,7 @@ namespace GastosApp.BusinessLogic.Interfaces
         Task<BudgetItemMatchOutcome> TryMatchTransactionAsync(int appUserId, int transactionId, CancellationToken cancellationToken);
 
         /// <summary>
-        /// Candidatas <b>débiles</b> de un periodo: partidas <c>pending</c> sin transacción enlazada
+        /// Candidatas fuertes y débiles de un periodo: partidas <c>pending</c> sin transacción enlazada
         /// cuya categoría/subcategoría aparece en algún gasto del mismo mes. <b>No escribe nada</b>:
         /// es la lista que la UI ofrece para que el usuario elija. Valida <c>yyyy-MM</c> y lanza
         /// <see cref="ArgumentException"/> si el periodo no tiene ese formato.

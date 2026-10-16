@@ -160,7 +160,7 @@ namespace GastosApp.BusinessLogic.Models.Budgets
         /// <summary>Días entre la fecha planificada y el día local de la transacción.</summary>
         public int DistanceDays { get; set; }
 
-        /// <summary>Siempre <c>weak</c>: la lista solo expone candidatas débiles.</summary>
+        /// <summary>Fuerza de la candidata sugerida: <c>strong</c> o <c>weak</c>; consultar no crea enlaces.</summary>
         public string Strength { get; set; } = BudgetItemMatchStrength.Weak.ToString().ToLowerInvariant();
     }
 }

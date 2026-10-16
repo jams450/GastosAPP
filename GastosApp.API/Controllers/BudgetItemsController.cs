@@ -242,8 +242,8 @@ public class BudgetItemsController : ControllerBase
 
     /// <summary>
     /// Candidatas a match de un periodo. <b>Solo lectura: no escribe nada.</b> Devuelve los pares
-    /// <b>débiles</b> (misma categoría/subcategoría, mismo mes) de partidas <c>pending</c> sin
-    /// transacción enlazada; el enlace de una fuerte ya ocurrió solo al capturar el gasto. Es
+    /// fuertes primero y luego débiles de partidas <c>pending</c> sin transacción enlazada.
+    /// La consulta no enlaza automáticamente ninguna candidata. Es
     /// <c>period</c> obligatorio y con formato <c>yyyy-MM</c>: sin periodo la lista no tiene
     /// sentido porque el matching es por mes.
     /// </summary>
