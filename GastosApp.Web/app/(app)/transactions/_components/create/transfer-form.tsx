@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import type { FormEvent } from "react";
 import type { ReactNode } from "react";
 import { Alert } from "@/components/ui/alert";
@@ -82,8 +82,6 @@ export function TransferForm({
   parseSelectedNumber,
   creditAllocationSection
 }: Props) {
-  const [showOptional, setShowOptional] = useState(false);
-
   const selectedCategoryName = useMemo(
     () => categoriesForKind.find((category) => category.categoryId === categoryId)?.name?.toLowerCase() ?? "",
     [categoriesForKind, categoryId]
@@ -143,7 +141,7 @@ export function TransferForm({
             Intercambiar origen y destino
           </Button>
         </div>
-        <p className="text-xs text-muted">Selecciona origen y destino. Completa obligatorios primero.</p>
+        <p className="text-xs text-muted">Selecciona origen y destino. Completa los obligatorios; los detalles opcionales están siempre abiertos.</p>
       </header>
 
       <div className="grid gap-4 lg:grid-cols-2 lg:items-start">
@@ -242,72 +240,64 @@ export function TransferForm({
       </section>
 
       <section className="app-panel space-y-3 p-4">
-        <button
-          type="button"
-          className="flex w-full items-center justify-between rounded-lg px-1 text-left"
-          onClick={() => setShowOptional((value) => !value)}
-          aria-expanded={showOptional}
-          aria-controls="transfer-optional-details"
-        >
-          <span className="text-sm font-semibold text-primary">Más detalles (opcional)</span>
-          <span className="text-muted text-xs font-semibold">{showOptional ? "Ocultar" : "Mostrar"}</span>
-        </button>
+        <div className="flex flex-wrap items-center justify-between gap-2 px-1">
+          <p className="text-sm font-semibold text-primary">Más detalles (opcional)</p>
+          <span className="text-xs text-muted">Puedes dejarlos vacíos</span>
+        </div>
 
-        {showOptional ? (
-          <div id="transfer-optional-details" className="space-y-4">
-            <div className="grid gap-4 md:grid-cols-2">
-              <div>
-                <Select label="Subcategoría" value={subcategoryId ?? ""} onChange={(event) => onSubcategoryIdChange(parseSelectedNumber(event.target.value))} disabled={!categoryId}>
-                  <option value="">Sin subcategoría</option>
-                  {subcategoriesForSelectedCategory.map((subcategory) => (
-                    <option key={subcategory.subcategoryId} value={subcategory.subcategoryId}>
-                      {subcategory.name}
-                    </option>
-                  ))}
-                </Select>
-                {!categoryId ? <span className="text-xs text-muted">Primero selecciona categoría</span> : null}
-              </div>
-
-              <Select label="Comercio" value={merchantId ?? ""} onChange={(event) => onMerchantIdChange(parseSelectedNumber(event.target.value))}>
-                <option value="">Sin comercio</option>
-                {merchants.map((merchant) => (
-                  <option key={merchant.merchantId} value={merchant.merchantId}>
-                    {merchant.name}
+        <div id="transfer-optional-details" className="space-y-4">
+          <div className="grid gap-4 md:grid-cols-2">
+            <div>
+              <Select label="Subcategoría" value={subcategoryId ?? ""} onChange={(event) => onSubcategoryIdChange(parseSelectedNumber(event.target.value))} disabled={!categoryId}>
+                <option value="">Sin subcategoría</option>
+                {subcategoriesForSelectedCategory.map((subcategory) => (
+                  <option key={subcategory.subcategoryId} value={subcategory.subcategoryId}>
+                    {subcategory.name}
                   </option>
                 ))}
               </Select>
+              {!categoryId ? <span className="text-xs text-muted">Primero selecciona categoría</span> : null}
             </div>
 
-            <Input
-              label="Tags (separados por coma)"
-              type="text"
-              value={tagsText}
-              onChange={(event) => onTagsTextChange(event.target.value)}
-              placeholder="ej. ajuste, inversión, ahorro"
-              list="transaction-tag-suggestions-transfer"
-            />
-            <datalist id="transaction-tag-suggestions-transfer">
-              {tags.map((tag) => (
-                <option key={tag.tagId} value={tag.name} />
+            <Select label="Comercio" value={merchantId ?? ""} onChange={(event) => onMerchantIdChange(parseSelectedNumber(event.target.value))}>
+              <option value="">Sin comercio</option>
+              {merchants.map((merchant) => (
+                <option key={merchant.merchantId} value={merchant.merchantId}>
+                  {merchant.name}
+                </option>
               ))}
-            </datalist>
-            {tags.length > 0 ? (
-              <div className="flex flex-wrap gap-2">
-                {tags.slice(0, 6).map((tag) => (
-                  <Button
-                    key={tag.tagId}
-                    type="button"
-                    variant="secondary"
-                    className="h-7 rounded-lg px-2 text-xs"
-                    onClick={() => addSuggestedTag(tag.name)}
-                  >
-                    + {tag.name}
-                  </Button>
-                ))}
-              </div>
-            ) : null}
+            </Select>
           </div>
-        ) : null}
+
+          <Input
+            label="Tags (separados por coma)"
+            type="text"
+            value={tagsText}
+            onChange={(event) => onTagsTextChange(event.target.value)}
+            placeholder="ej. ajuste, inversión, ahorro"
+            list="transaction-tag-suggestions-transfer"
+          />
+          <datalist id="transaction-tag-suggestions-transfer">
+            {tags.map((tag) => (
+              <option key={tag.tagId} value={tag.name} />
+            ))}
+          </datalist>
+          {tags.length > 0 ? (
+            <div className="flex flex-wrap gap-2">
+              {tags.slice(0, 6).map((tag) => (
+                <Button
+                  key={tag.tagId}
+                  type="button"
+                  variant="secondary"
+                  className="h-7 rounded-lg px-2 text-xs"
+                  onClick={() => addSuggestedTag(tag.name)}
+                >
+                  + {tag.name}
+                </Button>
+              ))}
+            </div>
+          ) : null}
+        </div>
       </section>
       </div>
 
