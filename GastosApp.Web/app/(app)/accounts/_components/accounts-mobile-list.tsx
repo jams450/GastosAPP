@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { Account } from "@/lib/contracts/accounts";
 import { formatCurrency } from "@/lib/format/currency";
-import { AlertCircle, Inbox } from "lucide-react";
+import { AlertCircle, History, Inbox } from "lucide-react";
 import { accountAnnualSummaryHref } from "../_lib/accounts-annual-ui";
 import { getAccountStatusBadgeClass, getAccountStatusLabel, getAccountTypeBadgeClass, getAccountTypeLabel } from "../_lib/accounts-ui";
 import { AccountActionsMenu } from "./account-actions-menu";
@@ -63,11 +63,20 @@ export function AccountsMobileList({ rows, loading, errorMessage, onEdit, onTogg
                 href={accountAnnualSummaryHref(account.accountId)}
                 className="focus-ring group inline-flex flex-col items-start gap-0.5"
                 title={`Ver histórico anual de ${account.name}`}
+                aria-label={`Ver histórico anual de ${account.name}`}
               >
                 <span className="text-primary text-sm font-extrabold group-hover:underline">{account.name}</span>
-                <span className="text-muted text-[11px] font-medium">Ver histórico</span>
+                <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-[var(--color-accent)] group-hover:underline">
+                  <History className="h-3.5 w-3.5" aria-hidden="true" />
+                  Ver histórico anual
+                </span>
               </Link>
-              <p className="text-muted mt-1 text-xs">Saldo: {formatCurrency(account.currentBalance)}</p>
+              <p className="text-muted mt-1 text-xs tabular-nums">Saldo contable: {formatCurrency(account.currentBalance)}</p>
+              {account.isCredit ? (
+                <p className="text-muted mt-0.5 text-[11px] font-medium leading-snug">
+                  Saldo contable de la cuenta; no representa deuda ni crédito disponible.
+                </p>
+              ) : null}
             </div>
             <span className="sr-only">Cuenta activa para acciones rápidas</span>
           </header>
@@ -75,7 +84,7 @@ export function AccountsMobileList({ rows, loading, errorMessage, onEdit, onTogg
           <div className="flex flex-wrap items-center gap-2 py-2">
             <span className={getAccountTypeBadgeClass(account)}>{getAccountTypeLabel(account)}</span>
             <span className={getAccountStatusBadgeClass(account)}>{getAccountStatusLabel(account)}</span>
-            <span className="tabler-badge tabler-badge-solid tabler-badge-muted">Inicial {formatCurrency(account.initialBalance)}</span>
+            <span className="tabler-badge tabler-badge-solid tabler-badge-muted tabular-nums">Saldo contable inicial {formatCurrency(account.initialBalance)}</span>
           </div>
 
           <footer>

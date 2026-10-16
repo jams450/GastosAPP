@@ -21,6 +21,13 @@ type Props = {
   currentYear: number;
 };
 
+/** Anclas de la propia página: el año y la pestaña siguen viviendo en la URL. */
+const ANNUAL_SECTIONS = [
+  { id: "resumen", label: "Resumen" },
+  { id: "graficas", label: "Gráficas" },
+  { id: "detalle", label: "Detalle mensual" }
+] as const;
+
 export function AccountAnnualSummaryClient({ accountId, initialYear, currentYear }: Props) {
   const router = useRouter();
   const pathname = usePathname();
@@ -73,6 +80,21 @@ export function AccountAnnualSummaryClient({ accountId, initialYear, currentYear
         }
       />
 
+      {summary ? (
+        <nav aria-label="Secciones del histórico anual" className="flex flex-wrap items-center gap-2">
+          <span className="text-muted text-[11px] font-semibold uppercase tracking-[0.08em]">Ir a</span>
+          {ANNUAL_SECTIONS.map((section) => (
+            <a
+              key={section.id}
+              href={`#${section.id}`}
+              className="btn-secondary-semantic focus-ring inline-flex h-8 items-center px-3 text-xs font-semibold"
+            >
+              {section.label}
+            </a>
+          ))}
+        </nav>
+      ) : null}
+
       <section className="space-y-4" aria-busy={loading}>
         {error ? (
           <div className="border-[var(--color-danger)]/35 bg-[var(--color-danger)]/12 p-4 text-[var(--color-danger)]" role="alert" aria-live="assertive">
@@ -93,14 +115,20 @@ export function AccountAnnualSummaryClient({ accountId, initialYear, currentYear
 
         {summary ? (
           <>
-            <AnnualSummaryKpis summary={summary} copy={copy} />
+            <section id="resumen" className="scroll-mt-24 space-y-3" aria-label={`Resumen del año ${summary.year}`}>
+              <h2 className="text-primary m-0 text-base font-semibold">Resumen del año</h2>
+              <AnnualSummaryKpis summary={summary} copy={copy} />
+            </section>
 
-            <div className="grid gap-4">
-              <AnnualFlowBars months={summary.months} year={summary.year} caption={copy.flowCaption} />
-              <AnnualBalanceLine months={summary.months} year={summary.year} caption={copy.yearCaption} />
-            </div>
+            <section id="graficas" className="scroll-mt-24 space-y-3" aria-label={`Gráficas del año ${summary.year}`}>
+              <h2 className="text-primary m-0 text-base font-semibold">Gráficas del año</h2>
+              <div className="grid gap-4">
+                <AnnualFlowBars months={summary.months} year={summary.year} caption={copy.flowCaption} />
+                <AnnualBalanceLine months={summary.months} year={summary.year} caption={copy.yearCaption} />
+              </div>
+            </section>
 
-            <section className="space-y-3" aria-label={`Detalle mensual ${summary.year}`}>
+            <section id="detalle" className="scroll-mt-24 space-y-3" aria-label={`Detalle mensual ${summary.year}`}>
               <h2 className="text-primary m-0 text-base font-semibold">Detalle mensual</h2>
               <AnnualSummaryTable summary={summary} />
             </section>

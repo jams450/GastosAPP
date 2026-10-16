@@ -2,6 +2,7 @@
 
 import { useMemo } from "react";
 import Link from "next/link";
+import { History } from "lucide-react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { DataGrid } from "@/components/data-grid/data-grid";
 import type { Account } from "@/lib/contracts/accounts";
@@ -31,9 +32,13 @@ export function AccountsTable({ rows, loading, errorMessage, onEdit, onToggleAct
             href={accountAnnualSummaryHref(row.original.accountId)}
             className="focus-ring group inline-flex flex-col items-start gap-0.5"
             title={`Ver histórico anual de ${row.original.name}`}
+            aria-label={`Ver histórico anual de ${row.original.name}`}
           >
             <span className="text-primary font-semibold group-hover:underline">{row.original.name}</span>
-            <span className="text-muted text-[11px] font-medium">Ver histórico</span>
+            <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-[var(--color-accent)] group-hover:underline">
+              <History className="h-3.5 w-3.5" aria-hidden="true" />
+              Ver histórico anual
+            </span>
           </Link>
         )
       },
@@ -42,20 +47,24 @@ export function AccountsTable({ rows, loading, errorMessage, onEdit, onToggleAct
         cell: ({ row }) => <span className={getAccountTypeBadgeClass(row.original)}>{getAccountTypeLabel(row.original)}</span>
       },
       {
-        header: "Saldo actual",
-        cell: ({ row }) => formatCurrency(row.original.currentBalance)
+        header: "Saldo contable actual",
+        cell: ({ row }) => (
+          <span className="block text-right font-semibold tabular-nums">{formatCurrency(row.original.currentBalance)}</span>
+        )
       },
       {
-        header: "Saldo inicial",
-        cell: ({ row }) => formatCurrency(row.original.initialBalance)
+        header: "Saldo contable inicial",
+        cell: ({ row }) => (
+          <span className="block text-right font-semibold tabular-nums">{formatCurrency(row.original.initialBalance)}</span>
+        )
       },
       {
         header: "Corte",
-        cell: ({ row }) => (row.original.dueDay ? String(row.original.dueDay) : "—")
+        cell: ({ row }) => <span className="block text-right tabular-nums">{row.original.dueDay ? String(row.original.dueDay) : "—"}</span>
       },
       {
         header: "Pago límite",
-        cell: ({ row }) => (row.original.paymentDueDay ? String(row.original.paymentDueDay) : "—")
+        cell: ({ row }) => <span className="block text-right tabular-nums">{row.original.paymentDueDay ? String(row.original.paymentDueDay) : "—"}</span>
       },
       {
         header: "Estado",
@@ -84,6 +93,9 @@ export function AccountsTable({ rows, loading, errorMessage, onEdit, onToggleAct
         stickyHeader
         stickyActionsColumn
       />
+      <p className="text-muted m-0 px-3 pb-3 pt-2 text-[11px] font-medium leading-snug">
+        En cuentas de crédito, el saldo contable es el saldo registrado de la cuenta; no representa deuda ni crédito disponible.
+      </p>
     </div>
   );
 }
