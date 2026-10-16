@@ -1,5 +1,5 @@
-import { Input } from "@/components/ui/input";
 import type { AccountFormErrors, AccountUpsertPayload } from "@/lib/contracts/accounts-admin";
+import { DecimalInput } from "./decimal-input";
 
 type Props = {
   form: AccountUpsertPayload;
@@ -11,21 +11,17 @@ export function BalanceFields({ form, errors, onChange }: Props) {
   return (
     <div className="space-y-3">
       <div className="grid gap-3 md:grid-cols-2">
-        <Input
+        <DecimalInput
           label="Saldo inicial"
-          type="number"
-          step="0.01"
           value={form.initialBalance}
           error={errors.initialBalance}
-          onChange={(event) => onChange("initialBalance", Number(event.target.value || 0))}
+          onChange={(value) => onChange("initialBalance", value ?? 0)}
         />
-        <Input
+        <DecimalInput
           label="Saldo actual"
-          type="number"
-          step="0.01"
           value={form.currentBalance}
           error={errors.currentBalance}
-          onChange={(event) => onChange("currentBalance", Number(event.target.value || 0))}
+          onChange={(value) => onChange("currentBalance", value ?? 0)}
         />
       </div>
 
@@ -35,14 +31,11 @@ export function BalanceFields({ form, errors, onChange }: Props) {
       </label>
 
       {form.earnsInterest ? (
-        <Input
+        <DecimalInput
           label="Tasa anual (%)"
-          type="number"
-          min="0"
-          step="0.01"
           value={form.annualInterestRate}
           error={errors.annualInterestRate}
-          onChange={(event) => onChange("annualInterestRate", Number(event.target.value || 0))}
+          onChange={(value) => onChange("annualInterestRate", value ?? 0)}
         />
       ) : null}
     </div>

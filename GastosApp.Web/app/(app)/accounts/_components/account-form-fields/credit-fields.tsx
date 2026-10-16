@@ -1,5 +1,6 @@
 import { Input } from "@/components/ui/input";
 import type { AccountFormErrors, AccountUpsertPayload } from "@/lib/contracts/accounts-admin";
+import { DecimalInput } from "./decimal-input";
 
 type Props = {
   form: AccountUpsertPayload;
@@ -35,14 +36,12 @@ export function CreditFields({ form, errors, onChange }: Props) {
             error={errors.paymentDueDay}
             onChange={(event) => onChange("paymentDueDay", event.target.value ? Number(event.target.value) : null)}
           />
-          <Input
+          <DecimalInput
             label="Límite de crédito"
-            type="number"
-            step="0.01"
-            min="0.01"
-            value={form.creditLimit ?? ""}
+            value={form.creditLimit}
             error={errors.creditLimit}
-            onChange={(event) => onChange("creditLimit", event.target.value ? Number(event.target.value) : null)}
+            nullable
+            onChange={(value) => onChange("creditLimit", value)}
           />
         </div>
       ) : null}
