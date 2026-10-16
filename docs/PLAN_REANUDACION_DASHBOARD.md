@@ -63,11 +63,11 @@ Hallazgos de código por confirmar antes de ajustes:
 
 ## 5. Plan de continuación, en orden
 
-- [ ] P1 Confirmar repositorio/commit y entorno del servidor; identificar destino solicitado (pruebas o producción). No sustituir destino por conveniencia.
+- [x] P1 Confirmados commit `9bf5881` y destino producción por el usuario. Snapshot de servidor documentado en `docs/CONCILIACION_CREDITO_SERVIDOR.md`.
 - [ ] P2 Releer acuerdos y marcar diferencias entre documento, implementación y decisiones de §3. Sin implementar aún reglas nuevas.
-- [ ] P3 Preparar consulta/script reproducible de lectura con validaciones deterministas antes de consultar datos reales: una fila por cuenta, sin joins multiplicadores; probar agregación y sumas con fixtures.
-- [ ] P4 Ejecutar UNA lectura consistente sobre destino autorizado: `REPEATABLE READ READ ONLY`, timeout acotado, verificación de modo, rollback; comprobar propietario sin exponer datos ajenos. No imprimir conexión/secretos.
-- [ ] P5 Por cuenta: línea, saldo inicial, saldo actual, suma de TODOS los impactos una vez, residual `actual-inicial-impactos`, deuda normal/MSI válida con pagos Posted, disponible. Agregar cada origen antes de unir. Validar totales por código y concordancia con fuente dashboard. Si falla, reportar fallo; no inventar resultado ni repetir auditorías sin corregir prueba.
+- [x] P3 Consulta reproducible en `SQL/audits/credit_reconciliation.sql`, lector .NET y cuatro fixtures deterministas aprobados; verificación independiente sin bloqueos duros.
+- [x] P4 Una lectura de producción el 2026-10-16 04:41:10 UTC: `REPEATABLE READ`, `READ ONLY`, timeout 30s, propietario único y rollback comprobados; sin escrituras. No imprimir conexión/secretos.
+- [x] P5 Cinco cuentas y 365 movimientos conciliados aritméticamente, sin fanout; deuda contrastada con función desplegada. BBVA tiene residual contable 63,488.49 y cuotas `Paid` con 1,378.45 sin cobertura de aplicaciones `Posted`. Detalle y límites en `docs/CONCILIACION_CREDITO_SERVIDOR.md`; no son valores autorizados de ajuste.
 - [ ] P6 Identificar causa de diferencias. Preparar propuesta de ajustes exactos, efectos sobre histórico/efectivo/deuda y mecanismo reversible. Pedir autorización; sin ella no escribir datos.
 - [ ] P7 Tras aprobación específica aplicar corrección acotada con respaldo/rollback y validación independiente. No crear gastos/pagos ficticios.
 - [ ] P8 Centralizar cálculos aprobados y conciliar crédito, inversiones y proyecciones por unidades acotadas, solo después de acordar alcance. Revisión UI autenticada pendiente.
