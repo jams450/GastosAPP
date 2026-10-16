@@ -336,6 +336,32 @@ export type DashboardProjectionTrend = {
   hasSufficientHistory: boolean;
 };
 
+/**
+ * Procedencia del ajuste por desviación histórica aplicado a `adjustedEconomicNet`.
+ * Sin muestra suficiente todos los importes son cero: la UI no debe presentarlo como
+ * una desviación conocida.
+ */
+export type DashboardProjectionDeviation = {
+  /** Meses candidatos de la ventana (los últimos completos), con o sin plan comparable. */
+  windowMonths: string[];
+  /** Meses con plan comparable que entraron al promedio. */
+  sampledMonths: string[];
+  sampleSize: number;
+  requiredSampleSize: number;
+  /** `true` sólo si la muestra cubre los meses exigidos y el backend lo declara. */
+  hasSufficientSample: boolean;
+  /** Promedio mensual del neto real menos el plan, con signo. Cero si la muestra es insuficiente. */
+  monthlyAdjustment: number;
+  /** Ingresos: real menos planificado (con signo). Cero si la muestra es insuficiente. */
+  incomeDeviation: number;
+  /** Gastos: planificado menos real (con signo; positivo = se gastó menos). */
+  expenseDeviation: number;
+  /** Movimientos sin partida: ingreso no planeado menos gasto no planeado (con signo). */
+  unplannedDeviation: number;
+};
+
+export type DashboardProjectionBudgetBasis = "budget" | "trend" | "none";
+
 export type DashboardProjectionMonth = {
   month: string;
   projectedCashBalance: number;
@@ -343,6 +369,53 @@ export type DashboardProjectionMonth = {
   msiCommitment: number;
   /** Saldo con pagos MSI; `null` si upstream no aporta escenario explícito. */
   msiPaymentScenarioBalance: number | null;
+  /**
+   * Origen del neto base del mes: `budget` = partidas pendientes del periodo (reemplazan la
+   * tendencia, incluso con montos en cero), `trend` = histórico con muestra suficiente,
+   * `none` = sin base confiable. Un payload legacy sin el campo se normaliza a `none`.
+   */
+  budgetBasis: DashboardProjectionBudgetBasis;
+  /** Ingreso planificado pendiente; 0 cuando el mes no usa presupuesto. */
+  budgetIncome: number;
+  /**
+   * Gasto planificado pendiente; 0 cuando el mes no usa presupuesto.
+   * Por convención las partidas excluyen cuotas MSI: éstas se restan aparte vía `msiCommitment`.
+   */
+  budgetExpense: number;
+  /** Rendimiento estimado del mes; no es efectivo recibido ni entra al saldo de efectivo. */
+  investmentEstimate: number;
+  /** Mes del plan guardado que aportó el estimado; `null` si ninguno cubre el mes. */
+  investmentSourcePlanMonth: string | null;
+  /**
+   * Neto económico estimado = base del mes - MSI + rendimiento estimado. La MSI se descuenta
+   * exactamente una vez. En payloads legacy sin el campo se deriva de `projectedNet - msiCommitment`.
+   * Campo heredado (no descuenta crédito normal): el neto vigente es `baseEconomicNet`.
+   */
+  estimatedEconomicNet: number;
+  /**
+   * Pago de crédito normal (Revolving) del mes: pendiente de las cuotas abiertas con vencimiento
+   * en el mes. Se resta exactamente una vez del neto base. Legacy sin el campo => 0, nunca un
+   * pago inferido.
+   */
+  normalCreditPayment: number;
+  /**
+   * Origen de la base del neto económico: `budget` (plan pendiente), `trend` (línea base histórica
+   * sin traspasos de liquidación de crédito) o `none`. En payloads legacy se deriva de `budgetBasis`
+   * para no inventar una base distinta a la ya mostrada.
+   */
+  baseEconomicBasis: DashboardProjectionBudgetBasis;
+  /**
+   * Neto económico base = base (plan o histórico sin traspasos) + rendimiento estimado − MSI
+   * − pago de crédito normal. Legacy sin el campo => se conserva `estimatedEconomicNet`.
+   */
+  baseEconomicNet: number;
+  /** Ajuste por desviación histórica del mes; 0 sin muestra suficiente. */
+  deviationAdjustment: number;
+  /**
+   * Neto económico ajustado = `baseEconomicNet` + `deviationAdjustment`. Sin muestra suficiente
+   * queda igual al base, y un payload legacy no se presenta como escenario ajustado soportado.
+   */
+  adjustedEconomicNet: number;
 };
 
 export type DashboardProjectionMsiPlan = {
@@ -368,6 +441,8 @@ export type DashboardProjectionResponse = {
   trend: DashboardProjectionTrend;
   months: DashboardProjectionMonth[];
   msiPlans: DashboardProjectionMsiPlan[];
+  /** Procedencia del ajuste por desviación; sin el campo el escenario ajustado no está soportado. */
+  deviation: DashboardProjectionDeviation;
 };
 
 function toStringId(value: unknown): string | null {
@@ -404,6 +479,19 @@ function normalizeProjectionHistoricalMonth(input: unknown): DashboardProjection
   };
 }
 
+function toOptionalMonthString(value: unknown): string | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const trimmed = value.trim();
+  return /^\d{4}-\d{2}$/.test(trimmed) ? trimmed : null;
+}
+
+function normalizeProjectionBudgetBasis(value: unknown): DashboardProjectionBudgetBasis {
+  return value === "budget" || value === "trend" || value === "none" ? value : "none";
+}
+
 function normalizeProjectionMonth(input: unknown): DashboardProjectionMonth | null {
   if (!isRecord(input)) {
     return null;
@@ -415,16 +503,40 @@ function normalizeProjectionMonth(input: unknown): DashboardProjectionMonth | nu
   }
 
   const projectedCashBalance = toFiniteNumber(input.projectedCashBalance);
+  const projectedNet = toFiniteNumber(input.projectedNet);
+  const msiCommitment = toFiniteNumber(input.msiCommitment);
+  const investmentEstimate = toFiniteNumber(input.investmentEstimate);
+  // Legacy sin el campo: neto final = projectedNet - msiCommitment + 0 (yield 0).
+  // Un cero explícito del backend se respeta tal cual.
+  const estimatedEconomicNet =
+    toOptionalFiniteNumber(input.estimatedEconomicNet) ?? projectedNet - msiCommitment + investmentEstimate;
+  const normalCreditPayment = toFiniteNumber(input.normalCreditPayment);
+  // Legacy sin base económica: se conserva la base que ya describía el payload heredado.
+  const baseEconomicBasis = normalizeProjectionBudgetBasis(input.baseEconomicBasis ?? input.budgetBasis);
+  const baseEconomicNet = toOptionalFiniteNumber(input.baseEconomicNet) ?? estimatedEconomicNet;
+  const deviationAdjustment = toFiniteNumber(input.deviationAdjustment);
 
   return {
     month,
     projectedCashBalance,
-    projectedNet: toFiniteNumber(input.projectedNet),
-    msiCommitment: toFiniteNumber(input.msiCommitment),
+    projectedNet,
+    msiCommitment,
     msiPaymentScenarioBalance:
       input.msiPaymentScenarioBalance === null || input.msiPaymentScenarioBalance === undefined
         ? null
-        : toFiniteNumber(input.msiPaymentScenarioBalance)
+        : toFiniteNumber(input.msiPaymentScenarioBalance),
+    budgetBasis: normalizeProjectionBudgetBasis(input.budgetBasis),
+    budgetIncome: toFiniteNumber(input.budgetIncome),
+    budgetExpense: toFiniteNumber(input.budgetExpense),
+    investmentEstimate,
+    investmentSourcePlanMonth: toOptionalMonthString(input.investmentSourcePlanMonth),
+    estimatedEconomicNet,
+    normalCreditPayment,
+    baseEconomicBasis,
+    baseEconomicNet,
+    deviationAdjustment,
+    // Legacy o backend sin el campo: no se declara un escenario ajustado distinto al base.
+    adjustedEconomicNet: toOptionalFiniteNumber(input.adjustedEconomicNet) ?? baseEconomicNet + deviationAdjustment
   };
 }
 
@@ -469,6 +581,54 @@ function normalizeProjectionTrend(input: unknown): DashboardProjectionTrend {
   };
 }
 
+function normalizeDeviationMonths(input: unknown): string[] {
+  return Array.isArray(input)
+    ? input.map((value) => toOptionalMonthString(value)).filter((value): value is string => value !== null)
+    : [];
+}
+
+function emptyProjectionDeviation(): DashboardProjectionDeviation {
+  return {
+    windowMonths: [],
+    sampledMonths: [],
+    sampleSize: 0,
+    requiredSampleSize: 0,
+    hasSufficientSample: false,
+    monthlyAdjustment: 0,
+    incomeDeviation: 0,
+    expenseDeviation: 0,
+    unplannedDeviation: 0
+  };
+}
+
+function normalizeProjectionDeviation(input: unknown): DashboardProjectionDeviation {
+  if (!isRecord(input)) {
+    // Payload legacy: no hay procedencia de desviación, así que el escenario ajustado
+    // no puede presentarse como soportado.
+    return emptyProjectionDeviation();
+  }
+
+  const sampleSize = toOptionalInt(input.sampleSize) ?? 0;
+  const requiredSampleSize = toOptionalInt(input.requiredSampleSize) ?? 0;
+  // Se exige que el backend lo declare Y que la muestra cubra el requisito: un payload antiguo
+  // sin `requiredSampleSize` no habilita el ajuste.
+  const hasSufficientSample =
+    input.hasSufficientSample === true && requiredSampleSize > 0 && sampleSize >= requiredSampleSize;
+
+  return {
+    windowMonths: normalizeDeviationMonths(input.windowMonths),
+    sampledMonths: normalizeDeviationMonths(input.sampledMonths),
+    sampleSize,
+    requiredSampleSize,
+    hasSufficientSample,
+    // Sin muestra suficiente no hay desviación conocida: nunca se muestran importes como reales.
+    monthlyAdjustment: hasSufficientSample ? toFiniteNumber(input.monthlyAdjustment) : 0,
+    incomeDeviation: hasSufficientSample ? toFiniteNumber(input.incomeDeviation) : 0,
+    expenseDeviation: hasSufficientSample ? toFiniteNumber(input.expenseDeviation) : 0,
+    unplannedDeviation: hasSufficientSample ? toFiniteNumber(input.unplannedDeviation) : 0
+  };
+}
+
 export function normalizeDashboardProjection(input: unknown): DashboardProjectionResponse {
   const source = isRecord(input) ? input : {};
   const months = normalizeCollection(source.months, normalizeProjectionMonth);
@@ -482,6 +642,7 @@ export function normalizeDashboardProjection(input: unknown): DashboardProjectio
     historicalMonths: normalizeCollection(source.historicalMonths, normalizeProjectionHistoricalMonth),
     trend: normalizeProjectionTrend(source.trend),
     months,
-    msiPlans: normalizeCollection(source.msiPlans, normalizeProjectionMsiPlan)
+    msiPlans: normalizeCollection(source.msiPlans, normalizeProjectionMsiPlan),
+    deviation: normalizeProjectionDeviation(source.deviation)
   };
 }

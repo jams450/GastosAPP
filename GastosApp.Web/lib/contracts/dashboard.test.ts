@@ -85,6 +85,181 @@ test("normalizeDashboardProjection drops plans without identity and keeps schedu
   assert.equal(result.msiPlans[1].scheduleComplete, true);
 });
 
+test("normalizeDashboardProjection conserva el desglose de presupuesto, inversión y neto final", () => {
+  const result = normalizeDashboardProjection({
+    months: [
+      {
+        month: "2026-07",
+        projectedCashBalance: "1000",
+        projectedNet: "800",
+        msiCommitment: "150.5",
+        msiPaymentScenarioBalance: "900",
+        budgetBasis: "budget",
+        budgetIncome: "1200",
+        budgetExpense: "400",
+        investmentEstimate: "35.25",
+        investmentSourcePlanMonth: "2026-06",
+        estimatedEconomicNet: "684.75"
+      }
+    ]
+  });
+
+  assert.deepEqual(result.months[0], {
+    month: "2026-07",
+    projectedCashBalance: 1000,
+    projectedNet: 800,
+    msiCommitment: 150.5,
+    msiPaymentScenarioBalance: 900,
+    budgetBasis: "budget",
+    budgetIncome: 1200,
+    budgetExpense: 400,
+    investmentEstimate: 35.25,
+    investmentSourcePlanMonth: "2026-06",
+    estimatedEconomicNet: 684.75,
+    normalCreditPayment: 0,
+    baseEconomicBasis: "budget",
+    baseEconomicNet: 684.75,
+    deviationAdjustment: 0,
+    adjustedEconomicNet: 684.75
+  });
+});
+
+test("normalizeDashboardProjection conserva el neto base, crédito normal y desviación del backend", () => {
+  const result = normalizeDashboardProjection({
+    months: [
+      {
+        month: "2026-07",
+        projectedNet: "800",
+        msiCommitment: "150.5",
+        investmentEstimate: "35.25",
+        normalCreditPayment: "120.25",
+        baseEconomicBasis: "trend",
+        baseEconomicNet: "564.5",
+        deviationAdjustment: "-40",
+        adjustedEconomicNet: "524.5"
+      }
+    ],
+    deviation: {
+      windowMonths: ["2026-04", "2026-05", "2026-06"],
+      sampledMonths: ["2026-04", "2026-05", "2026-06"],
+      sampleSize: 3,
+      requiredSampleSize: 3,
+      hasSufficientSample: true,
+      monthlyAdjustment: "-40",
+      incomeDeviation: "-60",
+      expenseDeviation: "30.5",
+      unplannedDeviation: "-10.5"
+    }
+  });
+  const month = result.months[0];
+
+  assert.equal(month.normalCreditPayment, 120.25);
+  assert.equal(month.baseEconomicBasis, "trend");
+  assert.equal(month.baseEconomicNet, 564.5);
+  assert.equal(month.deviationAdjustment, -40);
+  assert.equal(month.adjustedEconomicNet, 524.5);
+  assert.equal(result.deviation.hasSufficientSample, true);
+  assert.deepEqual(result.deviation.sampledMonths, ["2026-04", "2026-05", "2026-06"]);
+  assert.equal(result.deviation.monthlyAdjustment, -40);
+  assert.equal(result.deviation.incomeDeviation, -60);
+  assert.equal(result.deviation.expenseDeviation, 30.5);
+  assert.equal(result.deviation.unplannedDeviation, -10.5);
+});
+
+test("normalizeDashboardProjection no inventa crédito normal ni desviación en payloads legacy", () => {
+  const result = normalizeDashboardProjection({
+    months: [{ month: "2026-07", projectedNet: "500", msiCommitment: "120", budgetBasis: "trend" }]
+  });
+  const month = result.months[0];
+
+  assert.equal(month.normalCreditPayment, 0);
+  assert.equal(month.baseEconomicBasis, "trend");
+  // Legacy: el neto base es el neto final heredado y el ajustado no se declara soportado.
+  assert.equal(month.baseEconomicNet, month.estimatedEconomicNet);
+  assert.equal(month.deviationAdjustment, 0);
+  assert.equal(month.adjustedEconomicNet, month.baseEconomicNet);
+  assert.equal(result.deviation.hasSufficientSample, false);
+  assert.equal(result.deviation.requiredSampleSize, 0);
+  assert.equal(result.deviation.monthlyAdjustment, 0);
+  assert.deepEqual(result.deviation.windowMonths, []);
+});
+
+test("normalizeDashboardProjection cero desviación sin muestra suficiente aunque el backend mienta", () => {
+  const result = normalizeDashboardProjection({
+    months: [{ month: "2026-07", baseEconomicNet: 100, deviationAdjustment: 50, adjustedEconomicNet: 150 }],
+    deviation: {
+      windowMonths: ["2026-05", "2026-06"],
+      sampledMonths: ["2026-05"],
+      sampleSize: 1,
+      requiredSampleSize: 3,
+      hasSufficientSample: false,
+      monthlyAdjustment: 50,
+      incomeDeviation: 50,
+      expenseDeviation: 0,
+      unplannedDeviation: 0
+    }
+  });
+
+  assert.equal(result.deviation.hasSufficientSample, false);
+  assert.equal(result.deviation.monthlyAdjustment, 0);
+  assert.equal(result.deviation.incomeDeviation, 0);
+  // Sin muestra suficiente el ajuste no puede presentarse como conocido.
+  assert.equal(result.months[0].adjustedEconomicNet, 150);
+});
+
+test("normalizeDashboardProjection sanea meses ilegibles de la muestra de desviación", () => {
+  const result = normalizeDashboardProjection({
+    deviation: {
+      windowMonths: ["2026-05", "mayo", 202606, null, "2026-06"],
+      sampledMonths: ["2026-06"],
+      sampleSize: 3,
+      requiredSampleSize: 3,
+      hasSufficientSample: true
+    }
+  });
+
+  assert.deepEqual(result.deviation.windowMonths, ["2026-05", "2026-06"]);
+  assert.deepEqual(result.deviation.sampledMonths, ["2026-06"]);
+});
+
+test("normalizeDashboardProjection deriva el neto final en payloads legacy sin fabricar inversión", () => {
+  const result = normalizeDashboardProjection({
+    months: [{ month: "2026-07", projectedNet: "500", msiCommitment: "120" }]
+  });
+  const month = result.months[0];
+
+  assert.equal(month.investmentEstimate, 0);
+  assert.equal(month.investmentSourcePlanMonth, null);
+  assert.equal(month.budgetBasis, "none");
+  assert.equal(month.budgetIncome, 0);
+  assert.equal(month.budgetExpense, 0);
+  // Legacy: neto final = projectedNet - msiCommitment (yield 0).
+  assert.equal(month.estimatedEconomicNet, 380);
+});
+
+test("normalizeDashboardProjection respeta el neto final explícito, aunque sea cero", () => {
+  const result = normalizeDashboardProjection({
+    months: [{ month: "2026-07", projectedNet: 500, msiCommitment: 120, investmentEstimate: 20, estimatedEconomicNet: 0 }]
+  });
+
+  assert.equal(result.months[0].estimatedEconomicNet, 0);
+});
+
+test("normalizeDashboardProjection sanea un basis desconocido y un plan de inversión ilegible", () => {
+  const result = normalizeDashboardProjection({
+    months: [
+      { month: "2026-07", budgetBasis: "proyeccion", investmentEstimate: "12", investmentSourcePlanMonth: "junio" },
+      { month: "2026-08", budgetBasis: "trend", investmentSourcePlanMonth: 202606 }
+    ]
+  });
+
+  assert.equal(result.months[0].budgetBasis, "none");
+  assert.equal(result.months[0].investmentEstimate, 12);
+  assert.equal(result.months[0].investmentSourcePlanMonth, null);
+  assert.equal(result.months[1].budgetBasis, "trend");
+  assert.equal(result.months[1].investmentSourcePlanMonth, null);
+});
+
 test("normalizeDashboardOverview tolera creditAvailable ausente o presente", () => {
   const result = normalizeDashboardOverview({
     accounts: [

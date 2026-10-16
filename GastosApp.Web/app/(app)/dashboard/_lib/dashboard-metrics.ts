@@ -38,6 +38,45 @@ export function resolveAccountCredit(account: DashboardAccountOverview): Account
   return { creditLimit, debt, available, utilization, exceeded };
 }
 
+export type AccountBalanceDisplay =
+  | {
+      kind: "credit";
+      creditLimit: number | null;
+      /** Deuda canónica pendiente (`currentDebt`, normal + MSI). No se deriva del saldo contable. */
+      debt: number;
+      /** Disponible canónico; `null` cuando no hay límite registrado ni dato del backend. */
+      available: number | null;
+      /** `true` cuando la utilización supera 100% o el disponible queda negativo. */
+      exceeded: boolean;
+    }
+  | {
+      kind: "cash";
+      /** Saldo contable de la cuenta de efectivo; conserva el comportamiento previo. */
+      balance: number;
+    };
+
+/**
+ * Selector de presentación puro para el saldo de una cuenta.
+ *
+ * Las tarjetas de crédito nunca muestran el saldo contable genérico como deuda o
+ * disponible: usan la deuda canónica (`currentDebt`) y el disponible (`creditAvailable`
+ * o `creditLimit - debt`). Las cuentas de efectivo conservan su saldo contable.
+ */
+export function resolveAccountBalanceDisplay(account: DashboardAccountOverview): AccountBalanceDisplay {
+  if (!account.isCredit) {
+    return { kind: "cash", balance: account.currentBalance };
+  }
+
+  const metrics = resolveAccountCredit(account);
+  return {
+    kind: "credit",
+    creditLimit: metrics.creditLimit,
+    debt: metrics.debt,
+    available: metrics.available,
+    exceeded: metrics.exceeded
+  };
+}
+
 export type CreditOverviewTotals = {
   /** Suma de disponibles con dato; `null` si ninguna cuenta activa lo expone. */
   available: number | null;

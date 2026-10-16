@@ -3,9 +3,9 @@
 import { BarChart3, LineChart as LineChartIcon } from "lucide-react";
 import {
   Bar,
-  BarChart,
   Brush,
   CartesianGrid,
+  ComposedChart,
   Line,
   LineChart,
   ReferenceLine,
@@ -17,13 +17,34 @@ import {
 import type { BarShapeProps, TooltipContentProps } from "recharts";
 import { Card } from "@/components/ui/card";
 import { formatAmount, formatCompactAmount, formatMonthLabel } from "@/app/(app)/dashboard/_components/dashboard-format";
-import type { DashboardProjectionHistoricalMonth, DashboardProjectionMonth } from "@/lib/contracts/dashboard";
+import {
+  buildProjectionNetData,
+  projectionBaseBasisLabel,
+  projectionInvestmentSummary,
+  projectionMethodNet,
+  projectionNetBreakdown
+} from "@/app/(app)/dashboard/_lib/projection-chart";
+import type {
+  ProjectionEconomicMethod,
+  ProjectionNetBreakdownRow,
+  ProjectionNetBreakdownRowKey,
+  ProjectionNetDatum
+} from "@/app/(app)/dashboard/_lib/projection-chart";
+import type {
+  DashboardProjectionDeviation,
+  DashboardProjectionHistoricalMonth,
+  DashboardProjectionMonth
+} from "@/lib/contracts/dashboard";
 
 type ProjectionChartsProps = {
   historicalMonths: DashboardProjectionHistoricalMonth[];
   months: DashboardProjectionMonth[];
   cashRealBalance: number;
   hasSufficientHistory: boolean;
+  /** Método activo para el neto destacado y el titular. */
+  method: ProjectionEconomicMethod;
+  /** Procedencia de la desviación; sin muestra suficiente el ajustado iguala al base. */
+  deviation: DashboardProjectionDeviation;
 };
 
 // Los tokens de tema se pasan como `var(--color-*)` a propósito: el navegador los
@@ -80,18 +101,53 @@ function formatValue(value: number | null): string {
   return value === null || !Number.isFinite(value) ? "—" : formatAmount(value);
 }
 
-type FlowDatum = {
+type FlowDatum = ProjectionNetDatum & {
   /** Etiqueta ya formateada, usada como categoría del eje X y por el Brush. */
   label: string;
-  /** Periodo crudo "YYYY-MM" (o "Hoy"), para formatear en tooltip y tablas. */
-  month: string;
-  /** Neto real del mes. Se usa en la tabla de datos y en el tooltip. */
-  net: number;
-  /** Valor dibujado; `null` = mes sin movimientos, no un cero fabricado. */
-  bar: number | null;
-  hasActivity: boolean;
-  projected: boolean;
+  /** Desglose del método activo; `null` en meses históricos o sin movimientos. */
+  breakdown: ProjectionNetBreakdownRow[] | null;
+  /** Neto del método no activo para comparar; `null` sin desviación aplicada. */
+  comparisonBar: number | null;
 };
+
+const BREAKDOWN_LABELS: Record<ProjectionNetBreakdownRowKey, string> = {
+  budgetIncome: "Ingreso planificado",
+  budgetExpense: "Gasto planificado (sin MSI ni crédito)",
+  historicalNet: "Neto histórico sin traspasos de crédito",
+  investmentEstimate: "Rendimiento estimado",
+  msiCommitment: "Compromiso MSI",
+  normalCreditPayment: "Crédito normal (Revolving)",
+  deviationAdjustment: "Ajuste por desviación",
+  finalNet: "Neto final estimado"
+};
+
+const METHOD_LABELS: Record<ProjectionEconomicMethod, string> = {
+  base: "Base (plan o histórico)",
+  adjusted: "Ajustado por desviación"
+};
+
+function otherMethod(method: ProjectionEconomicMethod): ProjectionEconomicMethod {
+  return method === "adjusted" ? "base" : "adjusted";
+}
+
+function breakdownColor(row: ProjectionNetBreakdownRow): string {
+  switch (row.key) {
+    case "budgetIncome":
+      return COLOR_SUCCESS;
+    case "budgetExpense":
+      return COLOR_DANGER;
+    case "investmentEstimate":
+      return COLOR_CREDIT;
+    case "msiCommitment":
+      return COLOR_WARNING;
+    case "normalCreditPayment":
+      return COLOR_DANGER;
+    case "deviationAdjustment":
+      return row.amount >= 0 ? COLOR_SUCCESS : COLOR_WARNING;
+    default:
+      return row.amount >= 0 ? COLOR_SUCCESS : COLOR_DANGER;
+  }
+}
 
 type BalanceDatum = {
   label: string;
@@ -121,7 +177,7 @@ function TooltipRow({ color, label, value }: { color: string; label: string; val
   );
 }
 
-function FlowTooltip({ active, payload }: TooltipContentProps) {
+function FlowTooltip({ active, payload, method }: TooltipContentProps & { method: ProjectionEconomicMethod }) {
   if (!active || !payload || payload.length === 0) {
     return null;
   }
@@ -131,17 +187,28 @@ function FlowTooltip({ active, payload }: TooltipContentProps) {
     return null;
   }
 
+  const alternate = otherMethod(method);
+
   return (
     <TooltipShell title={periodLabel(datum.month)}>
-      {datum.hasActivity ? (
-        <TooltipRow
-          color={datum.projected ? COLOR_CREDIT : datum.net >= 0 ? COLOR_SUCCESS : COLOR_DANGER}
-          label={datum.projected ? "Neto proyectado" : "Neto histórico"}
-          value={datum.net}
-        />
-      ) : (
+      {!datum.hasActivity ? (
         <li className="text-xs text-muted">Sin movimientos registrados</li>
+      ) : datum.breakdown ? (
+        datum.breakdown.map((row) => (
+          <TooltipRow key={row.key} color={breakdownColor(row)} label={BREAKDOWN_LABELS[row.key]} value={row.amount} />
+        ))
+      ) : (
+        <TooltipRow color={datum.net >= 0 ? COLOR_SUCCESS : COLOR_DANGER} label="Neto histórico" value={datum.net} />
       )}
+      {datum.comparisonBar !== null ? (
+        <li className="flex items-center justify-between gap-4 border-default border-t pt-1 text-xs">
+          <span className="inline-flex items-center gap-1.5 text-muted">
+            <span className="h-2 w-2 shrink-0 rounded-full bg-[var(--color-warning)]" aria-hidden="true" />
+            {METHOD_LABELS[alternate]}
+          </span>
+          <span className="font-semibold tabular-nums text-primary">{formatValue(datum.comparisonBar)}</span>
+        </li>
+      ) : null}
     </TooltipShell>
   );
 }
@@ -232,11 +299,63 @@ function ProjectionPanel({
   );
 }
 
-export function ProjectionCharts({ historicalMonths, months, cashRealBalance, hasSufficientHistory }: ProjectionChartsProps) {
+export function ProjectionCharts({
+  historicalMonths,
+  months,
+  cashRealBalance,
+  hasSufficientHistory,
+  method,
+  deviation
+}: ProjectionChartsProps) {
+  const investment = projectionInvestmentSummary(months);
+  const deviationApplied = deviation.hasSufficientSample;
+
   return (
     <div className="grid gap-4">
-      <NetFlowChart historicalMonths={historicalMonths} months={months} hasSufficientHistory={hasSufficientHistory} />
+      <NetFlowChart
+        historicalMonths={historicalMonths}
+        months={months}
+        hasSufficientHistory={hasSufficientHistory}
+        method={method}
+        deviation={deviation}
+      />
       <CashBalanceProjectionChart months={months} cashRealBalance={cashRealBalance} />
+      <ul className="app-panel m-0 grid list-none gap-1.5 px-4 py-3 text-xs text-muted">
+        <li className="flex gap-2">
+          <span aria-hidden="true">•</span>
+          <span>Por convención el presupuesto excluye cuotas MSI y pagos/compras financiadas con crédito; esas obligaciones se restan aparte, una sola vez, vía MSI y crédito normal.</span>
+        </li>
+        <li className="flex gap-2">
+          <span aria-hidden="true">•</span>
+          <span>El neto base histórico usa la línea de efectivo sin traspasos de liquidación de crédito: pagar la tarjeta no vuelve a restar una obligación ya considerada.</span>
+        </li>
+        <li className="flex gap-2">
+          <span aria-hidden="true">•</span>
+          <span>Los rendimientos de inversión y ambos netos son estimados: no son efectivo recibido y nunca se suman al saldo de efectivo.</span>
+        </li>
+        {investment.hasEstimate && investment.latestSourcePlanMonth ? (
+          <li className="flex gap-2">
+            <span aria-hidden="true">•</span>
+            <span>Los estimados provienen del plan de inversión guardado de {formatMonthLabel(investment.latestSourcePlanMonth)}; sin un plan guardado que cubra el mes, el estimado es cero.</span>
+          </li>
+        ) : null}
+        <li className="flex gap-2">
+          <span aria-hidden="true">•</span>
+          <span>Las cuotas vencidas fuera de las fechas de vencimiento futuras del horizonte quedan excluidas de la proyección: no se rearman como si vencieran más adelante.</span>
+        </li>
+        <li className="flex gap-2">
+          <span aria-hidden="true">•</span>
+          {deviationApplied ? (
+            <span>
+              El método ajustado suma el promedio de desviación de la muestra de {deviation.sampledMonths.length} mes(es) completo(s); el escenario base no incluye ese ajuste.
+            </span>
+          ) : (
+            <span>
+              Sin muestra suficiente ({deviation.sampleSize} de {deviation.requiredSampleSize} meses con plan comparable) no hay ajuste conocido: el método ajustado queda igual al base y no se presenta una desviación inventada.
+            </span>
+          )}
+        </li>
+      </ul>
     </div>
   );
 }
@@ -244,36 +363,40 @@ export function ProjectionCharts({ historicalMonths, months, cashRealBalance, ha
 function NetFlowChart({
   historicalMonths,
   months,
-  hasSufficientHistory
-}: Pick<ProjectionChartsProps, "historicalMonths" | "months" | "hasSufficientHistory">) {
-  const history = historicalMonths.filter((month) => month.hasActivity);
-  const future = hasSufficientHistory ? months : [];
-  const data: FlowDatum[] = [
-    ...historicalMonths.map((month) => ({
-      label: formatMonthLabel(month.month),
-      month: month.month,
-      net: month.net,
-      // Mes sin actividad no es neto histórico cero: ocupa su lugar en el eje X pero no dibuja barra.
-      bar: month.hasActivity ? month.net : null,
-      hasActivity: month.hasActivity,
-      projected: false
-    })),
-    ...future.map((month) => ({
-      label: formatMonthLabel(month.month),
-      month: month.month,
-      net: month.projectedNet,
-      bar: month.projectedNet,
-      hasActivity: true,
-      projected: true
-    }))
-  ];
+  hasSufficientHistory,
+  method,
+  deviation
+}: Pick<
+  ProjectionChartsProps,
+  "historicalMonths" | "months" | "hasSufficientHistory" | "method" | "deviation"
+>) {
+  const deviationApplied = deviation.hasSufficientSample;
+  const monthDetail = new Map(months.map((month) => [month.month, month]));
+  const alternate = otherMethod(method);
+  const series = buildProjectionNetData(historicalMonths, months, hasSufficientHistory, deviationApplied);
+  const data: FlowDatum[] = series.map((datum) => {
+    const detail = datum.projected ? monthDetail.get(datum.month) : undefined;
+    const selected = detail ? projectionMethodNet(detail, method) : null;
+    const comparison = detail && deviationApplied ? projectionMethodNet(detail, alternate) : null;
+    return {
+      ...datum,
+      label: formatMonthLabel(datum.month),
+      // El histórico conserva su barra; el futuro dibuja el método activo y compara con el otro.
+      bar: !datum.projected ? datum.bar : datum.hasActivity ? selected : null,
+      breakdown: detail ? projectionNetBreakdown(detail, method) : null,
+      comparisonBar: comparison
+    };
+  });
+  const history = data.filter((datum) => !datum.projected && datum.hasActivity);
+  const future = data.filter((datum) => datum.projected);
+  const showComparison = deviationApplied && future.some((datum) => datum.comparisonBar !== null);
   const hasData = history.length > 0 || future.length > 0;
-  const ariaLabel = `Flujo neto mensual: ${history.length} meses históricos con movimientos y ${future.length} meses netos proyectados.`;
+  const ariaLabel = `Flujo neto mensual: ${history.length} meses históricos con movimientos y ${future.length} meses proyectados con neto final estimado.${showComparison ? ` Comparación entre ${METHOD_LABELS.base} y ${METHOD_LABELS.adjusted}.` : ""}`;
 
   return (
     <ProjectionPanel
       title="Flujo neto mensual"
-      description="Barras de flujo real histórico y, si hay historial suficiente, neto proyectado futuro. No representa saldo."
+      description="Barras de flujo real histórico y neto económico estimado del futuro: plan o tendencia, menos MSI y crédito normal, más rendimiento estimado. El método ajustado suma, además, la desviación histórica."
       icon={<BarChart3 className="h-4 w-4" aria-hidden="true" />}
     >
       {!hasData ? (
@@ -283,11 +406,12 @@ function NetFlowChart({
           <Legend>
             <Swatch className="dashboard-bar-income">Neto histórico positivo</Swatch>
             <Swatch className="dashboard-bar-expense">Neto histórico negativo</Swatch>
-            {hasSufficientHistory ? <Swatch className="dashboard-bar-credit">Neto proyectado futuro</Swatch> : null}
+            {future.length > 0 ? <Swatch className="dashboard-bar-credit">{METHOD_LABELS[method]}</Swatch> : null}
+            {showComparison ? <Swatch className="bg-[var(--color-warning)]">{METHOD_LABELS[alternate]}</Swatch> : null}
           </Legend>
           <div className="h-[360px] w-full min-w-0" role="img" aria-label={ariaLabel}>
             <ResponsiveContainer width="100%" height={CHART_HEIGHT}>
-              <BarChart data={data} margin={{ top: 12, right: 16, bottom: 0, left: 0 }}>
+              <ComposedChart data={data} margin={{ top: 12, right: 16, bottom: 0, left: 0 }}>
                 <CartesianGrid stroke={COLOR_GRID} strokeDasharray="4 4" vertical={false} />
                 <XAxis
                   dataKey="label"
@@ -307,12 +431,25 @@ function NetFlowChart({
                 />
                 <ReferenceLine y={0} stroke={COLOR_ZERO_LINE} />
                 <Tooltip
-                  content={FlowTooltip}
+                  content={(props) => <FlowTooltip {...props} method={method} />}
                   filterNull={false}
                   cursor={{ fill: COLOR_SURFACE_3, fillOpacity: 0.35 }}
                   wrapperStyle={{ outline: "none", pointerEvents: "none" }}
                 />
-                <Bar dataKey="bar" name="Flujo neto" shape={FlowBar} maxBarSize={28} />
+                <Bar dataKey="bar" name={METHOD_LABELS[method]} shape={FlowBar} maxBarSize={28} />
+                {showComparison ? (
+                  <Line
+                    type="linear"
+                    dataKey="comparisonBar"
+                    name={METHOD_LABELS[alternate]}
+                    stroke={COLOR_WARNING}
+                    strokeWidth={2}
+                    strokeDasharray="4 4"
+                    connectNulls={false}
+                    dot={{ r: 3, fill: COLOR_WARNING, stroke: COLOR_WARNING }}
+                    activeDot={{ r: 5, fill: COLOR_WARNING, stroke: COLOR_SURFACE_1, strokeWidth: 2 }}
+                  />
+                ) : null}
                 <Brush
                   dataKey="label"
                   height={BRUSH_HEIGHT}
@@ -323,30 +460,66 @@ function NetFlowChart({
                   endIndex={Math.max(data.length - 1, 0)}
                   ariaLabel="Rango de meses visible"
                 />
-              </BarChart>
+              </ComposedChart>
             </ResponsiveContainer>
           </div>
           <figcaption className="text-xs text-muted">
-            {hasSufficientHistory
-              ? "Cada barra muestra flujo neto: ingresos menos gastos. La sección posterior al historial es estimada; ningún saldo se mezcla aquí."
+            {future.length > 0
+              ? `Las barras destacan el método seleccionado (${METHOD_LABELS[method]}); la línea compara el otro método mes a mes. La base es el plan pendiente o la tendencia histórica sin traspasos de liquidación de crédito, menos el compromiso MSI y el pago de crédito normal, más el rendimiento estimado. El gasto planificado excluye cuotas MSI y financiamiento con crédito por convención. Ambos netos son estimados: no son efectivo recibido.`
               : "Solo se muestra flujo neto histórico registrado. Sin historial suficiente no se fabrica una proyección."}
           </figcaption>
           <details className="app-panel rounded-[var(--radius-sm)] px-3 py-2">
             <summary className="cursor-pointer text-xs font-semibold text-primary focus-ring">Ver datos del gráfico</summary>
             <div className="mt-3 overflow-x-auto">
               <table className="w-full text-xs">
-                <caption className="sr-only">Datos de flujo neto mensual</caption>
-                <thead className="text-secondary"><tr><th scope="col" className="px-2 py-2 text-left">Mes</th><th scope="col" className="px-2 py-2 text-left">Serie</th><th scope="col" className="px-2 py-2 text-right">Valor</th></tr></thead>
+                <caption className="sr-only">Datos de flujo neto mensual con neto base, neto ajustado, desviación, MSI, crédito normal y rendimiento</caption>
+                <thead className="text-secondary">
+                  <tr>
+                    <th scope="col" className="px-2 py-2 text-left">Mes</th>
+                    <th scope="col" className="px-2 py-2 text-left">Base del mes</th>
+                    <th scope="col" className="px-2 py-2 text-right">Neto base</th>
+                    <th scope="col" className="px-2 py-2 text-right">Neto ajustado</th>
+                    <th scope="col" className="px-2 py-2 text-right">Desviación</th>
+                    <th scope="col" className="px-2 py-2 text-right">MSI</th>
+                    <th scope="col" className="px-2 py-2 text-right">Crédito normal</th>
+                    <th scope="col" className="px-2 py-2 text-right">Rendimiento est.</th>
+                  </tr>
+                </thead>
                 <tbody>
-                  {data.map((datum, index) => (
-                    <tr key={`flow-row-${datum.month}-${index}`} className="border-default border-t">
-                      <td className="px-2 py-2 text-secondary">{formatMonthLabel(datum.month)}</td>
-                      <td className="px-2 py-2 text-secondary">{datum.projected ? "Neto proyectado" : "Neto histórico"}</td>
-                      <td className="px-2 py-2 text-right font-semibold tabular-nums text-primary">{formatAmount(datum.net)}</td>
-                    </tr>
-                  ))}
+                  {data.map((datum, index) => {
+                    const detail = monthDetail.get(datum.month);
+                    return (
+                      <tr key={`flow-row-${datum.month}-${index}`} className="border-default border-t">
+                        <td className="px-2 py-2 text-secondary">{formatMonthLabel(datum.month)}</td>
+                        <td className="px-2 py-2 text-muted">
+                          {detail && datum.projected ? projectionBaseBasisLabel(detail.baseEconomicBasis) : "Histórico"}
+                        </td>
+                        <td className="px-2 py-2 text-right font-semibold tabular-nums text-primary">
+                          {formatValue(datum.hasActivity ? datum.baseNet : null)}
+                        </td>
+                        <td className="px-2 py-2 text-right font-semibold tabular-nums text-primary">
+                          {formatValue(datum.projected && datum.hasActivity ? datum.adjustedNet : null)}
+                        </td>
+                        <td className="px-2 py-2 text-right tabular-nums text-secondary">
+                          {formatValue(detail && datum.projected && deviationApplied ? detail.deviationAdjustment : null)}
+                        </td>
+                        <td className="px-2 py-2 text-right tabular-nums text-secondary">
+                          {formatValue(detail ? Math.abs(detail.msiCommitment) : null)}
+                        </td>
+                        <td className="px-2 py-2 text-right tabular-nums text-secondary">
+                          {formatValue(detail ? Math.abs(detail.normalCreditPayment) : null)}
+                        </td>
+                        <td className="px-2 py-2 text-right tabular-nums text-secondary">
+                          {formatValue(detail ? detail.investmentEstimate : null)}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
+              <p className="mt-2 text-[11px] text-muted">
+                En meses con presupuesto la base es ingreso planificado menos gasto planificado; en los demás es el neto histórico sin traspasos de liquidación de crédito. MSI y crédito normal se restan una sola vez; la desviación sólo aparece en el método ajustado y con muestra suficiente. Los rendimientos son estimados, no efectivo.
+              </p>
             </div>
           </details>
         </figure>
@@ -447,7 +620,7 @@ function CashBalanceProjectionChart({ months, cashRealBalance }: Pick<Projection
             </ResponsiveContainer>
           </div>
           <figcaption className="text-xs text-muted">
-            La línea empieza en el saldo real de Hoy. El escenario MSI solo aparece porque el payload aporta `msiPaymentScenarioBalance`; no se dibuja saldo histórico.
+            La línea empieza en el saldo real de Hoy y no incluye rendimientos estimados de inversión: solo efectivo. El escenario MSI solo aparece porque el payload aporta `msiPaymentScenarioBalance`; no se dibuja saldo histórico.
           </figcaption>
           <details className="app-panel rounded-[var(--radius-sm)] px-3 py-2">
             <summary className="cursor-pointer text-xs font-semibold text-primary focus-ring">Ver datos del gráfico</summary>

@@ -1,10 +1,13 @@
 using GastosApp.BusinessLogic.Interfaces;
 using GastosApp.BusinessLogic.Models.Dashboard;
+using GastosApp.BusinessLogic.Models.Investments;
 using GastosApp.BusinessLogic.Models.Transactions;
+using GastosApp.BusinessLogic.Services.Investments;
 using GastosApp.Models.Entities;
 using Mapster;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
+using System.Text.Json;
 
 namespace GastosApp.BusinessLogic.Services
 {
@@ -14,10 +17,12 @@ namespace GastosApp.BusinessLogic.Services
         private const int SubcategoryTopLimit = 12;
         private const int AccountTopLimit = 8;
         private const int HistoricalMonths = 6;
+
+        /// <summary>Ventana de desviación: los últimos 3 meses calendario completos antes del mes en curso.</summary>
+        private const int DeviationWindowMonths = 3;
         private const int DefaultProjectionMonths = 6;
         private const int MinProjectionMonths = 1;
         private const int MaxProjectionMonths = 24;
-        private const int MinTrendSampleMonths = 3;
 
         /// <summary>Límite defensivo: la descripción del cargo fuente es TEXT en BD y puede ser arbitrariamente larga.</summary>
         private const int MaxMsiSourceDescriptionLength = 200;
@@ -244,36 +249,91 @@ namespace GastosApp.BusinessLogic.Services
                 });
             }
 
-            var trend = CalculateProjectionTrend(historicalMonths);
-            var msiInstallments = await QueryOpenMsiInstallmentsAsync(userId);
+            // Cuotas abiertas de crédito (MSI y Revolving): única consulta, el tipo decide el uso.
+            var openInstallments = await QueryOpenInstallmentsAsync(userId);
+            var msiInstallments = openInstallments
+                .Where(i => string.Equals(i.PlanType, TransactionDomainConstants.CreditPlanType.Msi, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+            var normalCreditInstallments = openInstallments
+                .Where(i => string.Equals(i.PlanType, TransactionDomainConstants.CreditPlanType.Revolving, StringComparison.OrdinalIgnoreCase))
+                .ToList();
 
-            var monthsProjection = new List<DashboardProjectionMonth>(horizonMonths);
-            var runningBalance = cashRealBalance;
-            var cumulativeMsiCommitment = 0m;
+            // Línea base histórica de efectivo SIN traspasos de liquidación de crédito (sólo
+            // income/expense en cuentas no crédito). El neto histórico legacy incluye el lado
+            // cash→credit de las transferencias; esta serie limpia es la única sobre la que se
+            // pueden restar MSI y crédito normal sin doble descuento.
+            var cleanHistoricalMonths = new List<DashboardHistoricalMonth>(HistoricalMonths);
+            foreach (var bucket in historyBuckets)
+            {
+                var monthKey = FormatMonthKey(bucket.Year, bucket.Month);
+                var cleanIncome = 0m;
+                var cleanExpense = 0m;
+                if (transactionsByMonth.TryGetValue(monthKey, out var bucketTransactions))
+                {
+                    foreach (var transaction in bucketTransactions)
+                    {
+                        if (!accountCreditTypes.TryGetValue(transaction.AccountId, out var isCredit) || isCredit)
+                        {
+                            continue;
+                        }
+
+                        if (IsTransactionType(transaction.Type, TransactionDomainConstants.TransactionType.Income))
+                        {
+                            cleanIncome += transaction.Amount;
+                        }
+                        else if (IsTransactionType(transaction.Type, TransactionDomainConstants.TransactionType.Expense))
+                        {
+                            cleanExpense += transaction.Amount;
+                        }
+                    }
+                }
+
+                cleanHistoricalMonths.Add(new DashboardHistoricalMonth
+                {
+                    Month = monthKey,
+                    Income = RoundMoney(cleanIncome),
+                    Expense = RoundMoney(cleanExpense),
+                    Net = RoundMoney(cleanIncome - cleanExpense),
+                    HasActivity = cleanIncome != 0m || cleanExpense != 0m
+                });
+            }
+
+            // Claves de los meses futuros del horizonte; presupuesto e inversión se consultan en
+            // bloque por estas claves para no caer en N+1.
+            var projectionMonthKeys = new List<string>(horizonMonths);
             for (var offset = 1; offset <= horizonMonths; offset++)
             {
                 var bucket = new DateTime(currentYear, currentMonth, 1).AddMonths(offset);
-                var monthKey = FormatMonthKey(bucket.Year, bucket.Month);
-
-                if (trend.HasSufficientHistory)
-                {
-                    runningBalance += trend.ProjectedMonthlyNet;
-                }
-
-                var msiCommitment = RoundMoney(msiInstallments
-                    .Where(i => ResolveMonthKey(i.DueDate, timezone) == monthKey)
-                    .Sum(i => i.RemainingAmount));
-                cumulativeMsiCommitment += msiCommitment;
-
-                monthsProjection.Add(new DashboardProjectionMonth
-                {
-                    Month = monthKey,
-                    ProjectedCashBalance = RoundMoney(runningBalance),
-                    ProjectedNet = trend.HasSufficientHistory ? trend.ProjectedMonthlyNet : 0m,
-                    MsiCommitment = msiCommitment,
-                    MsiPaymentScenarioBalance = RoundMoney(runningBalance - cumulativeMsiCommitment)
-                });
+                projectionMonthKeys.Add(FormatMonthKey(bucket.Year, bucket.Month));
             }
+
+            // Desviación: sólo los últimos 3 meses completos. Los meses sin plan quedan fuera del
+            // promedio aunque tengan movimientos de efectivo.
+            var deviationBuckets = historyBuckets.Skip(HistoricalMonths - DeviationWindowMonths).ToList();
+            var deviationMonths = await QueryDeviationMonthsAsync(userId, deviationBuckets, transactionsByMonth, accountCreditTypes);
+            var deviation = DashboardProjectionCalculator.CalculateDeviation(deviationMonths, DeviationWindowMonths);
+
+            var budgetByMonth = await QueryPendingBudgetByMonthAsync(userId, projectionMonthKeys);
+            var investmentByMonth = await QueryInvestmentEstimatesByMonthAsync(userId, projectionMonthKeys);
+            var msiCommitmentByMonth = msiInstallments
+                .GroupBy(i => ResolveMonthKey(i.DueDate, timezone))
+                .ToDictionary(g => g.Key, g => g.Sum(i => i.RemainingAmount));
+            var normalCreditByMonth = normalCreditInstallments
+                .GroupBy(i => ResolveMonthKey(i.DueDate, timezone))
+                .ToDictionary(g => g.Key, g => g.Sum(i => i.RemainingAmount));
+
+            var projection = DashboardProjectionCalculator.Calculate(
+                historicalMonths,
+                budgetByMonth,
+                msiCommitmentByMonth,
+                investmentByMonth,
+                horizonMonths,
+                currentYear,
+                currentMonth,
+                cashRealBalance,
+                normalCreditByMonth,
+                cleanHistoricalMonths,
+                deviation);
 
             return new DashboardProjectionResponse
             {
@@ -282,64 +342,273 @@ namespace GastosApp.BusinessLogic.Services
                 HorizonMonths = horizonMonths,
                 CashRealBalance = RoundMoney(cashRealBalance),
                 HistoricalMonths = historicalMonths,
-                Trend = trend,
-                Months = monthsProjection,
-                MsiPlans = BuildMsiPlans(msiInstallments)
+                Trend = projection.Trend,
+                Months = projection.Months,
+                MsiPlans = BuildMsiPlans(msiInstallments),
+                Deviation = deviation
             };
         }
 
-        private static DashboardProjectionTrend CalculateProjectionTrend(IReadOnlyList<DashboardHistoricalMonth> historicalMonths)
+        /// <summary>
+        /// Resuelve la ventana de desviación para el cálculo puro. Sólo entran meses con plan no
+        /// cancelado ni ignorado; el vínculo partida↔transacción decide el real contra el plan y
+        /// excluye las compras financiadas con crédito (no son efectivo ni plan de efectivo
+        /// incumplido). Una partida <b>pendiente</b> asignada a una cuenta de crédito o con cuenta no
+        /// resoluble tampoco entra: no es plan de efectivo. Los movimientos de efectivo enlazados a
+        /// cualquier partida no se cuentan como no planeados, para no duplicarlos. Los traspasos
+        /// (liquidación de crédito) no son income/expense y por eso nunca entran.
+        /// </summary>
+        private async Task<List<DashboardDeviationMonth>> QueryDeviationMonthsAsync(
+            int userId,
+            IReadOnlyList<(int Year, int Month)> windowBuckets,
+            IReadOnlyDictionary<string, List<MonthTransactionRow>> transactionsByMonth,
+            IReadOnlyDictionary<int, bool> accountCreditTypes)
         {
-            var sampleMonths = historicalMonths.Count(m => m.Income != 0 || m.Expense != 0);
-            if (sampleMonths < MinTrendSampleMonths)
-            {
-                return new DashboardProjectionTrend
+            var windowKeys = windowBuckets.Select(b => FormatMonthKey(b.Year, b.Month)).ToList();
+
+            var items = await _repository.Get<BudgetItem>(b =>
+                    b.UserId == userId &&
+                    windowKeys.Contains(b.PeriodKey) &&
+                    b.Status != BudgetItemStatus.Cancelled &&
+                    b.Status != BudgetItemStatus.Ignored)
+                .AsNoTracking()
+                .Select(b => new
                 {
-                    SampleMonths = sampleMonths,
-                    MonthlyNetSlope = 0m,
-                    ProjectedMonthlyNet = 0m,
-                    HasSufficientHistory = false
-                };
+                    b.ItemId,
+                    b.PeriodKey,
+                    b.Kind,
+                    b.Status,
+                    b.PlannedAmount,
+                    b.TransactionId,
+                    b.AccountId,
+                    // Sólo se resuelve la cuenta si es del propio usuario: un id ajeno o inexistente
+                    // queda como no resoluble y no se asume efectivo.
+                    AssignedIsCredit = b.Account != null && b.Account.UserId == userId ? (bool?)b.Account.IsCredit : null
+                })
+                .ToListAsync();
+
+            var linkedTransactionIds = items
+                .Where(i => i.TransactionId.HasValue)
+                .Select(i => i.TransactionId!.Value)
+                .Distinct()
+                .ToList();
+
+            var linkedTransactions = linkedTransactionIds.Count == 0
+                ? new Dictionary<int, (bool IsCredit, decimal Amount)>()
+                : (await _repository.Get<Transaction>(t => t.Account.UserId == userId && linkedTransactionIds.Contains(t.TransactionId))
+                        .AsNoTracking()
+                        .Select(t => new { t.TransactionId, t.Amount, t.Account.IsCredit })
+                        .ToListAsync())
+                    .ToDictionary(t => t.TransactionId, t => (t.IsCredit, t.Amount));
+
+            // Efectivo de la ventana: income/expense en cuentas no crédito. Un movimiento enlazado a
+            // una partida de cualquier periodo no es "no planeado".
+            var cashTransactionIds = windowKeys
+                .Where(transactionsByMonth.ContainsKey)
+                .SelectMany(key => transactionsByMonth[key])
+                .Where(t => accountCreditTypes.TryGetValue(t.AccountId, out var isCredit) && !isCredit &&
+                            (IsTransactionType(t.Type, TransactionDomainConstants.TransactionType.Income) ||
+                             IsTransactionType(t.Type, TransactionDomainConstants.TransactionType.Expense)))
+                .Select(t => t.TransactionId)
+                .Distinct()
+                .ToList();
+
+            var linkedByAnyPlan = cashTransactionIds.Count == 0
+                ? []
+                : await _repository.Get<BudgetItem>(b =>
+                        b.UserId == userId &&
+                        b.TransactionId.HasValue &&
+                        cashTransactionIds.Contains(b.TransactionId!.Value))
+                    .Select(b => b.TransactionId!.Value)
+                    .ToListAsync();
+
+            var linkedSet = new HashSet<int>(linkedTransactionIds);
+            linkedSet.UnionWith(linkedByAnyPlan);
+
+            var result = new List<DashboardDeviationMonth>(windowKeys.Count);
+            foreach (var bucket in windowBuckets)
+            {
+                var monthKey = FormatMonthKey(bucket.Year, bucket.Month);
+
+                var deviationItems = new List<DashboardDeviationItem>();
+                foreach (var item in items.Where(i => string.Equals(i.PeriodKey?.Trim(), monthKey, StringComparison.Ordinal)))
+                {
+                    var isIncome = IsTransactionType(item.Kind, TransactionDomainConstants.TransactionType.Income);
+                    var isExecuted = string.Equals(item.Status, BudgetItemStatus.Executed, StringComparison.OrdinalIgnoreCase) &&
+                                     item.TransactionId.HasValue;
+
+                    if (!isExecuted)
+                    {
+                        // Pendiente: la cuenta asignada decide si es plan de efectivo. Crédito o
+                        // cuenta no resoluble en el alcance del usuario no califica el mes ni cuenta
+                        // como gasto/ingreso no ejecutado.
+                        deviationItems.Add(new DashboardDeviationItem(
+                            IsIncome: isIncome,
+                            IsExecuted: false,
+                            LinkedTransactionIsCredit: false,
+                            PlannedAmount: item.PlannedAmount,
+                            ActualAmount: 0m,
+                            IsCashPlanEligible: DashboardProjectionCalculator.IsCashEligiblePendingPlan(item.AccountId, item.AssignedIsCredit)));
+                        continue;
+                    }
+
+                    if (!linkedTransactions.TryGetValue(item.TransactionId!.Value, out var linked))
+                    {
+                        // Enlace roto (transacción no visible): no se inventa un real.
+                        continue;
+                    }
+
+                    deviationItems.Add(new DashboardDeviationItem(
+                        IsIncome: isIncome,
+                        IsExecuted: true,
+                        LinkedTransactionIsCredit: linked.IsCredit,
+                        PlannedAmount: item.PlannedAmount,
+                        ActualAmount: linked.Amount));
+                }
+
+                var cash = new List<DashboardDeviationCashTransaction>();
+                if (transactionsByMonth.TryGetValue(monthKey, out var bucketTransactions))
+                {
+                    foreach (var transaction in bucketTransactions)
+                    {
+                        if (!accountCreditTypes.TryGetValue(transaction.AccountId, out var isCredit) || isCredit)
+                        {
+                            continue;
+                        }
+
+                        bool? isIncome = IsTransactionType(transaction.Type, TransactionDomainConstants.TransactionType.Income)
+                            ? true
+                            : IsTransactionType(transaction.Type, TransactionDomainConstants.TransactionType.Expense)
+                                ? false
+                                : null;
+                        if (isIncome is null)
+                        {
+                            continue;
+                        }
+
+                        cash.Add(new DashboardDeviationCashTransaction(
+                            IsIncome: isIncome.Value,
+                            Amount: transaction.Amount,
+                            IsLinkedToPlan: linkedSet.Contains(transaction.TransactionId)));
+                    }
+                }
+
+                result.Add(new DashboardDeviationMonth(monthKey, deviationItems, cash));
             }
 
-            // Regresión lineal ordinaria de net mensual sobre el índice temporal de los seis buckets.
-            var count = historicalMonths.Count;
-            decimal sumX = 0m, sumY = 0m, sumXY = 0m, sumXX = 0m;
-            for (var index = 0; index < count; index++)
-            {
-                decimal x = index;
-                var y = historicalMonths[index].Net;
-                sumX += x;
-                sumY += y;
-                sumXY += x * y;
-                sumXX += x * x;
-            }
-
-            var denominator = count * sumXX - sumX * sumX;
-            var slope = denominator == 0m ? 0m : (count * sumXY - sumX * sumY) / denominator;
-            var intercept = (sumY - slope * sumX) / count;
-            var projectedMonthlyNet = intercept + slope * count;
-
-            return new DashboardProjectionTrend
-            {
-                SampleMonths = sampleMonths,
-                MonthlyNetSlope = RoundMoney(slope),
-                ProjectedMonthlyNet = RoundMoney(projectedMonthlyNet),
-                HasSufficientHistory = true
-            };
+            return result;
         }
 
-        private async Task<List<MsiOpenInstallmentRow>> QueryOpenMsiInstallmentsAsync(int userId)
+        /// <summary>
+        /// Agrega las partidas <c>pending</c> del usuario por periodo futuro. Sólo se leen montos
+        /// planificados: ejecutadas, ignoradas y canceladas quedan fuera. No se excluyen las
+        /// partidas proyectadas de recurrencia, porque también forman parte del plan declarado del mes.
+        /// Por convención del usuario las partidas de gasto excluyen cuotas MSI; la MSI se resta aparte.
+        /// <para>Sólo las partidas de efectivo forman la base: las asignadas a una cuenta de crédito
+        /// (compra financiada) y las de cuenta no resoluble se excluyen, y un mes sin ninguna partida
+        /// de efectivo no entra al diccionario (no fabrica una base presupuestal cero).</para>
+        /// </summary>
+        private async Task<Dictionary<string, DashboardBudgetMonthBasis>> QueryPendingBudgetByMonthAsync(
+            int userId,
+            IReadOnlyList<string> projectionMonthKeys)
+        {
+            if (projectionMonthKeys.Count == 0)
+            {
+                return new Dictionary<string, DashboardBudgetMonthBasis>(StringComparer.Ordinal);
+            }
+
+            var periodKeys = projectionMonthKeys.ToList();
+            var items = await _repository.Get<BudgetItem>(b =>
+                    b.UserId == userId &&
+                    b.Status == BudgetItemStatus.Pending &&
+                    periodKeys.Contains(b.PeriodKey))
+                .AsNoTracking()
+                .Select(b => new
+                {
+                    b.PeriodKey,
+                    b.Kind,
+                    b.PlannedAmount,
+                    b.AccountId,
+                    // Sólo se resuelve la cuenta si es del propio usuario: un id ajeno o inexistente
+                    // queda como no resoluble y no se asume efectivo.
+                    AssignedIsCredit = b.Account != null && b.Account.UserId == userId ? (bool?)b.Account.IsCredit : null
+                })
+                .ToListAsync();
+
+            return items
+                .Where(b => DashboardProjectionCalculator.IsCashEligiblePendingPlan(b.AccountId, b.AssignedIsCredit))
+                .GroupBy(b => b.PeriodKey.Trim())
+                .ToDictionary(
+                    g => g.Key,
+                    g => new DashboardBudgetMonthBasis(
+                        g.Key,
+                        RoundMoney(g.Where(x => IsTransactionType(x.Kind, TransactionDomainConstants.TransactionType.Income)).Sum(x => x.PlannedAmount)),
+                        RoundMoney(g.Where(x => IsTransactionType(x.Kind, TransactionDomainConstants.TransactionType.Expense)).Sum(x => x.PlannedAmount)),
+                        g.Count()),
+                    StringComparer.Ordinal);
+        }
+
+        /// <summary>
+        /// Estima el rendimiento mensual de inversión a partir de planes <b>persistidos</b> del usuario
+        /// (nunca borradores). Una sola consulta con asignaciones incluidas; la selección mes a mes
+        /// vive en <see cref="DashboardProjectionCalculator.BuildInvestmentEstimates"/>.
+        /// </summary>
+        private async Task<Dictionary<string, DashboardInvestmentMonthEstimate>> QueryInvestmentEstimatesByMonthAsync(
+            int userId,
+            IReadOnlyList<string> projectionMonthKeys)
+        {
+            var plans = await _repository.Get<InvestmentPlan>(p => p.UserId == userId)
+                .AsNoTracking()
+                .Include(p => p.Allocations)
+                .ToListAsync();
+
+            var snapshots = plans
+                .Select(plan => new DashboardInvestmentPlanSnapshot(
+                    plan.PlanMonth?.Trim() ?? string.Empty,
+                    plan.ProjectionMonths,
+                    plan.Allocations
+                        .Select(allocation => new DashboardInvestmentAllocationSnapshot(
+                            allocation.AllocatedAmount,
+                            DeserializeTierSnapshot(allocation.TierSnapshotJson)))
+                        .ToList()))
+                .ToList();
+
+            var estimates = DashboardProjectionCalculator.BuildInvestmentEstimates(snapshots, projectionMonthKeys);
+            return new Dictionary<string, DashboardInvestmentMonthEstimate>(estimates, StringComparer.Ordinal);
+        }
+
+        private static List<MarginalRateTier> DeserializeTierSnapshot(string json)
+        {
+            if (string.IsNullOrWhiteSpace(json))
+            {
+                return [];
+            }
+
+            try
+            {
+                return (JsonSerializer.Deserialize<List<InvestmentTierSnapshot>>(json) ?? [])
+                    .Select(MarginalRateTier.From)
+                    .ToList();
+            }
+            catch (JsonException)
+            {
+                return [];
+            }
+        }
+
+        private async Task<List<OpenInstallmentRow>> QueryOpenInstallmentsAsync(int userId)
         {
             // Filtro de "no pagada" en SQL, mismo criterio que TransactionQueryService.GetOpenCreditInstallmentsAsync.
             // El CHECK de credit_installments.status fija los valores exactos, por lo que != Paid cubre el
             // OrdinalIgnoreCase que antes se aplicaba en memoria.
-            // El consumidor (BuildMsiPlans) sólo lee escalares: proyección en vez de materializar
+            // Se traen MSI y Revolving en una sola consulta; el llamador separa por PlanType. El
+            // consumidor (BuildMsiPlans) sólo lee escalares: proyección en vez de materializar
             // Installment/Plan/Account/SourceCharge/SourceTransaction completos.
             var rows = await _repository.Get<CreditInstallment>(i =>
                     i.Plan.Account.UserId == userId &&
                     i.Plan.Account.Active &&
-                    i.Plan.PlanType == TransactionDomainConstants.CreditPlanType.Msi &&
+                    (i.Plan.PlanType == TransactionDomainConstants.CreditPlanType.Msi ||
+                     i.Plan.PlanType == TransactionDomainConstants.CreditPlanType.Revolving) &&
                     i.Status != TransactionDomainConstants.CreditStatus.Paid)
                 .AsNoTracking()
                 .Select(i => new
@@ -347,6 +616,7 @@ namespace GastosApp.BusinessLogic.Services
                     i.InstallmentId,
                     i.PlanId,
                     i.Plan.AccountId,
+                    i.Plan.PlanType,
                     AccountName = i.Plan.Account.Name,
                     Description = i.Plan.SourceCharge != null && i.Plan.SourceCharge.SourceTransaction != null
                         ? i.Plan.SourceCharge.SourceTransaction.Description
@@ -374,10 +644,11 @@ namespace GastosApp.BusinessLogic.Services
                 .Select(row =>
                 {
                     var paid = paidByInstallment.TryGetValue(row.InstallmentId, out var value) ? value : 0m;
-                    return new MsiOpenInstallmentRow
+                    return new OpenInstallmentRow
                     {
                         InstallmentId = row.InstallmentId,
                         PlanId = row.PlanId,
+                        PlanType = row.PlanType,
                         AccountId = row.AccountId,
                         AccountName = row.AccountName,
                         Description = NormalizeMsiSourceDescription(row.Description),
@@ -390,7 +661,7 @@ namespace GastosApp.BusinessLogic.Services
                 .ToList();
         }
 
-        private static List<DashboardMsiPlan> BuildMsiPlans(IReadOnlyList<MsiOpenInstallmentRow> installments)
+        private static List<DashboardMsiPlan> BuildMsiPlans(IReadOnlyList<OpenInstallmentRow> installments)
         {
             return installments
                 .GroupBy(i => i.PlanId)
@@ -766,10 +1037,11 @@ namespace GastosApp.BusinessLogic.Services
             public string AccountName { get; set; } = string.Empty;
         }
 
-        private sealed class MsiOpenInstallmentRow
+        private sealed class OpenInstallmentRow
         {
             public int InstallmentId { get; set; }
             public int PlanId { get; set; }
+            public string PlanType { get; set; } = TransactionDomainConstants.CreditPlanType.Revolving;
             public int AccountId { get; set; }
             public string AccountName { get; set; } = string.Empty;
             public string Description { get; set; } = string.Empty;

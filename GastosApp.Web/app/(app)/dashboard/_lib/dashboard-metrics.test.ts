@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { activeAccounts, byMonthlyActivity, resolveAccountCredit, sumClosingBalance, summarizeCredit } from "./dashboard-metrics.ts";
+import { activeAccounts, byMonthlyActivity, resolveAccountBalanceDisplay, resolveAccountCredit, sumClosingBalance, summarizeCredit } from "./dashboard-metrics.ts";
 import type { DashboardAccountOverview } from "@/lib/contracts/dashboard";
 
 function account(overrides: Partial<DashboardAccountOverview> = {}): DashboardAccountOverview {
@@ -80,6 +80,80 @@ test("resolveAccountCredit usa currentDebt canónico del backend sobre los saldo
 
   assert.equal(metrics.debt, 1234);
   assert.equal(metrics.available, 3766);
+});
+
+test("resolveAccountBalanceDisplay muestra deuda y disponible canónicos para la tarjeta 10000/5000", () => {
+  const display = resolveAccountBalanceDisplay(
+    account({ creditLimit: 10000, currentDebt: 5000, currentBalance: 5000 })
+  );
+
+  assert.equal(display.kind, "credit");
+  if (display.kind !== "credit") throw new Error("esperado crédito");
+  assert.equal(display.creditLimit, 10000);
+  assert.equal(display.debt, 5000);
+  assert.equal(display.available, 5000);
+  assert.equal(display.exceeded, false);
+});
+
+test("resolveAccountBalanceDisplay ignora el saldo genérico en la tarjeta 200000 con compra de 1000", () => {
+  const display = resolveAccountBalanceDisplay(
+    account({ creditLimit: 200000, currentDebt: 1000, currentBalance: -1000 })
+  );
+
+  assert.equal(display.kind, "credit");
+  if (display.kind !== "credit") throw new Error("esperado crédito");
+  assert.equal(display.debt, 1000);
+  assert.equal(display.available, 199000);
+});
+
+test("resolveAccountBalanceDisplay no deja que +5000/-1000 de saldo genérico afecten deuda o disponible", () => {
+  const positive = resolveAccountBalanceDisplay(
+    account({ creditLimit: 10000, currentDebt: 5000, currentBalance: 5000 })
+  );
+  const negative = resolveAccountBalanceDisplay(
+    account({ creditLimit: 10000, currentDebt: 5000, currentBalance: -1000 })
+  );
+
+  assert.equal(positive.kind, "credit");
+  assert.equal(negative.kind, "credit");
+  if (positive.kind !== "credit" || negative.kind !== "credit") throw new Error("esperado crédito");
+  assert.equal(positive.debt, 5000);
+  assert.equal(positive.available, 5000);
+  assert.equal(negative.debt, 5000);
+  assert.equal(negative.available, 5000);
+});
+
+test("resolveAccountBalanceDisplay conserva el saldo de las cuentas de efectivo", () => {
+  const display = resolveAccountBalanceDisplay(
+    account({ isCredit: false, creditLimit: null, currentDebt: 0, currentBalance: 1500.5 })
+  );
+
+  assert.equal(display.kind, "cash");
+  if (display.kind !== "cash") throw new Error("esperado efectivo");
+  assert.equal(display.balance, 1500.5);
+});
+
+test("resolveAccountBalanceDisplay sin límite registrado no inventa disponible", () => {
+  const display = resolveAccountBalanceDisplay(
+    account({ creditLimit: null, currentDebt: 800, currentBalance: 800 })
+  );
+
+  assert.equal(display.kind, "credit");
+  if (display.kind !== "credit") throw new Error("esperado crédito");
+  assert.equal(display.creditLimit, null);
+  assert.equal(display.debt, 800);
+  assert.equal(display.available, null);
+});
+
+test("resolveAccountBalanceDisplay conserva el disponible negativo cuando el crédito está excedido", () => {
+  const display = resolveAccountBalanceDisplay(
+    account({ creditLimit: 1000, currentDebt: 1500, currentBalance: 1500 })
+  );
+
+  assert.equal(display.kind, "credit");
+  if (display.kind !== "credit") throw new Error("esperado crédito");
+  assert.equal(display.available, -500);
+  assert.equal(display.exceeded, true);
 });
 
 test("summarizeCredit ignora cuentas inactivas y no-crédito", () => {

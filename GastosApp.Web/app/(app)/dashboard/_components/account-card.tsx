@@ -5,7 +5,7 @@ import type { DashboardViewMode } from "@/app/(app)/dashboard/_components/dashbo
 import { formatAmount, formatDate } from "@/app/(app)/dashboard/_components/dashboard-format";
 import type { DashboardAccountOverview } from "@/lib/contracts/dashboard";
 import { getBalanceToneClass } from "@/lib/accounts/metrics";
-import { resolveAccountCredit } from "@/app/(app)/dashboard/_lib/dashboard-metrics";
+import { resolveAccountBalanceDisplay } from "@/app/(app)/dashboard/_lib/dashboard-metrics";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 
@@ -245,21 +245,21 @@ function DetailContent({ account, timezone }: { account: DashboardAccountOvervie
 
 function CompactContent({ account, viewMode }: { account: DashboardAccountOverview; viewMode: DashboardViewMode }) {
   const isThreeColumns = viewMode === "grid3";
+  const isCredit = account.isCredit;
 
   return (
     <div className={isThreeColumns ? "grid grid-cols-1 gap-3" : "grid gap-2 sm:grid-cols-2"}>
-      <Kpi label="Saldo actual" value={account.currentBalance} compact variant="accent" toneClass={getBalanceToneClass(account.currentBalance)} />
-      <Kpi label="Apertura" value={account.openingBalance} compact />
+      {/* En crédito el saldo contable se rotula explícitamente: no es deuda ni disponible. */}
+      <Kpi
+        label={isCredit ? "Saldo contable" : "Saldo actual"}
+        value={account.currentBalance}
+        compact
+        variant="accent"
+        toneClass={getBalanceToneClass(account.currentBalance)}
+      />
+      <Kpi label={isCredit ? "Apertura mes" : "Apertura"} value={account.openingBalance} compact />
 
-      {account.isCredit ? (
-        <Kpi
-          label={isThreeColumns ? "Deuda" : "Deuda total"}
-          value={resolveAccountCredit(account).debt}
-          toneClass="dashboard-money-expense"
-          compact
-          variant="expense"
-        />
-      ) : (
+      {isCredit ? null : (
         <div className="dashboard-subtle dashboard-subtle-neutral rounded-[var(--radius-sm)] px-3 py-2">
           <p className="m-0 text-[11px] uppercase tracking-wide text-muted">{isThreeColumns ? "Ing/Gto" : "Ingresos / Gastos"}</p>
           <p className="m-0 text-xs font-semibold text-primary">
@@ -283,12 +283,25 @@ function TopHeaderMetrics({
   const isTwoColumns = viewMode === "grid2";
   const isThreeColumns = viewMode === "grid3";
 
-  return account.isCredit ? (
-    <div className={isDetail ? "grid w-full gap-2 sm:grid-cols-[repeat(2,minmax(10.5rem,1fr))] sm:gap-4 lg:min-w-[28rem]" : isTwoColumns || isThreeColumns ? "grid w-full grid-cols-1 gap-2 sm:grid-cols-2" : "grid w-full gap-2 sm:w-auto sm:grid-cols-2"}>
-      <HeaderMetric label="Límite de crédito" value={account.creditLimit} large={isDetail} />
-      <HeaderMetric label="Saldo actual" value={account.currentBalance} toneClass={getBalanceToneClass(account.currentBalance)} large={isDetail} />
-    </div>
-  ) : (
+  const balance = resolveAccountBalanceDisplay(account);
+
+  if (balance.kind === "credit") {
+    return (
+      <div className={isDetail ? "grid w-full gap-2 sm:grid-cols-[repeat(3,minmax(10.5rem,1fr))] sm:gap-4 lg:min-w-[42rem]" : "grid w-full gap-2 sm:grid-cols-2"}>
+        <HeaderMetric label="Límite de crédito" value={balance.creditLimit} nullLabel="Sin límite registrado" large={isDetail} />
+        <HeaderMetric label="Deuda pendiente" value={balance.debt} toneClass="dashboard-money-expense" large={isDetail} />
+        <HeaderMetric
+          label="Disponible"
+          value={balance.available}
+          nullLabel="Sin límite registrado"
+          toneClass={balance.exceeded ? "dashboard-money-expense" : "dashboard-money-credit"}
+          large={isDetail}
+        />
+      </div>
+    );
+  }
+
+  return (
     <div className={isCashDetail ? "grid w-full gap-2 sm:grid-cols-[repeat(2,minmax(10.5rem,1fr))] sm:gap-4 lg:min-w-[22.5rem]" : isTwoColumns ? "grid w-full grid-cols-2 gap-2" : isThreeColumns ? "grid w-full grid-cols-2 gap-2" : "grid w-full gap-2 sm:w-auto sm:grid-cols-2"}>
       <HeaderMetric label="Cierre" value={account.closingBalance} toneClass={getBalanceToneClass(account.closingBalance)} large={isDetail} />
       <HeaderMetric label="Neto mes" value={account.monthNet} toneClass={getBalanceToneClass(account.monthNet)} large={isDetail} />
@@ -300,14 +313,16 @@ function HeaderMetric({
   label,
   value,
   toneClass,
-  large = false
+  large = false,
+  nullLabel
 }: {
   label: string;
   value: number | null;
   toneClass?: string;
   large?: boolean;
+  nullLabel?: string;
 }) {
-  const formatted = value === null ? "No disponible" : formatAmount(value);
+  const formatted = value === null ? nullLabel ?? "No disponible" : formatAmount(value);
   const tone = value === null ? "text-muted" : toneClass ?? "text-primary";
 
   // En detalle los dos importes van sin caja, así que se separan con un divisor
@@ -325,7 +340,6 @@ function HeaderMetric({
 }
 
 function CreditDetails({ account, timezone }: { account: DashboardAccountOverview; timezone: string }) {
-  const debt = resolveAccountCredit(account).debt;
   const incomeTotal = account.monthIncome + account.monthTransferIn;
   const expenseTotal = account.monthExpense + account.monthTransferOut;
   const [open, setOpen] = useState(false);
@@ -479,11 +493,10 @@ function CreditDetails({ account, timezone }: { account: DashboardAccountOvervie
   return (
     <>
       <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-2">
-        <CreditSection title="Balance" variant="balance" className="sm:col-span-2">
+        <CreditSection title="Saldo contable" variant="balance" className="sm:col-span-2">
           <Kpi dense label="Apertura" value={account.openingBalance} plain />
           <Kpi dense label="Cierre" value={account.closingBalance} toneClass={getBalanceToneClass(account.closingBalance)} plain />
           <Kpi dense label="Neto" value={account.monthNet} toneClass={getBalanceToneClass(account.monthNet)} plain />
-          <Kpi dense label="Deuda" value={debt} toneClass="dashboard-money-expense" plain />
         </CreditSection>
         <CreditSection title="Movimientos" variant="movements">
           <Kpi dense label="Ingresos +" value={incomeTotal} toneClass="dashboard-money-income" plain />
