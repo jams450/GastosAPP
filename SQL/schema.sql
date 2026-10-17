@@ -818,7 +818,7 @@ CREATE INDEX IF NOT EXISTS idx_credit_payments_status
     ON credit_payments(status);
 
 -- Dashboard financiero (Fase 1): overview por cuenta, sólo cuentas activas.
--- Réplica idempotente de SQL/migrations/2026-09-17_dashboard_active_accounts_and_credit_snapshot.sql
+-- Función replicada en SQL/migrations/2026-10-16_dashboard_cutoff_msi_original_payments.sql
 CREATE OR REPLACE FUNCTION fn_dashboard_credit_overview(
     p_user_id INT,
     p_month_start TIMESTAMPTZ,
@@ -1028,14 +1028,14 @@ credit_spent AS (
     LEFT JOIN (
         SELECT
             cbm.account_id,
-            coalesce(sum(GREATEST(ci.total_due - coalesce(ip.allocated_total, 0), 0)), 0) AS msi_cutoff_charges
+            coalesce(sum(ci.total_due), 0) AS msi_cutoff_charges
         FROM credit_bounds cbm
         INNER JOIN credit_installment_plans cip
             ON cip.account_id = cbm.account_id
            AND cip.plan_type = 'MSI'
         INNER JOIN credit_installments ci
             ON ci.plan_id = cip.plan_id
-           AND ci.status IN ('Open', 'PartiallyPaid', 'Overdue')
+           AND ci.status IN ('Open', 'PartiallyPaid', 'Paid', 'Overdue')
         LEFT JOIN credit_cycles dc ON dc.cycle_id = ci.due_cycle_id
         LEFT JOIN (
             SELECT
@@ -1069,8 +1069,17 @@ credit_spent AS (
         INNER JOIN credit_payments cp
             ON cp.payment_id = ia.payment_id
            AND cp.status = 'Posted'
+        LEFT JOIN credit_charges cc ON cc.charge_id = cip.source_charge_id
         WHERE cb3.payment_end IS NOT NULL
-          AND (coalesce(dc.due_at, ci.due_date) AT TIME ZONE 'UTC')::date = cb3.payment_end
+          AND (
+            (cip.plan_type = 'MSI'
+             AND (coalesce(dc.due_at, ci.due_date) AT TIME ZONE 'UTC')::date >= cb3.payment_start
+             AND (coalesce(dc.due_at, ci.due_date) AT TIME ZONE 'UTC')::date < (cb3.payment_end + INTERVAL '1 day'))
+            OR
+            (cip.plan_type = 'Revolving'
+             AND cc.occurred_at >= cb3.period_start
+             AND cc.occurred_at < (cb3.period_end + INTERVAL '1 day'))
+          )
         GROUP BY cb3.account_id
     ) pay ON pay.account_id = cb.account_id
 ),
