@@ -1,4 +1,5 @@
 using GastosApp.BusinessLogic.Interfaces;
+using GastosApp.BusinessLogic.Models.Accounts;
 using GastosApp.Models.Entities;
 using Microsoft.EntityFrameworkCore;
 
@@ -38,6 +39,46 @@ namespace GastosApp.BusinessLogic.Services
                 .OrderBy(a => a.Name)
                 .ThenBy(a => a.AccountId)
                 .ToListAsync();
+        }
+
+        /// <summary>
+        /// Lee en una sola consulta owner-scoped los installments de las cuentas de crédito propias
+        /// (incluidas las inactivas) con el estado del pago de cada allocation, y delega en
+        /// <see cref="AccountCreditSnapshotCalculator"/> el piso por installment y el split Revolving/MSI.
+        /// Sin N+1, sin schema/función SQL y sin tocar el balance contable.
+        /// </summary>
+        public async Task<IReadOnlyDictionary<int, AccountCreditSnapshot>> GetCreditSnapshotsAsync(int userId, IEnumerable<Account> ownedAccounts)
+        {
+            var owned = ownedAccounts as IList<Account> ?? ownedAccounts.ToList();
+            var creditAccountIds = owned
+                .Where(a => a.IsCredit)
+                .Select(a => a.AccountId)
+                .Distinct()
+                .ToList();
+
+            if (creditAccountIds.Count == 0)
+            {
+                return new Dictionary<int, AccountCreditSnapshot>();
+            }
+
+            var rows = await _repository.Get<CreditInstallment>()
+                .Where(ci => ci.Plan.Account.UserId == userId && creditAccountIds.Contains(ci.Plan.AccountId))
+                .SelectMany(
+                    ci => ci.Allocations.DefaultIfEmpty(),
+                    (ci, allocation) => new AccountCreditInstallmentRow
+                    {
+                        InstallmentId = ci.InstallmentId,
+                        AccountId = ci.Plan.AccountId,
+                        PlanType = ci.Plan.PlanType,
+                        Status = ci.Status,
+                        TotalDue = ci.TotalDue,
+                        // DefaultIfEmpty se traduce a LEFT JOIN: EF evalúa en SQL, nunca desreferencia en C#.
+                        AllocatedAmount = (decimal?)allocation!.AllocatedAmount,
+                        PaymentStatus = allocation!.Payment.Status
+                    })
+                .ToListAsync();
+
+            return AccountCreditSnapshotCalculator.Calculate(owned, rows);
         }
 
         public async Task<Account> CreateAsync(Account account, int userId)

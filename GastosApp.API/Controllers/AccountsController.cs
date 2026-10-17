@@ -36,8 +36,23 @@ namespace GastosApp.API.Controllers
             try
             {
                 var userId = GetCurrentUserId();
-                var accounts = await _accountService.GetAllByUserIdAsync(userId);
-                var response = accounts.Adapt<IEnumerable<AccountResponse>>();
+                var accounts = (await _accountService.GetAllByUserIdAsync(userId)).ToList();
+                var snapshots = await _accountService.GetCreditSnapshotsAsync(userId, accounts);
+                var response = accounts.Adapt<List<AccountResponse>>();
+
+                // Campos aditivos: sólo las cuentas de crédito propias (incluidas las inactivas) los
+                // reciben; en efectivo quedan null. La deuda es canónica (installments - pagos Posted),
+                // nunca el balance contable.
+                foreach (var item in response)
+                {
+                    if (!snapshots.TryGetValue(item.AccountId, out var snapshot)) continue;
+
+                    item.NormalOutstanding = snapshot.NormalOutstanding;
+                    item.MsiOutstanding = snapshot.MsiOutstanding;
+                    item.CurrentDebt = snapshot.CurrentDebt;
+                    item.CreditAvailable = snapshot.CreditAvailable;
+                }
+
                 return Ok(response);
             }
             catch (Exception ex)

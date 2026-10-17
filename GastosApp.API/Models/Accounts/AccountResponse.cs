@@ -16,4 +16,19 @@ public class AccountResponse
     public bool EarnsInterest { get; set; }
     public decimal AnnualInterestRate { get; set; }
     public decimal? CreditLimit { get; set; }
+
+    /// <summary>
+    /// Deuda Revolving canónica pendiente. Null en cuentas de efectivo (no aplica); cero en una
+    /// cuenta de crédito sin installments pendientes.
+    /// </summary>
+    public decimal? NormalOutstanding { get; set; }
+
+    /// <summary>Deuda MSI canónica pendiente. Null en efectivo; cero sin MSI pendiente.</summary>
+    public decimal? MsiOutstanding { get; set; }
+
+    /// <summary>Deuda total canónica = normal + MSI. Null en efectivo.</summary>
+    public decimal? CurrentDebt { get; set; }
+
+    /// <summary>Crédito disponible = límite - deuda (puede ser negativo). Null en efectivo o sin límite.</summary>
+    public decimal? CreditAvailable { get; set; }
 }
