@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import type { Account } from "../../../../lib/contracts/accounts.ts";
 import type { AccountAnnualSummaryMonth } from "../../../../lib/contracts/account-annual-summary.ts";
+import { ACCOUNT_METRIC_UNAVAILABLE_LABEL, accountMetricValue, buildAccountsCatalogSections } from "./accounts-ui.ts";
 import {
   accountAnnualSummaryHref,
   annualSummaryCopy,
@@ -16,6 +18,77 @@ import {
 function month(partial: Partial<AccountAnnualSummaryMonth> & { month: number; closingBalance: number }): AccountAnnualSummaryMonth {
   return { income: 0, expense: 0, netTransfers: 0, hasActivity: false, ...partial };
 }
+
+function account(partial: Partial<Account> & { accountId: number; name: string }): Account {
+  return {
+    color: "#0ea5e9",
+    startDate: null,
+    isCredit: false,
+    dueDay: null,
+    paymentDueDay: null,
+    earnsInterest: false,
+    annualInterestRate: 0,
+    initialBalance: 0,
+    currentBalance: 0,
+    active: true,
+    creditLimit: null,
+    ...partial
+  };
+}
+
+test("el catálogo separa efectivo y crédito sin inventar deuda desde el saldo contable", () => {
+  const cashActive = account({ accountId: 1, name: "Efectivo", initialBalance: 100, currentBalance: 250 });
+  const cashInactive = account({ accountId: 2, name: "Efectivo inactivo", active: false, initialBalance: -40, currentBalance: 0 });
+  const creditConDatos = account({
+    accountId: 3,
+    name: "Crédito",
+    isCredit: true,
+    creditLimit: 10000,
+    currentBalance: 5000,
+    initialBalance: 4000,
+    normalOutstanding: 1200,
+    msiOutstanding: 800,
+    currentDebt: 2000,
+    creditAvailable: 8000
+  });
+  // Cuenta migrada/corta: la API no expone datos canónicos de crédito.
+  const creditSinDatos = account({ accountId: 4, name: "Crédito sin datos", isCredit: true, creditLimit: null, currentBalance: 700 });
+
+  const sections = buildAccountsCatalogSections([cashActive, cashInactive, creditConDatos, creditSinDatos]);
+  const cash = sections.find((section) => section.key === "cash");
+  const credit = sections.find((section) => section.key === "credit");
+
+  // Inactivas incluidas: el corte es por tipo de cuenta, no por estado.
+  assert.deepEqual(cash?.accounts.map((item) => item.accountId), [1, 2]);
+  assert.deepEqual(credit?.accounts.map((item) => item.accountId), [3, 4]);
+
+  // Efectivo muestra saldo actual/inicial; crédito excluye saldos contables de su resumen.
+  assert.deepEqual(cash?.metrics, ["currentBalance", "initialBalance"]);
+  assert.deepEqual(credit?.metrics, ["creditLimit", "normalOutstanding", "msiOutstanding", "currentDebt", "creditAvailable"]);
+  assert.ok(!credit?.metrics.includes("currentBalance"));
+  assert.ok(!credit?.metrics.includes("initialBalance"));
+
+  // Campo ausente = no disponible: ni cero, ni el saldo contable, ni inferido del límite.
+  assert.equal(accountMetricValue(creditSinDatos, "currentDebt"), null);
+  assert.equal(accountMetricValue(creditSinDatos, "normalOutstanding"), null);
+  assert.equal(accountMetricValue(creditSinDatos, "msiOutstanding"), null);
+  assert.equal(accountMetricValue(creditSinDatos, "creditAvailable"), null);
+
+  // Valores canónicos explícitos se conservan, incluido el disponible negativo por sobregiro.
+  assert.equal(accountMetricValue(creditConDatos, "currentDebt"), 2000);
+  assert.equal(accountMetricValue(creditConDatos, "creditAvailable"), 8000);
+  const alDia = account({ accountId: 5, name: "Al día", isCredit: true, creditLimit: 1000, currentDebt: 0, creditAvailable: 1000 });
+  const excedida = account({ accountId: 6, name: "Excedida", isCredit: true, creditLimit: 1000, currentDebt: 0, creditAvailable: -150 });
+  assert.equal(accountMetricValue(alDia, "currentDebt"), 0);
+  assert.equal(accountMetricValue(excedida, "creditAvailable"), -150);
+
+  // Sin límite no hay disponible, aunque el payload traiga un número inconsistente.
+  const sinLimite = account({ accountId: 7, name: "Sin límite", isCredit: true, creditLimit: null, creditAvailable: 5000 });
+  assert.equal(accountMetricValue(sinLimite, "creditAvailable"), null);
+
+  // El render de un campo ausente no cae a cero ni al saldo contable.
+  assert.equal(ACCOUNT_METRIC_UNAVAILABLE_LABEL, "No disponible");
+});
 
 test("accountAnnualSummaryHref apunta al histórico sin fijar el año", () => {
   assert.equal(accountAnnualSummaryHref(12), "/accounts/12?tab=mensual");

@@ -12,6 +12,15 @@ export type Account = {
   currentBalance: number;
   active: boolean;
   creditLimit: number | null;
+  /**
+   * Métricas canónicas de crédito expuestas por `GET /api/accounts`. Son opcionales para no
+   * romper fixtures ni respuestas previas: `null`/ausente significa "no disponible", no cero.
+   * Nunca se derivan del saldo contable.
+   */
+  normalOutstanding?: number | null;
+  msiOutstanding?: number | null;
+  currentDebt?: number | null;
+  creditAvailable?: number | null;
 };
 
 type UnknownRecord = Record<string, unknown>;
@@ -97,7 +106,11 @@ export function normalizeAccount(input: unknown): Account | null {
     initialBalance: toFiniteNumber(input.initialBalance ?? input.InitialBalance) ?? 0,
     currentBalance: toFiniteNumber(input.currentBalance ?? input.CurrentBalance) ?? 0,
     active: toBool(input.active ?? input.Active, true),
-    creditLimit: toOptionalFiniteNumber(input.creditLimit ?? input.CreditLimit)
+    creditLimit: toOptionalFiniteNumber(input.creditLimit ?? input.CreditLimit),
+    normalOutstanding: toOptionalFiniteNumber(input.normalOutstanding ?? input.NormalOutstanding),
+    msiOutstanding: toOptionalFiniteNumber(input.msiOutstanding ?? input.MsiOutstanding),
+    currentDebt: toOptionalFiniteNumber(input.currentDebt ?? input.CurrentDebt),
+    creditAvailable: toOptionalFiniteNumber(input.creditAvailable ?? input.CreditAvailable)
   };
 }
 
