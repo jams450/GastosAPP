@@ -2,6 +2,7 @@ using GastosApp.BusinessLogic.Interfaces;
 using GastosApp.BusinessLogic.Models.Dashboard;
 using GastosApp.BusinessLogic.Models.Investments;
 using GastosApp.BusinessLogic.Models.Transactions;
+using GastosApp.BusinessLogic.Services.Dashboard;
 using GastosApp.BusinessLogic.Services.Investments;
 using GastosApp.Models.Entities;
 using Mapster;
@@ -56,6 +57,7 @@ namespace GastosApp.BusinessLogic.Services
             var accountCreditTypes = await QueryUserAccountCreditTypesAsync(userId);
             var monthCreditCharges = await QueryMonthCreditChargesAsync(userId, monthStart, nextMonthStart);
             var financialSummary = CalculateFinancialSummary(monthTransactions, accountCreditTypes);
+            var cashFlowBreakdown = DashboardCashFlowClassifier.Classify(monthTransactions, accountCreditTypes);
 
             var creditAccounts = accounts.Where(a => a.IsCredit).ToList();
             var cashAccounts = accounts.Where(a => !a.IsCredit).ToList();
@@ -163,9 +165,15 @@ namespace GastosApp.BusinessLogic.Services
                 {
                     Total = cashAccounts.Sum(a => a.ClosingBalance),
                     MonthIncome = financialSummary.CashIncome,
+                    // Heredado: gasto directo + pago a tarjeta. No cambia para consumidores/proyecciones.
                     MonthExpense = financialSummary.CashExpense,
                     MonthNet = cashAccounts.Sum(a => a.MonthNet),
-                    MonthFinancialNet = financialSummary.CashFinancialNet
+                    MonthFinancialNet = financialSummary.CashFinancialNet,
+                    // Desglose aditivo: separa consumo directo, pago a tarjeta y traspaso interno.
+                    MonthDirectExpense = cashFlowBreakdown.DirectExpense,
+                    MonthCardPayment = cashFlowBreakdown.CardPayment,
+                    MonthInternalCashTransfer = cashFlowBreakdown.InternalCashTransfer,
+                    MonthCashOutflow = cashFlowBreakdown.CashOutflow
                 },
                 Accounts = accounts
             };
@@ -846,42 +854,13 @@ namespace GastosApp.BusinessLogic.Services
             MonthTransactionRow second,
             IReadOnlyDictionary<int, bool> accountCreditTypes)
         {
-            if (!accountCreditTypes.TryGetValue(first.AccountId, out var firstIsCredit) ||
-                !accountCreditTypes.TryGetValue(second.AccountId, out var secondIsCredit) ||
-                firstIsCredit == secondIsCredit)
+            // Resolución compartida con el desglose de efectivo: una sola fuente de verdad.
+            if (!DashboardCashFlowClassifier.TryResolveEndpoints(first, second, out var sourceAccountId, out var destinationAccountId, out var amount))
             {
                 return;
             }
 
-            MonthTransactionRow source;
-            MonthTransactionRow destination;
-            if (first.BalanceImpact < 0)
-            {
-                source = first;
-                destination = second;
-            }
-            else if (second.BalanceImpact < 0)
-            {
-                source = second;
-                destination = first;
-            }
-            else if (first.BalanceImpact > 0)
-            {
-                source = second;
-                destination = first;
-            }
-            else if (second.BalanceImpact > 0)
-            {
-                source = first;
-                destination = second;
-            }
-            else
-            {
-                source = first.TransactionId < second.TransactionId ? first : second;
-                destination = source == first ? second : first;
-            }
-
-            AddTransferFinancialImpact(summary, source.AccountId, destination.AccountId, source.Amount, accountCreditTypes);
+            AddTransferFinancialImpact(summary, sourceAccountId, destinationAccountId, amount, accountCreditTypes);
         }
 
         private static void AddTransferFinancialImpact(
@@ -889,32 +868,12 @@ namespace GastosApp.BusinessLogic.Services
             MonthTransactionRow transaction,
             IReadOnlyDictionary<int, bool> accountCreditTypes)
         {
-            if (!transaction.CounterpartyAccountId.HasValue)
+            if (!DashboardCashFlowClassifier.TryResolveEndpoints(transaction, out var sourceAccountId, out var destinationAccountId, out var amount))
             {
                 return;
             }
 
-            int sourceAccountId;
-            int destinationAccountId;
-            if (transaction.BalanceImpact < 0 ||
-                (transaction.BalanceImpact == 0 && string.Equals(transaction.Direction, "debit", StringComparison.OrdinalIgnoreCase)))
-            {
-                sourceAccountId = transaction.AccountId;
-                destinationAccountId = transaction.CounterpartyAccountId.Value;
-            }
-            else if (transaction.BalanceImpact > 0 ||
-                     (transaction.BalanceImpact == 0 && string.Equals(transaction.Direction, "credit", StringComparison.OrdinalIgnoreCase)))
-            {
-                sourceAccountId = transaction.CounterpartyAccountId.Value;
-                destinationAccountId = transaction.AccountId;
-            }
-            else
-            {
-                // Legacy zero-impact rows without Direction require the paired TransferGroupId row above.
-                return;
-            }
-
-            AddTransferFinancialImpact(summary, sourceAccountId, destinationAccountId, transaction.Amount, accountCreditTypes);
+            AddTransferFinancialImpact(summary, sourceAccountId, destinationAccountId, amount, accountCreditTypes);
         }
 
         private static void AddTransferFinancialImpact(
@@ -1018,7 +977,7 @@ namespace GastosApp.BusinessLogic.Services
         }
 
         /// <summary>Columnas leídas de <c>transactions</c> por el dashboard: evita materializar la entidad completa.</summary>
-        private sealed class MonthTransactionRow
+        private sealed class MonthTransactionRow : IDashboardCashFlowTransaction
         {
             public int TransactionId { get; set; }
             public int AccountId { get; set; }

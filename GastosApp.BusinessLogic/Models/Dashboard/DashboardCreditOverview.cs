@@ -110,5 +110,23 @@ namespace GastosApp.BusinessLogic.Models.Dashboard
         public decimal MonthExpense { get; set; }
         public decimal MonthNet { get; set; }
         public decimal MonthFinancialNet { get; set; }
+
+        /// <summary>
+        /// Gasto directo en cuentas de efectivo del mes, sin pagos a tarjeta. Campo aditivo:
+        /// <see cref="MonthExpense"/> conserva la semántica heredada (gasto directo + pago a tarjeta).
+        /// </summary>
+        public decimal MonthDirectExpense { get; set; }
+
+        /// <summary>
+        /// Pagos efectivo→crédito del mes. Salen de efectivo y reducen deuda, pero no son consumo nuevo:
+        /// la compra con tarjeta ya se contó como gasto del periodo de compra.
+        /// </summary>
+        public decimal MonthCardPayment { get; set; }
+
+        /// <summary>Traspasos efectivo→efectivo del mes; sólo mueven dinero y se cuentan una sola vez.</summary>
+        public decimal MonthInternalCashTransfer { get; set; }
+
+        /// <summary>Salida total de efectivo del mes = <see cref="MonthDirectExpense"/> + <see cref="MonthCardPayment"/>.</summary>
+        public decimal MonthCashOutflow { get; set; }
     }
 }

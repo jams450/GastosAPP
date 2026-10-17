@@ -319,3 +319,63 @@ test("normalizeDashboardOverview devuelve snapshot de crédito en cero sin datos
   assert.equal(result.creditSummary.totalNormalDebt, 0);
   assert.equal(result.creditSummary.totalMsiDebt, 0);
 });
+
+test("normalizeDashboardOverview conserva el desglose aditivo de efectivo del backend", () => {
+  const result = normalizeDashboardOverview({
+    cashSummary: {
+      total: "1500",
+      monthIncome: "2000",
+      monthExpense: "450",
+      monthNet: "1550",
+      monthFinancialNet: "1550",
+      monthDirectExpense: "150",
+      monthCardPayment: "300",
+      monthInternalCashTransfer: "200",
+      monthCashOutflow: "450"
+    }
+  });
+
+  assert.equal(result.cashSummary.hasCashFlowBreakdown, true);
+  assert.equal(result.cashSummary.monthDirectExpense, 150);
+  assert.equal(result.cashSummary.monthCardPayment, 300);
+  assert.equal(result.cashSummary.monthInternalCashTransfer, 200);
+  assert.equal(result.cashSummary.monthCashOutflow, 450);
+  // Campos heredados intactos para consumidores y proyecciones.
+  assert.equal(result.cashSummary.monthExpense, 450);
+  assert.equal(result.cashSummary.monthFinancialNet, 1550);
+});
+
+test("normalizeDashboardOverview no inventa desglose de efectivo en payloads legacy", () => {
+  const result = normalizeDashboardOverview({
+    cashSummary: { monthIncome: 2000, monthExpense: 450 }
+  });
+
+  assert.equal(result.cashSummary.hasCashFlowBreakdown, false);
+  assert.equal(result.cashSummary.monthDirectExpense, 0);
+  assert.equal(result.cashSummary.monthCardPayment, 0);
+  assert.equal(result.cashSummary.monthInternalCashTransfer, 0);
+  assert.equal(result.cashSummary.monthCashOutflow, 0);
+  assert.equal(result.cashSummary.monthExpense, 450);
+});
+
+test("normalizeDashboardOverview deriva la salida total cuando falta y respeta el cero explícito", () => {
+  const derived = normalizeDashboardOverview({
+    cashSummary: { monthDirectExpense: 150, monthCardPayment: 300 }
+  });
+  const explicitZero = normalizeDashboardOverview({
+    cashSummary: { monthDirectExpense: 0, monthCardPayment: 0, monthCashOutflow: 0 }
+  });
+
+  assert.equal(derived.cashSummary.hasCashFlowBreakdown, true);
+  assert.equal(derived.cashSummary.monthCashOutflow, 450);
+  assert.equal(explicitZero.cashSummary.hasCashFlowBreakdown, true);
+  assert.equal(explicitZero.cashSummary.monthCashOutflow, 0);
+});
+
+test("normalizeDashboardOverview sin cashSummary deja el desglose ausente y en cero", () => {
+  const result = normalizeDashboardOverview({});
+
+  assert.equal(result.cashSummary.hasCashFlowBreakdown, false);
+  assert.equal(result.cashSummary.monthCashOutflow, 0);
+  assert.equal(result.cashSummary.monthCardPayment, 0);
+});

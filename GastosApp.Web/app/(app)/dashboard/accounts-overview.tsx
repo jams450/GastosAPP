@@ -81,7 +81,12 @@ const emptyOverview: DashboardOverviewResponse = {
     monthIncome: 0,
     monthExpense: 0,
     monthNet: 0,
-    monthFinancialNet: 0
+    monthFinancialNet: 0,
+    hasCashFlowBreakdown: false,
+    monthDirectExpense: 0,
+    monthCardPayment: 0,
+    monthInternalCashTransfer: 0,
+    monthCashOutflow: 0
   },
   accounts: []
 };

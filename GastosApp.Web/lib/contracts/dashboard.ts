@@ -176,7 +176,43 @@ export type DashboardCashSectionSummary = {
   monthExpense: number;
   monthNet: number;
   monthFinancialNet: number;
+  /**
+   * `true` sólo si el backend envía el desglose aditivo. Un payload legacy deja `false`:
+   * la UI no puede separar gasto directo de pago a tarjeta a partir de `monthExpense`.
+   */
+  hasCashFlowBreakdown: boolean;
+  /** Gasto directo en cuentas de efectivo del mes; excluye pagos a tarjeta. */
+  monthDirectExpense: number;
+  /** Pagos efectivo→crédito: salen de efectivo y reducen deuda, no son consumo nuevo. */
+  monthCardPayment: number;
+  /** Traspasos efectivo→efectivo: sólo mueven dinero entre cuentas propias, contados una vez. */
+  monthInternalCashTransfer: number;
+  /** Salida total de efectivo = gasto directo + pagos a tarjeta. */
+  monthCashOutflow: number;
 };
+
+type DashboardCashFlowBreakdown = Pick<
+  DashboardCashSectionSummary,
+  "hasCashFlowBreakdown" | "monthDirectExpense" | "monthCardPayment" | "monthInternalCashTransfer" | "monthCashOutflow"
+>;
+
+function normalizeCashFlowBreakdown(input: UnknownRecord): DashboardCashFlowBreakdown {
+  const directExpense = toOptionalFiniteNumber(input.monthDirectExpense);
+  const cardPayment = toOptionalFiniteNumber(input.monthCardPayment);
+  const internalTransfer = toOptionalFiniteNumber(input.monthInternalCashTransfer);
+  const cashOutflow = toOptionalFiniteNumber(input.monthCashOutflow);
+  const hasCashFlowBreakdown =
+    directExpense !== null || cardPayment !== null || internalTransfer !== null || cashOutflow !== null;
+
+  return {
+    hasCashFlowBreakdown,
+    monthDirectExpense: directExpense ?? 0,
+    monthCardPayment: cardPayment ?? 0,
+    monthInternalCashTransfer: internalTransfer ?? 0,
+    // Sin campos legacy no se inventa desglose; con clasificación parcial se deriva la salida total.
+    monthCashOutflow: cashOutflow ?? (directExpense ?? 0) + (cardPayment ?? 0)
+  };
+}
 
 export type DashboardOverviewResponse = {
   month: string;
@@ -250,7 +286,8 @@ export function normalizeDashboardOverview(input: unknown): DashboardOverviewRes
         monthIncome: 0,
         monthExpense: 0,
         monthNet: 0,
-        monthFinancialNet: 0
+        monthFinancialNet: 0,
+        ...normalizeCashFlowBreakdown({})
       },
       accounts: []
     };
@@ -311,7 +348,8 @@ export function normalizeDashboardOverview(input: unknown): DashboardOverviewRes
       monthFinancialNet: toFiniteNumber(
         cashSummaryInput.monthFinancialNet ??
           toFiniteNumber(cashSummaryInput.monthIncome) - toFiniteNumber(cashSummaryInput.monthExpense)
-      )
+      ),
+      ...normalizeCashFlowBreakdown(cashSummaryInput)
     },
     accounts
   };

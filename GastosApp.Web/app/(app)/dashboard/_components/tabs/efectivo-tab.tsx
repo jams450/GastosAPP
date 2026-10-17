@@ -28,32 +28,65 @@ export function EfectivoTab({ overview, loading, error, viewMode, timezone }: Ef
 
   const cashAccounts = activeAccounts(overview.accounts).filter((account) => !account.isCredit);
   const cashTotal = sumClosingBalance(cashAccounts);
+  const cashSummary = overview.cashSummary;
+
+  // Con desglose del backend se separa consumo directo, pago a tarjeta y traspaso interno.
+  // Sin desglose (payload legacy) se conserva la presentación anterior y no se infiere separación.
+  const metricItems = cashSummary.hasCashFlowBreakdown
+    ? [
+        { title: "Saldo total efectivo", subtitle: "Saldos de cuentas no-crédito activas", amount: cashTotal },
+        {
+          title: "Ingresos del mes",
+          subtitle: "Flujo real de efectivo",
+          amount: cashSummary.monthIncome,
+          toneClass: "dashboard-money-income"
+        },
+        {
+          title: "Gasto directo del mes",
+          subtitle: "Consumo en efectivo, sin pagos a tarjeta",
+          amount: cashSummary.monthDirectExpense * -1,
+          toneClass: "dashboard-money-expense"
+        },
+        {
+          title: "Pagos a tarjeta de crédito",
+          subtitle: "Efectivo→crédito: reduce deuda, no es gasto nuevo",
+          amount: cashSummary.monthCardPayment * -1,
+          toneClass: "dashboard-money-neutral"
+        },
+        {
+          title: "Transferencias internas",
+          subtitle: "Mover dinero entre efectivos; se cuenta una sola vez",
+          amount: cashSummary.monthInternalCashTransfer,
+          toneClass: "dashboard-money-neutral"
+        },
+        {
+          title: "Salida total de efectivo",
+          subtitle: "Gasto directo + pagos a tarjeta",
+          amount: cashSummary.monthCashOutflow * -1,
+          toneClass: "dashboard-money-expense"
+        },
+        { title: "Neto mensual", subtitle: "Balance financiero del mes", amount: cashSummary.monthFinancialNet }
+      ]
+    : [
+        { title: "Saldo total efectivo", subtitle: "Saldos de cuentas no-crédito activas", amount: cashTotal },
+        {
+          title: "Ingresos del mes",
+          subtitle: "Flujo real de efectivo",
+          amount: cashSummary.monthIncome,
+          toneClass: "dashboard-money-income"
+        },
+        {
+          title: "Gastos del mes",
+          subtitle: "Gasto real + efectivo→crédito",
+          amount: cashSummary.monthExpense * -1,
+          toneClass: "dashboard-money-expense"
+        },
+        { title: "Neto mensual", subtitle: "Balance financiero del mes", amount: cashSummary.monthFinancialNet }
+      ];
 
   return (
     <div className="grid gap-4">
-      <DashboardMetricCards
-        items={[
-          { title: "Saldo total efectivo", subtitle: "Saldos de cuentas no-crédito activas", amount: cashTotal },
-          {
-            title: "Ingresos del mes",
-            subtitle: "Flujo real de efectivo",
-            amount: overview.cashSummary.monthIncome,
-            toneClass: "dashboard-money-income"
-          },
-          {
-            title: "Gastos del mes",
-            subtitle: "Gasto real + efectivo→crédito",
-            amount: overview.cashSummary.monthExpense * -1,
-            toneClass: "dashboard-money-expense"
-          },
-          {
-            title: "Neto mensual",
-            subtitle: "Balance financiero del mes",
-            amount: overview.cashSummary.monthFinancialNet
-          }
-        ]}
-        columns="sm:grid-cols-2 xl:grid-cols-4"
-      />
+      <DashboardMetricCards items={metricItems} columns="sm:grid-cols-2 xl:grid-cols-4" />
 
       <AccountFlowBars
         title="Ingresos vs gastos por cuenta"
