@@ -40,6 +40,10 @@ services:
       - Telegram__WebhookSecret=${Telegram__WebhookSecret}
       - Telegram__AllowedUserId=${Telegram__AllowedUserId}
       - Telegram__AppUserId=${Telegram__AppUserId}
+      - Ntfy__Enabled=${Ntfy__Enabled:-false}
+      - Ntfy__Server=${Ntfy__Server:-https://ntfy.amitzi.xyz/}
+      - Ntfy__Topic=${Ntfy__Topic:-GastosApp}
+      - Ntfy__Token=${Ntfy__Token:-}
       - Alerts__Enabled=${Alerts__Enabled}
       - Alerts__EvaluationIntervalMinutes=${Alerts__EvaluationIntervalMinutes}
       - Alerts__DispatchSeconds=${Alerts__DispatchSeconds}

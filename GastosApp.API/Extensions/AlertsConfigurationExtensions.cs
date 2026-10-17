@@ -7,6 +7,14 @@ public static class AlertsConfigurationExtensions
 {
     public static IServiceCollection AddApiAlertsConfiguration(this IServiceCollection services, IConfiguration configuration)
     {
+        services.AddOptions<NtfyOptions>()
+            .Bind(configuration.GetSection(NtfyOptions.SectionName))
+            .Validate(options => !options.Enabled || options.HasSafeEndpoint(),
+                "Ntfy requires an HTTPS server without credentials, query or fragment, and an alphanumeric topic (hyphens/underscores allowed).")
+            .Validate(options => !options.Enabled || options.HasToken(),
+                "Ntfy:Token must contain a real Bearer token when enabled.")
+            .ValidateOnStart();
+
         var alertsSection = configuration.GetSection(AlertsOptions.SectionName);
         var alertsEnabled = alertsSection.GetValue<bool>(nameof(AlertsOptions.Enabled));
 

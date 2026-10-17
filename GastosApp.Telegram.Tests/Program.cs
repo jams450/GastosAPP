@@ -6,6 +6,7 @@ using GastosApp.BusinessLogic.Services.Catalog;
 using GastosApp.Models.Entities;
 using Microsoft.Extensions.Logging.Abstractions;
 
+await NtfyNotificationTests.RunAsync();
 await TelegramFinancialQueryTests.RunAsync();
 await TelegramBudgetQueryTests.RunAsync();
 await TelegramAlertQueryTests.RunAsync();

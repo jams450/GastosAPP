@@ -60,7 +60,15 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IPlanService, PlanService>();
         services.AddScoped<IRecurringItemService, RecurringItemService>();
         services.AddScoped<IAlertEvaluationService, AlertEvaluationService>();
-        services.AddScoped<ITelegramAlertSender, TelegramAlertSender>();
+        services.AddScoped<TelegramAlertSender>();
+        services.AddHttpClient<INtfyAlertSender, NtfyAlertSender>(client =>
+            client.Timeout = TimeSpan.FromSeconds(15))
+            .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false })
+            .RemoveAllLoggers();
+        services.AddScoped<ITelegramAlertSender>(provider => new MirroredTelegramAlertSender(
+            provider.GetRequiredService<TelegramAlertSender>(),
+            provider.GetRequiredService<INtfyAlertSender>(),
+            provider.GetRequiredService<ILogger<MirroredTelegramAlertSender>>()));
 
         services.AddHostedService<AlertEvaluationBackgroundService>();
         services.AddHostedService<AlertDispatchBackgroundService>();
