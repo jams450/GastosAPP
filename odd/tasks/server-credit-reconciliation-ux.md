@@ -18,6 +18,10 @@ S11. «Mejorar sugerencias en budgets porque salen muchas coincidencia debil sol
 
 S12. «no crear muchas unit test sin valor, puedes instalar los componentes faltantes o librerias nuevas»
 
+S13. «Dashboard
+Revisar formulas de pago estimado de tarjetas, no corresponde con lo real
+Efectivo -> agregar en transferencias si es cuenta de credito porque es pago a tarjeta y si es entre efectivos porque solo es mover dinero. desglozar mejor gastos del mes para saber si es pago a tdc»
+
 ## Tasks
 - T1 [done] S1-S4: read-only reconciliation, deterministic checks and report completed; route inline after delegated map and independent verification; commit 68c9dc5. Cause/adjustment requires historical evidence; no data edits.
 - T2 [blocked] S5: delegated mapping and six public BFF probes accept missing/null subcategory; needs exact user error and screen context to reproduce the actual rejection. No speculative fix.
@@ -31,7 +35,11 @@ S12. «no crear muchas unit test sin valor, puedes instalar los componentes falt
 
 - T9 [done] S12: baseline lock repaired, existing metadata preserved, install and dry-run pass; commit b48de66. Frontend 314 tests and TypeScript pass.
 
+- T10 [blocked] S13: double deduction reproduced RED then corrected GREEN (2 Python checks); independent verification and artifact revalidation approved. Commit cdfa0d7 includes schema/function migration artifact. No migration executed. Needs authorized isolated PostgreSQL proof and explicit database-change approval before deployment; no bank-amount certification.
+- T11 [done] S13: additive cash breakdown committed 94c4f3b, legacy summary/projection fields preserved. Parent integrated checks and independent verification passed without blockers: 58+8+5+12 backend outcomes, build clean, TypeScript and 319 frontend tests; seven independent boundary probes. No DB/API/browser/push; branch not merged to main.
+
 ## Log
+L18. User request verbatim in S13. Parent spot-check SQL/schema.sql credit_spent confirms MSI component sums remaining amounts then cutoff_payments subtracts applications again. DashboardService.AddTransferFinancialImpact classifies cash→credit as cash expense plus credit income. No new database read authorized/executed. Current branch main clean at 302748e after user-authorized fast-forward; next changes use a new feature branch. Prior review approved and acknowledged for exact prior target; do not reuse authority for new changes.
 L12. User authorized local identity «Andres Mitzi jams45072@gmail.com» and requested «has commit cortos para tus cambios y tener el historial, no puedes hacer push». Repository-local identity set; four commits created: 68c9dc5, b48de66, b26fbcf, ba8fd2d. No push executed.
 L13. Single production snapshot completed, rollback verified, five accounts and 365 movements. Total debt 26,824.69; only BBVA accounting residual 63,488.49, plus Paid installment residual 1,378.45. Cause not established. Full report docs/CONCILIACION_CREDITO_SERVIDOR.md; no automatic repeat or data correction.
 L14. Public BFF validators accept missing/null subcategory for expense/income/transfer (six probes). Actual UI rejection not reproduced; need exact message/context rather than invent a fix. Responsible-party table awaits payment attribution rule; no proportional distribution assumed.
