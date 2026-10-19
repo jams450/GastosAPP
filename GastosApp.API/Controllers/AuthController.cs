@@ -1,11 +1,15 @@
+using GastosApp.API.Extensions;
 using GastosApp.API.Models.Auth;
 using GastosApp.API.Interfaces;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace GastosApp.API.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
+// login, refresh and logout are the only unauthenticated endpoints of this application.
+[EnableRateLimiting(RateLimitingExtensions.AuthPolicy)]
 public class AuthController : ControllerBase
 {
     private readonly IAuthService _authService;
