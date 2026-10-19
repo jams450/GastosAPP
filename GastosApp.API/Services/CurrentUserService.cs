@@ -23,7 +23,10 @@ namespace GastosApp.API.Services
             var userId = GetUserId();
             if (!userId.HasValue)
             {
-                throw new InvalidOperationException("Authenticated user id claim is missing or invalid.");
+                // UnauthorizedAccessException, not InvalidOperationException: the global exception
+                // handler maps it to 401, which is what the controllers already throw for the same
+                // condition. InvalidOperationException mapped to 500 and contradicted AGENTS.md.
+                throw new UnauthorizedAccessException("Authenticated user id claim is missing or invalid.");
             }
 
             return userId.Value;
