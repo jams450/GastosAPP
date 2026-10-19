@@ -10,7 +10,7 @@ builder.Services
     .AddApiMvc()
     .AddApiOpenApi()
     .AddApiHttpContext()
-    .AddApiCors(builder.Configuration)
+    .AddApiCors(builder.Configuration, builder.Environment)
     .AddApiRateLimiting(builder.Configuration)
     .AddApiTelegramConfiguration(builder.Configuration)
     .AddApiAlertsConfiguration(builder.Configuration)
