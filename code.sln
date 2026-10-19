@@ -12,6 +12,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GastosApp.AI", "GastosApp.A
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GastosApp.Telegram.Tests", "GastosApp.Telegram.Tests\GastosApp.Telegram.Tests.csproj", "{B1755BE7-EFB2-446C-93EA-E039D6AB990B}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GastosApp.Backend.Tests", "GastosApp.Backend.Tests\GastosApp.Backend.Tests.csproj", "{1BCD59DE-960A-4077-A16E-FD36F7FAFF4D}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GastosApp.Dashboard.Tests", "GastosApp.Dashboard.Tests\GastosApp.Dashboard.Tests.csproj", "{44975C8A-8BC6-4A8D-8044-CCD060E36EE4}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -38,6 +42,14 @@ Global
 		{B1755BE7-EFB2-446C-93EA-E039D6AB990B}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{B1755BE7-EFB2-446C-93EA-E039D6AB990B}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{B1755BE7-EFB2-446C-93EA-E039D6AB990B}.Release|Any CPU.Build.0 = Release|Any CPU
+		{1BCD59DE-960A-4077-A16E-FD36F7FAFF4D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{1BCD59DE-960A-4077-A16E-FD36F7FAFF4D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{1BCD59DE-960A-4077-A16E-FD36F7FAFF4D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{1BCD59DE-960A-4077-A16E-FD36F7FAFF4D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{44975C8A-8BC6-4A8D-8044-CCD060E36EE4}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{44975C8A-8BC6-4A8D-8044-CCD060E36EE4}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{44975C8A-8BC6-4A8D-8044-CCD060E36EE4}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{44975C8A-8BC6-4A8D-8044-CCD060E36EE4}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

@@ -98,7 +98,7 @@ public class TelegramIdentityService : ITelegramIdentityService
             .Where(i => i.TelegramIdentityId == telegramIdentityId)
             .ExecuteUpdateAsync(s => s
                 .SetProperty(i => i.Active, active)
-                .SetProperty(i => i.Updated, (DateTime?)now), cancellationToken);
+                .SetProperty(i => i.Updated, (DateTime?)now), cancellationToken); // alcance-por-referencia: se direcciona por la clave primaria de la identidad, sin comprobación de dueño porque la firma no recibe userId; el despliegue admite una sola identidad y hoy el método no tiene llamadores en producción.
         return affected > 0;
     }
 }

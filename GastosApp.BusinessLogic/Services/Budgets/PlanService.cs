@@ -170,7 +170,7 @@ namespace GastosApp.BusinessLogic.Services
                 ? new Dictionary<int, int>()
                 : await _repository.Get<Subcategory>(s => subcategoryIds.Contains(s.SubcategoryId))
                     .Select(s => new { s.SubcategoryId, s.CategoryId })
-                    .ToDictionaryAsync(s => s.SubcategoryId, s => s.CategoryId);
+                    .ToDictionaryAsync(s => s.SubcategoryId, s => s.CategoryId); // alcance-por-referencia: los ids provienen de candidatos ya acotados al usuario; este mapeo solo resuelve el padre.
 
             var result = new List<BudgetItemListItem>();
 

@@ -10,7 +10,8 @@ builder.Services
     .AddApiMvc()
     .AddApiOpenApi()
     .AddApiHttpContext()
-    .AddApiCors(builder.Configuration)
+    .AddApiCors(builder.Configuration, builder.Environment)
+    .AddApiRateLimiting(builder.Configuration)
     .AddApiTelegramConfiguration(builder.Configuration)
     .AddApiAlertsConfiguration(builder.Configuration)
     .AddApiDatabase(builder.Configuration)
@@ -24,9 +25,17 @@ app.UseApiOpenApiIfDevelopment();
 
 app.UseExceptionHandler();
 app.UseCors("Production");
+// Before authentication on purpose: a rejected attempt must not cost a database round trip to
+// validate the token, and the authentication endpoints are unauthenticated anyway.
+app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
 
 app.Run();
+
+// Needed by GastosApp.Backend.Tests to boot the real pipeline through WebApplicationFactory.
+// Top-level statements declare Program as internal; this makes it visible without relaxing
+// anything else.
+public partial class Program;

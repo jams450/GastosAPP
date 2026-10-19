@@ -1,3 +1,4 @@
+using GastosApp.AI.Client;
 using GastosApp.AI.Configuration;
 using GastosApp.API.Configuration;
 using GastosApp.BusinessLogic.Models.Budgets;
@@ -43,6 +44,11 @@ public static class TelegramConfigurationExtensions
             MatchTolerancePct = configuration.GetValue("Plan:MatchTolerancePct", 0m)
         });
 
+        // Un solo cliente compartido para todo el proceso: cada construcción levanta su propia
+        // cadena de handlers HTTP, así que construir uno por mensaje de Telegram desperdicia
+        // conexiones. Es singleton a propósito y no depende de ningún servicio scoped.
+        services.AddSingleton<ILlmChatClientProvider, LlmChatClientProvider>();
+
         // LlmOptions se enlaza sin validación de arranque: un LLM inválido/caído nunca debe
         // bloquear el arranque ni los comandos manuales. La usabilidad se verifica en tiempo de ejecución.
         services.AddOptions<LlmOptions>()
@@ -64,12 +70,9 @@ public static class TelegramConfigurationExtensions
     /// <summary>
     /// Indica si la configuración del LLM es utilizable. Si no lo es, el extractor queda
     /// deshabilitado y el texto libre responde un mensaje genérico.
+    /// Un solo dueño de la regla: delega en <see cref="LlmOptions.IsUsable"/>.
     /// </summary>
-    public static bool IsLlmUsable(LlmOptions options) =>
-        !IsPlaceholder(options.BaseUrl) &&
-        Uri.TryCreate(options.BaseUrl, UriKind.Absolute, out _) &&
-        !IsPlaceholder(options.ApiKey) &&
-        !IsPlaceholder(options.Model);
+    public static bool IsLlmUsable(LlmOptions options) => options.IsUsable;
 
     private static bool IsPlaceholder(string value) =>
         string.IsNullOrWhiteSpace(value) || value.StartsWith("SET_", StringComparison.OrdinalIgnoreCase);

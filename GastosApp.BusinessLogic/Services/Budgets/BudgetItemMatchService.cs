@@ -111,7 +111,7 @@ namespace GastosApp.BusinessLogic.Services
             // es justo lo que garantiza uq_budget_items_transaction, así que reintentar solo
             // produciría un error de índice.
             var alreadyLinked = await _repository.Get<BudgetItem>(i => i.TransactionId == transactionId)
-                .AnyAsync(cancellationToken);
+                .AnyAsync(cancellationToken); // alcance-por-referencia: la transacción ya se resolvió para este usuario justo antes; es una sonda de idempotencia sobre su propio enlace.
 
             if (alreadyLinked)
             {
@@ -254,7 +254,7 @@ namespace GastosApp.BusinessLogic.Services
 
             if (transactions.Count == 0)
             {
-                return Array.Empty<BudgetItemSuggestion>();
+                return Array.Empty<BudgetItemSuggestion>(); // alcance-por-referencia: correlación por TransactionId dentro de una consulta ya acotada por t.Account.UserId == appUserId.
             }
 
             var tolerancePct = _settings.MatchTolerancePct;
@@ -471,7 +471,7 @@ namespace GastosApp.BusinessLogic.Services
             // es la garantía —una comprobación más también es lectura-y-luego-escritura—: la garantía
             // es el índice único, y este chequeo solo evita el trabajo inútil.
             var claimedByOther = await _repository.Get<BudgetItem>(i => i.TransactionId == transactionId)
-                .AnyAsync(cancellationToken);
+                .AnyAsync(cancellationToken); // alcance-por-referencia: la transacción ya se resolvió para este usuario en este mismo método.
 
             if (claimedByOther)
             {

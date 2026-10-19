@@ -1,11 +1,20 @@
+using GastosApp.API.Extensions;
 using GastosApp.API.Models.Auth;
 using GastosApp.API.Interfaces;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace GastosApp.API.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
+// The only public controller besides the Telegram webhook, and now explicitly so: it used to rely on
+// having no attribute at all, which the fail-closed default policy in AddApiAuthorization would have
+// turned into a 401 on login.
+[AllowAnonymous]
+// login, refresh and logout are the only unauthenticated endpoints of this application.
+[EnableRateLimiting(RateLimitingExtensions.AuthPolicy)]
 public class AuthController : ControllerBase
 {
     private readonly IAuthService _authService;

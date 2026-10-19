@@ -5,6 +5,7 @@ using System.Linq.Expressions;
 using System.Threading.Tasks;
 using GastosApp.BusinessLogic.Interfaces;
 using GastosApp.BusinessLogic.Models.Budgets;
+using GastosApp.BusinessLogic.Models.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using GastosApp.BusinessLogic.Context;
 using GastosApp.Models.Entities;
@@ -15,10 +16,14 @@ namespace GastosApp.BusinessLogic.Services
     {
         private readonly ContextSqlGastos _context;
 
-        public Repository(ContextSqlGastos context)
+        public Repository(ContextSqlGastos context, DatabaseTimeoutSettings timeouts)
         {
             _context = context;
-            _context.Database.SetCommandTimeout(0);
+            // Bounded on purpose. EF Core reads a command timeout of 0 as "no timeout", which turns a
+            // stalled query into an unbounded hang that the caller's error handling cannot observe:
+            // the background workers catch exceptions, but they cannot catch a call that never
+            // returns. See DatabaseTimeoutSettings for the fallback rule.
+            _context.Database.SetCommandTimeout(timeouts.EffectiveCommandTimeoutSeconds);
         }
 
         #region Query Methods
