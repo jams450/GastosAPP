@@ -1,8 +1,6 @@
-using GastosApp.AI.Configuration;
+using GastosApp.AI.Client;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
-using OpenAI;
 using System.ClientModel;
 
 namespace GastosApp.API.Services.Telegram;
@@ -20,13 +18,13 @@ public sealed class ExpenseAgentService
 
     private const string AlertPrompt = "Para historial de alertas usa alertas_presupuesto: solo cubre umbrales de presupuesto, no todos los avisos de partidas ni notificaciones. Si no hay filas, di que no hay historial de umbrales en ese periodo, nunca que no se disparó ninguna alerta global. Sent solo significa OutboxStatus=sent, no lectura del usuario; SentAt por sí solo no prueba envío. Conserva estados pending, failed, nulos o desconocidos sin inventar envío. Distingue umbral alcanzado de entrega enviada. Si Truncated=true aclara detalle parcial y conteos completos.";
 
-    private readonly LlmOptions _options;
+    private readonly ILlmChatClientProvider _clients;
     private readonly TelegramToolService _tools;
     private readonly ILogger<ExpenseAgentService> _logger;
 
-    public ExpenseAgentService(IOptions<LlmOptions> options, TelegramToolService tools, ILogger<ExpenseAgentService> logger)
+    public ExpenseAgentService(ILlmChatClientProvider clients, TelegramToolService tools, ILogger<ExpenseAgentService> logger)
     {
-        _options = options.Value;
+        _clients = clients;
         _tools = tools;
         _logger = logger;
     }
@@ -54,11 +52,13 @@ public sealed class ExpenseAgentService
     {
         try
         {
-            IChatClient inner = new OpenAIClient(
-                new ApiKeyCredential(_options.ApiKey),
-                new OpenAIClientOptions { Endpoint = new Uri(_options.BaseUrl) })
-                .GetChatClient(_options.Model)
-                .AsIChatClient();
+            // The shared client owns the HTTP pipeline; the tool-invocation pipeline is cheap and
+            // stays per request because MaximumIterationsPerRequest is a request-scoped policy.
+            var inner = _clients.TryGet();
+            if (inner is null)
+            {
+                return PreguntaGenerica;
+            }
 
             IChatClient client = new ChatClientBuilder(inner)
                 .UseFunctionInvocation(configure: f => f.MaximumIterationsPerRequest = 5)

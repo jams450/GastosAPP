@@ -1,11 +1,8 @@
-using System.ClientModel;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using GastosApp.AI.Configuration;
+using GastosApp.AI.Client;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
-using OpenAI;
 
 namespace GastosApp.AI.Intent;
 
@@ -43,12 +40,12 @@ public sealed class ExpenseIntentExtractor : IExpenseIntentExtractor
         Converters = { new JsonStringEnumConverter() }
     };
 
-    private readonly LlmOptions _options;
+    private readonly ILlmChatClientProvider _clients;
     private readonly ILogger<ExpenseIntentExtractor> _logger;
 
-    public ExpenseIntentExtractor(IOptions<LlmOptions> options, ILogger<ExpenseIntentExtractor> logger)
+    public ExpenseIntentExtractor(ILlmChatClientProvider clients, ILogger<ExpenseIntentExtractor> logger)
     {
-        _options = options.Value;
+        _clients = clients;
         _logger = logger;
     }
 
@@ -56,11 +53,14 @@ public sealed class ExpenseIntentExtractor : IExpenseIntentExtractor
     {
         try
         {
-            IChatClient client = new OpenAIClient(
-                new ApiKeyCredential(_options.ApiKey),
-                new OpenAIClientOptions { Endpoint = new Uri(_options.BaseUrl) })
-                .GetChatClient(_options.Model)
-                .AsIChatClient();
+            // Shared, lazily built and reused. A missing or malformed LLM configuration answers the
+            // generic question instead of failing every message, which is what the previous
+            // construct-a-client-per-call path achieved by throwing and catching its own error.
+            var client = _clients.TryGet();
+            if (client is null)
+            {
+                return Desconocido(PreguntaGenerica);
+            }
 
             if (request.Texto.Length > 2000) return Desconocido(PreguntaGenerica);
             var messages = new List<ChatMessage>
