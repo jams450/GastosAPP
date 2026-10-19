@@ -98,17 +98,6 @@ public class DatabaseTimeoutTests
             .UseNpgsql(UnusedConnectionString)
             .Options;
 
-        return new ContextSqlGastos(options, new AnonymousUser());
-    }
-
-    private sealed class AnonymousUser : ICurrentUserService
-    {
-        public int? GetUserId() => null;
-        public int GetRequiredUserId() => throw new InvalidOperationException("No user.");
-        public int? GetSessionVersion() => null;
-        public Guid? GetSessionId() => null;
-        public string GetName() => "System";
-        public string GetEmail() => "System";
-        public bool IsAdmin() => false;
+        return new ContextSqlGastos(options, new AnonymousCurrentUser());
     }
 }

@@ -187,7 +187,7 @@ namespace GastosApp.BusinessLogic.Services
                 var lockedIds = await _repository.Get<AlertDelivery>(d => d.BudgetId == id)
                     .Select(d => d.ThresholdId)
                     .Distinct()
-                    .ToListAsync();
+                    .ToListAsync(); // alcance-por-referencia: ReplaceThresholdsAsync ya leyó el presupuesto con b.BudgetId == id && b.UserId == userId y devolvió null si no era suyo.
                 var locked = lockedIds.ToHashSet();
 
                 var desiredByPercent = desired.ToDictionary(t => t.Percent);
@@ -414,7 +414,7 @@ namespace GastosApp.BusinessLogic.Services
             // Una sola consulta para todas las subcategorías del periodo; el resultado se reutiliza por presupuesto.
             return await _repository.Get<Subcategory>(s => subcategoryIds.Contains(s.SubcategoryId))
                 .Select(s => new { s.SubcategoryId, s.CategoryId })
-                .ToDictionaryAsync(s => s.SubcategoryId, s => s.CategoryId);
+                .ToDictionaryAsync(s => s.SubcategoryId, s => s.CategoryId); // alcance-por-referencia: los ids provienen de partidas y presupuestos ya acotados al usuario; este helper solo mapea id -> padre.
         }
 
         /// <summary>
@@ -734,7 +734,7 @@ namespace GastosApp.BusinessLogic.Services
             }
 
             var parent = await _repository.Get<Category>(c => c.CategoryId == subcategory.CategoryId)
-                .FirstOrDefaultAsync();
+                .FirstOrDefaultAsync(); // alcance-por-referencia: la subcategoría se leyó con UserId == userId, así que la categoría padre solo es alcanzable a través de ella.
 
             if (parent == null ||
                 !string.Equals(parent.Type, TransactionDomainConstants.TransactionType.Expense, StringComparison.OrdinalIgnoreCase))

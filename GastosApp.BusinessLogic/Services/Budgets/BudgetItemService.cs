@@ -501,7 +501,7 @@ namespace GastosApp.BusinessLogic.Services
             }
 
             var parent = await _repository.Get<Category>(c => c.CategoryId == subcategory.CategoryId)
-                .FirstOrDefaultAsync();
+                .FirstOrDefaultAsync(); // alcance-por-referencia: la subcategoría se leyó con UserId == userId, así que la categoría padre solo es alcanzable a través de ella.
 
             if (parent == null ||
                 !string.Equals(parent.Type, TransactionDomainConstants.TransactionType.Expense, StringComparison.OrdinalIgnoreCase))

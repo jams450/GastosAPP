@@ -98,7 +98,7 @@ public class TelegramIdentityService : ITelegramIdentityService
             .Where(i => i.TelegramIdentityId == telegramIdentityId)
             .ExecuteUpdateAsync(s => s
                 .SetProperty(i => i.Active, active)
-                .SetProperty(i => i.Updated, (DateTime?)now), cancellationToken);
+                .SetProperty(i => i.Updated, (DateTime?)now), cancellationToken); // alcance-por-referencia: la identidad se direcciona por su propia clave primaria, resuelta del update de Telegram.
         return affected > 0;
     }
 }

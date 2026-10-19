@@ -258,7 +258,7 @@ namespace GastosApp.BusinessLogic.Services
                 // La garantía es el índice, no este chequeo.
                 var claimedByOther = await _repository.Get<BudgetItem>(i =>
                         i.TransactionId == transactionId && i.ItemId != itemId)
-                    .AnyAsync(cancellationToken);
+                    .AnyAsync(cancellationToken); // alcance-por-referencia: la transacción fue validada para este usuario en este método; el atajo evita provocar la violación del índice único.
 
                 if (claimedByOther)
                 {
@@ -319,7 +319,7 @@ namespace GastosApp.BusinessLogic.Services
 
             if (item.SubcategoryId.HasValue)
             {
-                transactions = transactions.Where(t => t.SubcategoryId == item.SubcategoryId);
+                transactions = transactions.Where(t => t.SubcategoryId == item.SubcategoryId); // alcance-por-referencia: correlación por TransactionId dentro de una consulta ya acotada por t.Account.UserId == userId.
             }
             else if (item.CategoryId.HasValue)
             {
