@@ -24,8 +24,9 @@ namespace GastosApp.Backend.Tests;
 /// The connection string points at a closed port so an accidental query fails immediately instead of
 /// hanging; no test here depends on a successful query.
 /// </para>
+/// Test assembly only; derived by <see cref="UnattributedProbeFactory"/> to add a probe endpoint.
 /// </summary>
-public sealed class ApiFactory : WebApplicationFactory<Program>
+public class ApiFactory : WebApplicationFactory<Program>
 {
     /// <summary>Deliberately small so the limit is reached inside one test.</summary>
     public const int AuthPermitLimit = 3;

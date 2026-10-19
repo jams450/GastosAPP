@@ -11,6 +11,15 @@ public static class AuthorizationExtensions
     {
         services.AddAuthorization(options =>
         {
+            // Fail-closed default. Every controller in the application carries an explicit attribute
+            // today, but that was a convention rather than a mechanism: with no fallback policy, a
+            // controller added without one would have been silently public. Requiring an
+            // authenticated user here means the safe case is what happens when someone forgets.
+            // Endpoints that must stay public say so with [AllowAnonymous].
+            options.FallbackPolicy = new AuthorizationPolicyBuilder()
+                .RequireAuthenticatedUser()
+                .Build();
+
             options.AddPolicy("UserWithId", policy =>
                 policy.RequireAuthenticatedUser()
                     .RequireAssertion(HasValidUserId));
