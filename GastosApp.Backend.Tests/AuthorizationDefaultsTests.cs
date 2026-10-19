@@ -43,7 +43,7 @@ public class AuthorizationDefaultsTests : IClassFixture<UnattributedProbeFactory
     }
 
     [Fact]
-    public async Task Every_controller_states_whether_it_is_authorized_or_anonymous()
+    public void Every_controller_states_whether_it_is_authorized_or_anonymous()
     {
         var controllers = typeof(Program).Assembly.GetTypes()
             .Where(type => !type.IsAbstract && typeof(ControllerBase).IsAssignableFrom(type))
@@ -63,6 +63,19 @@ public class AuthorizationDefaultsTests : IClassFixture<UnattributedProbeFactory
             unstated.Length == 0,
             $"These controllers neither require authorization nor declare themselves anonymous, so their "
             + $"intent is unstated and the default decides for them: {string.Join(", ", unstated)}.");
+    }
+
+    [Fact]
+    public async Task An_unmatched_route_answers_401_rather_than_404()
+    {
+        // The fallback policy also applies to requests that match no endpoint, so an unknown path
+        // requires authentication instead of reporting that the route does not exist. Kept on
+        // purpose: it is fail-closed and it stops the API from confirming which routes exist.
+        using var client = _probeFactory.CreateClient();
+
+        using var response = await client.GetAsync("/api/no-such-route");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 
     [Fact]
