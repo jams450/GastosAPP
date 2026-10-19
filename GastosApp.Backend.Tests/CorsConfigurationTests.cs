@@ -41,6 +41,9 @@ public class CorsConfigurationTests
     [InlineData("http://localhost:3000/api")] // a path is not part of an origin
     [InlineData("*")]                        // invalid with AllowCredentials
     [InlineData("ftp://localhost")]          // not an http origin
+    [InlineData("http://user@localhost:3000")] // userinfo is not part of an origin
+    [InlineData("HTTPS://LOCALHOST:3000")]   // browsers serialise the origin lowercase
+    [InlineData("https://LocalHost:3000")]
     public void Malformed_origins_fail_at_startup_in_every_environment(string origin)
     {
         Assert.Throws<InvalidOperationException>(() => AddCors("Production", origin));

@@ -83,12 +83,26 @@ public static class CorsExtensions
             return false;
         }
 
+        // Browsers serialise the origin with a lowercase scheme and host, and CORS compares the exact
+        // string. An uppercase origin passes a URI check but never matches, which would be silent
+        // dead configuration in Production: exactly the symptom this validator exists to remove.
+        if (!string.Equals(origin, origin.ToLowerInvariant(), StringComparison.Ordinal))
+        {
+            return false;
+        }
+
         if (!Uri.TryCreate(origin, UriKind.Absolute, out var uri))
         {
             return false;
         }
 
         if (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps)
+        {
+            return false;
+        }
+
+        // "http://user@host" is a URI with credentials, not an origin.
+        if (!string.IsNullOrEmpty(uri.UserInfo))
         {
             return false;
         }

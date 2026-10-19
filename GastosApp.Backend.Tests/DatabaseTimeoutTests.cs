@@ -70,6 +70,24 @@ public class DatabaseTimeoutTests
         Assert.True(context.Database.GetCommandTimeout() > 0);
     }
 
+    [Theory]
+    [InlineData(int.MaxValue)]
+    [InlineData(999_999)]
+    public void An_effectively_unbounded_value_is_not_applied_verbatim(int configured)
+    {
+        // The finding was an unbounded wait. A value large enough to outlive the process is the same
+        // failure wearing a number, so the guard cannot only reject values at or below zero.
+        using var context = CreateContext();
+        _ = new Repository(context, new DatabaseTimeoutSettings { CommandTimeoutSeconds = configured });
+
+        var timeout = context.Database.GetCommandTimeout();
+
+        Assert.NotNull(timeout);
+        Assert.True(
+            timeout <= 3600,
+            $"A configured {configured} was applied as {timeout}, which is an unbounded wait in practice.");
+    }
+
     /// <summary>
     /// Building the context does not open a connection: the Npgsql provider resolves the connection
     /// string lazily, so this probe stays offline and deterministic.
