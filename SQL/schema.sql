@@ -1220,3 +1220,50 @@ CREATE TABLE IF NOT EXISTS investment_plan_allocations (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, created_by VARCHAR(100), updated_by VARCHAR(100),
     UNIQUE(investment_plan_id, investment_product_id)
 );
+
+-- ============================================================================
+-- Multi-divisa: catálogo de monedas y tasas de cambio
+-- Réplica de SQL/migrations/2026-10-19_multi_currency_fx_rates.sql para una
+-- instalación nueva. Idempotente, así que también sirve sobre una base existente.
+-- El código de serie de Banxico por divisa NO vive aquí: va en configuración
+-- (`Banxico:Series`), para que un código equivocado no exija una migración.
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS currencies (
+    code VARCHAR(3) PRIMARY KEY,
+    name TEXT NOT NULL,
+    symbol VARCHAR(8) NOT NULL DEFAULT '',
+    decimals SMALLINT NOT NULL DEFAULT 2,
+    is_base BOOLEAN NOT NULL DEFAULT FALSE,
+    active BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_by VARCHAR(100),
+    updated_by VARCHAR(100),
+    CONSTRAINT chk_currencies_code_upper CHECK (code = upper(code)),
+    CONSTRAINT chk_currencies_decimals CHECK (decimals BETWEEN 0 AND 4)
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_currencies_single_base ON currencies(is_base) WHERE is_base;
+
+INSERT INTO currencies (code, name, symbol, decimals, is_base, active) VALUES
+    ('MXN', 'Peso mexicano', '$', 2, TRUE, TRUE),
+    ('USD', 'Dólar estadounidense', 'US$', 2, FALSE, TRUE),
+    ('EUR', 'Euro', '€', 2, FALSE, TRUE),
+    ('GBP', 'Libra esterlina', '£', 2, FALSE, TRUE),
+    ('CAD', 'Dólar canadiense', 'C$', 2, FALSE, TRUE),
+    ('JPY', 'Yen japonés', '¥', 0, FALSE, TRUE)
+ON CONFLICT (code) DO NOTHING;
+
+CREATE TABLE IF NOT EXISTS fx_rates (
+    currency_code VARCHAR(3) NOT NULL REFERENCES currencies(code) ON DELETE RESTRICT,
+    rate_date DATE NOT NULL,
+    rate_mxn DECIMAL(18, 8) NOT NULL,
+    source VARCHAR(24) NOT NULL DEFAULT 'banxico',
+    fetched_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (currency_code, rate_date),
+    CONSTRAINT chk_fx_rates_positive CHECK (rate_mxn > 0),
+    CONSTRAINT chk_fx_rates_source CHECK (source IN ('banxico', 'manual'))
+);
+
+CREATE INDEX IF NOT EXISTS ix_fx_rates_latest ON fx_rates(currency_code, rate_date DESC);
