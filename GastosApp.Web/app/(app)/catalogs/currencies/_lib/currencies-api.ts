@@ -1,5 +1,7 @@
-import type { Currency, LatestFxRate } from "@/lib/contracts/currencies";
+import type { Currency, FxRateSyncResult, LatestFxRate } from "@/lib/contracts/currencies";
+import { normalizeFxRateSyncResult } from "@/lib/contracts/currencies";
 import { parseApiError } from "@/lib/bff/client-session";
+import { csrfFetch } from "@/lib/security/csrf-client";
 import { buildCurrencyRows, type CurrencyRow } from "./currencies-model";
 
 async function fetchList<T>(path: string, fallbackMessage: string): Promise<T[]> {
@@ -30,4 +32,25 @@ export async function fetchCurrencyRows(): Promise<CurrencyRow[]> {
   const [currencies, rates] = await Promise.all([fetchCurrencies(), fetchLatestFxRates()]);
 
   return buildCurrencyRows(currencies, rates);
+}
+
+/**
+ * Fuerza una sincronización inmediata de tasas.
+ *
+ * Usa `csrfFetch` porque es un POST: el middleware rechaza cualquier método mutante sin el header CSRF.
+ * La autorización es del API; aquí solo se propaga el 403 con un mensaje entendible.
+ */
+export async function requestFxRateRefresh(): Promise<FxRateSyncResult> {
+  const response = await csrfFetch("/api/bff/fx-rates/refresh", { method: "POST" });
+
+  if (!response.ok) {
+    throw await parseApiError(response, "No se pudieron actualizar los tipos de cambio");
+  }
+
+  const result = normalizeFxRateSyncResult(await response.json());
+  if (result === null) {
+    throw new Error("Respuesta inesperada al actualizar los tipos de cambio");
+  }
+
+  return result;
 }

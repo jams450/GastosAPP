@@ -3,6 +3,7 @@ import { test } from "node:test";
 import {
   normalizeCurrencies,
   normalizeCurrency,
+  normalizeFxRateSyncResult,
   normalizeLatestFxRate,
   normalizeLatestFxRates,
   normalizeResolvedFxRate
@@ -127,4 +128,29 @@ test("sin la marca explícita, el carry-forward se deduce comparando las fechas"
 
   assert.equal(carried?.isCarryForward, true);
   assert.equal(sameDay?.isCarryForward, false);
+});
+
+test("el resultado de una sincronización se normaliza desde camelCase", () => {
+  const result = normalizeFxRateSyncResult({ synced: 2, skipped: 3, failed: 0, total: 5 });
+
+  assert.deepEqual(result, { synced: 2, skipped: 3, failed: 0, total: 5 });
+});
+
+test("el resultado acepta PascalCase y deduce el total si no viene", () => {
+  assert.deepEqual(normalizeFxRateSyncResult({ Synced: 1, Skipped: 4, Failed: 0 }), {
+    synced: 1,
+    skipped: 4,
+    failed: 0,
+    total: 5
+  });
+});
+
+test("un resultado parcial se descarta: no permite decir qué pasó", () => {
+  assert.equal(normalizeFxRateSyncResult({ synced: 1, skipped: 2 }), null);
+  assert.equal(normalizeFxRateSyncResult({ synced: 1, skipped: 2, failed: "x" }), null);
+  assert.equal(normalizeFxRateSyncResult(null), null);
+});
+
+test("un conteo negativo se descarta en vez de mostrarse", () => {
+  assert.equal(normalizeFxRateSyncResult({ synced: -1, skipped: 0, failed: 0 }), null);
 });

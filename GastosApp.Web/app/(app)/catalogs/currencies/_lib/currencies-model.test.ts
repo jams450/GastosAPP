@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { Currency, LatestFxRate } from "@/lib/contracts/currencies.ts";
-import { buildCurrencyRows, formatRate, formatRateDate, rateLabel } from "./currencies-model.ts";
+import { buildCurrencyRows, describeSyncResult, formatRate, formatRateDate, rateLabel } from "./currencies-model.ts";
 
 function currency(overrides: Partial<Currency> = {}): Currency {
   return { code: "USD", name: "Dólar estadounidense", symbol: "US$", decimals: 2, isBase: false, ...overrides };
@@ -88,4 +88,34 @@ test("una fecha ausente o inválida se muestra como guion", () => {
   assert.equal(formatRateDate(null), "—");
   assert.equal(formatRateDate("16/10/2026"), "—");
   assert.equal(formatRateDate("2026-13-01"), "—");
+});
+
+test("si nada cambió, el mensaje lo dice en vez de fingir un éxito", () => {
+  assert.equal(
+    describeSyncResult({ synced: 0, skipped: 5, failed: 0, total: 5 }),
+    "Las tasas ya estaban al día"
+  );
+});
+
+test("el mensaje singulariza una sola tasa actualizada", () => {
+  assert.equal(describeSyncResult({ synced: 1, skipped: 4, failed: 0, total: 5 }), "1 tasa actualizada");
+  assert.equal(describeSyncResult({ synced: 3, skipped: 2, failed: 0, total: 5 }), "3 tasas actualizadas");
+});
+
+test("el mensaje reporta los fallos junto con lo actualizado", () => {
+  assert.equal(
+    describeSyncResult({ synced: 3, skipped: 0, failed: 2, total: 5 }),
+    "3 tasas actualizadas; 2 no se pudieron actualizar"
+  );
+  assert.equal(
+    describeSyncResult({ synced: 3, skipped: 0, failed: 1, total: 4 }),
+    "3 tasas actualizadas; 1 no se pudo actualizar"
+  );
+});
+
+test("si fallaron todas, el mensaje dice que se conserva la última publicada", () => {
+  assert.equal(
+    describeSyncResult({ synced: 0, skipped: 0, failed: 4, total: 4 }),
+    "Ninguna tasa se pudo actualizar: 4 no se pudieron actualizar; se conserva la última publicada"
+  );
 });

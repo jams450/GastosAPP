@@ -1,4 +1,4 @@
-import type { Currency, LatestFxRate } from "@/lib/contracts/currencies";
+import type { Currency, FxRateSyncResult, LatestFxRate } from "@/lib/contracts/currencies";
 
 /**
  * Una fila de la tabla de Monedas: la divisa y, si la tiene, su última tasa conocida.
@@ -89,4 +89,28 @@ export function formatRateDate(iso: string | null): string {
   }
 
   return `${day} ${monthLabel} ${year}`;
+}
+
+/**
+ * Mensaje para el usuario tras forzar una sincronización.
+ *
+ * Se redacta aquí, y no en el componente, porque el caso que importa es el que no cambió nada: si todas
+ * las tasas ya estaban publicadas, la respuesta correcta es "ya estaban al día" y no un éxito vacío que
+ * sugiera que se descargó algo.
+ */
+export function describeSyncResult(result: FxRateSyncResult): string {
+  const updated =
+    result.synced === 1 ? "1 tasa actualizada" : `${result.synced} tasas actualizadas`;
+  const failed =
+    result.failed === 1 ? "1 no se pudo actualizar" : `${result.failed} no se pudieron actualizar`;
+
+  if (result.synced === 0 && result.failed === 0) {
+    return "Las tasas ya estaban al día";
+  }
+
+  if (result.synced === 0) {
+    return `Ninguna tasa se pudo actualizar: ${failed}; se conserva la última publicada`;
+  }
+
+  return result.failed === 0 ? updated : `${updated}; ${failed}`;
 }

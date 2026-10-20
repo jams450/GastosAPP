@@ -16,11 +16,16 @@ namespace GastosApp.API.Controllers;
 public class FxRatesController : ControllerBase
 {
     private readonly IFxRateQueryService _fxRateQueryService;
+    private readonly IFxRateSyncService _fxRateSyncService;
     private readonly ILogger<FxRatesController> _logger;
 
-    public FxRatesController(IFxRateQueryService fxRateQueryService, ILogger<FxRatesController> logger)
+    public FxRatesController(
+        IFxRateQueryService fxRateQueryService,
+        IFxRateSyncService fxRateSyncService,
+        ILogger<FxRatesController> logger)
     {
         _fxRateQueryService = fxRateQueryService;
+        _fxRateSyncService = fxRateSyncService;
         _logger = logger;
     }
 
@@ -84,6 +89,41 @@ public class FxRatesController : ControllerBase
         {
             _logger.LogError(exception, "Error resolving fx rate for {CurrencyCode}", code);
             return StatusCode(500, new { Message = "An error occurred while retrieving the fx rate" });
+        }
+    }
+
+    /// <summary>
+    /// Fuerza una sincronización inmediata, sin esperar la corrida diaria.
+    /// </summary>
+    /// <remarks>
+    /// Exige rol de administración, y no solo sesión: escribe la tabla global <c>fx_rates</c>, que no
+    /// pertenece a ningún usuario, y consume la cuota del proveedor con un token que es un secreto. Un
+    /// usuario cualquiera podría agotar esa cuota y dejar sin tasas a toda la aplicación.
+    /// <para>
+    /// Es seguro repetirla: <c>FxRateWritePolicy</c> solo escribe fechas nuevas, así que pulsar el botón
+    /// varias veces no duplica filas ni sobrescribe una tasa ya publicada.
+    /// </para>
+    /// </remarks>
+    [HttpPost("refresh")]
+    [Authorize(Policy = "AdminWithId")]
+    public async Task<IActionResult> Refresh(CancellationToken cancellationToken)
+    {
+        try
+        {
+            var result = await _fxRateSyncService.SyncAsync(cancellationToken);
+
+            return Ok(new FxRateSyncResponse
+            {
+                Synced = result.Synced,
+                Skipped = result.Skipped,
+                Failed = result.Failed,
+                Total = result.Total
+            });
+        }
+        catch (Exception exception)
+        {
+            _logger.LogError(exception, "Error forcing fx rate sync");
+            return StatusCode(500, new { Message = "An error occurred while refreshing fx rates" });
         }
     }
 

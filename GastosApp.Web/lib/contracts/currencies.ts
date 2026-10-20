@@ -28,6 +28,14 @@ export type ResolvedFxRate = LatestFxRate & {
   isCarryForward: boolean;
 };
 
+/** Conteos de una sincronización forzada desde la interfaz. */
+export type FxRateSyncResult = {
+  synced: number;
+  skipped: number;
+  failed: number;
+  total: number;
+};
+
 type UnknownRecord = Record<string, unknown>;
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -140,4 +148,32 @@ export function normalizeResolvedFxRate(input: unknown): ResolvedFxRate | null {
     requestedDate,
     isCarryForward: typeof explicit === "boolean" ? explicit : rate.rateDate !== requestedDate
   };
+}
+
+function toCount(value: unknown): number | null {
+  const parsed = toFiniteNumber(value);
+  if (parsed === null || parsed < 0) {
+    return null;
+  }
+
+  return Math.trunc(parsed);
+}
+
+export function normalizeFxRateSyncResult(input: unknown): FxRateSyncResult | null {
+  if (!isRecord(input)) {
+    return null;
+  }
+
+  const synced = toCount(read(input, "synced", "Synced"));
+  const skipped = toCount(read(input, "skipped", "Skipped"));
+  const failed = toCount(read(input, "failed", "Failed"));
+
+  // Los tres conteos son obligatorios: un resultado parcial no permite decirle al usuario qué pasó.
+  if (synced === null || skipped === null || failed === null) {
+    return null;
+  }
+
+  const total = toCount(read(input, "total", "Total")) ?? synced + skipped + failed;
+
+  return { synced, skipped, failed, total };
 }

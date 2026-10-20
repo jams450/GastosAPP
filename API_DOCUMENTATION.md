@@ -11,6 +11,7 @@
 | GET | `/api/Currencies` | Monedas activas, con la base primero. |
 | GET | `/api/FxRates/latest` | Última tasa conocida de cada divisa activa distinta de la base. |
 | GET | `/api/FxRates/rate?currency=USD&date=2026-10-17` | Tasa vigente en esa fecha, resuelta con carry-forward. |
+| POST | `/api/FxRates/refresh` | Fuerza una sincronización inmediata. **Requiere rol de administración.** |
 
 Todas exigen `[Authorize(Policy = "UserWithId")]`. Las fechas (`DateOnly`) se serializan como `yyyy-MM-dd`.
 
@@ -28,12 +29,15 @@ Todas exigen `[Authorize(Policy = "UserWithId")]`. Las fechas (`DateOnly`) se se
 | `GET /api/bff/currencies` | `/api/Currencies` |
 | `GET /api/bff/fx-rates/latest` | `/api/FxRates/latest` |
 | `GET /api/bff/fx-rates/rate?currency=&date=` | `/api/FxRates/rate` |
+| `POST /api/bff/fx-rates/refresh` | `/api/FxRates/refresh` |
 
 Los contratos viven en `GastosApp.Web/lib/contracts/currencies.ts`, con prueba en `currencies.test.ts`.
 
 ### Pantalla de Monedas
 
 `/catalogs/currencies` (solo lectura) cruza el catálogo con la última tasa conocida de cada divisa y muestra la fecha de publicación, para que una tasa de un día anterior sea visible como tal. La vista no ofrece alta ni edición: las divisas se siembran por migración y las tasas las escribe únicamente el job. La lógica de cruce y formato vive en `catalogs/currencies/_lib/currencies-model.ts`, con prueba propia; el formateo de fecha se hace por partes y no con `new Date(iso)`, porque interpretar `yyyy-MM-dd` como medianoche UTC mostraría el día anterior en México.
+
+El botón **Actualizar tasas** fuerza la corrida del job sin esperar la hora programada. Solo se muestra a administradores y el API lo vuelve a comprobar: escribe la tabla global `fx_rates` y consume la cuota del proveedor con un token secreto, así que una sesión cualquiera no basta. La autorización real es del API; ocultar el botón es solo cortesía de interfaz. Es seguro pulsarlo repetidamente porque la escritura es idempotente por fecha.
 
 ### Configuración
 
