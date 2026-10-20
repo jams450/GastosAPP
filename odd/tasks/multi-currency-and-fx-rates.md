@@ -38,12 +38,13 @@ Ordenadas por entrega. Cada una cierra con su commit y su verificación.
 
 ### Entrega 1 — Fundación (aditiva, no toca aritmética de dinero existente)
 
-- [ ] **E1.1** — Migración `currencies` + `fx_rates` con semilla de MXN/USD/EUR/GBP/CAD/JPY, registrada en `manifest.txt` y replicada en `SQL/schema.sql`.
-- [ ] **E1.2** — Entidades `Currency` y `FxRate`, DbSet y mapeo en `ContextSqlGastos`.
-- [ ] **E1.3** — `FxRateSelection` puro (carry-forward con la fecha efectiva) + pruebas.
-- [ ] **E1.4** — `IBanxicoFxClient` + conector HTTP, series desde configuración, `BANXICO_TOKEN` del entorno.
-- [ ] **E1.5** — `FxRateSyncBackgroundService` diario, idempotente, y registro en `ServiceCollectionExtensions`.
-- [ ] **E1.6** — Endpoints de solo lectura de monedas y tasas + BFF + contratos del frontend.
+- [x] **E1.1** — Migración `currencies` + `fx_rates` con semilla de MXN/USD/EUR/GBP/CAD/JPY, registrada en `manifest.txt` y replicada en `SQL/schema.sql`. — `269a68d`
+- [x] **E1.2** — Entidades `Currency` y `FxRate`, DbSet y mapeo en `ContextSqlGastos`. — `bdce7e0`
+- [x] **E1.3** — `FxRateSelection` puro (carry-forward con la fecha efectiva) + pruebas. — `ad5db33`
+- [x] **E1.4** — Proveedores FX: Banxico (USD/MXN, serie FIX `SF43718`, header `Bmx-Token`) y Frankfurter (EUR/GBP/CAD/JPY), con routing por divisa y respaldo de USD a Frankfurter. Sin series por divisa en configuración (ver L5). — `9a45dda`
+- [x] **E1.5** — `FxRateSyncBackgroundService` diario e idempotente, con `FxRateWritePolicy` puro y registro en DI. — `03cbfe2`
+- [x] **E1.6** — Endpoints de solo lectura de monedas y tasas (`CurrenciesController`, `FxRatesController`) + BFF + contratos del frontend + documentación. — `61eeb82`
+- [ ] **E1.7** — Retirar las 5 claves `Banxico__Series__*` de `.env.example`. **Bloqueada**: el arnés impide escribir esa ruta incluso con autorización explícita del usuario (L6). Las claves son inertes porque ningún código las lee.
 
 ### Entrega 2 — Transacciones
 
@@ -69,8 +70,9 @@ Ordenadas por entrega. Cada una cierra con su commit y su verificación.
 
 ## Blockers activos
 
-- **`BANXICO_TOKEN` no está en el entorno.** Sin él no puedo ejecutar el job ni confirmar las series contra el servicio real. E1.4 y E1.5 se entregan con la llamada HTTP sin verificar en vivo.
-- **Códigos de serie sin confirmar.** La verificación documental salió con confianza insuficiente; se dejan en configuración (C5) y quedan por confirmar con el token.
+- **`BANXICO_TOKEN` no está en el entorno** (verificado: `printenv` no devuelve nada). Sin él, la llamada en vivo a Banxico no se ha ejercitado: E1.4 y E1.5 están verificadas por compilación y pruebas unitarias, no contra el servicio real. Con `Banxico__Enabled=false` y el token vacío, el job no escribe nada y lo registra, que es el comportamiento diseñado.
+- **`E1.7` bloqueada por el arnés** sobre `.env.example`. El reemplazo ya está redactado; lo aplica el humano. No afecta la ejecución: las claves son inertes.
+- **Migraciones sin aplicar**: no hay PostgreSQL ni API corriendo, y levantar Docker no fue autorizado.
 
 ## Log
 
@@ -78,3 +80,6 @@ Ordenadas por entrega. Cada una cierra con su commit y su verificación.
 - **L2** — Decisiones del usuario: dominio completo multi-divisa (M4), tasa congelada y editable (M5), paquete fijo de 5 divisas (M6), token disponible (M7), carry-forward (M8).
 - **L3** — Evidencia: no existe conector de Banxico (`docs/INVERSION_RENTA_FIJA_V1.md` lo declara); sí existe infraestructura de jobs en `GastosApp.API/BackgroundServices/`; todo el dinero está fijado a MXN (`formatCurrency` por defecto, `dashboard-format.ts`, `Budget` documentado en MXN, `amountMxn` en recurrentes); no hay tabla de settings, la configuración va por `appsettings.json` con marcadores `SET_FROM_ENV`.
 - **L4** — Aceptada la secuencia de entregas: no se entrega todo en una vuelta.
+- **L5** — El usuario eligió la opción 1: **Banxico para USD y Frankfurter para las otras cuatro divisas**. Esto **enmienda M6**: el "paquete fijo de 5 series de Banxico" no existe, porque la serie FIX `SF43718` sirve únicamente USD/MXN (evidencia del repo de referencia, donde el provider lanza para otros pares). Por eso se retira `Banxico:Series` de la configuración en lugar de sembrar códigos no verificados: un código equivocado sería una migración, no un cambio de entorno.
+- **L6** — El usuario autorizó explícitamente escribir en `.env.example`; el arnés rechazó la escritura de forma determinista de todos modos. Se decidió **no** rodearlo con `sed` desde shell, porque eso anularía el propósito del control. El reemplazo queda redactado y lo aplica el humano (E1.7).
+- **L7** — Cierre de la entrega 1: `dotnet build` 0 errores, `dotnet test` 103/103, `npm test` 342/342, `tsc --noEmit` limpio, lint 0 errores. Pendiente la verificación en vivo del proveedor mientras el token no esté en el entorno.
