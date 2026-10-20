@@ -1,5 +1,6 @@
 using GastosApp.BusinessLogic.Interfaces;
 using GastosApp.BusinessLogic.Models.Fx;
+using GastosApp.Models.Entities;
 
 namespace GastosApp.API.Services.Fx;
 
@@ -15,7 +16,7 @@ namespace GastosApp.API.Services.Fx;
 /// el par y el intento solo agregaría un error garantizado al log.
 /// </para>
 /// </summary>
-public sealed class FxRateProviderRouter
+public sealed class FxRateProviderRouter : IFxRateProvider
 {
     private readonly BanxicoFxRateProvider _banxico;
     private readonly FrankfurterFxRateProvider _frankfurter;
@@ -25,6 +26,13 @@ public sealed class FxRateProviderRouter
         _banxico = banxico;
         _frankfurter = frankfurter;
     }
+
+    /// <summary>
+    /// Toda tasa que sale de aquí se origina en Banxico: Frankfurter se consulta por su ruta
+    /// <c>providers/banxico</c>, que redistribuye la misma fuente. Por eso la procedencia persistida no
+    /// cambia según el camino que tomó la consulta.
+    /// </summary>
+    public string Source => FxRateSource.Banxico;
 
     public async Task<FxRateFetchResult> GetLatestAsync(string currencyCode, CancellationToken cancellationToken)
     {

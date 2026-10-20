@@ -1,5 +1,8 @@
+using GastosApp.API.BackgroundServices;
 using GastosApp.API.Configuration;
 using GastosApp.API.Services.Fx;
+using GastosApp.BusinessLogic.Interfaces;
+using GastosApp.BusinessLogic.Services.Fx;
 
 namespace GastosApp.API.Extensions;
 
@@ -23,7 +26,14 @@ public static class FxConfigurationExtensions
         services.AddHttpClient<FrankfurterFxRateProvider>(client => client.Timeout = TimeSpan.FromSeconds(20))
             .RemoveAllLoggers();
 
-        services.AddScoped<FxRateProviderRouter>();
+        // El router es la única implementación expuesta de IFxRateProvider: el consumidor pide "la tasa
+        // de esta divisa" y no decide qué proveedor usar. Así el job vive en BusinessLogic sin conocer
+        // la capa API ni la existencia de dos fuentes.
+        services.AddScoped<IFxRateProvider, FxRateProviderRouter>();
+        services.AddScoped<IFxRateSyncService, FxRateSyncService>();
+
+        services.AddOptions<FxRateSyncOptions>().Bind(configuration.GetSection(FxRateSyncOptions.SectionName));
+        services.AddHostedService<FxRateSyncBackgroundService>();
 
         return services;
     }
