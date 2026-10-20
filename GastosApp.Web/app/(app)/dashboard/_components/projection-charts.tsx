@@ -48,7 +48,7 @@ type ProjectionChartsProps = {
 };
 
 // Los tokens de tema se pasan como `var(--color-*)` a propósito: el navegador los
-// resuelve en cada render, así que el gráfico sigue al tema (.dark / [data-theme])
+// resuelve en cada render, así que el gráfico sigue al tema (claro / `.dark`)
 // sin capturar colores con getComputedStyle.
 const COLOR_SUCCESS = "var(--color-success)";
 const COLOR_DANGER = "var(--color-danger)";

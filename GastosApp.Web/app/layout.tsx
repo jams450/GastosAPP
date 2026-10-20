@@ -8,9 +8,11 @@ const themeInitScript = `
     const shouldUseDark = saved ? saved === "dark" : true;
     document.documentElement.classList.toggle("dark", shouldUseDark);
 
-    const savedPalette = localStorage.getItem("paletteTheme");
-    const palette = savedPalette === "blue" || savedPalette === "light-blue" ? savedPalette : "light-blue";
-    document.documentElement.setAttribute("data-theme", palette);
+    // Las variantes data-theme (blue / light-blue) ya no existen: el contrato
+    // de diseño tiene un solo tema claro y uno oscuro. Se limpia el atributo
+    // por si quedó guardado de una sesión anterior.
+    document.documentElement.removeAttribute("data-theme");
+    localStorage.removeItem("paletteTheme");
   } catch {}
 })();
 `;

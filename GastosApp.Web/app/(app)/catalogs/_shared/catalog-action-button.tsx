@@ -2,7 +2,7 @@ import { CheckCircle2, Pencil, Plus, Power } from "lucide-react";
 import type { ComponentProps } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/ui/cn";
-import { tableActionStyles } from "@/lib/ui/table-action-styles";
+import { tableActionBaseClass, tableActionStyles } from "@/lib/ui/table-action-styles";
 
 export type CatalogActionType = "create" | "edit" | "deactivate" | "activate";
 
@@ -18,7 +18,6 @@ const actionStyleMap: Record<
     variant: "primary" | "secondary" | "ghost" | "danger";
     icon: typeof Plus;
     className?: string;
-    iconClassName?: string;
   }
 > = {
   create: {
@@ -39,26 +38,22 @@ const actionStyleMap: Record<
   activate: {
     variant: "ghost",
     icon: CheckCircle2,
-    className: tableActionStyles.activate,
-    iconClassName: "text-emerald-300"
+    className: tableActionStyles.activate
   }
 };
 
 export function CatalogActionButton({ action, label, iconOnly, className, ...props }: Props) {
   const config = actionStyleMap[action];
   const Icon = config.icon;
-  const baseByAction = action === "create"
-    ? "h-8 rounded-md px-3 text-xs font-bold"
-    : "h-8 rounded-md px-2.5 text-[11px] font-semibold";
 
   return (
     <Button
       variant={config.variant}
-      className={cn(baseByAction, iconOnly && "w-8 px-0", config.className, className)}
+      className={cn(tableActionBaseClass, iconOnly && "w-8 px-0", config.className, className)}
       aria-label={props["aria-label"] ?? label}
       {...props}
     >
-      <Icon className={cn("h-3.5 w-3.5", config.iconClassName)} aria-hidden="true" />
+      <Icon className="h-3.5 w-3.5" aria-hidden="true" />
       {iconOnly ? null : <span>{label}</span>}
     </Button>
   );

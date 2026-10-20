@@ -45,7 +45,6 @@ export default function LoginPage() {
   return (
     <main className="tabler-page relative flex min-h-dvh items-center justify-center overflow-hidden px-4 py-12">
       <div className="tabler-page-gradient" />
-      <div className="pointer-events-none absolute left-1/2 top-1/2 h-96 w-96 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[var(--color-shell-glow)] opacity-20 blur-3xl" aria-hidden="true" />
 
       <div className="absolute right-4 top-4 z-10">
         <ThemeToggle />

@@ -4,29 +4,33 @@
 
 :root {
   color-scheme: light;
-  --tabler-page-bg: #f4f7f6;
-  --tabler-sidebar-bg: #eaf1ef;
+  /* Tema claro único: porcelana fría neutra. El azul es señal de marca y acción;
+     verde y rojo siguen reservados a dinero y estado. */
+  --tabler-page-bg: #eef2f7;
+  --tabler-sidebar-bg: #e7ecf3;
   --tabler-surface-1: #ffffff;
-  --tabler-surface-2: #f7faf9;
-  --tabler-surface-3: #edf4f1;
-  --tabler-border: #d5e2dc;
-  --tabler-border-strong: #b8cec3;
-  --tabler-text: #10231e;
-  --tabler-text-soft: #5e746b;
+  --tabler-surface-2: #f7f9fc;
+  --tabler-surface-3: #eef2f8;
+  --tabler-border: #dbe2eb;
+  --tabler-border-strong: #c2cddb;
+  --tabler-text: #0f1621;
+  --tabler-text-soft: #5b6a7d;
   --tabler-primary: #2563eb;
   --tabler-primary-hover: #1d4ed8;
-  --tabler-danger: #c94d68;
-  --tabler-success: #16866a;
+  --tabler-danger: #c2415c;
+  --tabler-success: #0f7a5f;
   --tabler-radius-sm: 0.625rem;
   --tabler-radius-md: 0.875rem;
   --tabler-radius-lg: 1.25rem;
-  --tabler-shadow-sm: 0 1px 2px rgb(12 48 38 / 0.06), 0 8px 24px rgb(12 48 38 / 0.05);
-  --tabler-shadow-md: 0 18px 48px rgb(12 48 38 / 0.12);
+  /* Una sola escala de elevación: reposo casi plano y superposición. Nada de
+     sombras por componente; la profundidad la da la capa tonal y el borde. */
+  --tabler-shadow-sm: 0 1px 2px rgb(15 23 42 / 0.07);
+  --tabler-shadow-md: 0 18px 44px rgb(15 23 42 / 0.16);
 
   /* Semantic tokens - light */
   --color-page-bg: var(--tabler-page-bg);
-  --color-page-grad-a: rgb(59 130 246 / 0.12);
-  --color-page-grad-b: rgb(37 99 235 / 0.09);
+  --color-page-grad-a: rgb(37 99 235 / 0.07);
+  --color-page-grad-b: rgb(15 23 42 / 0.04);
   --color-sidebar-bg: var(--tabler-sidebar-bg);
   --color-overlay: rgb(2 6 23 / 0.62);
 
@@ -91,7 +95,7 @@
    --color-shell-muted: color-mix(in srgb, var(--color-shell-bg) 72%, var(--color-text-muted));
    --color-shell-brand: color-mix(in srgb, var(--color-accent) 18%, var(--color-shell-surface));
    --color-shell-divider: color-mix(in srgb, var(--color-border-strong) 72%, transparent);
-   --color-shell-glow: color-mix(in srgb, var(--color-accent) 34%, transparent);
+   --color-shell-glow: color-mix(in srgb, var(--color-accent) 14%, transparent);
    --color-shell-ink: #07111f;
    --shell-sidebar-width: 16rem;
    --shell-sidebar-compact-width: 5.5rem;
@@ -121,56 +125,30 @@
   --shadow-md: var(--tabler-shadow-md);
 }
 
-:root:not(.dark)[data-theme="blue"] {
-  --tabler-page-bg: #f4f6fb;
-  --tabler-sidebar-bg: linear-gradient(180deg, #eef4fb 0%, #e3edf9 100%);
-  --tabler-surface-1: #ffffff;
-  --tabler-surface-2: #f8fafc;
-  --tabler-surface-3: #f1f5f9;
-  --tabler-border: #d9e1ec;
-  --tabler-border-strong: #c9d4e3;
-  --tabler-text: #1f2937;
-  --tabler-text-soft: #64748b;
-  --tabler-primary: #206bc4;
-  --tabler-primary-hover: #1c5da9;
-}
-
-:root:not(.dark)[data-theme="light-blue"] {
-  --tabler-page-bg: #f6faff;
-  --tabler-sidebar-bg: linear-gradient(180deg, #e9f3ff 0%, #dcecff 100%);
-  --tabler-surface-1: #ffffff;
-  --tabler-surface-2: #f8fbff;
-  --tabler-surface-3: #eef6ff;
-  --tabler-border: #cfe0f5;
-  --tabler-border-strong: #b8d0ee;
-  --tabler-text: #1e3a5f;
-  --tabler-text-soft: #5f7fa6;
-  --tabler-primary: #3b82f6;
-  --tabler-primary-hover: #2563eb;
-}
-
 .dark {
   color-scheme: dark;
+  /* Tema oscuro: grafito en capas. Se evita el negro puro para que los bordes,
+     el texto y el foco azul conserven separación legible. */
   --tabler-page-bg: #0f1115;
-  --tabler-sidebar-bg: #15181d;
+  --tabler-sidebar-bg: #12151a;
   --tabler-surface-1: #181b21;
   --tabler-surface-2: #1e2229;
   --tabler-surface-3: #262b34;
-  --tabler-border: #303640;
-  --tabler-border-strong: #46505c;
-  --tabler-text: #f1f3f5;
-  --tabler-text-soft: #aab4c0;
+  --tabler-border: #2c333d;
+  --tabler-border-strong: #3f4956;
+  --tabler-text: #edf0f4;
+  --tabler-text-soft: #9aa5b4;
   --tabler-primary: #3b82f6;
-  --tabler-primary-hover: #2563eb;
+  --tabler-primary-hover: #2f6ed4;
   --tabler-danger: #fb7185;
   --tabler-success: #4ade80;
-  --tabler-shadow-sm: 0 2px 5px rgba(0, 0, 0, 0.55);
-  --tabler-shadow-md: 0 18px 44px rgba(0, 0, 0, 0.7);
+  --tabler-shadow-sm: 0 1px 2px rgb(0 0 0 / 0.5);
+  --tabler-shadow-md: 0 18px 44px rgb(0 0 0 / 0.6);
 
   /* Semantic tokens - dark */
   --color-page-bg: var(--tabler-page-bg);
-  --color-page-grad-a: rgb(59 130 246 / 0.16);
-  --color-page-grad-b: rgb(11 27 43 / 0.7);
+  --color-page-grad-a: rgb(59 130 246 / 0.10);
+  --color-page-grad-b: rgb(8 12 20 / 0.55);
   --color-sidebar-bg: var(--tabler-sidebar-bg);
   --color-overlay: rgb(1 4 10 / 0.74);
 
@@ -235,7 +213,7 @@
    --color-shell-muted: color-mix(in srgb, var(--color-shell-bg) 72%, var(--color-text-muted));
    --color-shell-brand: color-mix(in srgb, var(--color-accent) 18%, var(--color-shell-surface));
    --color-shell-divider: color-mix(in srgb, var(--color-border-strong) 72%, transparent);
-   --color-shell-glow: color-mix(in srgb, var(--color-accent) 34%, transparent);
+   --color-shell-glow: color-mix(in srgb, var(--color-accent) 16%, transparent);
    --color-shell-ink: #090b0f;
    --shell-sidebar-width: 16rem;
    --shell-sidebar-compact-width: 5.5rem;
@@ -267,19 +245,12 @@
 
 body {
   @apply min-h-dvh antialiased transition-colors;
+  /* Un solo radial de ambiente, muy bajo: el fondo no compite con los datos. */
   background:
-    radial-gradient(circle at 0% 0%, var(--color-page-grad-a), transparent 44%),
-    radial-gradient(circle at 100% 0%, var(--color-page-grad-b), transparent 46%),
+    radial-gradient(circle at 0% 0%, var(--color-page-grad-a), transparent 42%),
     var(--color-page-bg);
   color: var(--color-text-primary);
   font-feature-settings: "cv11", "ss01";
-}
-
-.dark body {
-  background:
-    radial-gradient(circle at 0% 0%, var(--color-page-grad-a), transparent 44%),
-    radial-gradient(circle at 100% 0%, var(--color-page-grad-b), transparent 46%),
-    var(--color-page-bg);
 }
 
 @layer base {
@@ -301,29 +272,31 @@ body {
   }
 
   .app-sidebar {
-      background: linear-gradient(155deg, color-mix(in srgb, var(--color-shell-bg) 96%, transparent), color-mix(in srgb, var(--color-page-bg) 76%, var(--color-shell-bg)));
-      border-color: var(--color-border-strong);
-      box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.06), var(--shadow-md);
+      background: color-mix(in srgb, var(--color-shell-bg) 92%, var(--color-page-bg));
+      border-color: var(--color-border);
+      box-shadow: none;
     }
 
   .shell-topbar,
-     .shell-page-header {
-       background: linear-gradient(135deg, color-mix(in srgb, var(--color-shell-surface) 94%, transparent), color-mix(in srgb, var(--color-shell-raised) 82%, transparent));
-       border: 1px solid var(--color-border);
-       border-radius: var(--radius-md);
-       box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.05), var(--shadow-sm);
-     }
+  .shell-page-header {
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+  }
 
-     .shell-topbar {
-       min-height: var(--shell-topbar-height);
-       backdrop-filter: blur(1rem);
-       border-color: color-mix(in srgb, var(--color-accent) 18%, var(--color-border));
-     }
+  /* El topbar es una superficie utilitaria silenciosa: una capa por debajo de la página. */
+  .shell-topbar {
+    min-height: var(--shell-topbar-height);
+    background: color-mix(in srgb, var(--color-surface-2) 90%, transparent);
+    backdrop-filter: blur(1rem);
+    border-color: var(--color-border);
+  }
 
-    .shell-page-header {
-      background: linear-gradient(135deg, var(--color-shell-raised), color-mix(in srgb, var(--color-shell-surface) 78%, transparent));
-      border-color: var(--color-shell-divider);
-    }
+  /* PageHeader es la jerarquía fuerte: superficie propia y borde enfatizado. */
+  .shell-page-header {
+    background: var(--color-surface-1);
+    border-color: var(--color-border-strong);
+    box-shadow: var(--shadow-sm);
+  }
 
     /* Flat, edge-aligned header variant: no rounded shell, no card fill. Used by
        pages that sit flush with their own panel/table edges (accounts). */
@@ -336,9 +309,8 @@ body {
     }
 
      .shell-brand-mark {
-       background: radial-gradient(circle at 30% 20%, color-mix(in srgb, var(--color-accent) 92%, white), var(--color-accent));
+       background: var(--color-accent);
        border: 1px solid color-mix(in srgb, var(--color-accent) 70%, white);
-       box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-accent) 10%, transparent), 0 10px 24px var(--color-shell-glow);
        color: var(--color-accent-contrast);
      }
 
@@ -447,9 +419,8 @@ body {
 
     .shell-nav-link[data-active="true"],
     .shell-nav-group-toggle[data-active="true"] {
-      background: linear-gradient(90deg, var(--color-shell-active), transparent);
+      background: var(--color-shell-active);
       border-color: var(--color-border-accent);
-      box-shadow: inset 0 0 24px color-mix(in srgb, var(--color-accent) 8%, transparent);
     }
 
     .shell-nav-link[data-active="true"]::before,
@@ -641,9 +612,7 @@ body {
   .btn-primary-semantic:hover {
     background: var(--color-accent-hover);
     border-color: var(--color-accent-hover);
-    box-shadow:
-      inset 0 1px 0 color-mix(in srgb, white 18%, transparent),
-      0 8px 20px color-mix(in srgb, var(--color-accent) 28%, transparent);
+    box-shadow: inset 0 1px 0 color-mix(in srgb, white 18%, transparent);
   }
 
   .btn-secondary-semantic {
@@ -668,9 +637,7 @@ body {
 
   .btn-danger-semantic:hover {
     border-color: color-mix(in srgb, var(--color-danger) 78%, white);
-    box-shadow:
-      inset 0 1px 0 color-mix(in srgb, white 18%, transparent),
-      0 8px 20px color-mix(in srgb, var(--color-danger) 26%, transparent);
+    box-shadow: inset 0 1px 0 color-mix(in srgb, white 18%, transparent);
   }
 
   .btn-ghost-semantic {
@@ -691,6 +658,80 @@ body {
     .btn-secondary-semantic,
     .btn-ghost-semantic,
     .btn-danger-semantic {
+      transition-duration: 0ms;
+    }
+  }
+
+  /* Acciones secundarias de tabla.
+     Se declaran después de `.btn-*-semantic` a propósito: comparten especificidad de
+     una sola clase, así que el orden de aparición es lo que decide. El tamaño y el
+     espaciado siguen viniendo de utilidades en el consumidor para que cada tabla
+     conserve su densidad; aquí solo se define la apariencia.
+     El tono semántico vive en el texto y el borde, nunca en un bloque de color: la
+     fila es el contenido, no los botones. */
+  .table-action {
+    border-color: var(--color-border-strong);
+    color: var(--color-text-secondary);
+    transition:
+      color var(--motion-fast) ease,
+      background-color var(--motion-fast) ease,
+      border-color var(--motion-fast) ease;
+  }
+
+  .table-action:hover {
+    background: var(--color-surface-3);
+    border-color: var(--color-border-focus);
+    color: var(--color-text-primary);
+  }
+
+  .table-action-create,
+  .table-action-activate {
+    border-color: color-mix(in srgb, var(--color-success) 34%, var(--color-border-strong));
+    color: var(--color-success);
+  }
+
+  .table-action-create:hover,
+  .table-action-activate:hover {
+    background: color-mix(in srgb, var(--color-success) 14%, transparent);
+    border-color: color-mix(in srgb, var(--color-success) 55%, var(--color-border-strong));
+    color: var(--color-success);
+  }
+
+  .table-action-edit {
+    border-color: color-mix(in srgb, var(--color-accent) 34%, var(--color-border-strong));
+    color: var(--color-accent);
+  }
+
+  .table-action-edit:hover {
+    background: color-mix(in srgb, var(--color-accent) 14%, transparent);
+    border-color: color-mix(in srgb, var(--color-accent) 55%, var(--color-border-strong));
+    color: var(--color-accent);
+  }
+
+  .table-action-deactivate {
+    border-color: color-mix(in srgb, var(--color-warning) 34%, var(--color-border-strong));
+    color: var(--color-warning);
+  }
+
+  .table-action-deactivate:hover {
+    background: color-mix(in srgb, var(--color-warning) 14%, transparent);
+    border-color: color-mix(in srgb, var(--color-warning) 55%, var(--color-border-strong));
+    color: var(--color-warning);
+  }
+
+  .table-action-delete {
+    border-color: color-mix(in srgb, var(--color-danger) 34%, var(--color-border-strong));
+    color: var(--color-danger);
+  }
+
+  .table-action-delete:hover {
+    background: color-mix(in srgb, var(--color-danger) 14%, transparent);
+    border-color: color-mix(in srgb, var(--color-danger) 55%, var(--color-border-strong));
+    color: var(--color-danger);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .table-action {
       transition-duration: 0ms;
     }
   }
@@ -779,6 +820,15 @@ body {
     color: var(--color-warning);
   }
 
+  /* Rendimiento: es un ingreso y se pinta como tal, pero gana una etiqueta propia para
+     separarlo de un ingreso ordinario. No se inventa un color nuevo para dinero: lo que
+     distingue es el texto, no el tono. */
+  .txn-type-interest {
+    border-color: color-mix(in srgb, var(--color-success) 62%, transparent);
+    background: color-mix(in srgb, var(--color-success) 8%, transparent);
+    color: var(--color-success);
+  }
+
   .txn-amount {
     @apply font-semibold tabular-nums;
   }
@@ -810,32 +860,33 @@ body {
 
   .drawer-header-semantic {
     @apply sticky top-0 z-10 border-b px-4 py-3 backdrop-blur sm:px-5 sm:py-4;
-    border-color: color-mix(in srgb, var(--color-accent) 35%, transparent);
-    background: color-mix(in srgb, var(--color-sidebar-bg) 82%, transparent);
+    border-color: var(--color-border);
+    background: color-mix(in srgb, var(--color-surface-1) 92%, transparent);
   }
 
   .drawer-footer-semantic {
     @apply border-t px-4 py-3 sm:px-5 sm:py-4;
-    border-color: color-mix(in srgb, var(--color-accent) 35%, transparent);
-    background: color-mix(in srgb, var(--color-sidebar-bg) 82%, transparent);
+    border-color: var(--color-border);
+    background: color-mix(in srgb, var(--color-surface-1) 92%, transparent);
   }
 
   .drawer-section-semantic {
-    @apply space-y-2 rounded-2xl border p-3;
-    border-color: color-mix(in srgb, var(--color-accent) 45%, transparent);
-    background: color-mix(in srgb, var(--color-accent) 14%, transparent);
+    @apply space-y-2 rounded-[var(--radius-md)] border p-3;
+    border-color: var(--color-border);
+    background: var(--color-surface-2);
   }
 
   .btn-close-semantic {
     @apply h-8 rounded-md px-2.5 text-[11px] font-semibold;
-    border: 1px solid color-mix(in srgb, var(--color-accent) 45%, transparent);
-    background: color-mix(in srgb, var(--color-accent) 14%, transparent);
-    color: var(--color-accent-contrast);
+    border: 1px solid var(--color-border-strong);
+    background: var(--color-surface-2);
+    color: var(--color-text-secondary);
   }
 
   .btn-close-semantic:hover {
-    border-color: color-mix(in srgb, var(--color-accent) 65%, transparent);
-    background: color-mix(in srgb, var(--color-accent) 24%, transparent);
+    border-color: var(--color-border-focus);
+    background: var(--color-surface-3);
+    color: var(--color-text-primary);
   }
 
   /* Overlay/drawer entrance. The panel enters from the bottom on small screens
@@ -894,30 +945,25 @@ body {
     background: #475569;
   }
 
+  /* Skin de tabla. Tonal, no rayado: el cuerpo comparte una sola superficie y las
+     filas se separan con hairline. La jerarquía se lee por contraste de texto, no
+     por alternar fondos ni por sombras. */
   .app-grid-skin table thead {
-    background: color-mix(in srgb, var(--color-surface-3) 92%, transparent);
+    background: var(--color-surface-3);
   }
 
   .app-grid-skin table thead th {
     @apply px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.08em];
-    border-bottom: 1px solid color-mix(in srgb, var(--color-border-strong) 82%, transparent);
+    border-bottom: 1px solid var(--color-border-strong);
     color: var(--color-text-muted);
   }
 
   .app-grid-skin table tbody tr {
-    border-top: 1px solid color-mix(in srgb, var(--color-border) 80%, transparent);
-  }
-
-  .app-grid-skin table tbody tr:nth-child(odd) {
-    background: color-mix(in srgb, var(--color-surface-2) 84%, transparent);
-  }
-
-  .app-grid-skin table tbody tr:nth-child(even) {
-    background: color-mix(in srgb, var(--color-surface-3) 58%, transparent);
+    border-top: 1px solid var(--color-border);
   }
 
   .app-grid-skin table tbody tr:hover {
-    background: color-mix(in srgb, var(--color-accent) 12%, transparent) !important;
+    background: color-mix(in srgb, var(--color-accent) 8%, transparent);
   }
 
   .app-grid-skin table tbody td {
@@ -936,27 +982,11 @@ body {
     color: var(--color-text-muted);
   }
 
+  /* El contenedor contiene el desborde horizontal y nada más: sin `overflow-hidden`
+     en el eje vertical, porque eso recortaba los menús de fila. */
   .app-grid-skin .overflow-x-auto {
-    @apply overflow-hidden rounded-2xl;
-    border: 1px solid color-mix(in srgb, var(--color-border-strong) 85%, transparent);
-    background: color-mix(in srgb, var(--color-surface-2) 88%, transparent);
-    box-shadow: var(--shadow-md);
-  }
-
-  .app-grid-skin table tbody tr:first-child td:first-child {
-    border-top-left-radius: 0.85rem;
-  }
-
-  .app-grid-skin table tbody tr:first-child td:last-child {
-    border-top-right-radius: 0.85rem;
-  }
-
-  .app-grid-skin table tbody tr:last-child td:first-child {
-    border-bottom-left-radius: 0.85rem;
-  }
-
-  .app-grid-skin table tbody tr:last-child td:last-child {
-    border-bottom-right-radius: 0.85rem;
+    border: 1px solid var(--color-border);
+    background: var(--color-surface-2);
   }
 
   .app-grid-skin .tabler-badge {
@@ -1029,15 +1059,7 @@ body {
 
   .tabler-page-gradient {
     @apply pointer-events-none absolute inset-0;
-    background:
-      radial-gradient(circle at 0% 0%, rgb(32 107 196 / 0.2), transparent 32%),
-      radial-gradient(circle at 100% 0%, rgb(59 130 246 / 0.16), transparent 34%);
-  }
-
-  .dark .tabler-page-gradient {
-    background:
-      radial-gradient(circle at 0% 0%, rgb(59 130 246 / 0.16), transparent 30%),
-      radial-gradient(circle at 100% 0%, rgb(7 17 31 / 0.7), transparent 34%);
+    background: radial-gradient(circle at 0% 0%, var(--color-page-grad-a), transparent 38%);
   }
 
   .dashboard-card {

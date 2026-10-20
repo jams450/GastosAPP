@@ -23,9 +23,6 @@ export function PageHeader({ section, title, subtitle, meta, actions, variant = 
           : "shell-page-header overflow-hidden p-4 sm:flex-row sm:items-center sm:p-5"
       )}
     >
-      {isPlain ? null : (
-        <span className="pointer-events-none absolute -right-8 -top-12 h-32 w-32 rounded-full bg-[var(--color-shell-glow)] opacity-30 blur-3xl" aria-hidden="true" />
-      )}
       <div className="relative min-w-0">
         <p className="shell-page-kicker">{section}</p>
         <h1 className="mt-1 min-w-0 break-words text-xl font-semibold tracking-tight text-primary md:text-2xl">{title}</h1>
