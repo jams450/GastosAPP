@@ -13,8 +13,17 @@ import {
   useReactTable
 } from "@tanstack/react-table";
 import { ArrowDown, ArrowUp, ChevronsUpDown, Search, X } from "lucide-react";
-import { type ReactNode, useEffect, useId, useState } from "react";
+import { type ReactNode, useEffect, useId, useMemo, useState } from "react";
 import { cn } from "@/lib/ui/cn";
+import {
+  ACTIONS_COLUMN_ID,
+  projectGridResponsive,
+  type GridColumnLike,
+  type GridMobileCardLayout,
+  type GridMobileField
+} from "@/lib/ui/grid-responsive";
+import { DataGridMobileCard } from "./data-grid-mobile-card";
+import { RowActionsMenu } from "./row-actions-menu";
 
 export type DataGridMode = "client" | "server";
 export type DataGridDensity = "compact" | "normal";
@@ -42,13 +51,41 @@ type DataGridProps<TData> = {
   stickyHeader?: boolean;
   stickyActionsColumn?: boolean;
   enableGlobalFilter?: boolean;
+  /**
+   * Tarjeta explícita por fila para pantallas por debajo de 640px. Cuando se omite, el
+   * grid proyecta una tarjeta automática a partir de `meta` en cada columna.
+   */
   mobileCards?: (row: TData, actions: ReactNode) => ReactNode;
+  /**
+   * Entre 640px y 1024px las acciones de fila se pliegan en un menú. Desactivarlo deja
+   * las acciones en línea a cualquier ancho; por defecto está activo.
+   */
+  rowActionsMenu?: boolean;
   globalFilterPlaceholder?: string;
   globalFilterFn?: FilterFn<TData>;
 };
 
 const pagerButtonClass =
   "btn-secondary-semantic h-7 px-2 text-[11px] disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-border-focus)]";
+
+/**
+ * Dibuja la tarjeta automática a partir del layout proyectado.
+ * Vive fuera del componente para no crear una definición de componente nueva en cada
+ * render ni depender de una identidad de función estable.
+ */
+function renderAutoCard(
+  layout: GridMobileCardLayout,
+  actions: ReactNode,
+  rendered: Map<string, ReactNode>
+) {
+  return (
+    <DataGridMobileCard
+      layout={layout}
+      actions={actions}
+      renderValue={(field: GridMobileField) => rendered.get(field.columnId) ?? null}
+    />
+  );
+}
 
 export function DataGrid<TData>({
   columns,
@@ -74,6 +111,7 @@ export function DataGrid<TData>({
   stickyActionsColumn = true,
   enableGlobalFilter = false,
   mobileCards,
+  rowActionsMenu = true,
   globalFilterPlaceholder = "Buscar...",
   globalFilterFn
 }: DataGridProps<TData>) {
@@ -85,6 +123,9 @@ export function DataGrid<TData>({
   const [internalDensity, setInternalDensity] = useState<DataGridDensity>(density ?? "compact");
   const [internalGlobalFilter, setInternalGlobalFilter] = useState("");
   const globalFilterInputId = useId();
+
+  const responsive = useMemo(() => projectGridResponsive(columns as unknown as GridColumnLike[]), [columns]);
+  const hasCardMode = Boolean(mobileCards) || responsive.hasCardLayout;
 
   useEffect(() => {
     if (!densityStorageKey || density) {
@@ -158,17 +199,17 @@ export function DataGrid<TData>({
   }
 
   return (
-      <div className="space-y-2">
+    <div className="space-y-2">
       {allowDensityToggle && !density ? (
-          <div className="flex items-center justify-end">
-            <div className="inline-flex items-center gap-1 border border-strong bg-[var(--color-surface-2)] p-0.5">
+        <div className="flex items-center justify-end">
+          <div className="inline-flex items-center gap-1 border border-strong bg-[var(--color-surface-2)] p-0.5">
             <button
               type="button"
               className={cn(
                 "px-2 py-1 text-[11px] font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-border-focus)]",
                 effectiveDensity === "compact"
                   ? "bg-[var(--color-accent)] text-[var(--color-accent-contrast)]"
-                  : "text-muted hover:bg-[var(--color-accent-soft)] hover:text-primary"
+                  : "text-muted hover:bg-[var(--color-accent-soft)] hover:text-[color:var(--color-text-primary)]"
               )}
               onClick={() => handleDensityChange("compact")}
             >
@@ -180,7 +221,7 @@ export function DataGrid<TData>({
                 "px-2 py-1 text-[11px] font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-border-focus)]",
                 effectiveDensity === "normal"
                   ? "bg-[var(--color-accent)] text-[var(--color-accent-contrast)]"
-                  : "text-muted hover:bg-[var(--color-accent-soft)] hover:text-primary"
+                  : "text-muted hover:bg-[var(--color-accent-soft)] hover:text-[color:var(--color-text-primary)]"
               )}
               onClick={() => handleDensityChange("normal")}
             >
@@ -212,7 +253,7 @@ export function DataGrid<TData>({
                 type="button"
                 aria-label="Limpiar búsqueda"
                 onClick={() => setInternalGlobalFilter("")}
-                className="absolute right-1 top-1/2 -translate-y-1/2 rounded-sm p-0.5 text-muted hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-border-focus)]"
+                className="absolute right-1 top-1/2 -translate-y-1/2 rounded-sm p-0.5 text-muted hover:text-[color:var(--color-text-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-border-focus)]"
               >
                 <X className="h-3.5 w-3.5" aria-hidden="true" />
               </button>
@@ -221,16 +262,46 @@ export function DataGrid<TData>({
         </div>
       ) : null}
 
-      {mobileCards ? (
-        <div className="grid gap-2 md:hidden">
-          {loading ? <p className="text-muted p-3 text-sm">Cargando...</p> : errorMessage ? <p className="p-3 text-sm text-[var(--color-danger)]">{errorMessage}</p> : table.getRowModel().rows.length === 0 ? <p className="text-muted p-3 text-sm">{emptyMessage}</p> : table.getRowModel().rows.map((row) => {
-            const actionCell = row.getVisibleCells().find((cell) => cell.column.id === "actions");
-            const actions = actionCell ? flexRender(actionCell.column.columnDef.cell, actionCell.getContext()) : null;
-            return <div key={row.id}>{mobileCards(row.original, actions)}</div>;
-          })}
+      {/* Modo tarjeta: por debajo de 640px. Reemplaza a la tabla, no la complementa. */}
+      {hasCardMode ? (
+        <div className="grid gap-2 sm:hidden">
+          {loading ? (
+            <p className="text-muted p-3 text-sm">Cargando...</p>
+          ) : errorMessage ? (
+            <p className="p-3 text-sm text-[var(--color-danger)]">{errorMessage}</p>
+          ) : table.getRowModel().rows.length === 0 ? (
+            <p className="text-muted p-3 text-sm">{emptyMessage}</p>
+          ) : (
+            table.getRowModel().rows.map((row) => {
+              const rendered = new Map<string, ReactNode>();
+              let actions: ReactNode = null;
+
+              for (const cell of row.getVisibleCells()) {
+                const cellValue = flexRender(cell.column.columnDef.cell, cell.getContext());
+                if (cell.column.id === ACTIONS_COLUMN_ID) {
+                  actions = cellValue;
+                } else {
+                  rendered.set(cell.column.id, cellValue);
+                }
+              }
+
+              return (
+                <div key={row.id}>
+                  {mobileCards ? mobileCards(row.original, actions) : renderAutoCard(responsive.card, actions, rendered)}
+                </div>
+              );
+            })
+          )}
         </div>
       ) : null}
-      <div className={cn("table-shell mb-0 max-w-full overflow-x-auto overscroll-x-contain rounded-xl border border-strong bg-[var(--table-surface-bg)] shadow-[var(--shadow-sm)]", mobileCards ? "hidden md:block" : undefined)}>
+
+      {/* Modo tabla: desde 640px. Las columnas marcadas `tabletHidden` se retiran hasta 1024px. */}
+      <div
+        className={cn(
+          "table-shell mb-0 max-w-full overflow-x-auto overscroll-x-contain rounded-[var(--radius-md)] border border-strong bg-[var(--table-surface-bg)] shadow-[var(--shadow-sm)]",
+          hasCardMode ? "hidden sm:block" : undefined
+        )}
+      >
         <table className="w-full min-w-full">
           <thead className="table-head bg-[var(--table-head-bg)]">
             {table.getHeaderGroups().map((headerGroup) => (
@@ -241,12 +312,15 @@ export function DataGrid<TData>({
                   const sortAriaValue = sortState === "asc" ? "ascending" : sortState === "desc" ? "descending" : "none";
                   const headerLabel =
                     typeof header.column.columnDef.header === "string" ? header.column.columnDef.header : header.column.id;
-                  const isActionsColumn = header.column.id === "actions";
+                  const isActionsColumn = header.column.id === ACTIONS_COLUMN_ID;
                   const stickyColumnClass =
                     stickyActionsColumn && isActionsColumn
                       ? "sticky right-0 z-10 bg-[var(--table-head-bg)]"
                       : undefined;
                   const stickyHeaderClass = stickyHeader ? "sticky top-0 z-20" : undefined;
+                  const tabletHiddenClass = responsive.tabletHiddenIds.includes(header.column.id)
+                    ? "hidden lg:table-cell"
+                    : undefined;
                   const sortIndex = header.column.getSortIndex();
                   const showSortOrder = sortState && table.getState().sorting.length > 1;
 
@@ -255,7 +329,7 @@ export function DataGrid<TData>({
                       key={header.id}
                       scope="col"
                       aria-sort={canSort ? sortAriaValue : undefined}
-                      className={cn(headerCellClass, stickyHeaderClass, stickyColumnClass)}
+                      className={cn(headerCellClass, stickyHeaderClass, stickyColumnClass, tabletHiddenClass)}
                     >
                       {header.isPlaceholder ? null : canSort ? (
                         <button
@@ -304,21 +378,44 @@ export function DataGrid<TData>({
                   {emptyMessage}
                 </td>
               </tr>
-              ) : (
-                table.getRowModel().rows.map((row) => (
+            ) : (
+              table.getRowModel().rows.map((row) => (
                 <tr key={row.id} className="table-row transition">
-                  {row.getVisibleCells().map((cell) => (
-                    <td
-                      key={cell.id}
-                      className={cn(
-                        bodyCellClass,
-                        "table-cell",
-                        stickyActionsColumn && cell.column.id === "actions" ? "sticky right-0 z-10 bg-[var(--table-surface-bg)]" : undefined
-                      )}
-                    >
-                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                    </td>
-                  ))}
+                  {row.getVisibleCells().map((cell) => {
+                    const cellValue = flexRender(cell.column.columnDef.cell, cell.getContext());
+                    const isActionsColumn = cell.column.id === ACTIONS_COLUMN_ID;
+                    const collapsibleActions = isActionsColumn && rowActionsMenu;
+                    const tabletHiddenClass = responsive.tabletHiddenIds.includes(cell.column.id)
+                      ? "hidden lg:table-cell"
+                      : undefined;
+
+                    return (
+                      <td
+                        key={cell.id}
+                        className={cn(
+                          bodyCellClass,
+                          "table-cell",
+                          stickyActionsColumn && isActionsColumn
+                            ? "sticky right-0 z-10 bg-[var(--table-surface-bg)]"
+                            : undefined,
+                          tabletHiddenClass
+                        )}
+                      >
+                        {collapsibleActions ? (
+                          <>
+                            <div className="hidden lg:block">{cellValue}</div>
+                            <div className="lg:hidden">
+                              <RowActionsMenu label={`Acciones de la fila ${row.index + 1}`}>
+                                {cellValue}
+                              </RowActionsMenu>
+                            </div>
+                          </>
+                        ) : (
+                          cellValue
+                        )}
+                      </td>
+                    );
+                  })}
                 </tr>
               ))
             )}
@@ -327,7 +424,7 @@ export function DataGrid<TData>({
       </div>
 
       {!resolvedManualPagination && table.getPageCount() > 1 ? (
-        <div className="flex flex-wrap items-center justify-between gap-2 rounded-b-xl border-x border-b border-strong bg-[var(--table-surface-bg)] px-2 py-1.5">
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-b-[var(--radius-md)] border-x border-b border-strong bg-[var(--table-surface-bg)] px-2 py-1.5">
           <div className="flex items-center gap-2">
             <span className="text-[11px] text-muted">Filas</span>
             <select
@@ -351,17 +448,17 @@ export function DataGrid<TData>({
             >
               Anterior
             </button>
-          <span className="text-[11px] text-muted">
-            Página {table.getState().pagination.pageIndex + 1} de {table.getPageCount()}
-          </span>
+            <span className="text-[11px] text-muted">
+              Página {table.getState().pagination.pageIndex + 1} de {table.getPageCount()}
+            </span>
             <button
               type="button"
               className={pagerButtonClass}
               onClick={() => table.nextPage()}
               disabled={!table.getCanNextPage()}
             >
-            Siguiente
-          </button>
+              Siguiente
+            </button>
           </div>
         </div>
       ) : null}
