@@ -148,6 +148,13 @@ CREATE TABLE transactions (
     description TEXT,
     transaction_date TIMESTAMP WITH TIME ZONE NOT NULL,
     is_interest BOOLEAN NOT NULL DEFAULT FALSE,
+    -- Divisa de captura y tipo de cambio congelado. En la base no hay tasa: `amount_mxn` es igual a
+    -- `amount`. Las dos columnas de tasa van juntas o no van, y una tasa en cero produciría un importe
+    -- en pesos de cero sin que nadie lo note.
+    currency_code VARCHAR(3) NOT NULL DEFAULT 'MXN',
+    fx_rate NUMERIC(18, 8),
+    fx_rate_date DATE,
+    amount_mxn NUMERIC(15, 2) NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     created_by VARCHAR(100),
@@ -157,7 +164,12 @@ CREATE TABLE transactions (
     FOREIGN KEY (subcategory_id) REFERENCES subcategories(subcategory_id) ON DELETE SET NULL,
     FOREIGN KEY (merchant_id) REFERENCES merchants(merchant_id) ON DELETE SET NULL,
     CONSTRAINT chk_transactions_direction_values
-        CHECK (direction IS NULL OR direction IN ('debit', 'credit'))
+        CHECK (direction IS NULL OR direction IN ('debit', 'credit')),
+    CONSTRAINT chk_transactions_fx_rate_pair
+        CHECK (
+            (fx_rate IS NULL AND fx_rate_date IS NULL)
+            OR (fx_rate > 0 AND fx_rate_date IS NOT NULL)
+        )
 );
 
 -- Persistent Bancoppel import idempotency claims
@@ -1267,3 +1279,11 @@ CREATE TABLE IF NOT EXISTS fx_rates (
 );
 
 CREATE INDEX IF NOT EXISTS ix_fx_rates_latest ON fx_rates(currency_code, rate_date DESC);
+
+-- La clave foránea de transacciones hacia el catálogo va aquí, y no en el CREATE TABLE de
+-- `transactions`, porque ese bloque vive en la línea 136 y `currencies` se crea mucho después: una
+-- referencia en línea rompería el bootstrap desde cero.
+ALTER TABLE transactions DROP CONSTRAINT IF EXISTS fk_transactions_currency_code;
+ALTER TABLE transactions
+    ADD CONSTRAINT fk_transactions_currency_code
+    FOREIGN KEY (currency_code) REFERENCES currencies(code) ON DELETE RESTRICT;

@@ -25,3 +25,4 @@
 2026-10-16_dashboard_cutoff_msi_original_payments.sql
 2026-10-19_multi_currency_fx_rates.sql
 2026-10-19_transaction_interest_flag.sql
+2026-10-19_transactions_currency_and_fx_rate.sql
