@@ -48,6 +48,8 @@ namespace GastosApp.BusinessLogic.Context
         public DbSet<InvestmentPlan> InvestmentPlans { get; set; } = null!;
         public DbSet<InvestmentPlanAllocation> InvestmentPlanAllocations { get; set; } = null!;
         public DbSet<RecurringItem> RecurringItems { get; set; } = null!;
+        public DbSet<Currency> Currencies { get; set; } = null!;
+        public DbSet<FxRate> FxRates { get; set; } = null!;
         public DbSet<BudgetItem> BudgetItems { get; set; } = null!;
         public DbSet<BudgetItemAlertDelivery> BudgetItemAlertDeliveries { get; set; } = null!;
 
@@ -534,6 +536,23 @@ namespace GastosApp.BusinessLogic.Context
                 entity.HasIndex(e => new { e.InvestmentPlanId, e.InvestmentProductId }).IsUnique();
                 entity.HasOne<InvestmentProduct>().WithMany().HasForeignKey(e => e.InvestmentProductId).OnDelete(DeleteBehavior.Restrict);
                 entity.HasOne<Account>().WithMany().HasForeignKey(e => e.AccountId).OnDelete(DeleteBehavior.Restrict);
+            });
+
+            // Catálogo global, sin dueño: una moneda no pertenece a un usuario.
+            modelBuilder.Entity<Currency>(entity =>
+            {
+                entity.HasKey(e => e.Code);
+                // Misma garantía que el índice parcial de la base: una sola divisa base.
+                entity.HasIndex(e => e.IsBase).IsUnique().HasFilter("is_base");
+            });
+
+            // Clave compuesta: una tasa por divisa y fecha. La lectura es "la más reciente en o antes
+            // de una fecha", que es justo lo que sirve el índice descendente.
+            modelBuilder.Entity<FxRate>(entity =>
+            {
+                entity.HasKey(e => new { e.CurrencyCode, e.RateDate });
+                entity.HasIndex(e => new { e.CurrencyCode, e.RateDate });
+                entity.HasOne(e => e.Currency).WithMany().HasForeignKey(e => e.CurrencyCode).OnDelete(DeleteBehavior.Restrict);
             });
         }
     }
