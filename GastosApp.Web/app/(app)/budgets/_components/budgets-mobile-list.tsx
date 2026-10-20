@@ -25,7 +25,7 @@ type Props = {
 export function BudgetsMobileList({ rows, loading, errorMessage, catalogs, onEdit, onToggleActive }: Props) {
   if (loading) {
     return (
-      <div className="space-y-2.5 md:hidden" role="status" aria-live="polite" aria-label="Cargando presupuestos">
+      <div className="space-y-2.5 sm:hidden" role="status" aria-live="polite" aria-label="Cargando presupuestos">
         {Array.from({ length: 3 }).map((_, index) => (
           <div key={index} className="animate-pulse border border-default bg-[var(--color-surface-2)] p-3">
             <div className="h-3 w-32 rounded-none bg-[var(--color-surface-3)]" />
@@ -40,7 +40,7 @@ export function BudgetsMobileList({ rows, loading, errorMessage, catalogs, onEdi
 
   if (errorMessage) {
     return (
-      <div className="border-[var(--color-danger)]/35 bg-[var(--color-danger)]/12 p-4 text-[var(--color-danger)] md:hidden" role="alert" aria-live="assertive">
+      <div className="border-[var(--color-danger)]/35 bg-[var(--color-danger)]/12 p-4 text-[var(--color-danger)] sm:hidden" role="alert" aria-live="assertive">
         <div className="flex items-start gap-2">
           <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
           <div>
@@ -53,7 +53,7 @@ export function BudgetsMobileList({ rows, loading, errorMessage, catalogs, onEdi
   }
 
   return (
-    <ul className="space-y-2.5 md:hidden">
+    <ul className="space-y-2.5 sm:hidden">
       {rows.map((row) => {
         const { status, thresholds } = row;
         const scope = describeBudgetScope(status, catalogs);

@@ -4,6 +4,7 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { AlertCircle, Link2, ListChecks, RotateCcw, Sparkles } from "lucide-react";
 import { useMemo } from "react";
 import { DataGrid } from "@/components/data-grid/data-grid";
+import { gridMeta } from "@/lib/ui/grid-responsive";
 import { Button } from "@/components/ui/button";
 import type { BudgetItemSuggestion } from "@/lib/contracts/budget-items";
 import { formatCurrency } from "@/lib/format/currency";
@@ -115,6 +116,7 @@ export function BudgetSuggestionsPanel({ suggestions, loading, errorMessage, per
       {
         id: "item",
         header: "Partida",
+        meta: gridMeta({ mobileRole: "title" }),
         accessorFn: (row) => row.name,
         cell: ({ row }) => {
           const scope = describeSuggestionScope(row.original, catalogs);
@@ -135,12 +137,14 @@ export function BudgetSuggestionsPanel({ suggestions, loading, errorMessage, per
       {
         id: "plannedAmount",
         header: "Monto planeado",
+        meta: gridMeta({ mobileRole: "amount" }),
         accessorFn: (row) => row.plannedAmount,
         cell: ({ row }) => <span className="tabular-nums font-semibold">{formatCurrency(row.original.plannedAmount)}</span>
       },
       {
         id: "plannedDate",
         header: "Fecha planeada",
+        meta: gridMeta({ mobileLabel: "Fecha planeada", tabletHidden: true }),
         accessorFn: (row) => row.plannedDate ?? "",
         cell: ({ row }) => <span className="text-xs font-medium text-secondary">{formatPlannedDateLabel(row.original.plannedDate)}</span>
       },
@@ -160,6 +164,7 @@ export function BudgetSuggestionsPanel({ suggestions, loading, errorMessage, per
       {
         id: "match",
         header: "Coincidencia",
+        meta: gridMeta({ mobileRole: "status" }),
         accessorFn: (row) => row.distanceDays,
         cell: ({ row }) => (
           <div className="flex flex-col items-start gap-1">
@@ -172,6 +177,7 @@ export function BudgetSuggestionsPanel({ suggestions, loading, errorMessage, per
         id: "context",
         header: "Cuenta y comercio",
         enableSorting: false,
+        meta: gridMeta({ mobileLabel: "Cuenta y comercio", tabletHidden: true }),
         accessorFn: (row) => describeSuggestionContext(row, catalogs).account ?? "",
         cell: ({ row }) => {
           const context = describeSuggestionContext(row.original, catalogs);

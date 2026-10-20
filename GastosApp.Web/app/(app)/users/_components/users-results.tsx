@@ -15,7 +15,7 @@ export function UsersResults({ rows, loading, errorMessage, onEdit, onToggleActi
   return (
     <section className="p-3 sm:p-4">
       <UsersMobileList rows={rows} loading={loading} errorMessage={errorMessage} onEdit={onEdit} onToggleActive={onToggleActive} onDelete={onDelete} />
-      <div className="hidden md:block">
+      <div className="hidden sm:block">
         <UsersTable rows={rows} loading={loading} errorMessage={errorMessage} onEdit={onEdit} onToggleActive={onToggleActive} onDelete={onDelete} />
       </div>
     </section>

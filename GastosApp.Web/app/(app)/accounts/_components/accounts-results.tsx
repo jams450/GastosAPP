@@ -32,7 +32,7 @@ export function AccountsResults({ rows, loading, errorMessage, onEdit, onToggleA
           onEdit={onEdit}
           onToggleActive={onToggleActive}
         />
-        <div className="hidden md:block">
+        <div className="hidden sm:block">
           <AccountsTable
             section={STATUS_SECTION}
             loading={loading}
@@ -65,7 +65,7 @@ export function AccountsResults({ rows, loading, errorMessage, onEdit, onToggleA
             onEdit={onEdit}
             onToggleActive={onToggleActive}
           />
-          <div className="hidden md:block">
+          <div className="hidden sm:block">
             <AccountsTable
               section={section}
               loading={false}

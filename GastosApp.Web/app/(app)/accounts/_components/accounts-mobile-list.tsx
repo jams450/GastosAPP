@@ -32,7 +32,7 @@ export function AccountsMobileList({ section, loading, errorMessage, onEdit, onT
 
   if (loading) {
     return (
-      <div className="space-y-2.5 md:hidden" role="status" aria-live="polite" aria-label={`Cargando cuentas de ${section.title.toLowerCase()}`}>
+      <div className="space-y-2.5 sm:hidden" role="status" aria-live="polite" aria-label={`Cargando cuentas de ${section.title.toLowerCase()}`}>
         {Array.from({ length: 2 }).map((_, index) => (
           <div key={index} className="animate-pulse border border-default bg-[var(--color-surface-2)] p-3">
             <div className="h-3 w-28 rounded-none bg-[var(--color-surface-3)]" />
@@ -46,7 +46,7 @@ export function AccountsMobileList({ section, loading, errorMessage, onEdit, onT
 
   if (errorMessage) {
     return (
-      <div className="border-[var(--color-danger)]/35 bg-[var(--color-danger)]/12 p-4 text-[var(--color-danger)] md:hidden" role="alert" aria-live="assertive">
+      <div className="border-[var(--color-danger)]/35 bg-[var(--color-danger)]/12 p-4 text-[var(--color-danger)] sm:hidden" role="alert" aria-live="assertive">
         <div className="flex items-start gap-2">
           <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
           <div>
@@ -60,7 +60,7 @@ export function AccountsMobileList({ section, loading, errorMessage, onEdit, onT
 
   if (rows.length === 0) {
     return (
-      <div className="border-default bg-[var(--color-surface-2)] px-3 py-6 text-center md:hidden" role="status" aria-live="polite">
+      <div className="border-default bg-[var(--color-surface-2)] px-3 py-6 text-center sm:hidden" role="status" aria-live="polite">
         <Inbox className="text-muted mx-auto h-6 w-6" aria-hidden="true" />
         <p className="text-primary mt-2 text-sm font-bold">Sin resultados</p>
         <p className="text-muted mt-1 text-xs">No hay cuentas de {section.title.toLowerCase()} con filtros actuales.</p>
@@ -69,7 +69,7 @@ export function AccountsMobileList({ section, loading, errorMessage, onEdit, onT
   }
 
   return (
-    <div className="space-y-3 md:hidden">
+    <div className="space-y-3 sm:hidden">
       {rows.map((account) => (
         <article key={account.accountId} className="border border-default bg-[var(--color-surface-2)] p-3">
           <header className="flex items-start justify-between gap-2 pb-2">

@@ -15,7 +15,7 @@ type Props = {
 export function UsersMobileList({ rows, loading, errorMessage, onEdit, onToggleActive, onDelete }: Props) {
   if (loading) {
     return (
-      <div className="space-y-2.5 md:hidden">
+      <div className="space-y-2.5 sm:hidden">
         {Array.from({ length: 3 }).map((_, index) => (
           <div key={index} className="animate-pulse p-3">
             <div className="h-3 w-28 rounded-none bg-[var(--color-surface-3)]" />
@@ -29,7 +29,7 @@ export function UsersMobileList({ rows, loading, errorMessage, onEdit, onToggleA
 
   if (errorMessage) {
     return (
-      <div className="border-[var(--color-danger)]/35 bg-[var(--color-danger)]/12 p-4 text-[var(--color-danger)] md:hidden">
+      <div className="border-[var(--color-danger)]/35 bg-[var(--color-danger)]/12 p-4 text-[var(--color-danger)] sm:hidden">
         <div className="flex items-start gap-2">
           <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
           <div>
@@ -43,7 +43,7 @@ export function UsersMobileList({ rows, loading, errorMessage, onEdit, onToggleA
 
   if (rows.length === 0) {
     return (
-      <div className="border-default bg-[var(--color-surface-2)] px-3 py-8 text-center md:hidden">
+      <div className="border-default bg-[var(--color-surface-2)] px-3 py-8 text-center sm:hidden">
         <Inbox className="text-muted mx-auto h-6 w-6" aria-hidden="true" />
         <p className="text-primary mt-2 text-sm font-bold">Sin resultados</p>
         <p className="text-muted mt-1 text-xs">No hay usuarios con filtros actuales.</p>
@@ -52,7 +52,7 @@ export function UsersMobileList({ rows, loading, errorMessage, onEdit, onToggleA
   }
 
   return (
-    <div className="space-y-3 md:hidden">
+    <div className="space-y-3 sm:hidden">
       {rows.map((user) => (
         <article key={user.userId} className="p-3">
           <header className="flex items-start justify-between gap-2 pb-2">

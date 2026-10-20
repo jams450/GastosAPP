@@ -52,7 +52,7 @@ export function AnnualSummaryTable({ summary }: Props) {
 
   return (
     <>
-      <div className="hidden md:block">
+      <div className="hidden sm:block">
         <div className="app-panel overflow-hidden">
           <div className="max-w-full overflow-x-auto overscroll-x-contain">
             <table className="w-full min-w-full text-sm">
@@ -97,7 +97,7 @@ export function AnnualSummaryTable({ summary }: Props) {
         </div>
       </div>
 
-      <ul className="m-0 grid list-none gap-3 p-0 md:hidden">
+      <ul className="m-0 grid list-none gap-3 p-0 sm:hidden">
         {months.map((month) => {
           const income = incomeCell(month);
           const expense = expenseCell(month);

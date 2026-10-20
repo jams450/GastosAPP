@@ -5,6 +5,7 @@ import { AlertCircle, ClipboardList, Link2, Plus, Receipt, X } from "lucide-reac
 import { useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import { DataGrid } from "@/components/data-grid/data-grid";
+import { gridMeta } from "@/lib/ui/grid-responsive";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -105,6 +106,7 @@ export function BudgetItemsPanel({
       {
         id: "name",
         header: "Partida",
+        meta: gridMeta({ mobileRole: "title" }),
         accessorFn: (row) => row.name,
         cell: ({ row }) => {
           const scope = describeScope(row.original, catalogs);
@@ -132,6 +134,7 @@ export function BudgetItemsPanel({
       {
         id: "plannedAmount",
         header: "Planificado",
+        meta: gridMeta({ mobileRole: "amount" }),
         accessorFn: (row) => row.plannedAmount,
         cell: ({ row }) => <span className="tabular-nums font-semibold">{formatCurrency(row.original.plannedAmount)}</span>
       },
@@ -144,6 +147,7 @@ export function BudgetItemsPanel({
       {
         id: "status",
         header: "Estado",
+        meta: gridMeta({ mobileRole: "status" }),
         accessorFn: (row) => row.status,
         cell: ({ row }) => (
           <div className="flex flex-col items-start gap-1">

@@ -4,6 +4,7 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { AlertCircle, BellOff, RotateCcw } from "lucide-react";
 import { useMemo } from "react";
 import { DataGrid } from "@/components/data-grid/data-grid";
+import { gridMeta } from "@/lib/ui/grid-responsive";
 import { Button } from "@/components/ui/button";
 import type { AlertDelivery, AlertOutboxEntry } from "@/lib/contracts/alerts";
 import { formatCurrency } from "@/lib/format/currency";
@@ -65,6 +66,7 @@ export function AlertsHistoryPanel({ deliveries, failedByDeliveryId, loading, er
       {
         id: "budget",
         header: "Presupuesto",
+        meta: gridMeta({ mobileRole: "title" }),
         accessorFn: (row) => row.budgetName,
         cell: ({ row }) => (
           <div className="min-w-0">
@@ -76,6 +78,7 @@ export function AlertsHistoryPanel({ deliveries, failedByDeliveryId, loading, er
       {
         id: "threshold",
         header: "Umbral",
+        meta: gridMeta({ tabletHidden: true }),
         accessorFn: (row) => row.thresholdName,
         cell: ({ row }) => (
           <span className="text-xs font-medium text-secondary">
@@ -86,12 +89,14 @@ export function AlertsHistoryPanel({ deliveries, failedByDeliveryId, loading, er
       {
         id: "percentUsed",
         header: "% al disparar",
+        meta: gridMeta({ tabletHidden: true }),
         accessorFn: (row) => row.percentUsed,
         cell: ({ row }) => <span className="tabular-nums text-xs font-semibold">{formatPercent(row.original.percentUsed)}</span>
       },
       {
         id: "spent",
         header: "Gasto del periodo",
+        meta: gridMeta({ mobileRole: "amount" }),
         accessorFn: (row) => row.spentAmount,
         cell: ({ row }) => (
           <div className="min-w-0">
@@ -103,12 +108,14 @@ export function AlertsHistoryPanel({ deliveries, failedByDeliveryId, loading, er
       {
         id: "createdAt",
         header: "Fecha",
+        meta: gridMeta({ mobileLabel: "Fecha" }),
         accessorFn: (row) => row.createdAt ?? "",
         cell: ({ row }) => <span className="text-xs font-medium text-secondary">{formatDeliveryDate(row.original.createdAt)}</span>
       },
       {
         id: "outboxStatus",
         header: "Entrega",
+        meta: gridMeta({ mobileRole: "status" }),
         accessorFn: (row) => row.outboxStatus ?? "",
         cell: ({ row }) => (
           <div className="flex flex-col items-start gap-1">

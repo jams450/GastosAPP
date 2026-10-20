@@ -42,7 +42,7 @@ export function BudgetsResults({ rows, loading, errorMessage, catalogs, onCreate
   return (
     <section aria-busy={loading}>
       <BudgetsMobileList rows={rows} loading={loading} errorMessage={errorMessage} catalogs={catalogs} onEdit={onEdit} onToggleActive={onToggleActive} />
-      <div className="hidden md:block">
+      <div className="hidden sm:block">
         <BudgetsTable rows={rows} loading={loading} errorMessage={errorMessage} catalogs={catalogs} onEdit={onEdit} onToggleActive={onToggleActive} />
       </div>
     </section>
