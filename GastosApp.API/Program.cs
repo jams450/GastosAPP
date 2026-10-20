@@ -14,6 +14,7 @@ builder.Services
     .AddApiRateLimiting(builder.Configuration)
     .AddApiTelegramConfiguration(builder.Configuration)
     .AddApiAlertsConfiguration(builder.Configuration)
+    .AddApiFxConfiguration(builder.Configuration)
     .AddApiDatabase(builder.Configuration)
     .AddApiAuthentication(builder.Configuration)
     .AddApiAuthorization()
