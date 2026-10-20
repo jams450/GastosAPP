@@ -1,5 +1,51 @@
 # GastosApp API Documentation
 
+## Multi-divisa · Endpoints de monedas y tipos de cambio (entrega 1)
+
+> Catálogo de monedas de solo lectura y consulta de tipos de cambio con carry-forward. Las tasas las escribe únicamente el job diario; la tasa de un movimiento se congela en el movimiento, no aquí.
+
+### Endpoints
+
+| Método | Ruta | Descripción |
+| --- | --- | --- |
+| GET | `/api/Currencies` | Monedas activas, con la base primero. |
+| GET | `/api/FxRates/latest` | Última tasa conocida de cada divisa activa distinta de la base. |
+| GET | `/api/FxRates/rate?currency=USD&date=2026-10-17` | Tasa vigente en esa fecha, resuelta con carry-forward. |
+
+Todas exigen `[Authorize(Policy = "UserWithId")]`. Las fechas (`DateOnly`) se serializan como `yyyy-MM-dd`.
+
+### Reglas de respuesta
+
+- `/api/FxRates/rate` sin `date` usa la fecha de hoy.
+- Si no hay ninguna tasa publicada en o antes de la fecha pedida, responde **404**. No existe una tasa por defecto: convertir con un valor inventado es peor que no convertir.
+- `isCarryForward` es `true` cuando `rateDate` difiere de `requestedDate`; la interfaz debe avisar que se usa la última tasa publicada.
+- Una divisa sin ninguna tasa publicada no aparece en `/latest`.
+
+### Rutas BFF equivalentes
+
+| Ruta BFF | Destino |
+| --- | --- |
+| `GET /api/bff/currencies` | `/api/Currencies` |
+| `GET /api/bff/fx-rates/latest` | `/api/FxRates/latest` |
+| `GET /api/bff/fx-rates/rate?currency=&date=` | `/api/FxRates/rate` |
+
+Los contratos viven en `GastosApp.Web/lib/contracts/currencies.ts`, con prueba en `currencies.test.ts`.
+
+### Configuración
+
+| Clave | Uso |
+| --- | --- |
+| `Banxico__Enabled` | Habilita el proveedor Banxico (USD/MXN, serie FIX `SF43718`). |
+| `Banxico__Token` | Token SIE. Secreto: nunca se versiona ni se registra en logs. |
+| `Banxico__BaseUrl` | Raíz del servicio SIE. |
+| `Frankfurter__BaseUrl` | Raíz de Frankfurter, usado para EUR/GBP/CAD/JPY. |
+| `FxRates__Enabled` | Arranca el job diario. Independiente de `Banxico__Enabled`. |
+| `FxRates__SyncHourUtc` | Hora UTC de la corrida diaria (22 UTC ≈ 16:00 CDMX). |
+
+### Job de sincronización
+
+`FxRateSyncBackgroundService` corre una vez al arrancar (recupera el hueco de un proceso caído) y luego cada día a `FxRates__SyncHourUtc`. Es idempotente: solo escribe una tasa cuando la fecha publicada es posterior a la última almacenada, así que repetir la corrida no duplica filas ni sobrescribe una tasa ya publicada. Un fallo del proveedor no escribe nada: el hueco lo cubre el carry-forward al leer.
+
 ## Frontend Catálogos · Cleanup de componentes shared (CTA + filtros)
 
 > Se aplicó un cleanup de UI en `GastosApp.Web` para reducir overrides locales en pantallas de Catálogos y centralizar estilos/composición en componentes compartidos.
