@@ -47,6 +47,25 @@ public class CreateTransactionRequest : IValidatableObject
     /// </summary>
     public bool IsInterest { get; set; }
 
+    /// <summary>
+    /// Divisa de captura. Sin valor, el movimiento queda en la divisa base (MXN).
+    /// </summary>
+    [StringLength(3, MinimumLength = 3)]
+    public string? CurrencyCode { get; set; }
+
+    /// <summary>
+    /// Tipo de cambio en pesos por una unidad de <see cref="CurrencyCode"/>. Opcional: sin valor se
+    /// toma la última tasa publicada en o antes de la fecha del movimiento y se congela con él.
+    /// </summary>
+    [Range(0.00000001, double.MaxValue)]
+    public decimal? FxRate { get; set; }
+
+    /// <summary>
+    /// Fecha de la tasa enviada. Solo aplica junto con <see cref="FxRate"/>; sin ella se usa la fecha
+    /// del movimiento, porque una tasa escrita a mano ya no proviene de una publicación.
+    /// </summary>
+    public DateOnly? FxRateDate { get; set; }
+
     public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
     {
         if (TransactionDate == default)

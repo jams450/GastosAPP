@@ -280,6 +280,7 @@ public class BancoppelImportService : IBancoppelImportService
             AccountId = accountId,
             TransactionDate = DateTime.SpecifyKind(row.TransactionDate.Date, DateTimeKind.Utc),
             Amount = row.Amount,
+            AmountMxn = row.Amount,
             Description = row.Description.Trim(),
             Type = row.Type
         };

@@ -1,5 +1,6 @@
 using GastosApp.BusinessLogic.Interfaces;
 using GastosApp.BusinessLogic.Models.Budgets;
+using GastosApp.BusinessLogic.Models.Fx;
 using GastosApp.BusinessLogic.Models.Transactions;
 using GastosApp.Models.Entities;
 using Microsoft.EntityFrameworkCore;
@@ -22,6 +23,7 @@ namespace GastosApp.BusinessLogic.Services
         private readonly ITransactionTagService _tagService;
         private readonly ICatalogRuleService _catalogRuleService;
         private readonly IBudgetItemMatchService _budgetItemMatchService;
+        private readonly IFxRateQueryService _fxRateQueryService;
         private readonly ILogger<TransactionCommandService> _logger;
 
         public TransactionCommandService(
@@ -33,6 +35,7 @@ namespace GastosApp.BusinessLogic.Services
             ITransactionTagService tagService,
             ICatalogRuleService catalogRuleService,
             IBudgetItemMatchService budgetItemMatchService,
+            IFxRateQueryService fxRateQueryService,
             ILogger<TransactionCommandService> logger)
         {
             _repository = repository;
@@ -43,6 +46,7 @@ namespace GastosApp.BusinessLogic.Services
             _tagService = tagService;
             _catalogRuleService = catalogRuleService;
             _budgetItemMatchService = budgetItemMatchService;
+            _fxRateQueryService = fxRateQueryService;
             _logger = logger;
         }
 
@@ -74,7 +78,10 @@ namespace GastosApp.BusinessLogic.Services
                 }
 
                 transaction.Type = TransactionDomainConstants.TransactionType.Income;
-                transaction.BalanceImpact = transaction.Amount;
+                await ApplyCurrencyAsync(transaction);
+                // El saldo se calcula con SUM(balance_impact), así que el impacto sale del importe en
+                // pesos: dejar aquí el importe en dólares descuadraría la cuenta por el tipo de cambio.
+                transaction.BalanceImpact = transaction.AmountMxn;
                 transaction.Direction = TransactionDomainConstants.Direction.Credit;
                 transaction.CounterpartyAccountId = null;
                 transaction.TransactionDate = _validation.EnsureUtc(transaction.TransactionDate);
@@ -153,7 +160,8 @@ namespace GastosApp.BusinessLogic.Services
                 }
 
                 transaction.Type = TransactionDomainConstants.TransactionType.Expense;
-                transaction.BalanceImpact = transaction.Amount * -1;
+                await ApplyCurrencyAsync(transaction);
+                transaction.BalanceImpact = transaction.AmountMxn * -1;
                 transaction.Direction = TransactionDomainConstants.Direction.Debit;
                 transaction.CounterpartyAccountId = null;
                 transaction.TransactionDate = _validation.EnsureUtc(transaction.TransactionDate);
@@ -703,6 +711,69 @@ namespace GastosApp.BusinessLogic.Services
             }
         }
 
+        /// <summary>
+        /// Fija divisa, tasa congelada e importe en pesos de un movimiento.
+        /// </summary>
+        /// <remarks>
+        /// Orden de prioridad de la tasa: la que manda el usuario, luego la que ya tenía el movimiento, y
+        /// solo si no existe ninguna se resuelve contra el catálogo con carry-forward. Ese orden es lo que
+        /// cumple "la tasa se toma del guardado": corregir la descripción de un gasto de septiembre no
+        /// puede reescribir el consolidado de septiembre.
+        /// </remarks>
+        private async Task ApplyCurrencyAsync(Transaction transaction, Transaction? existing = null)
+        {
+            var currencyCode = transaction.CurrencyCode?.Trim().ToUpperInvariant();
+            if (string.IsNullOrEmpty(currencyCode))
+            {
+                currencyCode = existing?.CurrencyCode ?? TransactionFxMath.BaseCurrencyCode;
+            }
+
+            transaction.CurrencyCode = currencyCode;
+
+            if (TransactionFxMath.IsBase(currencyCode))
+            {
+                // La base no se convierte contra sí misma: se guarda sin tasa y sin fecha, y el importe
+                // en pesos es copia exacta. Inventar una fecha de publicación para MXN sería inventar un
+                // dato, y el CHECK de la tabla no lo permitiría de todos modos.
+                transaction.FxRate = null;
+                transaction.FxRateDate = null;
+                transaction.AmountMxn = transaction.Amount;
+                return;
+            }
+
+            var providedRate = transaction.FxRate;
+            var fxRate = providedRate ?? existing?.FxRate;
+            var fxRateDate = transaction.FxRateDate ?? existing?.FxRateDate;
+
+            // Si el usuario cambió la tasa, la fecha deja de describir una publicación de Banxico: pasa a
+            // ser la fecha del movimiento, para no hacerla pasar por un dato que no es.
+            if (providedRate.HasValue && existing is not null && providedRate.Value != existing.FxRate)
+            {
+                fxRateDate = DateOnly.FromDateTime(transaction.TransactionDate);
+            }
+
+            if (fxRate is null || fxRateDate is null)
+            {
+                var requestedDate = DateOnly.FromDateTime(transaction.TransactionDate);
+                var quote = await _fxRateQueryService.ResolveAsync(currencyCode, requestedDate, CancellationToken.None);
+                if (quote is null)
+                {
+                    // Sin tasa publicada no se inventa una: se rechaza el alta y el usuario decide.
+                    throw new ArgumentException(
+                        $"No hay tipo de cambio publicado para {currencyCode} en la fecha del movimiento");
+                }
+
+                fxRate = quote.RateMxn;
+                fxRateDate = quote.RateDate;
+            }
+
+            TransactionFxMath.EnsureRateIsUsable(fxRate, fxRateDate);
+
+            transaction.FxRate = fxRate;
+            transaction.FxRateDate = fxRateDate;
+            transaction.AmountMxn = TransactionFxMath.ComputeAmountMxn(transaction.Amount, currencyCode, fxRate);
+        }
+
         private async Task<Transaction?> UpdateInternalAsync(int id, Transaction transaction, Transaction existing)
         {
             transaction.TransactionDate = _validation.EnsureUtc(transaction.TransactionDate);
@@ -715,6 +786,10 @@ namespace GastosApp.BusinessLogic.Services
             {
                 previousImpact = await _validation.InferLegacyBalanceImpactAsync(existing);
             }
+
+            // Se reutiliza la tasa guardada cuando el llamador no manda otra; el importe en pesos se
+            // recalcula con el monto nuevo y esa tasa, nunca con la del día.
+            await ApplyCurrencyAsync(transaction, existing);
 
             transaction.BalanceImpact = _validation.ResolveUpdatedBalanceImpact(transaction, previousImpact);
             transaction.Direction = _validation.ResolveDirection(transaction.BalanceImpact);

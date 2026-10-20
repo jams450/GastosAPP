@@ -75,6 +75,39 @@ namespace GastosApp.Models.Entities
         [Column("is_interest")]
         public bool IsInterest { get; set; }
 
+        /// <summary>
+        /// Divisa en que se capturó el movimiento. La consolidación usa <see cref="AmountMxn"/>, nunca
+        /// <see cref="Amount"/>, porque comparar importes de divisas distintas no significa nada.
+        /// </summary>
+        [Column("currency_code")]
+        [Required]
+        [StringLength(3)]
+        public string CurrencyCode { get; set; } = "MXN";
+
+        /// <summary>
+        /// Pesos por <b>una</b> unidad de <see cref="CurrencyCode"/>, congelados al capturar. Nulo en la
+        /// divisa base: no se convierte contra sí misma y no existe una fecha de publicación que citar.
+        /// Es editable, para que una tasa mal publicada o un ajuste acordado puedan corregirse.
+        /// </summary>
+        [Column("fx_rate", TypeName = "decimal(18,8)")]
+        public decimal? FxRate { get; set; }
+
+        /// <summary>
+        /// Fecha de publicación de la tasa usada, no la de captura: es lo que permite ver que un gasto
+        /// de domingo usó la tasa del viernes. Nula cuando no hay tasa.
+        /// </summary>
+        [Column("fx_rate_date")]
+        public DateOnly? FxRateDate { get; set; }
+
+        /// <summary>
+        /// Importe consolidado en la divisa base: <c>round(Amount * FxRate, 2)</c>, o <c>Amount</c> exacto
+        /// cuando la divisa es la base. Se fija al capturar y al editar; nunca se recalcula en lectura,
+        /// porque re-resolver la tasa reescribiría meses ya cerrados.
+        /// </summary>
+        [Column("amount_mxn", TypeName = "decimal(15,2)")]
+        [Required]
+        public decimal AmountMxn { get; set; }
+
         [ForeignKey("AccountId")]
         public virtual Account Account { get; set; } = null!;
 

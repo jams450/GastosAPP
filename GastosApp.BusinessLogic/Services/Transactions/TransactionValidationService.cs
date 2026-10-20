@@ -86,11 +86,13 @@ namespace GastosApp.BusinessLogic.Services
 
         public decimal ResolveUpdatedBalanceImpact(Transaction transaction, decimal previousImpact)
         {
+            // El impacto en la cuenta se expresa en la divisa base: el saldo se calcula con
+            // SUM(balance_impact), así que usar aquí el importe en dólares descuadraría la cuenta.
             return transaction.Type.ToLowerInvariant() switch
             {
-                TransactionDomainConstants.TransactionType.Income => transaction.Amount,
-                TransactionDomainConstants.TransactionType.Expense => transaction.Amount * -1,
-                TransactionDomainConstants.TransactionType.Transfer => previousImpact < 0 ? transaction.Amount * -1 : transaction.Amount,
+                TransactionDomainConstants.TransactionType.Income => transaction.AmountMxn,
+                TransactionDomainConstants.TransactionType.Expense => transaction.AmountMxn * -1,
+                TransactionDomainConstants.TransactionType.Transfer => previousImpact < 0 ? transaction.AmountMxn * -1 : transaction.AmountMxn,
                 _ => previousImpact
             };
         }

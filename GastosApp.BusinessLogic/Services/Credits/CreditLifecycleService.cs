@@ -255,6 +255,7 @@ namespace GastosApp.BusinessLogic.Services
                 CategoryId = input.CategoryId,
                 Type = TransactionDomainConstants.TransactionType.OpeningCredit,
                 Amount = input.Amount,
+                AmountMxn = input.Amount,
                 BalanceImpact = 0m,
                 Direction = TransactionDomainConstants.Direction.Credit,
                 Description = input.Description,

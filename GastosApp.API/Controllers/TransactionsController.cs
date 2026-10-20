@@ -250,6 +250,9 @@ namespace GastosApp.API.Controllers
                 SubcategoryId = request.SubcategoryId,
                 MerchantId = request.MerchantId,
                 Amount = request.Amount,
+                CurrencyCode = request.CurrencyCode ?? "MXN",
+                FxRate = request.FxRate,
+                FxRateDate = request.FxRateDate,
                 Description = request.Description,
                 TransactionDate = request.TransactionDate.UtcDateTime,
                 IsInterest = request.IsInterest
@@ -300,6 +303,9 @@ namespace GastosApp.API.Controllers
                 SubcategoryId = request.SubcategoryId,
                 MerchantId = request.MerchantId,
                 Amount = request.Amount,
+                CurrencyCode = request.CurrencyCode ?? "MXN",
+                FxRate = request.FxRate,
+                FxRateDate = request.FxRateDate,
                 Description = request.Description,
                 TransactionDate = request.TransactionDate.UtcDateTime
             };
@@ -395,6 +401,10 @@ namespace GastosApp.API.Controllers
                 Type = existingTransaction.Type,
                 TransferGroupId = existingTransaction.TransferGroupId,
                 Amount = existingTransaction.Amount,
+                AmountMxn = existingTransaction.AmountMxn,
+                CurrencyCode = existingTransaction.CurrencyCode,
+                FxRate = existingTransaction.FxRate,
+                FxRateDate = existingTransaction.FxRateDate,
                 BalanceImpact = existingTransaction.BalanceImpact,
                 Direction = existingTransaction.Direction,
                 CounterpartyAccountId = existingTransaction.CounterpartyAccountId,
@@ -419,6 +429,11 @@ namespace GastosApp.API.Controllers
                 if (request.MerchantId.HasValue) transactionToUpdate.MerchantId = request.MerchantId.Value;
             }
             if (request.Amount.HasValue) transactionToUpdate.Amount = request.Amount.Value;
+            // Solo se sobrescribe lo que el cliente manda: sin divisa ni tasa se conserva la guardada,
+            // que es lo que permite editar una descripción sin reescribir el consolidado.
+            if (!string.IsNullOrWhiteSpace(request.CurrencyCode)) transactionToUpdate.CurrencyCode = request.CurrencyCode.Trim().ToUpperInvariant();
+            if (request.FxRate.HasValue) transactionToUpdate.FxRate = request.FxRate.Value;
+            if (request.FxRateDate.HasValue) transactionToUpdate.FxRateDate = request.FxRateDate.Value;
             if (request.Description != null) transactionToUpdate.Description = request.Description;
             if (request.TransactionDate.HasValue)
                 transactionToUpdate.TransactionDate = request.TransactionDate.Value.UtcDateTime;
@@ -788,6 +803,11 @@ namespace GastosApp.API.Controllers
                 Type = transaction.Type,
                 TransferGroupId = transaction.TransferGroupId,
                 Amount = transaction.Amount,
+                CurrencyCode = transaction.CurrencyCode,
+                // La base se expone como 1 aunque la tabla guarde null: contrato uniforme.
+                FxRate = transaction.FxRate ?? 1m,
+                FxRateDate = transaction.FxRateDate,
+                AmountMxn = transaction.AmountMxn,
                 BalanceImpact = transaction.BalanceImpact,
                 Direction = transaction.Direction,
                 CounterpartyAccountId = transaction.CounterpartyAccountId,

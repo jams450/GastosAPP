@@ -1050,6 +1050,7 @@ namespace GastosApp.BusinessLogic.Services
                     SubcategoryId = template.SubcategoryId,
                     MerchantId = template.MerchantId,
                     Amount = amount,
+                    AmountMxn = amount,
                     Description = template.Name,
                     // Fecha local → UTC con la zona del resolver: el día no se corre.
                     TransactionDate = MonthRangeResolver.ToUtc(item.PlannedDate),

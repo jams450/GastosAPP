@@ -184,6 +184,19 @@ namespace GastosApp.BusinessLogic.Context
                     .WithMany()
                     .HasForeignKey(e => e.OriginRecurringItemId)
                     .OnDelete(DeleteBehavior.SetNull);
+
+                // Precisión declarada también aquí, y no solo en el atributo: Npgsql la usa para el
+                // tipo de parámetro en las consultas, y un decimal sin escala se redondea a 2 por
+                // defecto en los cálculos de EF.
+                entity.Property(e => e.AmountMxn).HasPrecision(15, 2);
+                entity.Property(e => e.FxRate).HasPrecision(18, 8);
+
+                // Restrict, igual que la migración: borrar una divisa con movimientos dejaría importes
+                // sin moneda y sin forma de reconstruir su consolidado.
+                entity.HasOne<Currency>()
+                    .WithMany()
+                    .HasForeignKey(e => e.CurrencyCode)
+                    .OnDelete(DeleteBehavior.Restrict);
             });
 
             modelBuilder.Entity<BillableParty>(entity =>
