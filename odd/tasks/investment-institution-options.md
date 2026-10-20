@@ -46,4 +46,6 @@ Initial Engram mirror saved as observation 676 under project `gastosapp`, topic 
 
 ## Commit and handoff
 
-Pending. Record the feature commit here after committing; this task-only followup may remain uncommitted to avoid a recursive commit loop. Native review is parent-owned.
+Feature commit: `80afa61471bedf75f664b95223510bf0b60cba6e` (`feat(investments): add Openbank Mifel and Otra institutions`), eight authorized files, 131 insertions / 14 deletions. This task-only commit-record followup remains uncommitted to avoid a recursive commit loop. Native review is parent-owned.
+
+Concurrency warning: started on newly created `feat/investment-institution-options`, but another session changed the shared checkout to `feature/financial-dashboard-mobile-history` before commit. Commit therefore landed on that branch. No branch reset, cherry-pick or further checkout performed; parent must reconcile branch ownership. Concurrent history-panel changes and its task document remain untouched and excluded from this commit.
