@@ -13,7 +13,7 @@ classes (`.text-primary`, `.app-panel`, `.input-semantic`, `.table-*`, `.txn-*`)
 
 This contract was extracted from the existing app, not invented:
 
-- Token layer: `app/globals.css` (`:root`, `.dark`, `[data-theme="blue|light-blue"]`).
+- Token layer: `app/globals.css` (`:root` claro y `.dark` oscuro; sin variantes `data-theme`).
 - Existing primitives: `components/ui/{button,input,alert,card,select}.tsx`,
   `lib/ui/cn.ts`, `lib/ui/table-action-styles.ts`, `components/data-grid/data-grid.tsx`.
 - Existing patterns: semantic classes (`btn-*-semantic`, `input-semantic`, `table-*`,
@@ -109,10 +109,11 @@ Summary of the contract:
 | `--color-dashboard-cutoff-bg` / `--color-dashboard-cutoff-border` | Blue cutoff module surface |
 | `--color-success`, `--color-danger`, `--color-warning`, `--color-info` | Semantic states |
 
-Dark surface tuning (this contract): graphite-black layered surfaces with a blue brand signal.
-Light themes remain porcelain/white and unchanged. Brand blue is decorative/action only — it never
-carries money meaning; green/red remain reserved for money and status. Shared semantic token names
-remain stable across themes, so components do not need theme-specific classes.
+Dark surface tuning (this contract): graphite-black layered surfaces with a blue brand signal. There is
+exactly one light theme and one dark theme — the old `data-theme="blue"` / `"light-blue"` variants
+were retired. Light is porcelain + blue signal, tuned as the deliberate counterpart of dark, not an
+inverted afterthought.
+Shared semantic token names remain stable across themes, so components do not need theme-specific classes.
 
 Ambient brand gradient: `color-page-grad-a/b` feed `body` and `.tabler-page-gradient` in both
 themes, so the app glow and the login canvas stay blue. Change the gradient there, never inline.
@@ -123,8 +124,13 @@ Transaction semantics reuse existing state tokens — no new colors:
 |---|---|---|
 | `income` | `--color-success` | `+` amount, success badge/tint |
 | `expense` / `opening_credit` | `--color-danger` | `−` amount, danger badge/tint |
-| `transfer` | `--color-info` | unsigned neutral amount, info badge/tint |
-| `opening_credit` (label) | `--color-warning` | warning badge, danger-signed amount (inherited debt) |
+| `transfer` | `--color-info` | unsigned neutral amount, info badge/tint || `opening_credit` (label) | `--color-warning` | warning badge, danger-signed amount (inherited debt) |
+| `interest` (label) | `--color-success` | `.txn-type-interest` badge next to the type pill |
+
+The interest badge (`is_interest = TRUE`) is a **classification, not a direction**: the movement
+stays `type = 'income'` and moves the balance like any other income, so every existing income and
+balance calculation keeps working unchanged. The badge uses the income colour on purpose — what
+distinguishes it is the label, never the hue alone.
 
 Encoded as reusable classes (in `globals.css`): `.txn-type-badge` + `.txn-type-income`,
 `.txn-type-expense`, `.txn-type-transfer`, `.txn-type-opening`;
@@ -143,9 +149,15 @@ Components use these classes; they never re-declare the mixins inline.
 
 - Spacing on a 4px grid via Tailwind scale (`gap-1..4`, `p-2..4`). Page sections use
   `space-y-2`/`space-y-4`.
-- Radius: `--radius-sm` (controls/buttons), `--radius-md` (panels/table shell),
-  `--radius-lg` (cards/drawers). Full round only for status pills/badges.
-- Shadow: `--shadow-sm` resting, `--shadow-md` raised/overlays. No bespoke box-shadows.
+- Radius: `--radius-sm` (10px, controls/buttons), `--radius-md` (14px, panels/table shell),
+  `--radius-lg` (20px, cards/drawers). Full round only for status pills/badges.
+- Elevation is **one scale**, not a per-component decision: `--shadow-sm` is the resting
+  layer (barely above the surface) and `--shadow-md` the overlay layer (drawers, dialogs,
+  popovers). Nothing else declares a shadow. Depth comes from tonal layering plus a hairline
+  border, so a new component never invents an elevation.
+- Glow is not part of the language. `--color-shell-glow` survives only as a very low-alpha
+  ambience token for the login canvas; brand marks, active nav items and primary buttons are
+  flat fills. Decorative gradients (radial blobs behind headers, gradient buttons) are gone.
 
 ## 5. Primitives
 
@@ -203,6 +215,18 @@ Components use these classes; they never re-declare the mixins inline.
 - `Button` variants: `primary | secondary | ghost | danger`, mapping to
   `.btn-*-semantic`. Inputs use `.input-semantic`.
 
+### Table actions (`.table-action*`)
+- Every row-level action uses `tableActionBaseClass` plus one of `tableActionStyles`
+  (`create | edit | activate | deactivate | delete`). Both are public names consumed by nine
+  screens and are never renamed.
+- Rest state is **discreet**: transparent background, hairline border, semantic colour in the
+  text and border only. The row is the content, not the buttons. Colour fills appear only on
+  hover and keyboard focus.
+- Sizing stays with the consumer (`h-8 px-2 text-[11px]`, `h-6 px-1.5 text-[10px]`, …) so each
+  table keeps its own density. The classes define appearance only.
+- They are declared **after** `.btn-*-semantic` in `globals.css` on purpose: same single-class
+  specificity, so source order is what overrides the ghost/secondary variant underneath.
+
 ## 6. Interaction States
 
 - **Hover:** row `--color-accent` at 10% (`.table-row:hover`); buttons per variant class.
@@ -235,6 +259,47 @@ Components use these classes; they never re-declare the mixins inline.
   client-side.
 
 ## 8. Responsive & Containment
+
+### Grid three-mode contract
+
+Every `DataGrid` renders three mutually exclusive modes, decided in CSS so SSR stays stable:
+
+| Width | Mode | What renders |
+|---|---|---|
+| `< 640px` (`base`) | Cards | One card per row. Field layout comes from column `meta`; `mobileCards` overrides it. |
+| `640px – 1024px` (`sm`) | Reduced table + `⋮` | Table with `tabletHidden` columns removed; row actions fold into a `⋮` menu. |
+| `≥ 1024px` (`lg`) | Full table | Every column, actions inline. |
+
+Why the middle mode exists: on a tablet the action column was the widest thing on screen. The
+`⋮` menu removes it from the row's horizontal budget without losing the actions. The panel is
+rendered in a portal with `position: fixed` because the table shell uses `overflow-x-auto`, which
+also clips the vertical axis — an absolutely positioned dropdown inside the cell would be cut.
+
+Column metadata (`ColumnDef.meta`, declared with the typed `gridMeta()` helper):
+
+| Key | Effect |
+|---|---|
+| `mobileLabel` | Label shown in the card. Falls back to a string `header`. Without either, the column is **not** projected — no labels are invented. |
+| `mobileRole` | `title \| subtitle \| status \| amount \| field \| hidden`. One `title` per grid; a second `title` demotes to `subtitle` rather than being dropped. |
+| `tabletHidden` | Removes the column from the `sm`–`lg` table only. The card still gets it. |
+
+The `actions` column never enters a card; its buttons render in the card footer, separated from the
+data by a rule, so they stop competing with the content for width.
+
+The pure projection (columns → card layout + hidden ids) lives in `lib/ui/grid-responsive.ts` and
+is covered by `lib/ui/grid-responsive.test.ts`, so the rules stay testable without a DOM.
+
+### Shell on small screens
+
+- Below `lg` the shell renders a **sticky top bar in the flow** (menu trigger, brand mark, theme
+toggle). It previously was a `fixed` trigger floating over the page header, which covered the
+header's own actions.
+- Form drawers are full-height bottom sheets below `sm` (`h-[100dvh] w-full`) and side panels from
+`sm` up (`sm:max-w-xl`).
+- Panel and title sections go from one to two columns at `md`, and filter bars are single-column
+until `lg`.
+
+### Containment
 
 - Grid scroll container: `overflow-x-auto` + `overscroll-x-contain` + `max-w-full`, table
   `min-w-full`; horizontal overflow is contained inside the shell, never the page.

@@ -311,3 +311,25 @@ Verified: `dotnet build code.sln --no-restore`, `pnpm typecheck`, `pnpm lint`, `
 migration has **not** been executed against a PostgreSQL instance: DDL correctness was reviewed by
 reading the SQL only. Endpoint behavior at runtime, ownership isolation and the E2E flow still require
 integration verification.
+
+## Rendimiento real vs proyectado
+
+La proyección de este módulo es un **supuesto**, nunca un ingreso. `InvestmentCalculator.Project`
+y `GET /api/bff/investments/expected-income?period=yyyy-MM` calculan cuánto rendiría el capital con
+los tramos capturados, y el endpoint lo documenta explícitamente como tal. Nada de eso escribe una
+transacción ni toca el saldo de la cuenta.
+
+El rendimiento **real** se registra aparte, como un ingreso normal marcado con
+`transactions.is_interest = TRUE` (ver `SQL/migrations/2026-10-19_transaction_interest_flag.sql`):
+
+- El movimiento sigue siendo `type = 'income'` y mueve el saldo con la misma aritmética que
+  cualquier ingreso, así que el tablero, los presupuestos y el histórico no cambian de reglas.
+- El flag solo clasifica. No se calcula un monto, no se infiere una tasa y no se genera nada
+  automáticamente: la cifra que el banco pagó la escribe la persona.
+- La marca solo se acepta cuando la cuenta tiene `earns_interest = TRUE`; el API lo vuelve a
+  comprobar aunque la UI esconda el interruptor en las demás cuentas.
+- No hubo reclasificación del histórico: los ingresos anteriores quedan como fueron capturados.
+
+En la interfaz, el interruptor **Es rendimiento de la cuenta** aparece en el formulario de ingreso
+cuando la cuenta seleccionada devenga interés, y el histórico muestra una insignia `Rendimiento`
+junto al tipo del movimiento.
