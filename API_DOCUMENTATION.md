@@ -31,6 +31,10 @@ Todas exigen `[Authorize(Policy = "UserWithId")]`. Las fechas (`DateOnly`) se se
 
 Los contratos viven en `GastosApp.Web/lib/contracts/currencies.ts`, con prueba en `currencies.test.ts`.
 
+### Pantalla de Monedas
+
+`/catalogs/currencies` (solo lectura) cruza el catálogo con la última tasa conocida de cada divisa y muestra la fecha de publicación, para que una tasa de un día anterior sea visible como tal. La vista no ofrece alta ni edición: las divisas se siembran por migración y las tasas las escribe únicamente el job. La lógica de cruce y formato vive en `catalogs/currencies/_lib/currencies-model.ts`, con prueba propia; el formateo de fecha se hace por partes y no con `new Date(iso)`, porque interpretar `yyyy-MM-dd` como medianoche UTC mostraría el día anterior en México.
+
 ### Configuración
 
 | Clave | Uso |

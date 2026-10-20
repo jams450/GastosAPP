@@ -38,7 +38,8 @@ export const appNavItems: readonly NavItem[] = [
       { href: "/catalogs/merchants", label: "Comercios" },
       { href: "/catalogs/tags", label: "Tags" },
       { href: "/catalogs/billable-parties", label: "Responsables cobrables" },
-      { href: "/catalogs/recurring-items", label: "Programadas" }
+      { href: "/catalogs/recurring-items", label: "Programadas" },
+      { href: "/catalogs/currencies", label: "Monedas" }
     ]
   },
   { href: "/users", label: "Usuarios", icon: Users }
