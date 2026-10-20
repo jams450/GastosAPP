@@ -868,7 +868,8 @@ Crea un ingreso (suma al saldo de la cuenta).
   "categoryId": 1,
   "amount": 1500.00,
   "description": "Salario mensual",
-  "transactionDate": "2025-02-14T10:00:00Z"
+  "transactionDate": "2025-02-14T10:00:00Z",
+  "isInterest": false
 }
 ```
 
@@ -876,6 +877,10 @@ Crea un ingreso (suma al saldo de la cuenta).
 - `accountId`: Requerido
 - `amount`: Requerido, mínimo 0.01
 - `transactionDate`: Requerido, debe ser UTC
+- `isInterest`: Opcional (por defecto `false`). Marca el ingreso como **rendimiento** de una
+  cuenta que devenga interés. El movimiento sigue siendo `type: "income"` y mueve el saldo
+  igual que cualquier otro ingreso; el flag solo lo clasifica para reportarlo aparte. Si la
+  cuenta no tiene `earnsInterest`, el alta responde 400 y no escribe nada.
 
 **Response (201 Created):** Objeto Transaction completo
 

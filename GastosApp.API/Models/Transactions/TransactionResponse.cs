@@ -15,6 +15,8 @@ public class TransactionResponse
     public int? CounterpartyAccountId { get; set; }
     public string? Description { get; set; }
     public DateTime TransactionDate { get; set; }
+    /// <summary>Verdadero cuando el ingreso es rendimiento de una cuenta que devenga interés.</summary>
+    public bool IsInterest { get; set; }
     public IEnumerable<string> Tags { get; set; } = Array.Empty<string>();
     public IEnumerable<TransactionAllocationResponse> Allocations { get; set; } = Array.Empty<TransactionAllocationResponse>();
 }

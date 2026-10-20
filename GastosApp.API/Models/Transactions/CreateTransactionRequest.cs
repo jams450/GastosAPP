@@ -39,6 +39,14 @@ public class CreateTransactionRequest : IValidatableObject
     [Range(1, int.MaxValue)]
     public int? BudgetItemId { get; set; }
 
+    /// <summary>
+    /// Marca el ingreso como rendimiento de una cuenta que devenga interés. Solo clasifica: el
+    /// movimiento sigue siendo <c>income</c> y mueve el saldo igual que cualquier otro ingreso.
+    /// El servicio rechaza la marca cuando la cuenta no devenga interés, así que la regla no
+    /// depende del cliente.
+    /// </summary>
+    public bool IsInterest { get; set; }
+
     public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
     {
         if (TransactionDate == default)

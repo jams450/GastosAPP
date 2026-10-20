@@ -67,6 +67,14 @@ namespace GastosApp.Models.Entities
         [Column("origin_recurring_item_id")]
         public int? OriginRecurringItemId { get; set; }
 
+        /// <summary>
+        /// Verdadero cuando el ingreso es rendimiento de una cuenta que devenga interés.
+        /// Solo clasifica: el saldo se mueve igual que cualquier otro ingreso, así que
+        /// <see cref="Type"/> sigue siendo <c>income</c>.
+        /// </summary>
+        [Column("is_interest")]
+        public bool IsInterest { get; set; }
+
         [ForeignKey("AccountId")]
         public virtual Account Account { get; set; } = null!;
 

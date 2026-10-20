@@ -251,7 +251,8 @@ namespace GastosApp.API.Controllers
                 MerchantId = request.MerchantId,
                 Amount = request.Amount,
                 Description = request.Description,
-                TransactionDate = request.TransactionDate.UtcDateTime
+                TransactionDate = request.TransactionDate.UtcDateTime,
+                IsInterest = request.IsInterest
             };
 
             var allocationItems = request.CreditAllocations?
@@ -421,6 +422,7 @@ namespace GastosApp.API.Controllers
             if (request.Description != null) transactionToUpdate.Description = request.Description;
             if (request.TransactionDate.HasValue)
                 transactionToUpdate.TransactionDate = request.TransactionDate.Value.UtcDateTime;
+            if (request.IsInterest.HasValue) transactionToUpdate.IsInterest = request.IsInterest.Value;
 
             var dimensionsValidation = await _transactionService.ValidateAnalyticsDimensionsAsync(
                 userId,
@@ -791,6 +793,7 @@ namespace GastosApp.API.Controllers
                 CounterpartyAccountId = transaction.CounterpartyAccountId,
                 Description = transaction.Description,
                 TransactionDate = transaction.TransactionDate,
+                IsInterest = transaction.IsInterest,
                 Tags = tags,
                 Allocations = allocations
             };

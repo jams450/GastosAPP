@@ -23,4 +23,10 @@ public class UpdateTransactionRequest
     public List<TransactionAllocationRequest>? Allocations { get; set; }
 
     public bool ReplaceAllocations { get; set; } = false;
+
+    /// <summary>
+    /// Marca o desmarca el ingreso como rendimiento. <c>null</c> deja el valor actual: la edición
+    /// no cambia una clasificación que el cliente no pidió tocar.
+    /// </summary>
+    public bool? IsInterest { get; set; }
 }

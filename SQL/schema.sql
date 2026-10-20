@@ -147,6 +147,7 @@ CREATE TABLE transactions (
     counterparty_account_id INT,
     description TEXT,
     transaction_date TIMESTAMP WITH TIME ZONE NOT NULL,
+    is_interest BOOLEAN NOT NULL DEFAULT FALSE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     created_by VARCHAR(100),
@@ -775,6 +776,19 @@ ALTER TABLE transactions
     ADD CONSTRAINT fk_transactions_origin_recurring_item
         FOREIGN KEY (origin_recurring_item_id) REFERENCES recurring_items(recurring_item_id)
         ON DELETE SET NULL;
+
+-- Rendimiento de una cuenta que devenga interés.
+-- `type` no cambia: el rendimiento es dinero real acreditado y sigue siendo 'income', así que
+-- todos los cálculos existentes de ingreso y saldo lo tratan igual. El flag solo lo clasifica
+-- para poder reportarlo aparte; el CHECK impide marcarlo sobre un gasto o una transferencia.
+-- Réplica de SQL/migrations/2026-10-19_transaction_interest_flag.sql.
+ALTER TABLE transactions
+    ADD COLUMN IF NOT EXISTS is_interest BOOLEAN NOT NULL DEFAULT FALSE;
+
+ALTER TABLE transactions DROP CONSTRAINT IF EXISTS chk_transactions_interest_income_only;
+ALTER TABLE transactions
+    ADD CONSTRAINT chk_transactions_interest_income_only
+    CHECK (is_interest = FALSE OR type = 'income');
 
 -- Libera la partida cuando desaparece la transacción que la cumplía.
 -- Por qué en la base y no en el servicio: transactions.account_id referencia a accounts con

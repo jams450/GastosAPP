@@ -79,6 +79,14 @@ namespace GastosApp.BusinessLogic.Services
                 transaction.CounterpartyAccountId = null;
                 transaction.TransactionDate = _validation.EnsureUtc(transaction.TransactionDate);
 
+                // La marca de rendimiento solo tiene sentido en una cuenta que devenga interés. La
+                // UI esconde el interruptor en las demás, pero la regla se comprueba aquí para no
+                // depender del cliente.
+                if (transaction.IsInterest && !account.EarnsInterest)
+                {
+                    throw new ArgumentException("La cuenta no devenga interés: no puede registrarse un rendimiento");
+                }
+
                 var result = await _repository.Save(transaction);
                 await _tagService.SyncTransactionTagsAsync(result.TransactionId, userId, tags);
                 await UpdateAccountBalanceAsync(transaction.AccountId, transaction.Amount);
@@ -374,6 +382,14 @@ namespace GastosApp.BusinessLogic.Services
                 if (existing == null || existing.AccountId != transactionAccount.AccountId)
                 {
                     return ((Transaction?)null, "Transaction not found");
+                }
+
+                // Encender la marca exige que la cuenta devenga interés. Mantenerla encendida no:
+                // una cuenta pudo dejar de devengarlo y su histórico sigue siendo válido, así que
+                // editar otros campos no debe fallar.
+                if (transaction.IsInterest && !existing.IsInterest && !lockedAccounts[0].EarnsInterest)
+                {
+                    throw new ArgumentException("La cuenta no devenga interés: no puede registrarse un rendimiento");
                 }
 
                 if (transaction.Amount <= 0)
