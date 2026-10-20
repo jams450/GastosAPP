@@ -2,6 +2,7 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import { DataGrid } from "@/components/data-grid/data-grid";
+import { gridMeta } from "@/lib/ui/grid-responsive";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -167,15 +168,17 @@ export function CategoriesSection({ categories, onCatalogChanged, onError, onSuc
   }
 
   const categoryColumns: ColumnDef<Category>[] = [
-    { accessorKey: "name", header: "Nombre" },
+    { accessorKey: "name", header: "Nombre", meta: gridMeta({ mobileRole: "title" }) },
     {
       accessorKey: "type",
       header: "Tipo",
+      meta: gridMeta({ mobileLabel: "Tipo" }),
       cell: ({ row }) => categoryTypeLabel[row.original.type]
     },
     {
       accessorKey: "color",
       header: "Color",
+      meta: gridMeta({ tabletHidden: true }),
       cell: ({ row }) => (
         <span className="text-secondary inline-flex items-center gap-1.5 text-xs">
           <span className="border-default h-2.5 w-2.5 rounded-full border" style={{ backgroundColor: row.original.color }} />
@@ -186,12 +189,14 @@ export function CategoriesSection({ categories, onCatalogChanged, onError, onSuc
     {
       id: "tags",
       header: "Tags",
+      meta: gridMeta({ tabletHidden: true }),
       accessorFn: (row) => row.tags.length,
       cell: ({ row }) => row.original.tags.length
     },
     {
       accessorKey: "active",
       header: "Estado",
+      meta: gridMeta({ mobileRole: "status" }),
       cell: ({ row }) => <StatusBadge active={row.original.active} />
     },
     {

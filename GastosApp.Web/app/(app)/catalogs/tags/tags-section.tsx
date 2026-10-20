@@ -2,6 +2,7 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import { DataGrid } from "@/components/data-grid/data-grid";
+import { gridMeta } from "@/lib/ui/grid-responsive";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -127,10 +128,11 @@ export function TagsSection({ tags, onCatalogChanged, onError, onSuccess }: Prop
   }
 
   const tagColumns: ColumnDef<Tag>[] = [
-    { accessorKey: "name", header: "Nombre" },
+    { accessorKey: "name", header: "Nombre", meta: gridMeta({ mobileRole: "title" }) },
     {
       accessorKey: "active",
       header: "Estado",
+      meta: gridMeta({ mobileRole: "status" }),
       cell: ({ row }) => <StatusBadge active={row.original.active} />
     },
     {

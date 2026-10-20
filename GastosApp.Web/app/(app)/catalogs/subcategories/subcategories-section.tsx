@@ -2,6 +2,7 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import { DataGrid } from "@/components/data-grid/data-grid";
+import { gridMeta } from "@/lib/ui/grid-responsive";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -166,16 +167,18 @@ export function SubcategoriesSection({ categories, subcategories, onCatalogChang
   }
 
   const subcategoryColumns: ColumnDef<Subcategory>[] = [
-    { accessorKey: "name", header: "Nombre" },
+    { accessorKey: "name", header: "Nombre", meta: gridMeta({ mobileRole: "title" }) },
     {
       id: "categoryName",
       header: "Categoría",
+      meta: gridMeta({ mobileLabel: "Categoría", mobileRole: "subtitle" }),
       accessorFn: (row) => categoryNameById.get(row.categoryId) ?? "Sin categoría",
       cell: ({ row }) => categoryNameById.get(row.original.categoryId) ?? "Sin categoría"
     },
     {
       accessorKey: "active",
       header: "Estado",
+      meta: gridMeta({ mobileRole: "status" }),
       cell: ({ row }) => <StatusBadge active={row.original.active} />
     },
     {

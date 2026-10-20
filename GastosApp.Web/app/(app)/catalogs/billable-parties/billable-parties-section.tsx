@@ -2,6 +2,7 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { useState } from "react";
 import type { FormEvent } from "react";
 import { DataGrid } from "@/components/data-grid/data-grid";
+import { gridMeta } from "@/lib/ui/grid-responsive";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -117,13 +118,19 @@ export function BillablePartiesSection({ billableParties, onCatalogChanged, onEr
   }
 
   const columns: ColumnDef<BillableParty>[] = [
-    { accessorKey: "displayName", header: "Nombre" },
+    { accessorKey: "displayName", header: "Nombre", meta: gridMeta({ mobileRole: "title" }) },
     {
       accessorKey: "type",
       header: "Tipo",
+      meta: gridMeta({ mobileLabel: "Tipo" }),
       cell: ({ row }) => billablePartyTypeLabel[(row.original.type as BillablePartyType) ?? "external_person"]
     },
-    { accessorKey: "active", header: "Estado", cell: ({ row }) => <StatusBadge active={row.original.active} /> },
+    {
+      accessorKey: "active",
+      header: "Estado",
+      meta: gridMeta({ mobileRole: "status" }),
+      cell: ({ row }) => <StatusBadge active={row.original.active} />
+    },
     {
       id: "actions",
       header: "",

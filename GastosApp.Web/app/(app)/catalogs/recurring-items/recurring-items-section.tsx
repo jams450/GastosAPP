@@ -3,6 +3,7 @@ import { X } from "lucide-react";
 import { useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import { DataGrid } from "@/components/data-grid/data-grid";
+import { gridMeta } from "@/lib/ui/grid-responsive";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -209,45 +210,53 @@ export function RecurringItemsSection({
   }
 
   const columns: ColumnDef<RecurringItem>[] = [
-    { accessorKey: "name", header: "Nombre" },
+    { accessorKey: "name", header: "Nombre", meta: gridMeta({ mobileRole: "title" }) },
     {
       accessorKey: "kind",
       header: "Tipo",
+      meta: gridMeta({ mobileLabel: "Tipo" }),
       cell: ({ row }) => recurringItemKindLabel(row.original.kind)
     },
     {
       id: "amount",
       header: "Monto",
+      meta: gridMeta({ mobileLabel: "Monto", mobileRole: "amount" }),
       cell: ({ row }) => formatRecurringItemAmount(row.original.amountMxn, row.original.amountMode)
     },
     {
       accessorKey: "dayOfMonth",
       header: "Día",
+      meta: gridMeta({ tabletHidden: true }),
       cell: ({ row }) => String(row.original.dayOfMonth)
     },
     {
       id: "effectiveFrom",
       header: "Efectiva",
+      meta: gridMeta({ tabletHidden: true }),
       cell: ({ row }) => (row.original.effectiveFrom ? row.original.effectiveFrom.slice(0, 10) : "—")
     },
     {
       id: "account",
       header: "Cuenta",
+      meta: gridMeta({ mobileLabel: "Cuenta" }),
       cell: ({ row }) => resolveAccountLabel(row.original.accountId, accounts)
     },
     {
       id: "scope",
       header: "Categoría",
+      meta: gridMeta({ mobileLabel: "Categoría" }),
       cell: ({ row }) => resolveScopeLabel(row.original.categoryId, row.original.subcategoryId, categories, subcategories)
     },
     {
       id: "validity",
       header: "Vigencia",
+      meta: gridMeta({ tabletHidden: true }),
       cell: ({ row }) => formatRecurringItemValidity(row.original.startsPeriod, row.original.endsPeriod)
     },
     {
       accessorKey: "active",
       header: "Estado",
+      meta: gridMeta({ mobileRole: "status" }),
       cell: ({ row }) => <StatusBadge active={row.original.active} />
     },
     {
