@@ -86,6 +86,8 @@ export function TransactionsClient({ username, fixedKind, fixedViewMode }: Props
   const [transactionDate, setTransactionDate] = useState<string>(currentLocalDateTimeInput());
   const [msiMonths, setMsiMonths] = useState<number>(1);
   const [openingCreditCharge, setOpeningCreditCharge] = useState<boolean>(false);
+  // Rendimiento: solo se ofrece cuando la cuenta seleccionada devenga interés.
+  const [isInterest, setIsInterest] = useState<boolean>(false);
   const [expenseAllocations, setExpenseAllocations] = useState<ExpenseAllocationFormState[]>([]);
 
   const defaultSelfBillablePartyId = useMemo(() => {
@@ -262,6 +264,14 @@ export function TransactionsClient({ username, fixedKind, fixedViewMode }: Props
     }
   }, [accountById, accountId]);
 
+  // La marca de rendimiento se limpia si la cuenta deja de devengar interés: el API la rechaza
+  // en ese caso, así que el cliente no debe poder enviarla.
+  useEffect(() => {
+    if (!accountId || !accountById.get(accountId)?.earnsInterest) {
+      setIsInterest(false);
+    }
+  }, [accountById, accountId]);
+
   const {
     historyLoading,
     historyError,
@@ -396,6 +406,7 @@ export function TransactionsClient({ username, fixedKind, fixedViewMode }: Props
       transactionDate,
       msiMonths,
       openingCreditCharge,
+      isInterest,
       expenseAllocations
     },
     selectedAllocations,
@@ -416,6 +427,7 @@ export function TransactionsClient({ username, fixedKind, fixedViewMode }: Props
     setTransactionDate,
     setMsiMonths,
     setOpeningCreditCharge,
+    setIsInterest,
     setExpenseAllocations,
     defaultSelfBillablePartyId,
     clearAllocations,
@@ -513,6 +525,8 @@ export function TransactionsClient({ username, fixedKind, fixedViewMode }: Props
                     onTransactionDateChange: setTransactionDate,
                     description,
                     onDescriptionChange: setDescription,
+                    isInterest,
+                    onIsInterestChange: setIsInterest,
                     submitError,
                     submitLoading,
                     onSubmit,

@@ -19,6 +19,7 @@ type TransactionListItem = {
   amount: number;
   description: string;
   transactionDate: string;
+  isInterest: boolean;
   tags: string[];
   creditMonths: number | null;
   creditRemainingAmount: number | null;
@@ -124,6 +125,7 @@ function normalizeTransaction(input: unknown): TransactionListItem | null {
     amount,
     description: typeof (input.description ?? input.Description) === "string" ? String(input.description ?? input.Description) : "",
     transactionDate,
+    isInterest: input.isInterest === true || input.IsInterest === true,
     tags: normalizedTags,
     creditMonths: null,
     creditRemainingAmount: null,

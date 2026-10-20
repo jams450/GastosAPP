@@ -34,6 +34,11 @@ export type TransactionHistoryItem = {
   amount: number;
   description: string;
   transactionDate: string;
+  /**
+   * Verdadero cuando el ingreso es rendimiento de una cuenta que devenga interés.
+   * Opcional para no romper fixtures ni respuestas previas: ausente equivale a falso.
+   */
+  isInterest?: boolean;
   tags: string[];
   creditMonths: number | null;
   creditRemainingAmount: number | null;

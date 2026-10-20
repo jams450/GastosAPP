@@ -32,6 +32,9 @@ type Props = {
   onTransactionDateChange: (value: string) => void;
   description: string;
   onDescriptionChange: (value: string) => void;
+  /** Rendimiento de una cuenta que devenga interés (solo visible en esas cuentas). */
+  isInterest: boolean;
+  onIsInterestChange: (value: boolean) => void;
   submitError?: string | null;
   submitLoading: boolean;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
@@ -61,6 +64,8 @@ export function IncomeForm({
   onTransactionDateChange,
   description,
   onDescriptionChange,
+  isInterest,
+  onIsInterestChange,
   submitLoading,
   onSubmit,
   parseSelectedNumber,
@@ -70,6 +75,14 @@ export function IncomeForm({
     () => categoriesForKind.find((category) => category.categoryId === categoryId)?.name?.toLowerCase() ?? "",
     [categoriesForKind, categoryId]
   );
+
+  // La marca de rendimiento solo tiene sentido en una cuenta que devenga interés. Se resuelve
+  // aquí, desde los catálogos, para no pedirle al consumidor que repita la regla.
+  const selectedAccount = useMemo(
+    () => accounts.find((account) => account.accountId === accountId) ?? null,
+    [accounts, accountId]
+  );
+  const canMarkInterest = selectedAccount?.earnsInterest === true;
 
   const amountNumber = Number(amount);
   const amountIsValid = Number.isFinite(amountNumber) && amountNumber > 0;
@@ -196,6 +209,24 @@ export function IncomeForm({
           required
         />
         <p className="px-1 text-right text-xs text-muted">{description.trim().length}/120</p>
+
+        {canMarkInterest ? (
+          <label className="text-secondary flex items-start gap-2 rounded-[var(--radius-sm)] border border-[var(--color-border)] bg-[var(--color-surface-2)] p-3 text-sm">
+            <input
+              type="checkbox"
+              className="mt-0.5 h-4 w-4 accent-[var(--color-accent)]"
+              checked={isInterest}
+              onChange={(event) => onIsInterestChange(event.target.checked)}
+            />
+            <span className="min-w-0">
+              <span className="text-primary block font-semibold">Es rendimiento de la cuenta</span>
+              <span className="text-muted mt-0.5 block text-xs">
+                Marca el movimiento como interés ganado en {selectedAccount?.name ?? "esta cuenta"}. Sigue sumando al saldo como
+                cualquier ingreso; solo se clasifica aparte para poder reportarlo.
+              </span>
+            </span>
+          </label>
+        ) : null}
       </section>
 
       <section className="app-panel space-y-3 p-4">

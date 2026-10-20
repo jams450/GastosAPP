@@ -20,6 +20,9 @@ type CreateState = {
   transactionDate: string;
   msiMonths: number;
   openingCreditCharge: boolean;
+  /** Verdadero cuando el ingreso capturado es rendimiento de una cuenta que devenga interés.
+   *  Opcional: solo la pantalla de ingresos lo alimenta. */
+  isInterest?: boolean;
   expenseAllocations?: ExpenseAllocationFormState[];
 };
 
@@ -43,6 +46,7 @@ type Params = {
   setTransactionDate: (v: string) => void;
   setMsiMonths: (v: number) => void;
   setOpeningCreditCharge: (v: boolean) => void;
+  setIsInterest?: (v: boolean) => void;
   setExpenseAllocations?: (v: ExpenseAllocationFormState[]) => void;
   defaultSelfBillablePartyId?: number | null;
   clearAllocations: () => void;
@@ -78,6 +82,7 @@ export function useTransactionMutations(params: Params) {
     setTransactionDate,
     setMsiMonths,
     setOpeningCreditCharge,
+    setIsInterest,
     setExpenseAllocations,
     defaultSelfBillablePartyId,
     clearAllocations,
@@ -97,7 +102,7 @@ export function useTransactionMutations(params: Params) {
     setSubmitError(null);
     setSuccessMessage(null);
 
-    const { kind, accountId, sourceAccountId, destinationAccountId, categoryId, subcategoryId, merchantId, tagsText, description, transactionDate, msiMonths, openingCreditCharge, expenseAllocations } = createState;
+    const { kind, accountId, sourceAccountId, destinationAccountId, categoryId, subcategoryId, merchantId, tagsText, description, transactionDate, msiMonths, openingCreditCharge, isInterest, expenseAllocations } = createState;
     let amountNumber = Number(createState.amount);
 
     const transactionDateUtc = toUtcIsoDateTime(transactionDate);
@@ -205,7 +210,9 @@ export function useTransactionMutations(params: Params) {
             transactionDate: transactionDateUtc,
             msiMonths: kind === "expense" && msiMonths > 1 ? msiMonths : undefined,
             creditAllocations,
-            allocations: kind === "expense" && normalizedAllocations.length > 0 ? normalizedAllocations : undefined
+            allocations: kind === "expense" && normalizedAllocations.length > 0 ? normalizedAllocations : undefined,
+            // Solo viaja cuando es verdadero: un ingreso ordinario no arrastra la marca.
+            isInterest: kind === "income" && isInterest ? true : undefined
           };
         }
       } else {
@@ -236,6 +243,7 @@ export function useTransactionMutations(params: Params) {
       setTransactionDate(currentLocalDateTimeInput());
       setMsiMonths(1);
       setOpeningCreditCharge(false);
+      setIsInterest?.(false);
       if (kind === "expense" && setExpenseAllocations) {
         setExpenseAllocations([
           { rowId: crypto.randomUUID(), billablePartyId: defaultSelfBillablePartyId ?? null, type: "percentage", value: "100" }
@@ -251,7 +259,7 @@ export function useTransactionMutations(params: Params) {
     } finally {
       setSubmitLoading(false);
     }
-  }, [allocationMode, clearAllocations, createState, defaultSelfBillablePartyId, isCreditPaymentFlow, refreshCatalogs, reloadOpenInstallments, selectedAllocationTotal, selectedAllocations, setAmount, setDescription, setExpenseAllocations, setMerchantId, setMsiMonths, setOpeningCreditCharge, setSubcategoryId, setSubmitError, setSubmitLoading, setSuccessMessage, setTagsText, setTransactionDate]);
+  }, [allocationMode, clearAllocations, createState, defaultSelfBillablePartyId, isCreditPaymentFlow, refreshCatalogs, reloadOpenInstallments, selectedAllocationTotal, selectedAllocations, setAmount, setDescription, setExpenseAllocations, setIsInterest, setMerchantId, setMsiMonths, setOpeningCreditCharge, setSubcategoryId, setSubmitError, setSubmitLoading, setSuccessMessage, setTagsText, setTransactionDate]);
 
   const onSaveEdit = useCallback(async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();

@@ -31,6 +31,8 @@ export function IncomeClient({ username, initialRepeat }: Props) {
   const [amount, setAmount] = useState<string>(initialRepeat?.amount ?? defaults.amount);
   const [description, setDescription] = useState<string>(initialRepeat?.description ?? defaults.description);
   const [transactionDate, setTransactionDate] = useState<string>(defaults.transactionDate);
+  // Rendimiento: solo se ofrece cuando la cuenta seleccionada devenga interés.
+  const [isInterest, setIsInterest] = useState<boolean>(false);
   const [submitLoading, setSubmitLoading] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -57,6 +59,14 @@ export function IncomeClient({ username, initialRepeat }: Props) {
     catalogs?.accounts.forEach((account) => map.set(account.accountId, account));
     return map;
   }, [catalogs]);
+
+  // El API rechaza la marca sobre una cuenta que no devenga interés, así que el cliente la
+  // limpia al cambiar de cuenta en vez de dejar que falle el envío.
+  useEffect(() => {
+    if (!accountId || !accountById.get(accountId)?.earnsInterest) {
+      setIsInterest(false);
+    }
+  }, [accountById, accountId]);
 
   const categoriesForKind = useMemo<Category[]>(() => catalogs?.categoriesByType.income ?? [], [catalogs]);
 
@@ -108,7 +118,8 @@ export function IncomeClient({ username, initialRepeat }: Props) {
       description,
       transactionDate,
        msiMonths,
-       openingCreditCharge
+       openingCreditCharge,
+      isInterest
 
     },
     selectedAllocations,
@@ -129,6 +140,7 @@ export function IncomeClient({ username, initialRepeat }: Props) {
     setTransactionDate,
     setMsiMonths: () => {},
     setOpeningCreditCharge: () => {},
+    setIsInterest,
 
     clearAllocations,
     editForm: null,
@@ -187,6 +199,8 @@ export function IncomeClient({ username, initialRepeat }: Props) {
             onTransactionDateChange: setTransactionDate,
               description,
               onDescriptionChange: setDescription,
+              isInterest,
+              onIsInterestChange: setIsInterest,
                submitLoading,
 
 

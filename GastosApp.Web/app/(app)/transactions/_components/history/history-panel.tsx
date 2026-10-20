@@ -45,6 +45,9 @@ function renderTransactionCard(item: TransactionHistoryItem, actions: ReactNode,
         <span className="shrink-0 font-semibold tabular-nums">{item.type === "income" ? "+" : item.type === "expense" || item.type === "opening_credit" ? "−" : ""}{formatCurrency(Math.abs(item.amount))}</span>
       </div>
       <p className="text-muted text-xs">{historyTypeLabel[item.type]} · {value("categoryId")} · {value("subcategoryId")} · {value("merchantId")}</p>
+      {item.isInterest === true ? (
+        <p className="m-0"><span className="txn-type-badge txn-type-interest">Rendimiento</span></p>
+      ) : null}
       {item.type === "expense" && item.allocations.length ? <p className="text-muted text-xs">¿Alguien más paga?: {value("sharedExpense")}</p> : null}
       {item.tags.length ? <p className="text-muted text-xs">Etiquetas: {item.tags.join(", ")}</p> : null}
       {item.type === "expense" && item.creditMonths !== null ? <p className="text-muted text-xs">{item.creditMonths} meses · {item.creditRemainingAmount === null ? "—" : `Pendiente ${formatCurrency(item.creditRemainingAmount)}`} · {item.creditStatus ?? "Pendiente"}</p> : null}

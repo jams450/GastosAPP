@@ -4,6 +4,7 @@ import { CalendarClock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { formatCurrency } from "@/lib/format/currency";
 import { tableActionStyles } from "@/lib/ui/table-action-styles";
+import { gridMeta } from "@/lib/ui/grid-responsive";
 import { dateTimeLocalDisplay } from "../_lib/transactions-utils";
 import { canScheduleTransaction } from "../_lib/transactions-schedule";
 import { historyTypeLabel, type HistoryTransactionType, type TransactionHistoryItem, type TransferGroupItem } from "../_lib/transactions-types";
@@ -62,41 +63,54 @@ export function useHistoryColumns({
 }: Params) {
   const historyColumns = useMemo<ColumnDef<TransactionHistoryItem>[]>(
     () => [
-      { accessorKey: "transactionDate", header: "Fecha", cell: ({ row }) => dateTimeLocalDisplay(row.original.transactionDate) },
+      { accessorKey: "transactionDate", header: "Fecha", meta: gridMeta({ mobileLabel: "Fecha" }), cell: ({ row }) => dateTimeLocalDisplay(row.original.transactionDate) },
       {
         id: "type",
         accessorFn: (row) => historyTypeLabel[row.type],
         header: "Tipo",
-        cell: ({ row }) => <span className={typeBadgeClass[row.original.type]}>{historyTypeLabel[row.original.type]}</span>
+        meta: gridMeta({ mobileRole: "status" }),
+        cell: ({ row }) => (
+          <span className="inline-flex flex-wrap items-center gap-1">
+            <span className={typeBadgeClass[row.original.type]}>{historyTypeLabel[row.original.type]}</span>
+            {row.original.isInterest === true ? (
+              <span className="txn-type-badge txn-type-interest">Rendimiento</span>
+            ) : null}
+          </span>
+        )
       },
-      { accessorKey: "accountName", header: "Cuenta" },
+      { accessorKey: "accountName", header: "Cuenta", meta: gridMeta({ mobileRole: "subtitle" }) },
       {
         id: "categoryId",
         accessorFn: (row) => (row.categoryId ? (categoryNameById.get(row.categoryId) ?? "—") : "—"),
         header: "Categoría",
+        meta: gridMeta({ mobileLabel: "Categoría" }),
         cell: ({ row }) => (row.original.categoryId ? (categoryNameById.get(row.original.categoryId) ?? "—") : "—")
       },
       {
         id: "subcategoryId",
         accessorFn: (row) => (row.subcategoryId ? (subcategoryNameById.get(row.subcategoryId) ?? "—") : "—"),
         header: "Subcategoría",
+        meta: gridMeta({ tabletHidden: true }),
         cell: ({ row }) => (row.original.subcategoryId ? (subcategoryNameById.get(row.original.subcategoryId) ?? "—") : "—")
       },
       {
         id: "merchantId",
         accessorFn: (row) => (row.merchantId ? (merchantNameById.get(row.merchantId) ?? "—") : "—"),
         header: "Comercio",
+        meta: gridMeta({ tabletHidden: true }),
         cell: ({ row }) => (row.original.merchantId ? (merchantNameById.get(row.original.merchantId) ?? "—") : "—")
       },
-      { accessorKey: "amount", header: "Monto", cell: ({ row }) => renderSignedAmount(row.original.type, row.original.amount) },
+      { accessorKey: "amount", header: "Monto", meta: gridMeta({ mobileRole: "amount" }), cell: ({ row }) => renderSignedAmount(row.original.type, row.original.amount) },
       {
         accessorKey: "creditMonths",
         header: "Meses",
+        meta: gridMeta({ tabletHidden: true }),
         cell: ({ row }) => (row.original.type === "expense" && accountById.get(row.original.accountId)?.isCredit ? (row.original.creditMonths ?? "—") : "—")
       },
       {
         accessorKey: "creditRemainingAmount",
         header: "Falta pagar",
+        meta: gridMeta({ tabletHidden: true }),
         cell: ({ row }) => (row.original.type === "expense" && accountById.get(row.original.accountId)?.isCredit && row.original.creditRemainingAmount !== null
           ? formatCurrency(row.original.creditRemainingAmount)
           : "—")
@@ -104,6 +118,7 @@ export function useHistoryColumns({
       {
         accessorKey: "creditStatus",
         header: "Estado crédito",
+        meta: gridMeta({ tabletHidden: true }),
         cell: ({ row }) => {
           if (!(row.original.type === "expense" && accountById.get(row.original.accountId)?.isCredit)) {
             return "—";
@@ -122,10 +137,11 @@ export function useHistoryColumns({
           return <span className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold ${tone}`}>{label}</span>;
         }
       },
-      { accessorKey: "description", header: "Descripción" },
+      { accessorKey: "description", header: "Descripción", meta: gridMeta({ mobileLabel: "Descripción" }) },
       {
         id: "sharedExpense",
         header: "¿Alguien más paga?",
+        meta: gridMeta({ tabletHidden: true }),
         cell: ({ row }) => {
           const distinctBillablePartyIds = new Set(row.original.allocations.map((allocation) => allocation.billablePartyId));
           if (distinctBillablePartyIds.size === 0) {
@@ -207,39 +223,45 @@ export function useHistoryColumns({
         id: "type",
         accessorFn: () => "Transferencia",
         header: "Tipo",
+        meta: gridMeta({ mobileRole: "status" }),
         cell: () => <span className="txn-type-badge txn-type-transfer">Transferencia</span>
       },
-      { accessorKey: "transactionDate", header: "Fecha", cell: ({ row }) => dateTimeLocalDisplay(row.original.transactionDate) },
-      { accessorKey: "accountFromName", header: "Cuenta A" },
-      { accessorKey: "accountToName", header: "Cuenta B" },
+      { accessorKey: "transactionDate", header: "Fecha", meta: gridMeta({ mobileLabel: "Fecha" }), cell: ({ row }) => dateTimeLocalDisplay(row.original.transactionDate) },
+      { accessorKey: "accountFromName", header: "Cuenta A", meta: gridMeta({ mobileLabel: "Desde", mobileRole: "title" }) },
+      { accessorKey: "accountToName", header: "Cuenta B", meta: gridMeta({ mobileLabel: "Hacia", mobileRole: "subtitle" }) },
       {
         id: "categoryId",
         accessorFn: (row) => (row.categoryId ? (categoryNameById.get(row.categoryId) ?? "—") : "—"),
         header: "Categoría",
+        meta: gridMeta({ mobileLabel: "Categoría" }),
         cell: ({ row }) => (row.original.categoryId ? (categoryNameById.get(row.original.categoryId) ?? "—") : "—")
       },
       {
         id: "subcategoryId",
         accessorFn: (row) => (row.subcategoryId ? (subcategoryNameById.get(row.subcategoryId) ?? "—") : "—"),
         header: "Subcategoría",
+        meta: gridMeta({ tabletHidden: true }),
         cell: ({ row }) => (row.original.subcategoryId ? (subcategoryNameById.get(row.original.subcategoryId) ?? "—") : "—")
       },
       {
         id: "merchantId",
         accessorFn: (row) => (row.merchantId ? (merchantNameById.get(row.merchantId) ?? "—") : "—"),
         header: "Comercio",
+        meta: gridMeta({ tabletHidden: true }),
         cell: ({ row }) => (row.original.merchantId ? (merchantNameById.get(row.original.merchantId) ?? "—") : "—")
       },
       {
         accessorKey: "amount",
         header: "Monto",
+        meta: gridMeta({ mobileRole: "amount" }),
         cell: ({ row }) => <span className="txn-amount txn-amount-transfer">{formatCurrency(Math.abs(row.original.amount))}</span>
       },
-      { accessorKey: "description", header: "Descripción" },
+      { accessorKey: "description", header: "Descripción", meta: gridMeta({ mobileLabel: "Descripción" }) },
       {
         id: "tags",
         accessorFn: (row) => (row.tags.length > 0 ? row.tags.join(", ") : "—"),
         header: "Tags",
+        meta: gridMeta({ tabletHidden: true }),
         cell: ({ row }) => (row.original.tags.length > 0 ? row.original.tags.join(", ") : "—")
       },
       {

@@ -14,6 +14,11 @@ export type IncomeExpenseTransactionRequest = {
   allocations?: TransactionAllocation[];
   /** Partida `pending` a la que se enlaza el gasto al crearse (alta "desde partida"). */
   budgetItemId?: number;
+  /**
+   * Marca el ingreso como rendimiento de una cuenta que devenga interés. El API rechaza la marca
+   * si la cuenta no devenga interés, así que la regla no depende de esta capa.
+   */
+  isInterest?: boolean;
 };
 
 export type TransferTransactionRequest = {
@@ -207,6 +212,9 @@ export function validateIncomeExpensePayload(input: unknown): ValidationResult<I
   // Opcional y nunca obligatorio: sin partida el alta es la de siempre. Un valor no numérico o
   // no positivo se normaliza a `undefined` y el API crea el gasto sin enlace, igual que hoy.
   const budgetItemId = toOptionalPositiveNumber(input.budgetItemId);
+  // Solo se envía cuando es verdadero: así una edición que no pide cambiar la clasificación no
+  // la borra en el API, donde `isInterest: null` significa "deja el valor actual".
+  const isInterest = input.isInterest === true ? true : undefined;
 
   if (!accountId || !categoryId || !amount || !description || !transactionDate) {
     return {
@@ -229,7 +237,8 @@ export function validateIncomeExpensePayload(input: unknown): ValidationResult<I
       msiMonths,
       creditAllocations,
       allocations,
-      budgetItemId
+      budgetItemId,
+      isInterest
     }
   };
 }
