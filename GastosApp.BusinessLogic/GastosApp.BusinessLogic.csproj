@@ -10,6 +10,12 @@
     <PackageReference Include="UglyToad.PdfPig" Version="1.7.0-custom-5" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- El harness del dashboard prueba calculadores internos (la aritmetica de reportes) sin pasar
+         por EF. No es un proyecto VSTest: se ejecuta aparte, con "dotnet run" sobre ese proyecto. -->
+    <InternalsVisibleTo Include="GastosApp.Dashboard.Tests" />
+  </ItemGroup>
+
   <PropertyGroup>
     <TargetFramework>net9.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>

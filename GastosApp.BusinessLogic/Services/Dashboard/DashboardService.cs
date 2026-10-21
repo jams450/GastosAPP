@@ -805,7 +805,7 @@ namespace GastosApp.BusinessLogic.Services
                 .ToDictionaryAsync(a => a.AccountId, a => a.IsCredit);
         }
 
-        private static DashboardFinancialSummary CalculateFinancialSummary(
+        internal static DashboardFinancialSummary CalculateFinancialSummary(
             IEnumerable<MonthTransactionRow> transactions,
             IReadOnlyDictionary<int, bool> accountCreditTypes)
         {
@@ -979,7 +979,7 @@ namespace GastosApp.BusinessLogic.Services
         }
 
         /// <summary>Columnas leídas de <c>transactions</c> por el dashboard: evita materializar la entidad completa.</summary>
-        private sealed class MonthTransactionRow : IDashboardCashFlowTransaction
+        internal sealed class MonthTransactionRow : IDashboardCashFlowTransaction
         {
             public int TransactionId { get; set; }
             public int AccountId { get; set; }
@@ -1016,7 +1016,7 @@ namespace GastosApp.BusinessLogic.Services
             public decimal RemainingAmount { get; set; }
         }
 
-        private sealed class DashboardFinancialSummary
+        internal sealed class DashboardFinancialSummary
         {
             public decimal CashIncome { get; private set; }
             public decimal CashExpense { get; private set; }
