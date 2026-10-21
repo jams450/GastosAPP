@@ -1,9 +1,12 @@
+import { useEffect } from "react";
 import type { FormEvent } from "react";
 import { Trash2 } from "lucide-react";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { CurrencyRateField } from "../create/currency-rate-field";
+import { useCurrencyRate } from "../../_lib/use-currency-rate";
 import type { CatalogsResponse, EditFormState } from "../../_lib/transactions-types";
 
 type Props = {
@@ -31,6 +34,36 @@ export function EditTransactionModal({
   saving,
   error
 }: Props) {
+  // La tasa guardada del movimiento manda: el hook no la re-resuelve mientras no se cambie de divisa.
+  const currencyRate = useCurrencyRate(
+    form?.transactionDate ?? "",
+    form?.currencyCode,
+    form?.fxRate,
+    form?.fxRateDate
+  );
+
+  // Lo que se edite en el campo vuelve al formulario, que es quien arma el envío.
+  useEffect(() => {
+    if (!open || !form) return;
+
+    const parsedRate = Number(currencyRate.fxRate);
+    const nextRate = Number.isFinite(parsedRate) && parsedRate > 0 ? parsedRate : null;
+    if (
+      (form.currencyCode ?? "MXN") === currencyRate.currencyCode &&
+      (form.fxRate ?? null) === nextRate &&
+      (form.fxRateDate ?? null) === currencyRate.fxRateDate
+    ) {
+      return;
+    }
+
+    onChange({
+      ...form,
+      currencyCode: currencyRate.currencyCode,
+      fxRate: nextRate,
+      fxRateDate: currencyRate.fxRateDate
+    });
+  }, [open, form, onChange, currencyRate.currencyCode, currencyRate.fxRate, currencyRate.fxRateDate]);
+
   if (!open || !form) return null;
   const allocationsTotal = form.allocations.reduce((acc, row) => {
     const value = Number(row.value);
@@ -94,6 +127,12 @@ export function EditTransactionModal({
             <Input label="Monto" type="number" step="0.01" min="0.01" value={form.amount} onChange={(e) => onChange({ ...form, amount: e.target.value })} required />
             <Input label="Fecha" type="datetime-local" step="60" value={form.transactionDate} onChange={(e) => onChange({ ...form, transactionDate: e.target.value })} required />
           </div>
+
+          <CurrencyRateField
+            state={currencyRate}
+            amountNumber={Number(form.amount)}
+            amountIsValid={Number(form.amount) > 0}
+          />
 
           <Input label="Descripción" type="text" value={form.description} onChange={(e) => onChange({ ...form, description: e.target.value })} required />
           <Input label="Tags (opcional, separados por coma)" type="text" value={form.tagsText} onChange={(e) => onChange({ ...form, tagsText: e.target.value })} list="transaction-tag-suggestions" />

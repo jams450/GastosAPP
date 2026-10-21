@@ -5,7 +5,16 @@ import type { Currency, ResolvedFxRate } from "@/lib/contracts/currencies";
 
 export const BASE_CURRENCY = "MXN";
 
-const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+const ISO_DATE = /^(\d{4})-(\d{2})-(\d{2})/;
+
+/**
+ * Extrae la fecha de un valor de `<input type="datetime-local">` (`2026-10-16T18:00`) o de un ISO
+ * completo. Sin esto, la consulta viaja sin fecha y devuelve siempre la última tasa publicada.
+ */
+function toIsoDate(value: string): string | null {
+  const match = ISO_DATE.exec(value);
+  return match ? `${match[1]}-${match[2]}-${match[3]}` : null;
+}
 
 async function fetchJson<T>(path: string): Promise<T> {
   const response = await fetch(path, { cache: "no-store" });
@@ -37,9 +46,9 @@ export type CurrencyRateState = {
 /**
  * Carga el catálogo de divisas y resuelve la tasa de la divisa elegida para una fecha.
  *
- * La tasa se pide **al cambiar de divisa o de fecha**, nunca al abrir un movimiento existente: en la
- * edición se rellena con la tasa guardada y no se vuelve a descargar. Esa distinción es la que evita
- * reescribir el consolidado de un mes cerrado al corregir una descripción.
+ * Con una tasa guardada inicial (edición de un movimiento existente) no se resuelve nada al montar:
+ * se trabaja con la tasa congelada del registro y solo se consulta el catálogo si se cambia de
+ * divisa. Sin ella (captura nueva) se pide la tasa publicada para la fecha del movimiento.
  */
 export function useCurrencyRate(
   transactionDate: string,
@@ -58,6 +67,14 @@ export function useCurrencyRate(
 
   // Evita que la respuesta de una divisa anterior pise la de la divisa actual.
   const requestId = useRef(0);
+
+  // La tasa guardada del movimiento es la referencia mientras no se cambie de divisa. En la edición
+  // no se vuelve a resolver: hacerlo reescribiría el consolidado de un mes ya cerrado.
+  const stored = useRef({
+    currencyCode: initialCurrencyCode ?? null,
+    rate: initialRate != null && initialRate > 0 ? initialRate : null,
+    date: initialRateDate ?? null
+  });
 
   useEffect(() => {
     let cancelled = false;
@@ -93,8 +110,9 @@ export function useCurrencyRate(
 
     try {
       const query = new URLSearchParams({ currency: code });
-      if (ISO_DATE.test(date)) {
-        query.set("date", date);
+      const isoDate = toIsoDate(date);
+      if (isoDate) {
+        query.set("date", isoDate);
       }
 
       const rate = await fetchJson<ResolvedFxRate>(`/api/bff/fx-rates/rate?${query.toString()}`);
@@ -129,6 +147,17 @@ export function useCurrencyRate(
       setSuggestedRate(null);
       setFxRate("");
       setFxRateDate(null);
+      setIsCarryForward(false);
+      setRateError(null);
+      return;
+    }
+
+    // Volver a la divisa original del movimiento restaura su tasa guardada, no la del día.
+    const baseline = stored.current;
+    if (baseline.currencyCode === currencyCode && baseline.rate !== null) {
+      setSuggestedRate(baseline.rate);
+      setFxRate(String(baseline.rate));
+      setFxRateDate(baseline.date);
       setIsCarryForward(false);
       setRateError(null);
       return;

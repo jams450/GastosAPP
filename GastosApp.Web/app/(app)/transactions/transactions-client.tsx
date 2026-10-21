@@ -361,6 +361,9 @@ export function TransactionsClient({ username, fixedKind, fixedViewMode }: Props
       transactionDate: dateTimeLocalInputValue(item.transactionDate),
       tagsText: item.tags.join(", ")
       ,
+      currencyCode: item.currencyCode ?? "MXN",
+      fxRate: item.fxRate ?? null,
+      fxRateDate: item.fxRateDate ?? null,
       allocations: item.allocations.length > 0
         ? item.allocations.map((allocation) => ({
             rowId: crypto.randomUUID(),

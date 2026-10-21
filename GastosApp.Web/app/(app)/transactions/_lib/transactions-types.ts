@@ -81,6 +81,10 @@ export type EditFormState = {
   description: string;
   transactionDate: string;
   tagsText: string;
+  /** Divisa original del movimiento y su tasa congelada; se editan aquí, no se re-resuelven. */
+  currencyCode?: string;
+  fxRate?: number | null;
+  fxRateDate?: string | null;
   allocations: ExpenseAllocationFormState[];
 };
 

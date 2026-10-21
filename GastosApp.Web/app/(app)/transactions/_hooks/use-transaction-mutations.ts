@@ -301,7 +301,10 @@ export function useTransactionMutations(params: Params) {
     try {
       const response = await csrfFetch(`/api/bff/transactions/${editForm.transactionId}`, {
         method: "PUT", headers: { "Content-Type": "application/json" },
-         body: JSON.stringify({ accountId: editForm.accountId, categoryId: editForm.categoryId, subcategoryId: editForm.subcategoryId ?? undefined, merchantId: editForm.merchantId ?? undefined, amount: amountNumber, description: editForm.description.trim(), transactionDate, tags: parseTagsInput(editForm.tagsText), replaceAllocations: true, allocations: normalizedAllocations })
+         body: JSON.stringify({ accountId: editForm.accountId, categoryId: editForm.categoryId, subcategoryId: editForm.subcategoryId ?? undefined, merchantId: editForm.merchantId ?? undefined, amount: amountNumber, description: editForm.description.trim(), transactionDate, tags: parseTagsInput(editForm.tagsText), replaceAllocations: true, allocations: normalizedAllocations, // Divisa y tasa editables: la base no viaja, el API la asume.
+        currencyCode: editForm.currencyCode && editForm.currencyCode !== "MXN" ? editForm.currencyCode : undefined,
+        fxRate: editForm.currencyCode && editForm.currencyCode !== "MXN" && Number(editForm.fxRate) > 0 ? Number(editForm.fxRate) : undefined,
+        fxRateDate: editForm.currencyCode && editForm.currencyCode !== "MXN" ? (editForm.fxRateDate ?? undefined) : undefined })
         });
       if (!response.ok) {
         const data = (await response.json().catch(() => null)) as { message?: string } | null;
