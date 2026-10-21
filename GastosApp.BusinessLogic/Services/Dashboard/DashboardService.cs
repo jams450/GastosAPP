@@ -90,9 +90,9 @@ namespace GastosApp.BusinessLogic.Services
                             {
                                 Id = g.Key.CategoryId,
                                 Name = g.Key.CategoryName,
-                                Amount = g.Sum(t => t.Amount),
-                                CashAmount = g.Where(t => !t.AccountIsCredit).Sum(t => t.Amount),
-                                CreditAmount = g.Where(t => t.AccountIsCredit).Sum(t => t.Amount)
+                                Amount = g.Sum(t => t.AmountMxn),
+                                CashAmount = g.Where(t => !t.AccountIsCredit).Sum(t => t.AmountMxn),
+                                CreditAmount = g.Where(t => t.AccountIsCredit).Sum(t => t.AmountMxn)
                             }),
                         CategoryTopLimit),
                     ExpenseBySubcategory = BuildBreakdown(
@@ -103,9 +103,9 @@ namespace GastosApp.BusinessLogic.Services
                             {
                                 Id = g.Key.SubcategoryId,
                                 Name = g.Key.SubcategoryName,
-                                Amount = g.Sum(t => t.Amount),
-                                CashAmount = g.Where(t => !t.AccountIsCredit).Sum(t => t.Amount),
-                                CreditAmount = g.Where(t => t.AccountIsCredit).Sum(t => t.Amount)
+                                Amount = g.Sum(t => t.AmountMxn),
+                                CashAmount = g.Where(t => !t.AccountIsCredit).Sum(t => t.AmountMxn),
+                                CreditAmount = g.Where(t => t.AccountIsCredit).Sum(t => t.AmountMxn)
                             }),
                         SubcategoryTopLimit),
                     IncomeByAccount = BuildAccountBreakdown(financialSummary.IncomeByAccount, accounts),
@@ -217,6 +217,7 @@ namespace GastosApp.BusinessLogic.Services
                     TransactionDate = t.TransactionDate,
                     Type = t.Type,
                     Amount = t.Amount,
+                    AmountMxn = t.AmountMxn,
                     BalanceImpact = t.BalanceImpact,
                     Direction = t.Direction,
                     CounterpartyAccountId = t.CounterpartyAccountId,
@@ -782,6 +783,7 @@ namespace GastosApp.BusinessLogic.Services
                     TransactionDate = t.TransactionDate,
                     Type = t.Type,
                     Amount = t.Amount,
+                    AmountMxn = t.AmountMxn,
                     BalanceImpact = t.BalanceImpact,
                     Direction = t.Direction,
                     CounterpartyAccountId = t.CounterpartyAccountId,
@@ -819,11 +821,11 @@ namespace GastosApp.BusinessLogic.Services
 
                 if (IsTransactionType(transaction.Type, TransactionDomainConstants.TransactionType.Income))
                 {
-                    summary.AddIncome(transaction.AccountId, isCredit, transaction.Amount);
+                    summary.AddIncome(transaction.AccountId, isCredit, transaction.AmountMxn);
                 }
                 else if (IsTransactionType(transaction.Type, TransactionDomainConstants.TransactionType.Expense))
                 {
-                    summary.AddExpense(transaction.AccountId, isCredit, transaction.Amount);
+                    summary.AddExpense(transaction.AccountId, isCredit, transaction.AmountMxn);
                 }
             }
 
@@ -984,6 +986,11 @@ namespace GastosApp.BusinessLogic.Services
             public DateTime TransactionDate { get; set; }
             public string Type { get; set; } = string.Empty;
             public decimal Amount { get; set; }
+            /// <summary>
+            /// Importe consolidado en pesos. Todo reporte suma esto y nunca <see cref="Amount"/>: un gasto
+            /// en dólares vale en pesos lo que se congeló al capturarlo.
+            /// </summary>
+            public decimal AmountMxn { get; set; }
             public decimal BalanceImpact { get; set; }
             public string? Direction { get; set; }
             public int? CounterpartyAccountId { get; set; }

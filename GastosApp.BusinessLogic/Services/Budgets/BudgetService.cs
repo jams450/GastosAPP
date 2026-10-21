@@ -331,7 +331,9 @@ namespace GastosApp.BusinessLogic.Services
                 {
                     g.Key.CategoryId,
                     g.Key.SubcategoryId,
-                    Total = g.Sum(t => (decimal?)t.Amount)
+                    // El gasto del periodo se compara contra un presupuesto en pesos: un gasto en dólares
+                    // aporta su consolidado congelado, no su importe nominal.
+                    Total = g.Sum(t => (decimal?)t.AmountMxn)
                 })
                 .ToListAsync();
 
