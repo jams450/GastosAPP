@@ -103,7 +103,7 @@ export function CurrencyRateField({ state, amountNumber, amountIsValid }: Props)
             ) : null}
 
             {amountIsValid && mxnTotal !== null ? (
-              <span className="text-primary font-semibold">
+              <span className="text-lg font-semibold tabular-nums text-[var(--color-success)]">
                 Equivale a {formatCurrency(mxnTotal, "es-MX", "MXN")}
               </span>
             ) : null}
