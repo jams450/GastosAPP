@@ -16,16 +16,33 @@ const typeBadgeClass: Record<HistoryTransactionType, string> = {
   opening_credit: "txn-type-badge txn-type-opening"
 };
 
-function renderSignedAmount(type: HistoryTransactionType, amount: number) {
-  if (type === "income") {
-    return <span className="txn-amount txn-amount-income">+{formatCurrency(Math.abs(amount))}</span>;
-  }
+function renderSignedAmount(
+  type: HistoryTransactionType,
+  amount: number,
+  currencyCode?: string,
+  amountMxn?: number
+) {
+  const isIncome = type === "income";
+  const isExpense = type === "expense" || type === "opening_credit";
+  const sign = isIncome ? "+" : isExpense ? "−" : "";
+  const className = isIncome ? "txn-amount-income" : isExpense ? "txn-amount-expense" : "txn-amount-transfer";
 
-  if (type === "expense" || type === "opening_credit") {
-    return <span className="txn-amount txn-amount-expense">−{formatCurrency(Math.abs(amount))}</span>;
-  }
+  // La divisa se muestra tal como se capturó; el consolidado en pesos aparece debajo porque es el
+  // número que suman los saldos, y sin él un gasto en dólares parece no haber descontado nada.
+  const foreign = currencyCode && currencyCode !== "MXN" ? currencyCode : null;
+  const mxn = typeof amountMxn === "number" ? amountMxn : null;
 
-  return <span className="txn-amount txn-amount-transfer">{formatCurrency(Math.abs(amount))}</span>;
+  return (
+    <span className="grid gap-0.5">
+      <span className={`txn-amount ${className}`}>
+        {sign}
+        {formatCurrency(Math.abs(amount), "es-MX", foreign ?? "MXN")}
+      </span>
+      {foreign && mxn !== null ? (
+        <span className="text-xs text-muted">= {formatCurrency(Math.abs(mxn), "es-MX", "MXN")}</span>
+      ) : null}
+    </span>
+  );
 }
 
 type Params = {
@@ -100,7 +117,7 @@ export function useHistoryColumns({
         meta: gridMeta({ tabletHidden: true }),
         cell: ({ row }) => (row.original.merchantId ? (merchantNameById.get(row.original.merchantId) ?? "—") : "—")
       },
-      { accessorKey: "amount", header: "Monto", meta: gridMeta({ mobileRole: "amount" }), cell: ({ row }) => renderSignedAmount(row.original.type, row.original.amount) },
+      { accessorKey: "amount", header: "Monto", meta: gridMeta({ mobileRole: "amount" }), cell: ({ row }) => renderSignedAmount(row.original.type, row.original.amount, row.original.currencyCode, row.original.amountMxn) },
       {
         accessorKey: "creditMonths",
         header: "Meses",

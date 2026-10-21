@@ -5,6 +5,7 @@ import { PageHeader } from "@/components/navigation/page-header";
 import { Alert } from "@/components/ui/alert";
 import { ExpenseSection } from "../_components/sections/expense-section";
 import { useTransactionMutations } from "../_hooks/use-transaction-mutations";
+import { useCurrencyRate } from "../_lib/use-currency-rate";
 import { parseSelectedNumber, currentLocalDateTimeInput } from "../_lib/transactions-utils";
 import type { ExpenseAllocationFormState, RepeatPrefill, TransactionKind } from "../_lib/transactions-types";
 import { createAllocationRow, resolveDefaultSelfBillablePartyId } from "../_shared/transactions-screen-shared";
@@ -23,6 +24,8 @@ export function ExpenseClient({ username, initialRepeat }: Props) {
   const [amount, setAmount] = useState(initialRepeat?.amount ?? "");
   const [description, setDescription] = useState(initialRepeat?.description ?? "");
   const [transactionDate, setTransactionDate] = useState(currentLocalDateTimeInput());
+  // Divisa y tasa: la tasa se resuelve al cambiar divisa o fecha y queda editable.
+  const currencyRate = useCurrencyRate(transactionDate);
   const [msiMonths, setMsiMonths] = useState(1);
   const [openingCreditCharge, setOpeningCreditCharge] = useState(false);
   const [submitLoading, setSubmitLoading] = useState(false);
@@ -91,7 +94,10 @@ export function ExpenseClient({ username, initialRepeat }: Props) {
       transactionDate,
       msiMonths,
       openingCreditCharge,
-      expenseAllocations
+      expenseAllocations,
+      currencyCode: currencyRate.currencyCode,
+      fxRate: currencyRate.fxRate,
+      fxRateDate: currencyRate.fxRateDate
     },
     selectedAllocations: [],
     selectedAllocationTotal: 0,
@@ -168,6 +174,7 @@ export function ExpenseClient({ username, initialRepeat }: Props) {
               onAmountChange: setAmount,
               transactionDate,
               onTransactionDateChange: setTransactionDate,
+              currencyRate,
               msiMonths,
               onMsiMonthsChange: setMsiMonths,
               openingCreditCharge,

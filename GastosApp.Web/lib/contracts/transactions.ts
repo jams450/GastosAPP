@@ -19,6 +19,17 @@ export type IncomeExpenseTransactionRequest = {
    * si la cuenta no devenga interés, así que la regla no depende de esta capa.
    */
   isInterest?: boolean;
+  /**
+   * Divisa de captura. Sin valor, el movimiento queda en la divisa base (MXN).
+   */
+  currencyCode?: string;
+  /**
+   * Tasa a guardar, en pesos por una unidad de `currencyCode`. Sin valor, el API usa la última
+   * publicada en o antes de la fecha del movimiento y la congela con él.
+   */
+  fxRate?: number;
+  /** Fecha de la tasa enviada (`yyyy-MM-dd`). Sin ella, el API usa la fecha del movimiento. */
+  fxRateDate?: string;
 };
 
 export type TransferTransactionRequest = {
@@ -215,6 +226,18 @@ export function validateIncomeExpensePayload(input: unknown): ValidationResult<I
   // Solo se envía cuando es verdadero: así una edición que no pide cambiar la clasificación no
   // la borra en el API, donde `isInterest: null` significa "deja el valor actual".
   const isInterest = input.isInterest === true ? true : undefined;
+  // Divisa y tasa viajan juntas: sin divisa el API asume la base, y sin tasa resuelve la publicada.
+  // Una divisa de tres letras mal escrita se descarta aquí para que el error lo dé el API y no una
+  // carga silenciosa en la moneda equivocada.
+  const currencyCode =
+    typeof input.currencyCode === "string" && input.currencyCode.trim().length === 3
+      ? input.currencyCode.trim().toUpperCase()
+      : undefined;
+  const fxRate = toOptionalPositiveNumber(input.fxRate);
+  const fxRateDate =
+    typeof input.fxRateDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(input.fxRateDate)
+      ? input.fxRateDate
+      : undefined;
 
   if (!accountId || !categoryId || !amount || !description || !transactionDate) {
     return {
@@ -238,7 +261,10 @@ export function validateIncomeExpensePayload(input: unknown): ValidationResult<I
       creditAllocations,
       allocations,
       budgetItemId,
-      isInterest
+      isInterest,
+      currencyCode,
+      fxRate,
+      fxRateDate
     }
   };
 }

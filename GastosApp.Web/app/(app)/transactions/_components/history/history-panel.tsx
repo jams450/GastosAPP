@@ -42,7 +42,12 @@ function renderTransactionCard(item: TransactionHistoryItem, actions: ReactNode,
           <p className="truncate font-semibold text-primary">{item.description || historyTypeLabel[item.type]}</p>
           <p className="text-muted mt-1 text-xs">{dateTimeLocalDisplay(item.transactionDate)} · {item.accountName}</p>
         </div>
-        <span className="shrink-0 font-semibold tabular-nums">{item.type === "income" ? "+" : item.type === "expense" || item.type === "opening_credit" ? "−" : ""}{formatCurrency(Math.abs(item.amount))}</span>
+        <span className="grid shrink-0 gap-0.5 font-semibold tabular-nums">
+          <span>{item.type === "income" ? "+" : item.type === "expense" || item.type === "opening_credit" ? "−" : ""}{formatCurrency(Math.abs(item.amount), "es-MX", item.currencyCode && item.currencyCode !== "MXN" ? item.currencyCode : "MXN")}</span>
+          {item.currencyCode && item.currencyCode !== "MXN" && typeof item.amountMxn === "number" ? (
+            <span className="text-muted text-xs font-normal">= {formatCurrency(Math.abs(item.amountMxn), "es-MX", "MXN")}</span>
+          ) : null}
+        </span>
       </div>
       <p className="text-muted text-xs">{historyTypeLabel[item.type]} · {value("categoryId")} · {value("subcategoryId")} · {value("merchantId")}</p>
       {item.isInterest === true ? (

@@ -17,6 +17,13 @@ type TransactionListItem = {
   type: "income" | "expense" | "transfer" | "opening_credit";
   transferGroupId: string | null;
   amount: number;
+  /** Divisa original del movimiento. */
+  currencyCode: string;
+  /** Tasa congelada al registrar; `null` en la divisa base. */
+  fxRate: number | null;
+  fxRateDate: string | null;
+  /** Importe consolidado en pesos (lo que suman saldos y reportes). */
+  amountMxn: number;
   description: string;
   transactionDate: string;
   isInterest: boolean;
@@ -63,6 +70,18 @@ function normalizeTransaction(input: unknown): TransactionListItem | null {
   const transactionId = toNumber(input.transactionId ?? input.TransactionId);
   const accountId = toNumber(input.accountId ?? input.AccountId);
   const amount = toNumber(input.amount ?? input.Amount);
+  // La divisa se lee del registro guardado y nunca se deduce del importe. Un movimiento anterior a
+  // la migración no la trae: ausente significa la base, y su consolidado es el propio importe.
+  const currencyCodeRaw = input.currencyCode ?? input.CurrencyCode;
+  const currencyCode =
+    typeof currencyCodeRaw === "string" && currencyCodeRaw.trim() ? currencyCodeRaw.trim().toUpperCase() : "MXN";
+  const fxRateRaw = toNumber(input.fxRate ?? input.FxRate);
+  const fxRate = fxRateRaw !== null && fxRateRaw > 0 ? fxRateRaw : null;
+  const fxRateDateRaw = input.fxRateDate ?? input.FxRateDate;
+  const fxRateDate = typeof fxRateDateRaw === "string" && fxRateDateRaw ? fxRateDateRaw : null;
+  // El consolidado se resuelve en el objeto devuelto: allí `amount` ya está validado como número y
+  // sirve de respaldo para las filas anteriores a la migración.
+  const amountMxnRaw = toNumber(input.amountMxn ?? input.AmountMxn);
   const typeRaw = input.type ?? input.Type;
   const type = typeof typeRaw === "string" ? typeRaw.toLowerCase() : "";
   const transactionDateRaw = input.transactionDate ?? input.TransactionDate;
@@ -123,6 +142,10 @@ function normalizeTransaction(input: unknown): TransactionListItem | null {
     type,
     transferGroupId: typeof (input.transferGroupId ?? input.TransferGroupId) === "string" ? String(input.transferGroupId ?? input.TransferGroupId) : null,
     amount,
+    currencyCode,
+    fxRate,
+    fxRateDate,
+    amountMxn: amountMxnRaw ?? amount,
     description: typeof (input.description ?? input.Description) === "string" ? String(input.description ?? input.Description) : "",
     transactionDate,
     isInterest: input.isInterest === true || input.IsInterest === true,

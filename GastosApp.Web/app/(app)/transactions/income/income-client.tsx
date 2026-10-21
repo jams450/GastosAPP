@@ -7,6 +7,7 @@ import { IncomeSection } from "../_components/sections/income-section";
 import { useCreditAllocation } from "../_hooks/use-credit-allocation";
 import { useTransactionMutations } from "../_hooks/use-transaction-mutations";
 import { parseSelectedNumber } from "../_lib/transactions-utils";
+import { useCurrencyRate } from "../_lib/use-currency-rate";
 import type { RepeatPrefill, TransactionKind } from "../_lib/transactions-types";
 import type { Account } from "@/lib/contracts/accounts";
 import type { Category } from "@/lib/contracts/categories";
@@ -31,6 +32,8 @@ export function IncomeClient({ username, initialRepeat }: Props) {
   const [amount, setAmount] = useState<string>(initialRepeat?.amount ?? defaults.amount);
   const [description, setDescription] = useState<string>(initialRepeat?.description ?? defaults.description);
   const [transactionDate, setTransactionDate] = useState<string>(defaults.transactionDate);
+  // Divisa y tasa: la tasa se resuelve al cambiar divisa o fecha y queda editable.
+  const currencyRate = useCurrencyRate(transactionDate);
   // Rendimiento: solo se ofrece cuando la cuenta seleccionada devenga interés.
   const [isInterest, setIsInterest] = useState<boolean>(false);
   const [submitLoading, setSubmitLoading] = useState(false);
@@ -119,7 +122,10 @@ export function IncomeClient({ username, initialRepeat }: Props) {
       transactionDate,
        msiMonths,
        openingCreditCharge,
-      isInterest
+      isInterest,
+      currencyCode: currencyRate.currencyCode,
+      fxRate: currencyRate.fxRate,
+      fxRateDate: currencyRate.fxRateDate
 
     },
     selectedAllocations,
@@ -201,6 +207,7 @@ export function IncomeClient({ username, initialRepeat }: Props) {
               onDescriptionChange: setDescription,
               isInterest,
               onIsInterestChange: setIsInterest,
+              currencyRate,
                submitLoading,
 
 

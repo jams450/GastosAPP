@@ -24,6 +24,11 @@ type CreateState = {
    *  Opcional: solo la pantalla de ingresos lo alimenta. */
   isInterest?: boolean;
   expenseAllocations?: ExpenseAllocationFormState[];
+  /** Divisa de captura. Opcional: sin valor el movimiento queda en MXN. */
+  currencyCode?: string;
+  /** Tasa como viene del formulario (texto). Se convierte aquí a número. */
+  fxRate?: string;
+  fxRateDate?: string | null;
 };
 
 type Params = {
@@ -102,7 +107,7 @@ export function useTransactionMutations(params: Params) {
     setSubmitError(null);
     setSuccessMessage(null);
 
-    const { kind, accountId, sourceAccountId, destinationAccountId, categoryId, subcategoryId, merchantId, tagsText, description, transactionDate, msiMonths, openingCreditCharge, isInterest, expenseAllocations } = createState;
+    const { kind, accountId, sourceAccountId, destinationAccountId, categoryId, subcategoryId, merchantId, tagsText, description, transactionDate, msiMonths, openingCreditCharge, isInterest, expenseAllocations, currencyCode, fxRate, fxRateDate } = createState;
     let amountNumber = Number(createState.amount);
 
     const transactionDateUtc = toUtcIsoDateTime(transactionDate);
@@ -212,7 +217,11 @@ export function useTransactionMutations(params: Params) {
             creditAllocations,
             allocations: kind === "expense" && normalizedAllocations.length > 0 ? normalizedAllocations : undefined,
             // Solo viaja cuando es verdadero: un ingreso ordinario no arrastra la marca.
-            isInterest: kind === "income" && isInterest ? true : undefined
+            isInterest: kind === "income" && isInterest ? true : undefined,
+            // La base no viaja: el API la asume y guarda NULL/NULL en la tabla.
+            currencyCode: currencyCode && currencyCode !== "MXN" ? currencyCode : undefined,
+            fxRate: currencyCode && currencyCode !== "MXN" && Number(fxRate) > 0 ? Number(fxRate) : undefined,
+            fxRateDate: currencyCode && currencyCode !== "MXN" ? (fxRateDate ?? undefined) : undefined
           };
         }
       } else {

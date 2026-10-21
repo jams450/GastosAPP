@@ -6,6 +6,8 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Plus, Trash2 } from "lucide-react";
 import { formatCurrency } from "@/lib/format/currency";
+import { CurrencyRateField } from "./currency-rate-field";
+import type { CurrencyRateState } from "../../_lib/use-currency-rate";
 import type { Account } from "@/lib/contracts/accounts";
 import type { Category } from "@/lib/contracts/categories";
 import type { Merchant } from "@/lib/contracts/merchants";
@@ -48,6 +50,8 @@ type Props = {
   submitLoading: boolean;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
   parseSelectedNumber: (value: string) => number | null;
+  /** Divisa y tasa del movimiento. */
+  currencyRate: CurrencyRateState;
 };
 
 export function ExpenseForm({
@@ -79,6 +83,7 @@ export function ExpenseForm({
   onExpenseAllocationsChange,
   description,
   onDescriptionChange,
+  currencyRate,
   submitError,
   successMessage,
   submitLoading,
@@ -97,7 +102,9 @@ export function ExpenseForm({
 
   const amountNumber = Number(amount);
   const amountIsValid = Number.isFinite(amountNumber) && amountNumber > 0;
-  const isSubmitEnabled = Boolean(accountId && categoryId && transactionDate && description.trim() && amountIsValid);
+  // En divisa extranjera no se puede enviar sin una tasa válida: el API rechazaría el alta.
+  const rateIsUsable = currencyRate.isBaseCurrency || Number(currencyRate.fxRate) > 0;
+  const isSubmitEnabled = Boolean(accountId && categoryId && transactionDate && description.trim() && amountIsValid && rateIsUsable);
   const allocationType = expenseAllocations[0]?.type ?? "percentage";
   const assignedTotal = expenseAllocations.reduce((acc, row) => {
     const value = Number(row.value);
@@ -194,13 +201,15 @@ export function ExpenseForm({
               onChange={(event) => onAmountChange(event.target.value)}
               placeholder="0.00"
               className="text-right"
-               rightSlot={<span className="text-xs font-semibold text-[var(--color-danger)]">MXN</span>}
+               rightSlot={<span className="text-xs font-semibold text-[var(--color-danger)]">{currencyRate.currencyCode}</span>}
               required
             />
             <p className="px-1 text-xs text-muted">
               {amountIsValid ? `Vista previa: ${formatCurrency(amountNumber)}` : "Ingresa monto mayor a 0"}
             </p>
           </div>
+
+          <CurrencyRateField state={currencyRate} amountNumber={amountNumber} amountIsValid={amountIsValid} />
 
           <div className="space-y-1">
             <Input

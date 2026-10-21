@@ -17,6 +17,7 @@ import { useCreditAllocation } from "./_hooks/use-credit-allocation";
 import { useTransactionsHistory } from "./_hooks/use-transactions-history";
 import { useHistoryColumns } from "./_hooks/use-history-columns";
 import { useTransactionMutations } from "./_hooks/use-transaction-mutations";
+import { useCurrencyRate } from "./_lib/use-currency-rate";
 import { currentLocalDateTimeInput, currentMonthInput, dateTimeLocalInputValue, parseSelectedNumber } from "./_lib/transactions-utils";
 import { type CatalogsResponse, type EditFormState, type ExpenseAllocationFormState, type TransactionHistoryItem, type TransactionKind, type TransferEditFormState, type TransferGroupItem, type ViewMode, typeLabel } from "./_lib/transactions-types";
 import type { Account } from "@/lib/contracts/accounts";
@@ -84,6 +85,8 @@ export function TransactionsClient({ username, fixedKind, fixedViewMode }: Props
   const [amount, setAmount] = useState<string>("");
   const [description, setDescription] = useState<string>("");
   const [transactionDate, setTransactionDate] = useState<string>(currentLocalDateTimeInput());
+  // Divisa y tasa: un solo estado para ambos formularios, porque la pantalla alterna por `kind`.
+  const currencyRate = useCurrencyRate(transactionDate);
   const [msiMonths, setMsiMonths] = useState<number>(1);
   const [openingCreditCharge, setOpeningCreditCharge] = useState<boolean>(false);
   // Rendimiento: solo se ofrece cuando la cuenta seleccionada devenga interés.
@@ -407,7 +410,10 @@ export function TransactionsClient({ username, fixedKind, fixedViewMode }: Props
       msiMonths,
       openingCreditCharge,
       isInterest,
-      expenseAllocations
+      expenseAllocations,
+      currencyCode: currencyRate.currencyCode,
+      fxRate: currencyRate.fxRate,
+      fxRateDate: currencyRate.fxRateDate
     },
     selectedAllocations,
     selectedAllocationTotal,
@@ -523,6 +529,7 @@ export function TransactionsClient({ username, fixedKind, fixedViewMode }: Props
                     onAmountChange: setAmount,
                     transactionDate,
                     onTransactionDateChange: setTransactionDate,
+                    currencyRate,
                     description,
                     onDescriptionChange: setDescription,
                     isInterest,
@@ -570,6 +577,7 @@ export function TransactionsClient({ username, fixedKind, fixedViewMode }: Props
                     onAmountChange: setAmount,
                     transactionDate,
                     onTransactionDateChange: setTransactionDate,
+                    currencyRate,
                     msiMonths,
                     onMsiMonthsChange: setMsiMonths,
                     openingCreditCharge,

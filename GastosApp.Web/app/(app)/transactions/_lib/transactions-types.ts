@@ -39,6 +39,14 @@ export type TransactionHistoryItem = {
    * Opcional para no romper fixtures ni respuestas previas: ausente equivale a falso.
    */
   isInterest?: boolean;
+  /** Divisa original del movimiento. Ausente equivale a la base (MXN). */
+  currencyCode?: string;
+  /** Tasa congelada al registrar. `null` en la divisa base. */
+  fxRate?: number | null;
+  /** Fecha de la tasa congelada. */
+  fxRateDate?: string | null;
+  /** Importe consolidado en pesos, que es lo que suman los saldos y reportes. */
+  amountMxn?: number;
   tags: string[];
   creditMonths: number | null;
   creditRemainingAmount: number | null;
