@@ -22,7 +22,20 @@ type Props = {
   error: string | null;
 };
 
-export function EditTransactionModal({
+/**
+ * El contenido se remonta por movimiento, y eso es lo que hace que divisa y tasa arranquen con los
+ * valores guardados de ESE movimiento: el estado del campo se inicializa al montar, así que reutilizar
+ * la misma instancia mostraría la divisa del movimiento anterior.
+ */
+export function EditTransactionModal(props: Props) {
+  if (!props.open || !props.form) return null;
+
+  return <EditTransactionModalContent key={props.form.transactionId} {...props} form={props.form} />;
+}
+
+type ContentProps = Omit<Props, "form"> & { form: EditFormState };
+
+function EditTransactionModalContent({
   open,
   form,
   catalogs,
@@ -33,18 +46,13 @@ export function EditTransactionModal({
   onSubmit,
   saving,
   error
-}: Props) {
+}: ContentProps) {
   // La tasa guardada del movimiento manda: el hook no la re-resuelve mientras no se cambie de divisa.
-  const currencyRate = useCurrencyRate(
-    form?.transactionDate ?? "",
-    form?.currencyCode,
-    form?.fxRate,
-    form?.fxRateDate
-  );
+  const currencyRate = useCurrencyRate(form.transactionDate, form.currencyCode, form.fxRate, form.fxRateDate);
 
   // Lo que se edite en el campo vuelve al formulario, que es quien arma el envío.
   useEffect(() => {
-    if (!open || !form) return;
+    if (!open) return;
 
     const parsedRate = Number(currencyRate.fxRate);
     const nextRate = Number.isFinite(parsedRate) && parsedRate > 0 ? parsedRate : null;
@@ -64,7 +72,7 @@ export function EditTransactionModal({
     });
   }, [open, form, onChange, currencyRate.currencyCode, currencyRate.fxRate, currencyRate.fxRateDate]);
 
-  if (!open || !form) return null;
+  if (!open) return null;
   const allocationsTotal = form.allocations.reduce((acc, row) => {
     const value = Number(row.value);
     return acc + (Number.isFinite(value) ? value : 0);
