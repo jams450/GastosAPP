@@ -40,6 +40,7 @@ public sealed class EmailPreviewService
         var response = new EmailPreviewResponse { DropOlderThanDays = _options.DropOlderThanDays };
         var maxItems = Math.Clamp(request.MaxItems ?? DefaultMaxItems, 1, HardMaxItems);
         var candidates = BuildCandidates(request, response);
+        var remoteCount = 0;
 
         if (!string.IsNullOrWhiteSpace(request.Mailbox))
         {
@@ -53,13 +54,21 @@ public sealed class EmailPreviewService
             candidates.InsertRange(
                 0,
                 remote.Select((candidate, index) => ($"{request.Mailbox}#{index + 1}", candidate)));
+
+            remoteCount = remote.Count;
         }
 
         response.Total = candidates.Count;
 
-        foreach (var (name, candidate) in candidates)
+        for (var index = 0; index < candidates.Count; index++)
         {
-            if (IsOutOfRange(candidate, request.From, request.To))
+            var (name, candidate) = candidates[index];
+
+            // Los mensajes del buzón ya vienen acotados por SINCE/BEFORE del servidor, que razona con
+            // fechas de su propio calendario. Volver a aplicarles el rango mezcla dos calendarios y, en
+            // una zona horaria negativa, descarta el último día del rango: se respeta lo que el
+            // servidor devolvió. El rango sigue aplicándose a lo que se carga a mano.
+            if (index >= remoteCount && IsOutOfRange(candidate, request.From, request.To))
             {
                 response.SkippedOutOfRange++;
                 continue;

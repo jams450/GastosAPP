@@ -29,6 +29,21 @@ function formatDate(value: string | null): string {
   return Number.isNaN(parsed.getTime()) ? "—" : parsed.toLocaleString("es-MX");
 }
 
+/**
+ * Fecha local en formato `yyyy-MM-dd`. No se usa `toISOString()` a propósito: convierte a UTC, y en
+ * una zona negativa como México (UTC-6) un "últimos 7 días" por la tarde empezaría un día antes o
+ * después del que el usuario ve en el calendario.
+ */
+function localDay(offsetDays: number): string {
+  const date = new Date();
+  date.setDate(date.getDate() + offsetDays);
+
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 export function PreviewClient({ username }: Props) {
   const [messages, setMessages] = useState<EmailPreviewMessageInput[]>([]);
   const [senderAddress, setSenderAddress] = useState("");
@@ -100,6 +115,11 @@ export function PreviewClient({ username }: Props) {
 
   function removeMessage(index: number) {
     setMessages((current) => current.filter((_, position) => position !== index));
+  }
+
+  function applyQuickRange(days: number) {
+    setFrom(localDay(-days));
+    setTo(localDay(0));
   }
 
   async function run() {
@@ -232,7 +252,37 @@ export function PreviewClient({ username }: Props) {
         </Card>
 
         <Card className="space-y-3 p-4">
-          <h4 className="text-muted text-[11px] font-bold uppercase tracking-[0.14em]">Muestra</h4>
+          <h4 className="text-muted text-[11px] font-bold uppercase tracking-[0.14em]">Muestra y rango de fechas</h4>
+          <p className="text-muted text-xs">
+            El rango se aplica al buzón por IMAP (SINCE/BEFORE sobre la fecha de entrega) y también descarta
+            los candidatos escritos a mano que caigan fuera. Sin fechas, se toman los mensajes más recientes
+            hasta el tope.
+          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-muted text-[11px]">Rango rápido:</span>
+            {[7, 30, 90].map((days) => (
+              <Button
+                key={days}
+                type="button"
+                variant="secondary"
+                className="h-7 rounded-none px-2 text-[11px] font-bold"
+                onClick={() => applyQuickRange(days)}
+              >
+                Últimos {days} días
+              </Button>
+            ))}
+            <Button
+              type="button"
+              variant="ghost"
+              className="h-7 rounded-none px-2 text-[11px] font-bold"
+              onClick={() => {
+                setFrom("");
+                setTo("");
+              }}
+            >
+              Sin rango
+            </Button>
+          </div>
           <div className="grid gap-3 sm:grid-cols-3">
             <Input
               label="Tope de la muestra"
