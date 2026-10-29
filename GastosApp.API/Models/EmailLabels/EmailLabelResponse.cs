@@ -8,6 +8,7 @@ public class EmailLabelResponse
     public string Slug { get; set; } = string.Empty;
     public string Kind { get; set; } = string.Empty;
     public string Behavior { get; set; } = string.Empty;
+    public string? Description { get; set; }
     public string? Color { get; set; }
     public bool IsSystem { get; set; }
     public int SortOrder { get; set; }

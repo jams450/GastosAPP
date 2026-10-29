@@ -1284,6 +1284,10 @@ CREATE TABLE IF NOT EXISTS email_labels (
     -- El comportamiento vive en la etiqueta, no en su nombre: «Otros» es una etiqueta con
     -- behavior = 'none', no un caso especial del motor de reglas.
     behavior VARCHAR(10) NOT NULL CHECK (behavior IN ('expense', 'income', 'ignore', 'none')),
+    -- Qué correo pertenece a la etiqueta, en palabras del usuario. Es lo que el nombre no alcanza a
+    -- decir: «Banco» y «Gastos» se distinguen por su descripción. Solo contexto para el respaldo LLM;
+    -- el motor determinista la ignora.
+    description VARCHAR(500),
     color VARCHAR(7),
     is_system BOOLEAN NOT NULL DEFAULT FALSE,
     sort_order INT NOT NULL DEFAULT 100,

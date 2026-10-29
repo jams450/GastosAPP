@@ -14,6 +14,7 @@ public class EmailLabelService : IEmailLabelService
 {
     private const int MaxNameLength = 80;
     private const int MaxSlugLength = 80;
+    private const int MaxDescriptionLength = 500;
 
     /// <summary>
     /// Semillas por defecto. «Otros» es una etiqueta normal con comportamiento <c>none</c>, no un
@@ -90,7 +91,7 @@ public class EmailLabelService : IEmailLabelService
 
     public async Task<EmailLabel> CreateAsync(EmailLabel label, int userId)
     {
-        var (name, slug, kind, behavior) = NormalizeOrThrow(label);
+        var (name, slug, kind, behavior, description) = NormalizeOrThrow(label);
         await EnsureSlugIsFreeAsync(userId, slug, exceptLabelId: null);
 
         label.UserId = userId;
@@ -98,6 +99,7 @@ public class EmailLabelService : IEmailLabelService
         label.Slug = slug;
         label.Kind = kind;
         label.Behavior = behavior;
+        label.Description = description;
         label.IsSystem = false;
         label.Created = DateTime.UtcNow;
 
@@ -113,13 +115,14 @@ public class EmailLabelService : IEmailLabelService
             return null;
         }
 
-        var (name, slug, kind, behavior) = NormalizeOrThrow(label);
+        var (name, slug, kind, behavior, description) = NormalizeOrThrow(label);
         await EnsureSlugIsFreeAsync(userId, slug, exceptLabelId: id);
 
         existing.Name = name;
         existing.Slug = slug;
         existing.Kind = kind;
         existing.Behavior = behavior;
+        existing.Description = description;
         existing.Color = label.Color;
         existing.SortOrder = label.SortOrder;
         existing.Active = label.Active;
@@ -157,7 +160,7 @@ public class EmailLabelService : IEmailLabelService
         }
     }
 
-    private static (string Name, string Slug, string Kind, string Behavior) NormalizeOrThrow(EmailLabel label)
+    private static (string Name, string Slug, string Kind, string Behavior, string? Description) NormalizeOrThrow(EmailLabel label)
     {
         if (string.IsNullOrWhiteSpace(label.Name))
         {
@@ -201,6 +204,12 @@ public class EmailLabelService : IEmailLabelService
                 $"behavior inválido: se espera {EmailLabelBehavior.Expense}, {EmailLabelBehavior.Income}, {EmailLabelBehavior.Ignore} o {EmailLabelBehavior.None}");
         }
 
-        return (name, slug, kind, behavior);
+        var description = string.IsNullOrWhiteSpace(label.Description) ? null : label.Description.Trim();
+        if (description is { Length: > MaxDescriptionLength })
+        {
+            throw new ArgumentException($"La descripción no puede exceder {MaxDescriptionLength} caracteres");
+        }
+
+        return (name, slug, kind, behavior, description);
     }
 }

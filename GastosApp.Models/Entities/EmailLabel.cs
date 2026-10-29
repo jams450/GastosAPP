@@ -35,6 +35,19 @@ namespace GastosApp.Models.Entities
         [StringLength(80)]
         public string Slug { get; set; } = string.Empty;
 
+        /// <summary>
+        /// Qué correo pertenece a esta etiqueta, en palabras del usuario. Es lo que el nombre no dice:
+        /// «Banco» y «Gastos» se distinguen por su descripción, no por su título, y eso es justo lo que
+        /// necesita el respaldo LLM para elegir entre etiquetas reales en vez de inventar una.
+        /// <para>
+        /// Es dato, nunca instrucción: se envía al modelo como definición de la etiqueta, junto a la
+        /// misma regla que ya protege el cuerpo del correo.
+        /// </para>
+        /// </summary>
+        [Column("description")]
+        [StringLength(500)]
+        public string? Description { get; set; }
+
         [Column("kind")]
         [Required]
         [StringLength(10)]

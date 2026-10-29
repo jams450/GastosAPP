@@ -69,6 +69,7 @@ public class EmailLabelsController : ControllerBase
                 Slug = request.Slug ?? string.Empty,
                 Kind = request.Kind,
                 Behavior = request.Behavior,
+                Description = request.Description,
                 Color = request.Color,
                 SortOrder = request.SortOrder,
                 Active = request.Active
@@ -100,6 +101,7 @@ public class EmailLabelsController : ControllerBase
                 Slug = request.Slug ?? string.Empty,
                 Kind = request.Kind,
                 Behavior = request.Behavior,
+                Description = request.Description,
                 Color = request.Color,
                 SortOrder = request.SortOrder,
                 Active = request.Active
@@ -165,6 +167,7 @@ public class EmailLabelsController : ControllerBase
             Slug = label.Slug,
             Kind = label.Kind,
             Behavior = label.Behavior,
+            Description = label.Description,
             Color = label.Color,
             IsSystem = label.IsSystem,
             SortOrder = label.SortOrder,

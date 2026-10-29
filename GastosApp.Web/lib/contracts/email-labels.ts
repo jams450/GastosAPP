@@ -9,6 +9,7 @@ export type EmailLabel = {
   userId: number | null;
   name: string;
   slug: string;
+  description: string | null;
   kind: EmailLabelKind;
   behavior: EmailLabelBehavior;
   color: string | null;
@@ -20,6 +21,7 @@ export type EmailLabel = {
 export type EmailLabelUpsertPayload = {
   name: string;
   slug: string | null;
+  description: string | null;
   kind: EmailLabelKind;
   behavior: EmailLabelBehavior;
   color: string | null;
@@ -85,6 +87,10 @@ export function normalizeEmailLabel(input: unknown): EmailLabel | null {
     userId: input.userId === null || input.userId === undefined ? null : toFiniteNumber(input.userId),
     name: typeof input.name === "string" && input.name.trim().length > 0 ? input.name.trim() : "Sin nombre",
     slug: typeof input.slug === "string" ? input.slug.trim() : "",
+    description:
+      typeof input.description === "string" && input.description.trim().length > 0
+        ? input.description.trim()
+        : null,
     kind: toKind(input.kind) ?? "folder",
     behavior: toBehavior(input.behavior) ?? "none",
     color: typeof input.color === "string" && input.color.trim().length > 0 ? input.color.trim() : null,
@@ -137,11 +143,17 @@ export function validateEmailLabelPayload(input: unknown): ValidationResult<Emai
     return { ok: false, message: "El color debe ser hexadecimal de seis dígitos, por ejemplo #64748b" };
   }
 
+  const description = typeof input.description === "string" ? input.description.trim() : "";
+  if (description.length > 500) {
+    return { ok: false, message: "La descripción no puede exceder 500 caracteres" };
+  }
+
   return {
     ok: true,
     data: {
       name,
       slug,
+      description: description.length > 0 ? description : null,
       kind,
       behavior,
       color: color.length > 0 ? color.toLowerCase() : null,

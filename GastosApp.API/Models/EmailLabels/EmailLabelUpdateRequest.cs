@@ -10,6 +10,8 @@ public class EmailLabelUpdateRequest
 
     public string Behavior { get; set; } = "none";
 
+    public string? Description { get; set; }
+
     public string? Color { get; set; }
 
     public int SortOrder { get; set; }

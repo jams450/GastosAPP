@@ -36,6 +36,7 @@ type EmailLabelFormState = {
   id: number | null;
   name: string;
   slug: string;
+  description: string;
   kind: EmailLabelKind;
   behavior: EmailLabelBehavior;
   color: string;
@@ -48,6 +49,7 @@ function emptyForm(): EmailLabelFormState {
     id: null,
     name: "",
     slug: "",
+    description: "",
     kind: "folder",
     behavior: "none",
     color: "",
@@ -67,6 +69,7 @@ function toPayload(form: EmailLabelFormState) {
   return {
     name: form.name.trim(),
     slug: form.slug.trim().length > 0 ? form.slug.trim() : null,
+    description: form.description.trim().length > 0 ? form.description.trim() : null,
     kind: form.kind,
     behavior: form.behavior,
     color: form.color.trim().length > 0 ? form.color.trim() : null,
@@ -109,6 +112,7 @@ export function LabelsSection({ labels, onCatalogChanged, onError, onSuccess }: 
       id: label.labelId,
       name: label.name,
       slug: label.slug,
+      description: label.description ?? "",
       kind: label.kind,
       behavior: label.behavior,
       color: label.color ?? "",
@@ -174,7 +178,7 @@ export function LabelsSection({ labels, onCatalogChanged, onError, onSuccess }: 
           ) : null}
           <div className="min-w-0">
             <p className="text-primary truncate font-semibold">{row.original.name}</p>
-            <p className="text-muted truncate text-[11px]">{row.original.slug}</p>
+            <p className="text-muted truncate text-[11px]">{row.original.description ?? row.original.slug}</p>
           </div>
         </div>
       )
@@ -312,6 +316,25 @@ export function LabelsSection({ labels, onCatalogChanged, onError, onSuccess }: 
                       </option>
                     ))}
                   </Select>
+                  <div className="grid gap-1.5 text-sm font-medium">
+                    <label htmlFor="email-label-description" className="text-primary">
+                      Descripción (opcional)
+                    </label>
+                    <textarea
+                      id="email-label-description"
+                      rows={3}
+                      value={form.description}
+                      onChange={(event) =>
+                        setForm((current) => ({ ...current, description: event.target.value }))
+                      }
+                      className="input-semantic w-full rounded-none px-3 py-2 text-sm"
+                    />
+                    <p className="text-muted text-[11px]">
+                      Qué correo pertenece a esta etiqueta: remitentes y tipos de aviso. Es lo que leerá el
+                      respaldo LLM para elegir entre tus etiquetas, así que el nombre solo no alcanza («Banco»
+                      y «Gastos» se distinguen aquí).
+                    </p>
+                  </div>
                   <Input
                     label="Orden"
                     type="number"
