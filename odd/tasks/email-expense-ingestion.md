@@ -174,3 +174,18 @@ L19. Correo UI round, and a correction to L18: the UI does exist now. Three scre
     never matches. Verified by `pnpm build` (exit 0, three routes registered), `pnpm run lint`
     (0 errors, 9 pre-existing warnings) and `pnpm test` (369 passed). Still not verified: no browser
     run, and no verdict observed end to end because the database is unreachable here.
+L20. Validación del usuario el 2026-10-29, verbatim: «funciona ui de reglas y etiquetas. probe ambas en
+    modulo de prueba con eml reales». Corrige lo que L18 y L19 declaraban no verificado: las
+    pantallas de etiquetas y de reglas se usaron en un navegador por una persona, y el módulo de
+    prueba clasificó mensajes `.eml` reales, así que el lector de cabeceras corrió contra correo de
+    verdad y no solo contra las cadenas construidas en las pruebas.
+    Implicación a confirmar, inferida y no comprobada por mí: que esas pantallas respondieran implica
+    que `2026-10-29_email_classification_schema.sql` está aplicada, porque sin las tablas la API
+    habría devuelto error. Lo que sigue sin verificar es la corrección de los veredictos: "funciona"
+    cubre el flujo, no que cada clasificación sea la esperada, y ahí es donde queda el ajuste de
+    reglas con el correo real del usuario.
+L21. Cierre del color de etiqueta (7083579): el campo era texto libre y el valor no se pintaba en
+    ninguna parte, así que prometía algo que la pantalla no entregaba. Ahora es selector nativo, hay
+    muestra en la lista y el contrato solo acepta `#rrggbb`, que es lo único que el input nativo
+    entiende. El campo «Orden» quedó documentado en la propia pantalla porque hace menos de lo que
+    parece: solo ordena la lista y el desplegable de etiqueta destino, nunca la clasificación.
