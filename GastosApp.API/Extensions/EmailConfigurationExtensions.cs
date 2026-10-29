@@ -1,3 +1,4 @@
+using GastosApp.API.Services.Email;
 using GastosApp.BusinessLogic.Interfaces;
 using GastosApp.BusinessLogic.Models.Email;
 using GastosApp.BusinessLogic.Services;
@@ -17,6 +18,7 @@ public static class EmailConfigurationExtensions
         services.AddScoped<IEmailLabelService, EmailLabelService>();
         services.AddScoped<IEmailRuleService, EmailRuleService>();
         services.AddScoped<IEmailClassificationService, EmailClassificationService>();
+        services.AddScoped<EmailPreviewService>();
 
         return services;
     }
