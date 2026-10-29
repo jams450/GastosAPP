@@ -27,3 +27,4 @@
 2026-10-19_transaction_interest_flag.sql
 2026-10-19_transactions_currency_and_fx_rate.sql
 2026-10-29_drop_bancoppel_imported_rows.sql
+2026-10-29_email_classification_schema.sql

@@ -37,6 +37,10 @@ namespace GastosApp.BusinessLogic.Context
         public DbSet<TelegramDraft> TelegramDrafts { get; set; } = null!;
         public DbSet<TelegramProcessedUpdate> TelegramProcessedUpdates { get; set; } = null!;
         public DbSet<CatalogRule> CatalogRules { get; set; } = null!;
+        public DbSet<EmailLabel> EmailLabels { get; set; } = null!;
+        public DbSet<EmailRule> EmailRules { get; set; } = null!;
+        public DbSet<EmailMessage> EmailMessages { get; set; } = null!;
+        public DbSet<EmailExpenseDraft> EmailExpenseDrafts { get; set; } = null!;
         public DbSet<Budget> Budgets { get; set; } = null!;
         public DbSet<BudgetThreshold> BudgetThresholds { get; set; } = null!;
         public DbSet<AlertDelivery> AlertDeliveries { get; set; } = null!;
@@ -558,6 +562,46 @@ namespace GastosApp.BusinessLogic.Context
                 entity.HasKey(e => new { e.CurrencyCode, e.RateDate });
                 entity.HasIndex(e => new { e.CurrencyCode, e.RateDate });
                 entity.HasOne(e => e.Currency).WithMany().HasForeignKey(e => e.CurrencyCode).OnDelete(DeleteBehavior.Restrict);
+            });
+
+            // Clasificador de correo. La etiqueta es taxonomía del buzón; la categoría del gasto es
+            // otra cosa y la resuelve catalog_rules, no la etiqueta.
+            modelBuilder.Entity<EmailLabel>(entity =>
+            {
+                entity.HasIndex(e => new { e.UserId, e.Slug }).IsUnique();
+                entity.HasIndex(e => new { e.UserId, e.Active, e.SortOrder });
+                entity.HasOne(e => e.User).WithMany().HasForeignKey(e => e.UserId).OnDelete(DeleteBehavior.Cascade);
+            });
+
+            modelBuilder.Entity<EmailRule>(entity =>
+            {
+                entity.HasIndex(e => new { e.UserId, e.Active, e.Priority });
+                entity.HasOne(e => e.User).WithMany().HasForeignKey(e => e.UserId).OnDelete(DeleteBehavior.Cascade);
+                // Borrar una etiqueta en uso no puede arrastrar reglas en silencio.
+                entity.HasOne(e => e.TargetLabel).WithMany().HasForeignKey(e => e.TargetLabelId).OnDelete(DeleteBehavior.Restrict);
+            });
+
+            modelBuilder.Entity<EmailMessage>(entity =>
+            {
+                // Idempotencia por Message-ID de RFC 822: el UID de IMAP se corre con UIDVALIDITY.
+                entity.HasIndex(e => new { e.UserId, e.MessageId }).IsUnique();
+                entity.HasIndex(e => new { e.UserId, e.State });
+                entity.HasIndex(e => new { e.UserId, e.ReceivedAt });
+                entity.HasOne(e => e.User).WithMany().HasForeignKey(e => e.UserId).OnDelete(DeleteBehavior.Cascade);
+                entity.HasOne(e => e.Label).WithMany().HasForeignKey(e => e.LabelId).OnDelete(DeleteBehavior.SetNull);
+                entity.HasOne(e => e.MatchedRule).WithMany().HasForeignKey(e => e.MatchedRuleId).OnDelete(DeleteBehavior.SetNull);
+            });
+
+            modelBuilder.Entity<EmailExpenseDraft>(entity =>
+            {
+                // UUID generado en C#: nunca por la base de datos.
+                entity.Property(e => e.DraftId).ValueGeneratedNever();
+                // Un correo no produce dos gastos.
+                entity.HasIndex(e => e.EmailMessageId).IsUnique();
+                entity.HasIndex(e => new { e.UserId, e.Status });
+                entity.HasOne(e => e.User).WithMany().HasForeignKey(e => e.UserId).OnDelete(DeleteBehavior.Cascade);
+                entity.HasOne(e => e.EmailMessage).WithMany().HasForeignKey(e => e.EmailMessageId).OnDelete(DeleteBehavior.Cascade);
+                entity.HasOne(e => e.Transaction).WithMany().HasForeignKey(e => e.TransactionId).OnDelete(DeleteBehavior.SetNull);
             });
         }
     }
