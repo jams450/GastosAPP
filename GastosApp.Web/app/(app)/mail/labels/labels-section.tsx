@@ -56,6 +56,13 @@ function emptyForm(): EmailLabelFormState {
   };
 }
 
+const HEX_COLOR_PATTERN = /^#[0-9a-fA-F]{6}$/;
+
+/** El input nativo `color` solo entiende #rrggbb, así que un valor viejo o vacío cae a un gris neutro. */
+function isHexColor(value: string): boolean {
+  return HEX_COLOR_PATTERN.test(value);
+}
+
 function toPayload(form: EmailLabelFormState) {
   return {
     name: form.name.trim(),
@@ -157,9 +164,18 @@ export function LabelsSection({ labels, onCatalogChanged, onError, onSuccess }: 
       header: "Etiqueta",
       meta: gridMeta({ mobileRole: "title" }),
       cell: ({ row }) => (
-        <div className="min-w-0">
-          <p className="text-primary truncate font-semibold">{row.original.name}</p>
-          <p className="text-muted truncate text-[11px]">{row.original.slug}</p>
+        <div className="flex min-w-0 items-center gap-2">
+          {row.original.color ? (
+            <span
+              className="h-2.5 w-2.5 shrink-0 rounded-full border border-[var(--color-border-strong)]"
+              style={{ backgroundColor: row.original.color }}
+              aria-hidden="true"
+            />
+          ) : null}
+          <div className="min-w-0">
+            <p className="text-primary truncate font-semibold">{row.original.name}</p>
+            <p className="text-muted truncate text-[11px]">{row.original.slug}</p>
+          </div>
         </div>
       )
     },
@@ -304,12 +320,39 @@ export function LabelsSection({ labels, onCatalogChanged, onError, onSuccess }: 
                     onChange={(event) => setForm((current) => ({ ...current, sortOrder: event.target.value }))}
                     className="input-semantic rounded-none placeholder:text-muted"
                   />
-                  <Input
-                    label="Color (opcional)"
-                    value={form.color}
-                    onChange={(event) => setForm((current) => ({ ...current, color: event.target.value }))}
-                    className="input-semantic rounded-none placeholder:text-muted"
-                  />
+                  <p className="text-muted -mt-2 text-[11px]">
+                    Solo cambia el orden en que se listan las etiquetas. No afecta qué correo cae en cuál: eso lo
+                    decide la prioridad de cada regla.
+                  </p>
+                  <div className="grid gap-1.5 text-sm font-medium">
+                    <span className="text-primary">Color (opcional)</span>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="color"
+                        aria-label="Elegir color"
+                        value={isHexColor(form.color) ? form.color : "#64748b"}
+                        onChange={(event) => setForm((current) => ({ ...current, color: event.target.value }))}
+                        className="h-10 w-14 shrink-0 cursor-pointer rounded-none border border-[var(--color-border)] bg-[var(--color-surface-2)] p-1"
+                      />
+                      <div className="min-w-0 flex-1">
+                        <Input
+                          aria-label="Código de color"
+                          value={form.color}
+                          onChange={(event) => setForm((current) => ({ ...current, color: event.target.value }))}
+                          placeholder="#64748b"
+                          className="input-semantic rounded-none placeholder:text-muted"
+                        />
+                      </div>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        className="h-10 shrink-0 rounded-none px-3 text-xs font-bold"
+                        onClick={() => setForm((current) => ({ ...current, color: "" }))}
+                      >
+                        Sin color
+                      </Button>
+                    </div>
+                  </div>
                   <label className="text-secondary flex items-center gap-2 text-sm">
                     <input
                       type="checkbox"

@@ -132,10 +132,21 @@ export function validateEmailLabelPayload(input: unknown): ValidationResult<Emai
     return { ok: false, message: "El identificador no puede exceder 80 caracteres" };
   }
 
-  const color = typeof input.color === "string" && input.color.trim().length > 0 ? input.color.trim() : null;
+  const color = typeof input.color === "string" ? input.color.trim() : "";
+  if (color.length > 0 && !/^#[0-9a-fA-F]{6}$/.test(color)) {
+    return { ok: false, message: "El color debe ser hexadecimal de seis dígitos, por ejemplo #64748b" };
+  }
 
   return {
     ok: true,
-    data: { name, slug, kind, behavior, color, sortOrder, active: input.active !== false }
+    data: {
+      name,
+      slug,
+      kind,
+      behavior,
+      color: color.length > 0 ? color.toLowerCase() : null,
+      sortOrder,
+      active: input.active !== false
+    }
   };
 }

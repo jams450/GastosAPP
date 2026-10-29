@@ -77,6 +77,31 @@ test("un comportamiento de etiqueta desconocido se rechaza en vez de degradarse"
   assert.equal(result.ok, false);
 });
 
+test("el color de la etiqueta se valida como hexadecimal, porque el picker solo entiende #rrggbb", () => {
+  const invalid = validateEmailLabelPayload({
+    name: "Banco",
+    kind: "folder",
+    behavior: "expense",
+    color: "azul",
+    sortOrder: 20,
+    active: true
+  });
+
+  assert.equal(invalid.ok, false);
+
+  const valid = validateEmailLabelPayload({
+    name: "Banco",
+    kind: "folder",
+    behavior: "expense",
+    color: "#64748B",
+    sortOrder: 20,
+    active: true
+  });
+
+  assert.equal(valid.ok, true);
+  assert.equal(valid.ok ? valid.data.color : null, "#64748b");
+});
+
 test("la muestra del clasificador tolera una respuesta sin filas", () => {
   const result = normalizePreviewResult({ total: 0, returned: 0, dropOlderThanDays: 730 });
 
