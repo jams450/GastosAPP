@@ -497,8 +497,8 @@ namespace GastosApp.BusinessLogic.Services
         /// log solo lleva el tipo de excepción y el id, nunca montos, nombres ni descripciones.
         /// </summary>
         /// <remarks>
-        /// Cuando el alta corre dentro de una transacción de otro (importación de Bancoppel, motor de
-        /// programados, confirmación de Telegram) no se hace nada: <c>ExecuteInTransactionAsync</c> es
+        /// Cuando el alta corre dentro de una transacción de otro (motor de programados,
+        /// confirmación de Telegram) no se hace nada: <c>ExecuteInTransactionAsync</c> es
         /// reentrante y no hubo commit propio, así que "post-commit" sería una mentira y el enlace
         /// caería dentro de la transacción ajena. Esas partidas se enlazan por su propio camino —el
         /// motor las enlaza él mismo— o quedan disponibles para la UI.

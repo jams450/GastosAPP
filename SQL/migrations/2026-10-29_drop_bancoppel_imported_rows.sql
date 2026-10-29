@@ -1,0 +1,11 @@
+-- Removes the BanCoppel PDF statement import, which was never used.
+--
+-- The feature was deleted end to end: the two API endpoints, the service, the entity and the
+-- repository claims that wrote this table no longer exist. The original migration
+-- (2026-09-07_bancoppel_imported_rows.sql) stays in the manifest as history — a migration that was
+-- written is not un-written by deleting its file.
+--
+-- This file is destructive on purpose and ships UNAPPLIED: no database access was authorized when
+-- it was authored, so whether the table exists anywhere is unknown. IF EXISTS also keeps a fresh
+-- database built from SQL/schema.sql from failing on it.
+DROP TABLE IF EXISTS bancoppel_imported_rows;

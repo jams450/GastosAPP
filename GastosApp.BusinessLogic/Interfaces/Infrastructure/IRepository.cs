@@ -29,8 +29,6 @@ namespace GastosApp.BusinessLogic.Interfaces
         Task<List<CreditInstallment>> LockCreditInstallmentsAsync(IEnumerable<int> installmentIds);
         Task<Transaction?> LockTransactionAsync(int transactionId);
         Task<List<Transaction>> LockTransferTransactionsAsync(Guid transferGroupId);
-        Task<bool> ClaimBancoppelImportedRowAsync(int accountId, string fingerprint);
-        Task LinkBancoppelImportedRowAsync(int accountId, string fingerprint, int transactionId);
         Task<bool> ClaimTelegramProcessedUpdateAsync(long updateId, int? telegramIdentityId, string status, DateTime claimedAt, Guid claimToken);
         Task<TelegramDraft?> LockTelegramDraftAsync(Guid draftId);
         Task LockTelegramIdentityAsync(int identityId);

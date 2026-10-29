@@ -37,7 +37,6 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IExpenseAllocationService, ExpenseAllocationService>();
         services.AddScoped<ICreditLifecycleService, CreditLifecycleService>();
         services.AddScoped<ITransactionService, TransactionService>();
-        services.AddScoped<IBancoppelImportService, BancoppelImportService>();
         services.AddScoped<IDashboardService, DashboardService>();
         services.AddScoped<ITelegramIdentityService, TelegramIdentityService>();
         services.AddScoped<ITelegramDraftService, TelegramDraftService>();

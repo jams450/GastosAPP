@@ -186,27 +186,6 @@ namespace GastosApp.BusinessLogic.Services
                 .FirstOrDefaultAsync();
         }
 
-        public async Task<bool> ClaimBancoppelImportedRowAsync(int accountId, string fingerprint)
-        {
-            // Sin RETURNING: ExecuteSqlInterpolatedAsync reporta filas afectadas (1 = insertado,
-            // 0 = conflicto). No se puede componer sobre Database.SqlQuery (root no componible).
-            var affected = await _context.Database.ExecuteSqlInterpolatedAsync($"""
-                INSERT INTO bancoppel_imported_rows (account_id, fingerprint)
-                VALUES ({accountId}, {fingerprint})
-                ON CONFLICT (account_id, fingerprint) DO NOTHING
-                """);
-            return affected == 1;
-        }
-
-        public async Task LinkBancoppelImportedRowAsync(int accountId, string fingerprint, int transactionId)
-        {
-            await _context.Database.ExecuteSqlInterpolatedAsync($"""
-                UPDATE bancoppel_imported_rows
-                SET transaction_id = {transactionId}
-                WHERE account_id = {accountId} AND fingerprint = {fingerprint}
-                """);
-        }
-
         public async Task<bool> ClaimTelegramProcessedUpdateAsync(long updateId, int? telegramIdentityId, string status, DateTime claimedAt, Guid claimToken)
         {
             // Sin RETURNING: ExecuteSqlInterpolatedAsync reporta filas afectadas (1 = reclamado,

@@ -4,7 +4,6 @@ using GastosApp.Models.Entities;
 using GastosApp.API.Models.Transactions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using UglyToad.PdfPig.Core;
 
 namespace GastosApp.API.Controllers
 {
@@ -18,7 +17,6 @@ namespace GastosApp.API.Controllers
         private readonly ITransactionQueryService _transactionQueryService;
         private readonly IAccountService _accountService;
         private readonly ICurrentUserService _currentUserService;
-        private readonly IBancoppelImportService _bancoppelImportService;
         private readonly ILogger<TransactionsController> _logger;
 
         public TransactionsController(
@@ -27,7 +25,6 @@ namespace GastosApp.API.Controllers
             ITransactionQueryService transactionQueryService,
             IAccountService accountService,
             ICurrentUserService currentUserService,
-            IBancoppelImportService bancoppelImportService,
             ILogger<TransactionsController> logger)
         {
             _transactionService = transactionService;
@@ -35,7 +32,6 @@ namespace GastosApp.API.Controllers
             _transactionQueryService = transactionQueryService;
             _accountService = accountService;
             _currentUserService = currentUserService;
-            _bancoppelImportService = bancoppelImportService;
             _logger = logger;
         }
 
@@ -127,100 +123,6 @@ namespace GastosApp.API.Controllers
                 return NotFound(new { Message = $"Transaction with ID {id} not found" });
 
             return Ok(MapTransaction(transaction));
-        }
-
-        [HttpPost("import/bancoppel/preview")]
-        [RequestSizeLimit(10_000_000)]
-        public async Task<IActionResult> PreviewBancoppelImport([FromForm] IFormFile file, CancellationToken cancellationToken)
-        {
-            if (file == null || file.Length == 0)
-            {
-                return BadRequest(new { Message = "Archivo PDF requerido." });
-            }
-
-            if (file.Length > 10_000_000)
-            {
-                throw new ArgumentException("El archivo PDF no debe exceder 10 MB.");
-            }
-
-            if (!string.Equals(Path.GetExtension(file.FileName), ".pdf", StringComparison.OrdinalIgnoreCase))
-            {
-                return BadRequest(new { Message = "El archivo debe ser PDF." });
-            }
-
-            if (!string.Equals(file.ContentType, "application/pdf", StringComparison.OrdinalIgnoreCase))
-            {
-                return BadRequest(new { Message = "Tipo de contenido inválido. Se espera application/pdf." });
-            }
-
-            await using var stream = file.OpenReadStream();
-            if (!await HasPdfSignatureAsync(stream, cancellationToken))
-            {
-                return BadRequest(new { Message = "Archivo PDF inválido." });
-            }
-
-            try
-            {
-                var preview = await _bancoppelImportService.PreviewAsync(stream, cancellationToken);
-
-                return Ok(new BancoppelImportPreviewResponse
-                {
-                    Rows = preview.Rows.Select(r => new BancoppelImportPreviewRowResponse
-                    {
-                        RowNumber = r.RowNumber,
-                        TransactionDate = r.TransactionDate,
-                        Amount = r.Amount,
-                        Type = r.Type,
-                        Description = r.Description
-                    }).ToList(),
-                    Warnings = preview.Warnings,
-                    Errors = preview.Errors
-                });
-            }
-            catch (PdfDocumentFormatException ex)
-            {
-                throw new ArgumentException("El archivo no tiene un formato PDF válido.", ex);
-            }
-        }
-
-        [HttpPost("import/bancoppel/commit")]
-        public async Task<IActionResult> CommitBancoppelImport([FromBody] BancoppelImportCommitRequest request, CancellationToken cancellationToken)
-        {
-            var userId = GetCurrentUserId();
-            var result = await _bancoppelImportService.CommitAsync(
-                userId,
-                request.AccountId,
-                request.Rows.Select(r => new BancoppelImportCommitRow
-                {
-                    TransactionDate = r.TransactionDate.UtcDateTime,
-                    Amount = r.Amount,
-                    Type = r.Type,
-                    Description = r.Description,
-                    CategoryId = r.CategoryId,
-                    SubcategoryId = r.SubcategoryId,
-                    MerchantId = r.MerchantId,
-                    Tags = r.Tags
-                }),
-                cancellationToken);
-
-            if (result.Errors.Count > 0)
-            {
-                return BadRequest(new BancoppelImportCommitResponse
-                {
-                    CreatedCount = result.CreatedCount,
-                    SkippedCount = result.SkippedCount,
-                    Warnings = result.Warnings,
-                    Errors = result.Errors
-                });
-            }
-
-            return Ok(new BancoppelImportCommitResponse
-            {
-                CreatedCount = result.CreatedCount,
-                SkippedCount = result.SkippedCount,
-                Warnings = result.Warnings,
-                Errors = result.Errors
-            });
         }
 
         [HttpPost("income")]
@@ -752,25 +654,6 @@ namespace GastosApp.API.Controllers
             return normalizedEndDate.UtcDateTime;
         }
 
-        private static async Task<bool> HasPdfSignatureAsync(Stream stream, CancellationToken cancellationToken)
-        {
-            if (!stream.CanSeek)
-            {
-                return false;
-            }
-
-            stream.Position = 0;
-            var signatureBuffer = new byte[5];
-            var bytesRead = await stream.ReadAsync(signatureBuffer, cancellationToken);
-            stream.Position = 0;
-
-            if (bytesRead < 5)
-            {
-                return false;
-            }
-
-            return signatureBuffer[0] == '%' && signatureBuffer[1] == 'P' && signatureBuffer[2] == 'D' && signatureBuffer[3] == 'F' && signatureBuffer[4] == '-';
-        }
 
         private static TransactionResponse MapTransaction(Transaction transaction)
         {
