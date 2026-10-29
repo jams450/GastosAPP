@@ -10,18 +10,17 @@ import { Select } from "@/components/ui/select";
 import { gridMeta } from "@/lib/ui/grid-responsive";
 import {
   EMAIL_RULE_MAX_PRIORITY,
-  EMAIL_RULE_MATCH_FIELDS,
-  EMAIL_RULE_MATCH_FIELD_LABELS,
-  EMAIL_RULE_MATCH_TYPES,
-  EMAIL_RULE_MATCH_TYPE_LABELS
+  EMAIL_RULE_MATCH_TYPE_LABELS,
+  summarizeGroup
 } from "@/lib/contracts/email-rules";
-import type { EmailRule, EmailRuleMatchField, EmailRuleMatchType } from "@/lib/contracts/email-rules";
+import type { EmailRule, EmailRuleGroup } from "@/lib/contracts/email-rules";
 import type { EmailLabel } from "@/lib/contracts/email-labels";
 import { CatalogActionButton } from "../../catalogs/_shared/catalog-action-button";
 import { SectionFilterBar } from "../../catalogs/_shared/section-filter-bar";
 import { StatusBadge } from "../../catalogs/_shared/status-badge";
 import { useCatalogSectionState } from "../../catalogs/_shared/use-catalog-section-state";
 import { createEmailRule, setEmailRuleActive, updateEmailRule } from "../_lib/email-rules-api";
+import { RulesGroupEditor, emptyGroup } from "./rules-group-editor";
 
 type Props = {
   rules: EmailRule[];
@@ -34,9 +33,7 @@ type Props = {
 type EmailRuleFormState = {
   id: number | null;
   name: string;
-  matchField: EmailRuleMatchField;
-  matchType: EmailRuleMatchType;
-  matchValue: string;
+  root: EmailRuleGroup;
   targetLabelId: string;
   priority: string;
   active: boolean;
@@ -46,40 +43,38 @@ function emptyForm(labels: EmailLabel[]): EmailRuleFormState {
   return {
     id: null,
     name: "",
-    matchField: "sender_domain",
-    matchType: "ends_with",
-    matchValue: "",
+    root: emptyGroup(),
     targetLabelId: labels.length > 0 ? String(labels[0].labelId) : "",
     priority: "100",
     active: true
   };
 }
 
+/**
+ * El árbol siempre se envía y las columnas planas van vacías: el servidor vacía esas columnas cuando
+ * hay árbol, y mandar las dos cosas dejaría dos verdades para la misma condición.
+ */
 function toPayload(form: EmailRuleFormState) {
   return {
     name: form.name.trim(),
-    matchField: form.matchField,
-    matchType: form.matchType,
-    matchValue: form.matchValue.trim(),
+    matchField: "" as const,
+    matchType: "" as const,
+    matchValue: "",
     targetLabelId: Number(form.targetLabelId),
     priority: Number(form.priority.trim() === "" ? "100" : form.priority),
-    active: form.active
+    active: form.active,
+    root: form.root
   };
 }
 
-/**
- * El dominio se compara literal, incluidos subdominios. La ayuda cambia con el campo elegido porque
- * el error más probable es escribir `paypal.com` con «Es igual a» y no casar `mail.paypal.com`.
- */
-function matchHint(field: EmailRuleMatchField): string {
-  switch (field) {
-    case "sender_domain":
-      return "Se compara el dominio completo, subdominios incluidos. Para incluir mail.paypal.com usa «Termina con» y el valor paypal.com.";
-    case "sender":
-      return "Dirección completa, por ejemplo notificaciones@banco.com.";
-    default:
-      return "Asunto normalizado: sin acentos, sin mayúsculas y con espacios colapsados.";
+/** Resumen de una regla en la tabla: el árbol si lo tiene, la condición única si es del modelo anterior. */
+function ruleSummary(rule: EmailRule): string {
+  if (rule.root) {
+    return summarizeGroup(rule.root);
   }
+
+  const type = EMAIL_RULE_MATCH_TYPE_LABELS[rule.matchType];
+  return rule.matchValue.length > 0 ? `${type} ${rule.matchValue}` : "Sin condiciones";
 }
 
 export function RulesSection({ rules, labels, onCatalogChanged, onError, onSuccess }: Props) {
@@ -116,12 +111,25 @@ export function RulesSection({ rules, labels, onCatalogChanged, onError, onSucce
   }
 
   function openEdit(rule: EmailRule) {
+    // Una regla del modelo anterior se abre como árbol de una condición: así el editor siempre
+    // trabaja con la forma nueva y guardarla la migra sin un caso especial.
+    const root: EmailRuleGroup =
+      rule.root ?? {
+        combinator: "and",
+        conditions: [
+          {
+            matchField: rule.matchField,
+            matchType: rule.matchType,
+            matchValue: rule.matchValue
+          }
+        ],
+        groups: []
+      };
+
     setForm({
       id: rule.emailRuleId,
       name: rule.name,
-      matchField: rule.matchField,
-      matchType: rule.matchType,
-      matchValue: rule.matchValue,
+      root,
       targetLabelId: String(rule.targetLabelId),
       priority: String(rule.priority),
       active: rule.active
@@ -174,24 +182,12 @@ export function RulesSection({ rules, labels, onCatalogChanged, onError, onSucce
       accessorKey: "name",
       header: "Regla",
       meta: gridMeta({ mobileRole: "title" }),
-      cell: ({ row }) => (
-        <div className="min-w-0">
-          <p className="text-primary truncate font-semibold">{row.original.name}</p>
-          <p className="text-muted truncate text-[11px]">
-            {EMAIL_RULE_MATCH_FIELD_LABELS[row.original.matchField]}
-          </p>
-        </div>
-      )
+      cell: ({ row }) => <p className="text-primary truncate font-semibold">{row.original.name}</p>
     },
     {
       accessorKey: "matchValue",
-      header: "Coincidencia",
-      cell: ({ row }) => (
-        <div className="min-w-0">
-          <p className="text-muted text-[11px]">{EMAIL_RULE_MATCH_TYPE_LABELS[row.original.matchType]}</p>
-          <p className="text-secondary truncate font-mono text-xs">{row.original.matchValue}</p>
-        </div>
-      )
+      header: "Condiciones",
+      cell: ({ row }) => <p className="text-secondary truncate font-mono text-xs">{ruleSummary(row.original)}</p>
     },
     {
       id: "targetLabel",
@@ -266,7 +262,7 @@ export function RulesSection({ rules, labels, onCatalogChanged, onError, onSucce
 
       {drawerOpen ? (
         <div className="drawer-enter-backdrop fixed inset-0 z-[70] flex items-end justify-end bg-[var(--color-overlay)] backdrop-blur-sm sm:items-stretch" role="presentation">
-          <Card className="drawer-enter-panel relative flex h-[100dvh] w-full max-w-none flex-col app-sidebar border-l p-0 sm:h-full sm:max-w-xl" onClick={(event) => event.stopPropagation()}>
+          <Card className="drawer-enter-panel relative flex h-[100dvh] w-full max-w-none flex-col app-sidebar border-l p-0 sm:h-full sm:max-w-2xl" onClick={(event) => event.stopPropagation()}>
             <div className="drawer-header-semantic">
               <div className="mb-1 h-1 w-12 bg-[var(--color-accent)]/70 sm:hidden" />
               <div className="flex items-start justify-between gap-3">
@@ -292,40 +288,6 @@ export function RulesSection({ rules, labels, onCatalogChanged, onError, onSucce
                     className="input-semantic rounded-none placeholder:text-muted"
                   />
                   <Select
-                    label="Campo"
-                    value={form.matchField}
-                    onChange={(event) =>
-                      setForm((current) => ({ ...current, matchField: event.target.value as EmailRuleMatchField }))
-                    }
-                  >
-                    {EMAIL_RULE_MATCH_FIELDS.map((field) => (
-                      <option key={field} value={field}>
-                        {EMAIL_RULE_MATCH_FIELD_LABELS[field]}
-                      </option>
-                    ))}
-                  </Select>
-                  <Select
-                    label="Comparación"
-                    value={form.matchType}
-                    onChange={(event) =>
-                      setForm((current) => ({ ...current, matchType: event.target.value as EmailRuleMatchType }))
-                    }
-                  >
-                    {EMAIL_RULE_MATCH_TYPES.map((type) => (
-                      <option key={type} value={type}>
-                        {EMAIL_RULE_MATCH_TYPE_LABELS[type]}
-                      </option>
-                    ))}
-                  </Select>
-                  <Input
-                    label="Valor"
-                    value={form.matchValue}
-                    onChange={(event) => setForm((current) => ({ ...current, matchValue: event.target.value }))}
-                    required
-                    className="input-semantic rounded-none placeholder:text-muted"
-                  />
-                  <p className="text-muted -mt-2 text-[11px]">{matchHint(form.matchField)}</p>
-                  <Select
                     label="Etiqueta destino"
                     value={form.targetLabelId}
                     onChange={(event) => setForm((current) => ({ ...current, targetLabelId: event.target.value }))}
@@ -348,7 +310,10 @@ export function RulesSection({ rules, labels, onCatalogChanged, onError, onSucce
                     onChange={(event) => setForm((current) => ({ ...current, priority: event.target.value }))}
                     className="input-semantic rounded-none placeholder:text-muted"
                   />
-                  <p className="text-muted -mt-2 text-[11px]">Menor número gana. Las reglas se evalúan en ese orden.</p>
+                  <p className="text-muted -mt-2 text-[11px]">
+                    Menor número gana. Una regla general debe llevar número más alto que las específicas, o se
+                    las come.
+                  </p>
                   <label className="text-secondary flex items-center gap-2 text-sm">
                     <input
                       type="checkbox"
@@ -357,6 +322,19 @@ export function RulesSection({ rules, labels, onCatalogChanged, onError, onSucce
                     />
                     Activa
                   </label>
+                </section>
+
+                <section className="drawer-section-semantic rounded-none border-[var(--color-border)] bg-[var(--color-surface-2)]">
+                  <h4 className="text-muted text-[11px] font-bold uppercase tracking-[0.14em]">Condiciones</h4>
+                  <p className="text-muted text-[11px]">
+                    «Y» exige todas; «O» basta con una. El dominio se compara literal, subdominios incluidos: para
+                    incluir mail.paypal.com usa «Termina con» y el valor paypal.com.
+                  </p>
+                  <RulesGroupEditor
+                    group={form.root}
+                    depth={0}
+                    onChange={(root) => setForm((current) => ({ ...current, root }))}
+                  />
                 </section>
               </div>
 

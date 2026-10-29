@@ -13,4 +13,7 @@ public class EmailRuleResponse
     public string? TargetLabelBehavior { get; set; }
     public int Priority { get; set; }
     public bool Active { get; set; }
+
+    /// <summary>Árbol guardado, para que el editor lo reconstruya. Vacío si la regla es de una condición.</summary>
+    public EmailRuleGroupDto? Root { get; set; }
 }

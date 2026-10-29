@@ -86,7 +86,8 @@ public class EmailRulesController : ControllerBase
                 MatchValue = request.MatchValue,
                 TargetLabelId = request.TargetLabelId,
                 Priority = request.Priority,
-                Active = request.Active
+                Active = request.Active,
+                Groups = MapNewGroups(request.Root)
             };
 
             var created = await _emailRuleService.CreateAsync(rule, userId);
@@ -123,7 +124,8 @@ public class EmailRulesController : ControllerBase
                 MatchValue = request.MatchValue,
                 TargetLabelId = request.TargetLabelId,
                 Priority = request.Priority,
-                Active = request.Active
+                Active = request.Active,
+                Groups = MapNewGroups(request.Root)
             };
 
             var updated = await _emailRuleService.UpdateAsync(id, update, userId);
@@ -179,7 +181,40 @@ public class EmailRulesController : ControllerBase
             TargetLabelName = rule.TargetLabel?.Name,
             TargetLabelBehavior = rule.TargetLabel?.Behavior,
             Priority = rule.Priority,
-            Active = rule.Active
+            Active = rule.Active,
+            // Solo llega con árbol el detalle de una regla; el listado no lo carga y devuelve null.
+            Root = rule.Groups is { Count: > 0 } ? MapGroupDto(rule.Groups.First()) : null
         };
     }
+
+    /// <summary>
+    /// Convierte el árbol recibido en entidades. El grupo raíz se envuelve en una lista porque la
+    /// relación es uno-a-muchos: el índice único parcial de la base garantiza que solo haya uno.
+    /// </summary>
+    private static List<EmailRuleGroup> MapNewGroups(EmailRuleGroupDto? root) =>
+        root is null ? new List<EmailRuleGroup>() : new List<EmailRuleGroup> { MapGroupEntity(root) };
+
+    private static EmailRuleGroup MapGroupEntity(EmailRuleGroupDto dto) => new()
+    {
+        Combinator = dto.Combinator,
+        Conditions = dto.Conditions.Select(condition => new EmailRuleCondition
+        {
+            MatchField = condition.MatchField,
+            MatchType = condition.MatchType,
+            MatchValue = condition.MatchValue
+        }).ToList(),
+        Children = dto.Groups.Select(MapGroupEntity).ToList()
+    };
+
+    private static EmailRuleGroupDto MapGroupDto(EmailRuleGroup group) => new()
+    {
+        Combinator = group.Combinator,
+        Conditions = group.Conditions.Select(condition => new EmailRuleConditionDto
+        {
+            MatchField = condition.MatchField,
+            MatchType = condition.MatchType,
+            MatchValue = condition.MatchValue
+        }).ToList(),
+        Groups = group.Children.Select(MapGroupDto).ToList()
+    };
 }
