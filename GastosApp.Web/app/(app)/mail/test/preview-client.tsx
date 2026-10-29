@@ -1,17 +1,19 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { ChangeEvent } from "react";
 import { Loader2, Trash2 } from "lucide-react";
 import { PageHeader } from "@/components/navigation/page-header";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 import { parseApiError } from "@/lib/bff/client-session";
 import { csrfFetch } from "@/lib/security/csrf-client";
 import {
   PREVIEW_OUTCOME_LABELS,
   PREVIEW_REASON_LABELS,
+  normalizeMailboxes,
   normalizePreviewResult
 } from "@/lib/contracts/email-preview";
 import type { EmailPreviewMessageInput, EmailPreviewResult } from "@/lib/contracts/email-preview";
@@ -35,9 +37,51 @@ export function PreviewClient({ username }: Props) {
   const [maxItems, setMaxItems] = useState("50");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
+  const [mailbox, setMailbox] = useState("");
+  const [mailboxes, setMailboxes] = useState<string[]>([]);
+  const [mailboxMessage, setMailboxMessage] = useState<string | null>(null);
+  const [loadingMailboxes, setLoadingMailboxes] = useState(true);
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<EmailPreviewResult | null>(null);
+
+  // Los buzones se cargan al entrar: si la conexión no está configurada, la pantalla lo dice en vez
+  // de ofrecer un selector vacío que parece un fallo.
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadMailboxes() {
+      try {
+        const response = await fetch("/api/bff/mail/mailboxes", { cache: "no-store" });
+        if (!response.ok) {
+          throw new Error("No se pudieron leer los buzones");
+        }
+
+        const parsed = normalizeMailboxes(await response.json());
+        if (cancelled) {
+          return;
+        }
+
+        setMailboxes(parsed.mailboxes);
+        setMailboxMessage(parsed.message);
+        setMailbox(parsed.mailboxes.includes("INBOX") ? "INBOX" : (parsed.mailboxes[0] ?? ""));
+      } catch (err) {
+        if (!cancelled) {
+          setMailboxMessage(err instanceof Error ? err.message : "No se pudieron leer los buzones");
+        }
+      } finally {
+        if (!cancelled) {
+          setLoadingMailboxes(false);
+        }
+      }
+    }
+
+    void loadMailboxes();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   async function onFilesSelected(event: ChangeEvent<HTMLInputElement>) {
     const files = Array.from(event.target.files ?? []);
@@ -74,7 +118,8 @@ export function PreviewClient({ username }: Props) {
               : [],
           maxItems: Number(maxItems.trim() === "" ? "50" : maxItems),
           from: from || null,
-          to: to || null
+          to: to || null,
+          mailbox: mailbox || null
         })
       });
 
@@ -90,7 +135,8 @@ export function PreviewClient({ username }: Props) {
     }
   }
 
-  const hasInput = messages.length > 0 || senderAddress.trim().length > 0 || subject.trim().length > 0;
+  const hasInput =
+    messages.length > 0 || senderAddress.trim().length > 0 || subject.trim().length > 0 || mailbox.length > 0;
 
   return (
     <>
@@ -156,6 +202,33 @@ export function PreviewClient({ username }: Props) {
               className="input-semantic rounded-none placeholder:text-muted"
             />
           </div>
+        </Card>
+
+        <Card className="space-y-3 p-4">
+          <h4 className="text-muted text-[11px] font-bold uppercase tracking-[0.14em]">Buzón (IMAP)</h4>
+          {loadingMailboxes ? (
+            <p className="text-muted text-xs">Leyendo buzones...</p>
+          ) : mailboxes.length > 0 ? (
+            <>
+              <p className="text-muted text-xs">
+                Lee los mensajes más recientes del buzón elegido. Solo lectura: no marca leídos, no etiqueta y
+                no mueve nada.
+              </p>
+              <Select label="Buzón o etiqueta" value={mailbox} onChange={(event) => setMailbox(event.target.value)}>
+                <option value="">Sin buzón (solo lo cargado a mano)</option>
+                {mailboxes.map((name) => (
+                  <option key={name} value={name}>
+                    {name}
+                  </option>
+                ))}
+              </Select>
+            </>
+          ) : (
+            <p className="text-muted text-xs">
+              {mailboxMessage ??
+                "Sin conexión IMAP. Configura Email__Imap__Username y Email__Imap__Password (contraseña de aplicación) para leer el buzón desde aquí."}
+            </p>
+          )}
         </Card>
 
         <Card className="space-y-3 p-4">

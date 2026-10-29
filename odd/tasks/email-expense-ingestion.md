@@ -75,8 +75,18 @@ S11. «Adicional dentro de la app modulo de test de correo para tomar x muestra 
   and create a `pending` draft. Nothing reaches `transactions`.
 - T9 [pending] S8: unclassified queue plus the action that turns the email in front of the user into
   a rule.
-- T10 [pending] S2,S5,S6,S7: `ImapEmailSource` (app password), a bounded resumable polling pass, and
-  the `Gastos` label plus the general inbox as the two sources.
+- T10 [done] S6,S7: IMAP **conexión y configuración únicamente**, como pidió el usuario: «sin job por
+  ahora solo conexion y config». `ImapOptions` (`Email:Imap`, `IsUsable` rechaza placeholders `SET_`
+  para no arrancar con secretos falsos), cliente MailKit de solo lectura que abre el buzón con
+  `FolderAccess.ReadOnly` y pide `Envelope` + `InternalDate` en vez del cuerpo, así que leer la
+  muestra no marca ningún mensaje como leído. Lista las etiquetas de Gmail como buzones y el módulo
+  de prueba puede muestrear uno. Verificado con `dotnet build code.sln --no-incremental` (0 errores)
+  y `pnpm build` + `pnpm test` (370 pasaron); **la conexión real nunca se abrió en este entorno**
+  porque no hay credenciales, y `.env.example` no se pudo escribir (ruta bloqueada por el entorno).
+- T12 [pending] S2,S4,S6: pase de sondeo acotado y reanudable sobre la conexión de T10 — separado de
+  T10 a propósito, porque el usuario pidió primero la conexión y el sondeo en segundo término. Lee
+  la etiqueta `Gastos` y el inbox general, y ahí sí aparece el corte de antigüedad actuando sobre
+  correo real.
 - T11 [pending] S2,S5,S10: drafts inbox in the web app to complete account, card, category and
   merchant, then confirm or discard.
 
@@ -184,6 +194,22 @@ L20. Validación del usuario el 2026-10-29, verbatim: «funciona ui de reglas y 
     habría devuelto error. Lo que sigue sin verificar es la corrección de los veredictos: "funciona"
     cubre el flujo, no que cada clasificación sea la esperada, y ahí es donde queda el ajuste de
     reglas con el correo real del usuario.
+L22. IMAP, solo conexión y configuración, por instrucción explícita del usuario: «yo voy sacando el 1,
+    tu el 2 de imap sin job por ahora solo conexion y config. y que en test se puede probar». Se
+    agregó MailKit 4.18.2 a `GastosApp.API` (la integración vive en la capa API, como Telegram, porque
+    `GastosApp.BusinessLogic` no referencia nada externo). Tres decisiones sostienen la lectura sin
+    efectos: `FolderAccess.ReadOnly`, pedir `Envelope` + `InternalDate` en vez de `BODY[]` —que es lo
+    que marcaría el mensaje como leído en el buzón del usuario— y no exponer ningún STORE, APPEND ni
+    MOVE. El listado de buzones responde siempre 200 con un motivo legible cuando no hay
+    configuración, porque un 500 ahí parece un defecto del programa y en realidad es una instalación
+    incompleta. En el preview, el fallo de IMAP se convierte en 400 solo cuando la petición pidió un
+    buzón: el camino con archivos `.eml` sigue sin tragarse errores.
+L23. Lo que este round **no** verifica: ninguna conexión real se abrió, así que la autenticación con
+    contraseña de aplicación, los nombres exactos de los buzones de Gmail y el comportamiento de
+    `GetFolders`/`FetchAsync` en MailKit quedan pendientes de que el usuario los ejercite desde
+    `/mail/test`. El código compila y las pruebas pasan; eso no es lo mismo que haber hablado con el
+    servidor. `.env.example` no se pudo editar (el entorno bloquea esa ruta), así que las claves
+    `Email__Imap__*` quedan documentadas en `ImapOptions` y en la respuesta al usuario.
 L21. Cierre del color de etiqueta (7083579): el campo era texto libre y el valor no se pintaba en
     ninguna parte, así que prometía algo que la pantalla no entregaba. Ahora es selector nativo, hay
     muestra en la lista y el contrato solo acepta `#rrggbb`, que es lo único que el input nativo

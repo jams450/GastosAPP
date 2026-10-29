@@ -1,3 +1,4 @@
+using GastosApp.API.Configuration;
 using GastosApp.API.Services.Email;
 using GastosApp.BusinessLogic.Interfaces;
 using GastosApp.BusinessLogic.Models.Email;
@@ -19,6 +20,14 @@ public static class EmailConfigurationExtensions
         services.AddScoped<IEmailRuleService, EmailRuleService>();
         services.AddScoped<IEmailClassificationService, EmailClassificationService>();
         services.AddScoped<EmailPreviewService>();
+
+        // Igual que EmailClassifierOptions: sin validación de arranque. Una config de correo a medias
+        // no debe impedir que la API arranque; simplemente deja el IMAP apagado y el módulo de prueba
+        // sigue funcionando con archivos .eml.
+        services.AddOptions<ImapOptions>()
+            .Bind(configuration.GetSection(ImapOptions.SectionName));
+
+        services.AddScoped<IImapMailboxSource, ImapMailboxSource>();
 
         return services;
     }

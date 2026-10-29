@@ -46,8 +46,8 @@ export async function POST(request: Request) {
     }))
     .filter((candidate) => candidate.senderAddress !== null || candidate.subject !== null);
 
-  if (messages.length === 0 && candidates.length === 0) {
-    return badRequest(request, "Agrega al menos un correo o un candidato");
+  if (messages.length === 0 && candidates.length === 0 && toTrimmedString(input.mailbox).length === 0) {
+    return badRequest(request, "Agrega al menos un correo, un candidato o un buzón");
   }
 
   const rawBytes = messages.reduce((total, message) => total + message.raw.length, 0);
@@ -58,10 +58,11 @@ export async function POST(request: Request) {
   const maxItems = typeof input.maxItems === "number" ? input.maxItems : 50;
   const from = toTrimmedString(input.from) || null;
   const to = toTrimmedString(input.to) || null;
+  const mailbox = toTrimmedString(input.mailbox) || null;
 
   const call = await fetchApiWithAutoRefresh(session, `${getApiBaseUrl()}/api/emailclassification/preview`, {
     method: "POST",
-    body: JSON.stringify({ messages, candidates, maxItems, from, to }),
+    body: JSON.stringify({ messages, candidates, maxItems, from, to, mailbox }),
     cache: "no-store"
   });
   const response = call.response;

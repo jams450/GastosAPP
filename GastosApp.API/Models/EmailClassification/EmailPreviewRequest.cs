@@ -13,6 +13,12 @@ public class EmailPreviewRequest
     /// <summary>Tope de la muestra. Por defecto 50, máximo 200.</summary>
     public int? MaxItems { get; set; }
 
+    /// <summary>
+    /// Buzón o etiqueta de Gmail que se lee por IMAP. Si viene, la muestra se toma del correo real
+    /// (solo lectura) además de lo que se haya cargado a mano.
+    /// </summary>
+    public string? Mailbox { get; set; }
+
     /// <summary>Descarta lo anterior a esta fecha, si el candidato trae fecha.</summary>
     public DateTime? From { get; set; }
 

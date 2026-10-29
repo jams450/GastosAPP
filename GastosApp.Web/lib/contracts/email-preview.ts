@@ -96,6 +96,26 @@ export function normalizePreviewResult(input: unknown): EmailPreviewResult {
   };
 }
 
+/** Etiquetas y carpetas que expone la conexión IMAP, o el motivo por el que no hay ninguna. */
+export type EmailMailboxes = {
+  configured: boolean;
+  mailboxes: string[];
+  message: string | null;
+};
+
+export function normalizeMailboxes(input: unknown): EmailMailboxes {
+  const record = isRecord(input) ? input : {};
+  const mailboxes = Array.isArray(record.mailboxes)
+    ? record.mailboxes.filter((name): name is string => typeof name === "string" && name.trim().length > 0)
+    : [];
+
+  return {
+    configured: Boolean(record.configured),
+    mailboxes,
+    message: toText(record.message)
+  };
+}
+
 /** Etiqueta legible del veredicto; el backend devuelve el enum en minúsculas. */
 export const PREVIEW_OUTCOME_LABELS: Record<string, string> = {
   expense: "Gasto (crearía borrador)",

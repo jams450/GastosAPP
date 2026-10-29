@@ -17,13 +17,16 @@ public sealed class EmailPreviewService
     private const int HardMaxItems = 200;
 
     private readonly IEmailClassificationService _classification;
+    private readonly IImapMailboxSource _imap;
     private readonly EmailClassifierOptions _options;
 
     public EmailPreviewService(
         IEmailClassificationService classification,
+        IImapMailboxSource imap,
         IOptions<EmailClassifierOptions> options)
     {
         _classification = classification;
+        _imap = imap;
         _options = options.Value;
     }
 
@@ -35,11 +38,24 @@ public sealed class EmailPreviewService
         ArgumentNullException.ThrowIfNull(request);
 
         var response = new EmailPreviewResponse { DropOlderThanDays = _options.DropOlderThanDays };
+        var maxItems = Math.Clamp(request.MaxItems ?? DefaultMaxItems, 1, HardMaxItems);
         var candidates = BuildCandidates(request, response);
 
-        response.Total = candidates.Count;
+        if (!string.IsNullOrWhiteSpace(request.Mailbox))
+        {
+            // La muestra pedida es el buzón, así que sus mensajes van primero. La lectura es de solo
+            // lectura por contrato (ver ImapMailboxSource): el dry run no escribe ni en la base ni en
+            // el correo del usuario.
+            var remote = await _imap.FetchAsync(
+                new ImapFetchRequest(request.Mailbox, maxItems, request.From, request.To),
+                cancellationToken);
 
-        var maxItems = Math.Clamp(request.MaxItems ?? DefaultMaxItems, 1, HardMaxItems);
+            candidates.InsertRange(
+                0,
+                remote.Select((candidate, index) => ($"{request.Mailbox}#{index + 1}", candidate)));
+        }
+
+        response.Total = candidates.Count;
 
         foreach (var (name, candidate) in candidates)
         {
