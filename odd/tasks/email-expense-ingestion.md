@@ -39,22 +39,34 @@ S11. «Adicional dentro de la app modulo de test de correo para tomar x muestra 
     shows what the classifier would do with them, without touching the pipeline.
 
 ## Tasks
-- T1 [pending] S1,S3,S4,S9,S10: schema — `email_labels` (user, name, kind folder/label, behavior,
+- T1 [done] S1,S3,S4,S9,S10: schema — `email_labels` (user, name, kind folder/label, behavior,
   colour, system flag, sort order), `email_rules` (match field sender/sender_domain/subject, match
   type, value, target label, priority, active), `email_messages` (one row per RFC822 `Message-ID`,
   mailbox, UID, received date, label, state, matched rule, failure), `email_expense_drafts`
   (nullable draft fields, raw text, card hint, status, TTL, `transaction_id`). Dated migration plus
-  `SQL/schema.sql` and the manifest.
-- T2 [pending] S9,S10: labels catalog — entity, service, CRUD controller and the catalogs UI section,
-  including the four behaviours and a seeded system set.
-- T3 [pending] S9: rules catalog — CRUD API and UI with the three match fields, target label,
-  priority and active, mirroring `CatalogRulesController`.
-- T4 [pending] S3,S8,S10: deterministic engine — highest-priority match wins, behaviour dispatch,
-  no match means the `review` state (never a silent ignore), age cutoff from configuration.
-- T5 [pending] S11: mail source abstraction with a fixture implementation, so sampling and
-  classification can be exercised with no mailbox credentials.
-- T6 [pending] S11: dry-run test module — top N plus a date range, per-message verdict (label, the
-  rule that matched, behaviour, whether the LLM was consulted) and no side effects at all.
+  `SQL/schema.sql` and the manifest. Committed bbd9d94; migration ships unapplied, build 0 warnings
+  and `dotnet test code.sln` 115 passed.
+- T2 [pending] S9,S10: labels catalog — API done: `EmailLabelService` (slug normalization, behaviour
+  validation, idempotent system seeds), `EmailLabelsController` (list, get, create, update, active
+  toggle, `POST api/emaillabels/defaults`) and its DTOs. Committed ede94eb. The catalogs UI
+  section remains.
+- T3 [pending] S9: rules catalog — API done: `EmailRuleService` (three match fields, four match types,
+  normalized `match_value`, target-label ownership check), `EmailRulesController` mirroring
+  `CatalogRulesController` and its DTOs. Committed ede94eb. The UI remains.
+- T4 [done] S3,S8,S10: deterministic engine — `EmailRuleEvaluator` is a pure function (priority, id
+  tiebreak, the four comparators, skips inactive rules and inactive target labels) and
+  `EmailClassificationService` loads the user's rules, applies `Email:DropOlderThanDays` and
+  dispatches by behaviour; no match is the `review` outcome. Committed ede94eb; verified with
+  `dotnet build code.sln` (0 warnings, 0 errors) and `dotnet test code.sln` (131 passed), of which
+  11 tests pin exactly those behaviours.
+- T5 [done] S11: fixture input — `EmailHeaderParser` reads only the headers of a saved `.eml`
+  (folding, RFC 2047 words, RFC 5322 dates) so classification is exercised with no credentials.
+  Rescoped from L14, which is superseded: see L15 and L16. Committed 0ea04d3.
+- T6 [done] S11: dry-run test module — `POST api/emailclassification/preview` takes raw `.eml` text
+  and/or hand-written candidates, applies the date range, caps the sample (default 50, max 200) and
+  returns the per-message verdict plus the state a real pass would write. It writes nothing by
+  construction. Verified by build and the 131-test suite; the HTTP path itself was not exercised
+  because there is no database access in this environment. Committed 0ea04d3.
 - T7 [pending] S9: LLM fallback — chooses among the user's labels and categories, runs only for
   bounded scenarios, and never becomes the path every message takes.
 - T8 [pending] S1,S2,S7: preview a saved `.eml`, classify it, extract amount/date/merchant/currency,
@@ -124,3 +136,28 @@ L13. The S11 sampling module is a dry run and must stay one: it never inserts in
 L14. Because the dry run needs a message source before the mailbox is wired, `IEmailMessageSource`
     lands with a fixture implementation first and the IMAP implementation later. That is also what
     lets the engine tests run without credentials.
+L15. Correction to L14, decided while implementing T5: no `IEmailMessageSource` abstraction is built
+    yet. A single source does not need an interface — it would be an unused abstraction whose only
+    caller is the thing that created it, and the dry run does not need to read a directory: the
+    preview endpoint takes the `.eml` text or a hand-written candidate directly. The abstraction
+    earns its place when the IMAP source (T10) arrives as the second implementation. What was built
+    is the part that has to be right either way: the header reader.
+L16. Two measured traps in `EmailHeaderParser`, each one silently wrong before it was pinned by a
+    test. First, RFC 2047 §6.2: the whitespace between two adjacent encoded words must be dropped,
+    otherwise a bank subject folded into two words decodes with a double space and the subject rule
+    that should match does not. Second, RFC 5322 writes the offset as `-0600` and
+    `DateTimeOffset.TryParse` with the invariant culture rejects that form, so every real date came
+    back empty and the age cutoff never applied; the parser normalizes it to `-06:00`. The same read
+    also found that a non-English or incorrect weekday makes .NET reject the whole date, so parsing
+    retries without the day prefix rather than losing the timestamp.
+L17. Layering decided while wiring the classifier: `GastosApp.AI` references no project and
+    `GastosApp.BusinessLogic` does not reference `GastosApp.AI`, so the deterministic engine lives in
+    BusinessLogic without any model dependency and the LLM fallback (T7) is orchestrated in the API
+    layer, exactly as the Telegram services already do. The deterministic path therefore cannot
+    accidentally call a model.
+L18. Work units landed at 2026-10-29. `ede94eb` holds the engine and the label and rule catalogs API
+    (20 files, +1394); `0ea04d3` holds the header reader and the dry-run preview (10 files, +673).
+    Both were checked with `dotnet build code.sln` (0 warnings, 0 errors) and `dotnet test code.sln`
+    (131 passed, 0 failed). Not verified and not claimed: the migrations are still unapplied, the
+    HTTP endpoints were never exercised against a database, and none of the UI exists, so no browser
+    check was possible.
