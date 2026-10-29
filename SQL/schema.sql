@@ -1324,6 +1324,47 @@ CREATE TABLE IF NOT EXISTS email_rules (
     CONSTRAINT fk_email_rules_target_label FOREIGN KEY (target_label_id) REFERENCES email_labels(label_id) ON DELETE RESTRICT
 );
 
+-- Modelo booleano de las reglas: un grupo combina con su operador a sus condiciones y subgrupos, así
+-- que `dominio = x Y (asunto contiene a O asunto contiene b)` es expresable. Una regla sin grupos se
+-- sigue evaluando con sus columnas `match_*` mientras dure la transición.
+CREATE TABLE IF NOT EXISTS email_rule_groups (
+    group_id SERIAL PRIMARY KEY,
+    email_rule_id INT NOT NULL,
+    parent_group_id INT,
+    -- `combinator` y no `operator`: OPERATOR es palabra reservada en PostgreSQL.
+    combinator VARCHAR(3) NOT NULL CHECK (combinator IN ('and', 'or')),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_by VARCHAR(100),
+    updated_by VARCHAR(100),
+    CONSTRAINT fk_email_rule_groups_rule FOREIGN KEY (email_rule_id)
+        REFERENCES email_rules(email_rule_id) ON DELETE CASCADE,
+    CONSTRAINT fk_email_rule_groups_parent FOREIGN KEY (parent_group_id)
+        REFERENCES email_rule_groups(group_id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_email_rule_groups_rule ON email_rule_groups(email_rule_id, parent_group_id);
+
+-- Un solo grupo raíz por regla: dos raíces dejarían la regla sin un significado único.
+CREATE UNIQUE INDEX IF NOT EXISTS uq_email_rule_groups_root
+    ON email_rule_groups(email_rule_id) WHERE parent_group_id IS NULL;
+
+CREATE TABLE IF NOT EXISTS email_rule_conditions (
+    condition_id SERIAL PRIMARY KEY,
+    group_id INT NOT NULL,
+    match_field VARCHAR(20) NOT NULL CHECK (match_field IN ('sender', 'sender_domain', 'subject')),
+    match_type VARCHAR(20) NOT NULL CHECK (match_type IN ('equals', 'contains', 'starts_with', 'ends_with')),
+    match_value VARCHAR(200) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_by VARCHAR(100),
+    updated_by VARCHAR(100),
+    CONSTRAINT fk_email_rule_conditions_group FOREIGN KEY (group_id)
+        REFERENCES email_rule_groups(group_id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_email_rule_conditions_group ON email_rule_conditions(group_id);
+
 CREATE INDEX IF NOT EXISTS idx_email_rules_user_active_priority ON email_rules(user_id, active, priority);
 
 CREATE TABLE IF NOT EXISTS email_messages (

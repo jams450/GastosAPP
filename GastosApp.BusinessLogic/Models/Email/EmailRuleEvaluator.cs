@@ -14,6 +14,13 @@ public sealed record EmailRuleMatch(EmailRule Rule, EmailLabel Label);
 public static class EmailRuleEvaluator
 {
     /// <summary>
+    /// Tope de anidamiento al evaluar grupos. La relación padre-hijo vive en la base, y una fila mal
+    /// formada podría apuntar en círculo; sin tope eso no es un error, es un desbordamiento de pila
+    /// que se lleva el proceso.
+    /// </summary>
+    private const int MaxGroupDepth = 10;
+
+    /// <summary>
     /// Primera regla que casa, en orden de prioridad (menor gana) y luego por id. Una regla inactiva
     /// nunca casa, y una regla cuya etiqueta destino esté inactiva se salta para que la siguiente
     /// pueda decidir: retirar una etiqueta no debe detener la clasificación de todo un remitente.
@@ -33,7 +40,7 @@ public static class EmailRuleEvaluator
             .OrderBy(rule => rule.Priority)
             .ThenBy(rule => rule.EmailRuleId))
         {
-            if (Matches(rule, candidate))
+            if (MatchesRule(rule, candidate))
             {
                 return new EmailRuleMatch(rule, rule.TargetLabel);
             }
@@ -56,26 +63,83 @@ public static class EmailRuleEvaluator
         return receivedAt >= now.AddDays(-dropOlderThanDays);
     }
 
-    private static bool Matches(EmailRule rule, EmailMessageCandidate candidate)
+    /// <summary>
+    /// Con grupos, mandan los grupos y las columnas <c>match_*</c> se ignoran. Mantener las dos fuentes
+    /// activas dejaría dos verdades para la misma condición, que es justo lo que se está retirando.
+    /// </summary>
+    private static bool MatchesRule(EmailRule rule, EmailMessageCandidate candidate)
     {
-        if (string.IsNullOrEmpty(rule.MatchValue))
+        if (rule.Groups is { Count: > 0 })
+        {
+            var root = rule.Groups.FirstOrDefault(group => group.ParentGroupId is null);
+            return root is not null && MatchesGroup(root, candidate, depth: 0);
+        }
+
+        return MatchesText(rule.MatchField, rule.MatchType, rule.MatchValue, candidate);
+    }
+
+    /// <summary>
+    /// Un grupo combina con su operador a sus condiciones y a sus subgrupos. Un grupo sin nada
+    /// devuelve falso: una regla a medio configurar no debe comportarse como comodín.
+    /// </summary>
+    private static bool MatchesGroup(EmailRuleGroup group, EmailMessageCandidate candidate, int depth)
+    {
+        if (depth > MaxGroupDepth)
         {
             return false;
         }
 
-        var text = FieldText(rule.MatchField, candidate);
+        var results = new List<bool>(group.Conditions.Count + group.Children.Count);
+
+        foreach (var condition in group.Conditions)
+        {
+            results.Add(MatchesText(condition.MatchField, condition.MatchType, condition.MatchValue, candidate));
+        }
+
+        foreach (var child in group.Children)
+        {
+            results.Add(MatchesGroup(child, candidate, depth + 1));
+        }
+
+        if (results.Count == 0)
+        {
+            return false;
+        }
+
+        // Un combinador desconocido se trata como AND: ante la duda, la regla es más estricta, no más
+        // laxa. Una errata no debe ampliar a qué correo se le aplica una etiqueta.
+        var isOr = string.Equals(
+            (group.Combinator ?? string.Empty).Trim(),
+            EmailRuleGroupCombinator.Or,
+            StringComparison.OrdinalIgnoreCase);
+
+        return isOr ? results.Any(result => result) : results.All(result => result);
+    }
+
+    private static bool MatchesText(
+        string? matchField,
+        string? matchType,
+        string? matchValue,
+        EmailMessageCandidate candidate)
+    {
+        if (string.IsNullOrEmpty(matchValue))
+        {
+            return false;
+        }
+
+        var text = FieldText(matchField, candidate);
         if (text.Length == 0)
         {
             return false;
         }
 
-        var matchType = (rule.MatchType ?? string.Empty).Trim().ToLowerInvariant();
-        return matchType switch
+        var type = (matchType ?? string.Empty).Trim().ToLowerInvariant();
+        return type switch
         {
-            EmailRuleMatchType.Contains => text.Contains(rule.MatchValue, StringComparison.Ordinal),
-            EmailRuleMatchType.Exact => text.Equals(rule.MatchValue, StringComparison.Ordinal),
-            EmailRuleMatchType.StartsWith => text.StartsWith(rule.MatchValue, StringComparison.Ordinal),
-            EmailRuleMatchType.EndsWith => text.EndsWith(rule.MatchValue, StringComparison.Ordinal),
+            EmailRuleMatchType.Contains => text.Contains(matchValue, StringComparison.Ordinal),
+            EmailRuleMatchType.Exact => text.Equals(matchValue, StringComparison.Ordinal),
+            EmailRuleMatchType.StartsWith => text.StartsWith(matchValue, StringComparison.Ordinal),
+            EmailRuleMatchType.EndsWith => text.EndsWith(matchValue, StringComparison.Ordinal),
             _ => false
         };
     }

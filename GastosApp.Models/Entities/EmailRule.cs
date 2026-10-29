@@ -6,8 +6,13 @@ namespace GastosApp.Models.Entities
 {
     /// <summary>
     /// Regla determinista de clasificación de correo. Aplica sobre un campo del mensaje y asigna
-    /// exactamente una etiqueta. Misma forma que <see cref="CatalogRule"/>, que ya está probada en
+    /// exactamente una etiqueta. Misma forma que <see cref="CatalogRule" />, que ya está probada en
     /// este repo, más el campo que se compara.
+    /// <para>
+    /// La condición única de <see cref="MatchField" /> y compañía es el modelo anterior. Una regla puede
+    /// expresar AND/OR anidados con <see cref="Groups" />, que es lo que cubre casos como «mismo dominio
+    /// y el asunto empieza con X».
+    /// </para>
     /// </summary>
     [Table("email_rules")]
     public class EmailRule : BaseModel
@@ -65,6 +70,14 @@ namespace GastosApp.Models.Entities
 
         [ForeignKey("TargetLabelId")]
         public virtual EmailLabel TargetLabel { get; set; } = null!;
+
+        /// <summary>
+        /// Grupos booleanos de la regla. Si está vacío, la regla se evalúa con sus columnas
+        /// <c>match_*</c>, que es el modelo anterior y sigue vivo mientras dure la transición. Cuando
+        /// hay grupos, mandan los grupos y las columnas se ignoran: dos fuentes de verdad para la misma
+        /// condición es justo lo que se está retirando.
+        /// </summary>
+        public virtual ICollection<EmailRuleGroup> Groups { get; set; } = new List<EmailRuleGroup>();
     }
 
     public static class EmailRuleMatchField

@@ -39,6 +39,8 @@ namespace GastosApp.BusinessLogic.Context
         public DbSet<CatalogRule> CatalogRules { get; set; } = null!;
         public DbSet<EmailLabel> EmailLabels { get; set; } = null!;
         public DbSet<EmailRule> EmailRules { get; set; } = null!;
+        public DbSet<EmailRuleGroup> EmailRuleGroups { get; set; } = null!;
+        public DbSet<EmailRuleCondition> EmailRuleConditions { get; set; } = null!;
         public DbSet<EmailMessage> EmailMessages { get; set; } = null!;
         public DbSet<EmailExpenseDraft> EmailExpenseDrafts { get; set; } = null!;
         public DbSet<Budget> Budgets { get; set; } = null!;
@@ -571,6 +573,28 @@ namespace GastosApp.BusinessLogic.Context
                 entity.HasIndex(e => new { e.UserId, e.Slug }).IsUnique();
                 entity.HasIndex(e => new { e.UserId, e.Active, e.SortOrder });
                 entity.HasOne(e => e.User).WithMany().HasForeignKey(e => e.UserId).OnDelete(DeleteBehavior.Cascade);
+            });
+
+            // El modelo booleano: un grupo cuelga de su regla o de otro grupo, y las condiciones cuelgan
+            // del grupo. Sin la inversa explícita, EF no puede emparejar `Children` con `ParentGroup`.
+            modelBuilder.Entity<EmailRuleGroup>(entity =>
+            {
+                entity.HasOne(e => e.EmailRule)
+                    .WithMany(rule => rule.Groups)
+                    .HasForeignKey(e => e.EmailRuleId)
+                    .OnDelete(DeleteBehavior.Cascade);
+                entity.HasOne(e => e.ParentGroup)
+                    .WithMany(group => group.Children)
+                    .HasForeignKey(e => e.ParentGroupId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            modelBuilder.Entity<EmailRuleCondition>(entity =>
+            {
+                entity.HasOne(e => e.Group)
+                    .WithMany(group => group.Conditions)
+                    .HasForeignKey(e => e.GroupId)
+                    .OnDelete(DeleteBehavior.Cascade);
             });
 
             modelBuilder.Entity<EmailRule>(entity =>
