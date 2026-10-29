@@ -62,7 +62,7 @@ public class EmailRuleService : IEmailRuleService
         if (root is not null)
         {
             ValidateGroupOrThrow(root, depth: 0);
-            ClearLegacyCondition(rule);
+            MirrorLegacyCondition(rule, root);
         }
         else
         {
@@ -93,7 +93,7 @@ public class EmailRuleService : IEmailRuleService
         if (root is not null)
         {
             ValidateGroupOrThrow(root, depth: 0);
-            ClearLegacyCondition(rule);
+            MirrorLegacyCondition(rule, root);
         }
         else
         {
@@ -242,12 +242,39 @@ public class EmailRuleService : IEmailRuleService
         rule.Groups = new List<EmailRuleGroup>();
     }
 
-    /// <summary>Con árbol, las columnas planas quedan vacías: el evaluador ignora las columnas cuando hay grupos.</summary>
-    private static void ClearLegacyCondition(EmailRule rule)
+    /// <summary>
+    /// Con árbol, las columnas planas no significan nada, pero la tabla las declara <c>NOT NULL</c> con
+    /// un <c>CHECK</c> sobre los valores válidos: vaciarlas no es posible, PostgreSQL rechaza la fila.
+    /// Se refleja la primera condición para que el registro siga siendo válido y legible desde la base;
+    /// el motor las ignora cuando hay grupos, así que no hay dos verdades activas.
+    /// </summary>
+    private static void MirrorLegacyCondition(EmailRule rule, EmailRuleGroup root)
     {
-        rule.MatchField = string.Empty;
-        rule.MatchType = string.Empty;
-        rule.MatchValue = string.Empty;
+        var first = FirstCondition(root);
+
+        rule.MatchField = first?.MatchField ?? EmailRuleMatchField.Sender;
+        rule.MatchType = first?.MatchType ?? EmailRuleMatchType.Contains;
+        rule.MatchValue = first?.MatchValue ?? string.Empty;
+    }
+
+    /// <summary>Primera condición del árbol en profundidad; la raíz primero, luego sus subgrupos.</summary>
+    private static EmailRuleCondition? FirstCondition(EmailRuleGroup group)
+    {
+        if (group.Conditions.Count > 0)
+        {
+            return group.Conditions.First();
+        }
+
+        foreach (var child in group.Children)
+        {
+            var found = FirstCondition(child);
+            if (found is not null)
+            {
+                return found;
+            }
+        }
+
+        return null;
     }
 
     private static (string MatchField, string MatchType, string MatchValue) NormalizeConditionOrThrow(
