@@ -15,6 +15,7 @@ builder.Services
     .AddApiTelegramConfiguration(builder.Configuration)
     .AddApiAlertsConfiguration(builder.Configuration)
     .AddApiFxConfiguration(builder.Configuration)
+    .AddApiEmailConfiguration(builder.Configuration)
     .AddApiDatabase(builder.Configuration)
     .AddApiAuthentication(builder.Configuration)
     .AddApiAuthorization()
