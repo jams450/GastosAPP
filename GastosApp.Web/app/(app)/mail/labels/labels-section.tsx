@@ -168,7 +168,7 @@ export function LabelsSection({ labels, onCatalogChanged, onError, onSuccess }: 
       header: "Etiqueta",
       meta: gridMeta({ mobileRole: "title" }),
       cell: ({ row }) => (
-        <div className="flex min-w-0 items-center gap-2">
+        <span className="flex min-w-0 items-center gap-2">
           {row.original.color ? (
             <span
               className="h-2.5 w-2.5 shrink-0 rounded-full border border-[var(--color-border-strong)]"
@@ -176,11 +176,13 @@ export function LabelsSection({ labels, onCatalogChanged, onError, onSuccess }: 
               aria-hidden="true"
             />
           ) : null}
-          <div className="min-w-0">
-            <p className="text-primary truncate font-semibold">{row.original.name}</p>
-            <p className="text-muted truncate text-[11px]">{row.original.description ?? row.original.slug}</p>
-          </div>
-        </div>
+          <span className="min-w-0">
+            <span className="text-primary block truncate font-semibold">{row.original.name}</span>
+            <span className="text-muted block truncate text-[11px]">
+              {row.original.description ?? row.original.slug}
+            </span>
+          </span>
+        </span>
       )
     },
     {

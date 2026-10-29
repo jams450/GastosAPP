@@ -182,12 +182,14 @@ export function RulesSection({ rules, labels, onCatalogChanged, onError, onSucce
       accessorKey: "name",
       header: "Regla",
       meta: gridMeta({ mobileRole: "title" }),
-      cell: ({ row }) => <p className="text-primary truncate font-semibold">{row.original.name}</p>
+      cell: ({ row }) => <span className="text-primary truncate font-semibold">{row.original.name}</span>
     },
     {
       accessorKey: "matchValue",
       header: "Condiciones",
-      cell: ({ row }) => <p className="text-secondary truncate font-mono text-xs">{ruleSummary(row.original)}</p>
+      cell: ({ row }) => (
+        <span className="text-secondary truncate font-mono text-xs">{ruleSummary(row.original)}</span>
+      )
     },
     {
       id: "targetLabel",
