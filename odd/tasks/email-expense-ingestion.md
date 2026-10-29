@@ -46,13 +46,14 @@ S11. «Adicional dentro de la app modulo de test de correo para tomar x muestra 
   (nullable draft fields, raw text, card hint, status, TTL, `transaction_id`). Dated migration plus
   `SQL/schema.sql` and the manifest. Committed bbd9d94; migration ships unapplied, build 0 warnings
   and `dotnet test code.sln` 115 passed.
-- T2 [pending] S9,S10: labels catalog — API done: `EmailLabelService` (slug normalization, behaviour
+- T2 [done] S9,S10: labels catalog — API done: `EmailLabelService` (slug normalization, behaviour
   validation, idempotent system seeds), `EmailLabelsController` (list, get, create, update, active
-  toggle, `POST api/emaillabels/defaults`) and its DTOs. Committed ede94eb. The catalogs UI
-  section remains.
-- T3 [pending] S9: rules catalog — API done: `EmailRuleService` (three match fields, four match types,
+  toggle, `POST api/emaillabels/defaults`) and its DTOs were committed in ede94eb, and the screen
+  at `/mail/labels` landed in 75bcfb1.
+- T3 [done] S9: rules catalog — API done: `EmailRuleService` (three match fields, four match types,
   normalized `match_value`, target-label ownership check), `EmailRulesController` mirroring
-  `CatalogRulesController` and its DTOs. Committed ede94eb. The UI remains.
+  `CatalogRulesController` and its DTOs were committed in ede94eb, and the screen at `/mail/rules`
+  landed in 75bcfb1, with the target label chosen from the user's real labels.
 - T4 [done] S3,S8,S10: deterministic engine — `EmailRuleEvaluator` is a pure function (priority, id
   tiebreak, the four comparators, skips inactive rules and inactive target labels) and
   `EmailClassificationService` loads the user's rules, applies `Email:DropOlderThanDays` and
@@ -66,7 +67,8 @@ S11. «Adicional dentro de la app modulo de test de correo para tomar x muestra 
   and/or hand-written candidates, applies the date range, caps the sample (default 50, max 200) and
   returns the per-message verdict plus the state a real pass would write. It writes nothing by
   construction. Verified by build and the 131-test suite; the HTTP path itself was not exercised
-  because there is no database access in this environment. Committed 0ea04d3.
+  because there is no database access in this environment. Committed 0ea04d3; the screen that uses it
+  is `/mail/test`, landed in 75bcfb1.
 - T7 [pending] S9: LLM fallback — chooses among the user's labels and categories, runs only for
   bounded scenarios, and never becomes the path every message takes.
 - T8 [pending] S1,S2,S7: preview a saved `.eml`, classify it, extract amount/date/merchant/currency,
@@ -161,3 +163,14 @@ L18. Work units landed at 2026-10-29. `ede94eb` holds the engine and the label a
     (131 passed, 0 failed). Not verified and not claimed: the migrations are still unapplied, the
     HTTP endpoints were never exercised against a database, and none of the UI exists, so no browser
     check was possible.
+L19. Correo UI round, and a correction to L18: the UI does exist now. Three screens landed under
+    `/mail/*` in 75bcfb1 — labels, rules and the dry-run sampler — and the sidebar was split into
+    «Gastos» and «Correo» so the two domains are distinguishable in the menu the user asked about.
+    The screens reuse `catalogs/_shared` through relative imports instead of a new extraction: a
+    refactor of the existing catalog screens would have touched seven files the request did not
+    mention. The extraction condition is a third feature needing those components.
+    A contract detail is pinned by a test because it fails silently: `match_type` persists `equals`
+    while the backend constant is named `Exact`, so a UI sending `exact` would save a rule that
+    never matches. Verified by `pnpm build` (exit 0, three routes registered), `pnpm run lint`
+    (0 errors, 9 pre-existing warnings) and `pnpm test` (369 passed). Still not verified: no browser
+    run, and no verdict observed end to end because the database is unreachable here.

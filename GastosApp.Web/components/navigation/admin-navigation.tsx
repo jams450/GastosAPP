@@ -4,7 +4,7 @@ import { ChevronDown } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { cn } from "@/lib/ui/cn";
-import { appNavItems, isRouteActive } from "./nav-config";
+import { appNavItems, appNavSections, isRouteActive } from "./nav-config";
 
 type AdminNavigationProps = {
   readonly pathname: string;
@@ -26,7 +26,6 @@ export function AdminNavigation({ pathname, compact = false, mobile = false, onN
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
   const isCompact = compact && !mobile;
   const scope = mobile ? "mobile-navigation" : "desktop-navigation";
-  const labelId = `${scope}-nav-label`;
   const activeGroupHref = appNavItems.find((item) => item.children?.some((child) => isRouteActive(pathname, child.href)))?.href;
 
   // Route change drops manual open/close overrides, so the group holding the
@@ -37,11 +36,15 @@ export function AdminNavigation({ pathname, compact = false, mobile = false, onN
 
   return (
     <nav className="shell-nav" aria-label={mobile ? "Navegación móvil de Amitzi Finance" : "Navegación de Amitzi Finance"}>
-      <p id={labelId} className="shell-nav-section-label p-3">
-        Tu espacio
-      </p>
-      <ul className="shell-nav-list" aria-labelledby={labelId}>
-        {appNavItems.map((item) => {
+      {appNavSections.map((section) => {
+        const sectionLabelId = `${scope}-section-${section.id}`;
+        return (
+          <div key={section.id}>
+            <p id={sectionLabelId} className="shell-nav-section-label p-3">
+              {section.label}
+            </p>
+            <ul className="shell-nav-list" aria-labelledby={sectionLabelId}>
+        {section.items.map((item) => {
           const Icon = item.icon;
           const contentId = groupContentId(scope, item.href);
 
@@ -105,7 +108,10 @@ export function AdminNavigation({ pathname, compact = false, mobile = false, onN
             </li>
           );
         })}
-      </ul>
+            </ul>
+          </div>
+        );
+      })}
     </nav>
   );
 }
