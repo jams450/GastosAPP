@@ -9,8 +9,14 @@ namespace GastosApp.Models.Entities
     /// subgrupos, así que una regla puede expresar
     /// <c>dominio = mercadolibre.com Y (asunto contiene compraste O asunto contiene pagaste)</c>.
     /// <para>
-    /// Un grupo vacío nunca casa. Es deliberado: una regla a medio configurar no debe comportarse
-    /// como comodín y quedarse con correo que no le toca.
+    /// <see cref="Negated" /> invierte el resultado del grupo ya combinado —no el de cada hijo—, que es
+    /// lo que hace <c>dominio = x Y NO (asunto contiene factura O invoice)</c>. Es un booleano y no un
+    /// comparador nuevo: «no_contiene», «no_empieza_con» y sus combinaciones son el camino a un motor
+    /// que ya nadie puede auditar.
+    /// </para>
+    /// <para>
+    /// Un grupo vacío nunca casa, y negarlo tampoco lo enciende. Es deliberado: una regla a medio
+    /// configurar no debe comportarse como comodín y quedarse con correo que no le toca.
     /// </para>
     /// </summary>
     [Table("email_rule_groups")]
@@ -39,6 +45,13 @@ namespace GastosApp.Models.Entities
         [Required]
         [StringLength(3)]
         public string Combinator { get; set; } = EmailRuleGroupCombinator.And;
+
+        /// <summary>
+        /// Invierte el resultado del grupo. Arranca en <c>false</c> para que las reglas existentes
+        /// sigan significando exactamente lo mismo que antes de S14.
+        /// </summary>
+        [Column("negated")]
+        public bool Negated { get; set; }
 
         [ForeignKey("EmailRuleId")]
         public virtual EmailRule EmailRule { get; set; } = null!;

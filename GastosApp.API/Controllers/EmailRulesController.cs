@@ -7,9 +7,13 @@ using Microsoft.AspNetCore.Mvc;
 namespace GastosApp.API.Controllers;
 
 /// <summary>
-/// Reglas de clasificación de correo: remitente, dominio o asunto hacia una etiqueta. Misma forma que
+/// Reglas de clasificación de correo: remitente, dominio o asunto hacia una acción terminal —asignar
+/// una etiqueta (histórico), mandar a revisión o pedir el veredicto al LLM—. Misma forma que
 /// <see cref="CatalogRulesController"/>; la diferencia es que el destino es una etiqueta y que el
 /// <c>match_value</c> se guarda normalizado (lo hace el servicio), por eso acá no se normaliza.
+/// La acción y la etiqueta se validan en el servicio, no acá: la regla de «solo <c>assign_label</c>
+/// lleva etiqueta» vive con el resto de las validaciones para que la API y cualquier otro llamador
+/// compartan la misma.
 /// </summary>
 [ApiController]
 [Route("api/[controller]")]
@@ -81,6 +85,7 @@ public class EmailRulesController : ControllerBase
             var rule = new EmailRule
             {
                 Name = request.Name,
+                Action = request.Action,
                 MatchField = request.MatchField,
                 MatchType = request.MatchType,
                 MatchValue = request.MatchValue,
@@ -119,6 +124,7 @@ public class EmailRulesController : ControllerBase
             var update = new EmailRule
             {
                 Name = request.Name,
+                Action = request.Action,
                 MatchField = request.MatchField,
                 MatchType = request.MatchType,
                 MatchValue = request.MatchValue,
@@ -177,9 +183,11 @@ public class EmailRulesController : ControllerBase
             MatchField = rule.MatchField,
             MatchType = rule.MatchType,
             MatchValue = rule.MatchValue,
+            Action = rule.Action,
             TargetLabelId = rule.TargetLabelId,
             TargetLabelName = rule.TargetLabel?.Name,
             TargetLabelBehavior = rule.TargetLabel?.Behavior,
+            ConditionCount = rule.ConditionCount,
             Priority = rule.Priority,
             Active = rule.Active,
             // Solo llega con árbol el detalle de una regla; el listado no lo carga y devuelve null.
@@ -197,11 +205,13 @@ public class EmailRulesController : ControllerBase
     private static EmailRuleGroup MapGroupEntity(EmailRuleGroupDto dto) => new()
     {
         Combinator = dto.Combinator,
+        Negated = dto.Negated,
         Conditions = dto.Conditions.Select(condition => new EmailRuleCondition
         {
             MatchField = condition.MatchField,
             MatchType = condition.MatchType,
-            MatchValue = condition.MatchValue
+            MatchValue = condition.MatchValue,
+            Negated = condition.Negated
         }).ToList(),
         Children = dto.Groups.Select(MapGroupEntity).ToList()
     };
@@ -209,11 +219,13 @@ public class EmailRulesController : ControllerBase
     private static EmailRuleGroupDto MapGroupDto(EmailRuleGroup group) => new()
     {
         Combinator = group.Combinator,
+        Negated = group.Negated,
         Conditions = group.Conditions.Select(condition => new EmailRuleConditionDto
         {
             MatchField = condition.MatchField,
             MatchType = condition.MatchType,
-            MatchValue = condition.MatchValue
+            MatchValue = condition.MatchValue,
+            Negated = condition.Negated
         }).ToList(),
         Groups = group.Children.Select(MapGroupDto).ToList()
     };

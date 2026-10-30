@@ -10,4 +10,10 @@ public class EmailRuleConditionDto
     public string MatchType { get; set; } = string.Empty;
 
     public string MatchValue { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Invierte el resultado de esta condición. Ausente en las peticiones anteriores a S14, así que el
+    /// valor por defecto es «no negar»: la regla guardada sigue significando lo mismo.
+    /// </summary>
+    public bool Negated { get; set; }
 }

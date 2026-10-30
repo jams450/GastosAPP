@@ -7,6 +7,11 @@ namespace GastosApp.Models.Entities
     /// <summary>
     /// Una condición dentro de un grupo de regla: campo, comparación y valor. Todas las condiciones de
     /// un grupo se combinan con el operador del grupo, y los subgrupos entran en esa misma combinación.
+    /// <para>
+    /// <see cref="Negated" /> invierte solo esta condición. Una condición inválida (campo, comparación
+    /// o valor vacío) no se invierte: un <c>NO</c> sobre una condición mal escrita no puede volverse
+    /// «todo el correo». El detalle está en <c>EmailRuleEvaluator</c>.
+    /// </para>
     /// </summary>
     [Table("email_rule_conditions")]
     public class EmailRuleCondition : BaseModel
@@ -36,6 +41,10 @@ namespace GastosApp.Models.Entities
         [Required]
         [StringLength(200)]
         public string MatchValue { get; set; } = string.Empty;
+
+        /// <summary>Invierte el resultado de esta condición. Arranca en <c>false</c> (compatibilidad).</summary>
+        [Column("negated")]
+        public bool Negated { get; set; }
 
         [ForeignKey("GroupId")]
         public virtual EmailRuleGroup Group { get; set; } = null!;

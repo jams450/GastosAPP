@@ -27,13 +27,29 @@ public class EmailRuleService : IEmailRuleService
 
     public async Task<IEnumerable<EmailRule>> GetByUserIdAsync(int userId, bool onlyActive = false)
     {
-        return await _repository
+        var rules = await _repository
             .Get<EmailRule>(rule => rule.UserId == userId && (!onlyActive || rule.Active))
             .AsNoTracking()
             .Include(rule => rule.TargetLabel)
             .OrderBy(rule => rule.Priority)
             .ThenBy(rule => rule.EmailRuleId)
             .ToListAsync();
+
+        var ids = rules.Select(rule => rule.EmailRuleId).ToArray();
+        if (ids.Length > 0)
+        {
+            // Cuenta todos los niveles por la pertenencia a la regla, no solo las condiciones raíz.
+            var groupCounts = await _repository.Get<EmailRuleGroup>(group => ids.Contains(group.EmailRuleId))
+                .Select(group => new { group.EmailRuleId, Count = group.Conditions.Count })
+                .ToListAsync();
+            var counts = groupCounts.GroupBy(group => group.EmailRuleId)
+                .ToDictionary(groups => groups.Key, groups => groups.Sum(group => group.Count));
+            foreach (var rule in rules)
+            {
+                rule.ConditionCount = counts.GetValueOrDefault(rule.EmailRuleId, 1);
+            }
+        }
+        return rules;
     }
 
     public async Task<EmailRule?> GetByIdAsync(int id, int userId)
@@ -56,13 +72,14 @@ public class EmailRuleService : IEmailRuleService
     public async Task<EmailRule> CreateAsync(EmailRule rule, int userId)
     {
         var (name, priority) = ValidateBasics(rule);
-        await EnsureLabelBelongsToUserAsync(rule.TargetLabelId, userId);
+        await ResolveActionAsync(rule, userId);
 
         var root = rule.Groups.FirstOrDefault();
         if (root is not null)
         {
             ValidateGroupOrThrow(root, depth: 0);
             MirrorLegacyCondition(rule, root);
+            BindGroupTree(rule, root);
         }
         else
         {
@@ -79,15 +96,21 @@ public class EmailRuleService : IEmailRuleService
 
     public async Task<EmailRule?> UpdateAsync(int id, EmailRule rule, int userId)
     {
-        var existing = await _repository.GetTrack<EmailRule>()
-            .FirstOrDefaultAsync(candidate => candidate.EmailRuleId == id && candidate.UserId == userId);
+        // Se lee sin seguimiento y se adjunta para mutar: el contexto queda con la regla en estado
+        // Unchanged, igual que con una lectura rastreada, pero sin arrastrar navegaciones que esta
+        // operación reemplaza de todos modos.
+        var existing = await _repository
+            .Get<EmailRule>(candidate => candidate.EmailRuleId == id && candidate.UserId == userId)
+            .FirstOrDefaultAsync();
         if (existing == null)
         {
             return null;
         }
 
+        _repository.GetTrack<EmailRule>().Attach(existing); // alcance-por-referencia: la regla se leyó justo arriba con EmailRuleId == id && UserId == userId; Attach solo la marca para mutarla, no consulta la base.
+
         var (name, priority) = ValidateBasics(rule);
-        await EnsureLabelBelongsToUserAsync(rule.TargetLabelId, userId);
+        await ResolveActionAsync(rule, userId);
 
         var root = rule.Groups.FirstOrDefault();
         if (root is not null)
@@ -106,8 +129,7 @@ public class EmailRuleService : IEmailRuleService
             // estructura recursiva es donde aparecen los grupos huérfanos. Se borra y se vuelve a
             // escribir dentro de la misma transacción, así nadie lee la regla a medio reemplazar.
             var stale = await _repository
-                .GetTrack<EmailRuleGroup>()
-                .Where(group => group.EmailRuleId == id)
+                .Get<EmailRuleGroup>(group => group.EmailRuleId == id)
                 .ToListAsync();
 
             if (stale.Count > 0)
@@ -120,11 +142,18 @@ public class EmailRuleService : IEmailRuleService
             existing.MatchField = rule.MatchField;
             existing.MatchType = rule.MatchType;
             existing.MatchValue = rule.MatchValue;
+            existing.Action = rule.Action;
             existing.TargetLabelId = rule.TargetLabelId;
             existing.Priority = priority;
             existing.Active = rule.Active;
             existing.Updated = DateTime.UtcNow;
             existing.Groups = root is null ? new List<EmailRuleGroup>() : new List<EmailRuleGroup> { root };
+            if (root is not null)
+            {
+                // Se enlaza a la regla ya guardada, no a la que vino en la petición: las filas del
+                // árbol cuelgan de la existente.
+                BindGroupTree(existing, root);
+            }
 
             await _repository.SaveChangesAsync();
             return true;
@@ -257,6 +286,36 @@ public class EmailRuleService : IEmailRuleService
         rule.MatchValue = first?.MatchValue ?? string.Empty;
     }
 
+    /// <summary>
+    /// Ancla cada grupo del árbol a la regla dueña por la navegación, nunca copiando el id. En un alta
+    /// el id todavía no existe —lo genera la base al insertar—, así que copiarlo dejaría
+    /// <c>email_rule_id = 0</c> en los grupos anidados y PostgreSQL rechazaría la fila con
+    /// <c>fk_email_rule_groups_rule</c>, que es el fallo que se veía al editar una regla con subgrupos.
+    /// Con la navegación puesta, EF propaga la clave temporal y luego la real a cada descendiente.
+    /// <para>
+    /// <see cref="EmailRule.Groups"/> son <b>todos</b> los grupos de la regla, no solo la raíz: el árbol
+    /// se arma por <see cref="EmailRuleGroup.ParentGroupId"/>. Por eso acá no se agregan los
+    /// descendientes a esa colección; solo se enlaza su padre y EF hace el resto.
+    /// </para>
+    /// </summary>
+    /// <param name="owner">Regla que queda como dueña de todas las filas del árbol.</param>
+    /// <param name="root">Grupo raíz del árbol recibido.</param>
+    private static void BindGroupTree(EmailRule owner, EmailRuleGroup root)
+    {
+        root.EmailRule = owner;
+        BindDescendantGroups(owner, root);
+    }
+
+    private static void BindDescendantGroups(EmailRule owner, EmailRuleGroup parent)
+    {
+        foreach (var child in parent.Children)
+        {
+            child.EmailRule = owner;
+            child.ParentGroup = parent;
+            BindDescendantGroups(owner, child);
+        }
+    }
+
     /// <summary>Primera condición del árbol en profundidad; la raíz primero, luego sus subgrupos.</summary>
     private static EmailRuleCondition? FirstCondition(EmailRuleGroup group)
     {
@@ -309,6 +368,45 @@ public class EmailRuleService : IEmailRuleService
         }
 
         return (field, type, value);
+    }
+
+    /// <summary>
+    /// Valida la acción y deja la etiqueta en el único estado que la base acepta: requerida para
+    /// <c>assign_label</c>, nula para <c>review</c> y <c>llm</c>.
+    /// <para>
+    /// Una etiqueta que llega con una acción terminal se limpia en vez de rechazar la petición: el
+    /// formulario pudo mandar la que tenía seleccionada al cambiar de acción, y guardarla sería dejar
+    /// un destino que nadie aplica. El <c>CHECK</c> de la base lo prohibiría de todos modos.
+    /// </para>
+    /// <para>
+    /// El dueño de la etiqueta solo se comprueba cuando de verdad se va a asignar: una regla terminal
+    /// no apunta a ninguna etiqueta, así que exigirle una sería pedir un dato que no usa.
+    /// </para>
+    /// </summary>
+    private async Task ResolveActionAsync(EmailRule rule, int userId)
+    {
+        var action = EmailRuleAction.Normalize(rule.Action);
+        if (action is null)
+        {
+            throw new ArgumentException(
+                $"action inválida: se espera {EmailRuleAction.AssignLabel}, {EmailRuleAction.Review} o {EmailRuleAction.Llm}");
+        }
+
+        rule.Action = action;
+
+        if (action != EmailRuleAction.AssignLabel)
+        {
+            rule.TargetLabelId = null;
+            rule.TargetLabel = null;
+            return;
+        }
+
+        if (rule.TargetLabelId is not int labelId)
+        {
+            throw new ArgumentException("Una regla que asigna etiqueta necesita una etiqueta destino");
+        }
+
+        await EnsureLabelBelongsToUserAsync(labelId, userId);
     }
 
     /// <summary>

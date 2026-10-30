@@ -64,6 +64,7 @@ public class EmailRuleEvaluatorTests
 
         Assert.NotNull(match);
         Assert.Equal(2, match!.Rule.EmailRuleId);
+        Assert.NotNull(match.Label);
         Assert.Equal("banco", match.Label.Slug);
     }
 
@@ -92,7 +93,8 @@ public class EmailRuleEvaluatorTests
         var match = EmailRuleEvaluator.Match(new[] { rule }, Mail(subject: "BBVA - Nuevos Términos y Condiciones"));
 
         Assert.NotNull(match);
-        Assert.Equal(EmailLabelBehavior.Ignore, match!.Label.Behavior);
+        Assert.NotNull(match!.Label);
+        Assert.Equal(EmailLabelBehavior.Ignore, match.Label.Behavior);
     }
 
     [Fact]

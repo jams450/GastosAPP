@@ -45,6 +45,32 @@ public class EmailClassificationService : IEmailClassificationService
             .ThenBy(rule => rule.EmailRuleId)
             .ToListAsync(cancellationToken);
 
+        // Una lectura sin seguimiento no reconstruye relaciones recursivas. Traemos los grupos
+        // planos con sus condiciones y enlazamos todos los niveles antes de evaluar; sin esta carga
+        // el motor caía en la condición legacy reflejada y perdía las restricciones AND/OR.
+        var ruleIds = rules.Select(rule => rule.EmailRuleId).ToArray();
+        if (ruleIds.Length > 0)
+        {
+            var groups = await _repository
+                .Get<EmailRuleGroup>(group => ruleIds.Contains(group.EmailRuleId))
+                .Include(group => group.Conditions)
+                .OrderBy(group => group.GroupId)
+                .ToListAsync(cancellationToken);
+
+            var byRule = groups.ToLookup(group => group.EmailRuleId);
+            foreach (var rule in rules)
+            {
+                var ruleGroups = byRule[rule.EmailRuleId].ToList();
+                var byParent = ruleGroups.ToLookup(group => group.ParentGroupId);
+                foreach (var group in ruleGroups)
+                {
+                    group.Children = byParent[group.GroupId].ToList();
+                }
+
+                rule.Groups = ruleGroups.Where(group => group.ParentGroupId is null).ToList();
+            }
+        }
+
         var match = EmailRuleEvaluator.Match(rules, candidate);
         return match is null ? EmailClassificationResult.Review() : EmailClassificationResult.FromMatch(match);
     }

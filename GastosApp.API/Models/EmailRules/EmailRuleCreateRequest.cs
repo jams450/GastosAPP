@@ -1,8 +1,16 @@
+using GastosApp.Models.Entities;
+
 namespace GastosApp.API.Models.EmailRules;
 
 public class EmailRuleCreateRequest
 {
     public string Name { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Acción terminal: <c>assign_label</c> (por defecto, el comportamiento histórico), <c>review</c> o
+    /// <c>llm</c>. Solo la primera usa <see cref="TargetLabelId"/>.
+    /// </summary>
+    public string Action { get; set; } = EmailRuleAction.AssignLabel;
 
     /// <summary>
     /// Árbol AND/OR de la regla. Si viene, manda sobre los campos planos de abajo; si no, la regla se
@@ -18,7 +26,8 @@ public class EmailRuleCreateRequest
 
     public string MatchValue { get; set; } = string.Empty;
 
-    public int TargetLabelId { get; set; }
+    /// <summary>Etiqueta destino. Nula (o ignorada) en las acciones terminales.</summary>
+    public int? TargetLabelId { get; set; }
 
     public int Priority { get; set; } = 100;
 

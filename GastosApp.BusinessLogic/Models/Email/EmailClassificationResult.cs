@@ -20,7 +20,10 @@ public enum EmailClassificationOutcome
     /// <summary>Etiqueta con comportamiento <c>none</c>: se archiva y no se extrae nada.</summary>
     Classified,
 
-    /// <summary>Ninguna regla casó. Es una cola de trabajo, no una etiqueta.</summary>
+    /// <summary>
+    /// Una regla con acción terminal (<c>review</c> o <c>llm</c>) decidió que el correo espera, o
+    /// ninguna regla casó. Es una cola de trabajo, no una etiqueta.
+    /// </summary>
     Review
 }
 
@@ -57,6 +60,29 @@ public sealed record EmailClassificationResult(
     {
         ArgumentNullException.ThrowIfNull(match);
 
+        var action = EmailRuleAction.Normalize(match.Rule.Action);
+
+        // El LLM decide en su capa: acá solo se marca que la regla lo pidió, y si ese camino no está
+        // disponible o falla, el correo se queda en revisión. Nunca se aplica una etiqueta por esto.
+        if (action == EmailRuleAction.Llm)
+        {
+            return ForRule(match, EmailClassificationOutcome.Review, "llm_requested");
+        }
+
+        // review, y también una acción desconocida: se falla cerrado hacia revisión y no se cae a la
+        // regla siguiente, porque una fila corrupta no puede reescribir el destino de un correo.
+        if (action != EmailRuleAction.AssignLabel)
+        {
+            return ForRule(match, EmailClassificationOutcome.Review, "rule_review");
+        }
+
+        // Defensa en profundidad: el evaluador ya exige una etiqueta activa, pero un match armado a
+        // mano no puede inventar un destino ni escribir sobre una etiqueta retirada.
+        if (match.Label is not { Active: true })
+        {
+            return ForRule(match, EmailClassificationOutcome.Review, "rule_review");
+        }
+
         var behavior = match.Label.Behavior;
         var outcome = behavior switch
         {
@@ -76,6 +102,24 @@ public sealed record EmailClassificationResult(
             EmailClassificationSource.Rule,
             "rule");
     }
+
+    /// <summary>
+    /// Revisión pedida por una regla: conserva la regla que la pidió (para que la cola y el detalle
+    /// puedan mostrarla) y no lleva etiqueta, porque ninguna se aplica. El motivo distingue
+    /// <c>rule_review</c> de <c>llm_requested</c> y de <c>no_match</c>.
+    /// </summary>
+    private static EmailClassificationResult ForRule(
+        EmailRuleMatch match,
+        EmailClassificationOutcome outcome,
+        string reason) => new(
+        outcome,
+        null,
+        null,
+        null,
+        match.Rule.EmailRuleId,
+        match.Rule.Name,
+        EmailClassificationSource.Rule,
+        reason);
 
     /// <summary>Resultado cuando el veredicto lo dio el LLM y no una regla.</summary>
     public static EmailClassificationResult FromLabel(EmailLabel label, string reason) => new(

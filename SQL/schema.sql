@@ -1306,11 +1306,15 @@ CREATE TABLE IF NOT EXISTS email_rules (
     email_rule_id SERIAL PRIMARY KEY,
     user_id INT NOT NULL,
     name VARCHAR(120) NOT NULL,
+    -- Acción terminal: asignar etiqueta (histórico), mandar a revisión o pedir el veredicto al LLM.
+    -- La primera regla que casa decide y la evaluación se detiene.
+    action VARCHAR(20) NOT NULL DEFAULT 'assign_label' CHECK (action IN ('assign_label', 'review', 'llm')),
     match_field VARCHAR(20) NOT NULL CHECK (match_field IN ('sender', 'sender_domain', 'subject')),
     match_type VARCHAR(20) NOT NULL CHECK (match_type IN ('equals', 'contains', 'starts_with', 'ends_with')),
     -- Normalizado al escribir (minúsculas, sin acentos, espacios colapsados), igual que catalog_rules.
     match_value VARCHAR(200) NOT NULL,
-    target_label_id INT NOT NULL,
+    -- Nula en las acciones terminales: una etiqueta ahí sería un destino que nadie aplica.
+    target_label_id INT,
     -- Menor gana; el empate se resuelve por email_rule_id.
     priority INT NOT NULL DEFAULT 100,
     active BOOLEAN NOT NULL DEFAULT TRUE,
@@ -1321,7 +1325,12 @@ CREATE TABLE IF NOT EXISTS email_rules (
     created_by VARCHAR(100),
     updated_by VARCHAR(100),
     CONSTRAINT fk_email_rules_user FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
-    CONSTRAINT fk_email_rules_target_label FOREIGN KEY (target_label_id) REFERENCES email_labels(label_id) ON DELETE RESTRICT
+    CONSTRAINT fk_email_rules_target_label FOREIGN KEY (target_label_id) REFERENCES email_labels(label_id) ON DELETE RESTRICT,
+    -- Solo asignar lleva etiqueta, y la exige. Las acciones terminales la dejan nula.
+    CONSTRAINT ck_email_rules_action_target CHECK (
+        (action = 'assign_label' AND target_label_id IS NOT NULL)
+        OR (action <> 'assign_label' AND target_label_id IS NULL)
+    )
 );
 
 -- Modelo booleano de las reglas: un grupo combina con su operador a sus condiciones y subgrupos, así
@@ -1333,6 +1342,9 @@ CREATE TABLE IF NOT EXISTS email_rule_groups (
     parent_group_id INT,
     -- `combinator` y no `operator`: OPERATOR es palabra reservada en PostgreSQL.
     combinator VARCHAR(3) NOT NULL CHECK (combinator IN ('and', 'or')),
+    -- Invierte el resultado ya combinado del grupo, no el de cada hijo. Un grupo vacío no casa y
+    -- negarlo tampoco lo enciende.
+    negated BOOLEAN NOT NULL DEFAULT FALSE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     created_by VARCHAR(100),
@@ -1355,6 +1367,8 @@ CREATE TABLE IF NOT EXISTS email_rule_conditions (
     match_field VARCHAR(20) NOT NULL CHECK (match_field IN ('sender', 'sender_domain', 'subject')),
     match_type VARCHAR(20) NOT NULL CHECK (match_type IN ('equals', 'contains', 'starts_with', 'ends_with')),
     match_value VARCHAR(200) NOT NULL,
+    -- Invierte solo esta condición. Una condición inválida no se invierte: NO(inválido) no casa.
+    negated BOOLEAN NOT NULL DEFAULT FALSE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     created_by VARCHAR(100),

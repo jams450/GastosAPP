@@ -8,9 +8,16 @@ public class EmailRuleResponse
     public string MatchField { get; set; } = string.Empty;
     public string MatchType { get; set; } = string.Empty;
     public string MatchValue { get; set; } = string.Empty;
-    public int TargetLabelId { get; set; }
+
+    /// <summary>assign_label | review | llm.</summary>
+    public string Action { get; set; } = string.Empty;
+
+    /// <summary>Nula en las acciones terminales: no hay etiqueta que aplicar.</summary>
+    public int? TargetLabelId { get; set; }
+
     public string? TargetLabelName { get; set; }
     public string? TargetLabelBehavior { get; set; }
+    public int ConditionCount { get; set; }
     public int Priority { get; set; }
     public bool Active { get; set; }
 

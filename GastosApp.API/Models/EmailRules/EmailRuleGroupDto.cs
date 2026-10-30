@@ -9,6 +9,9 @@ public class EmailRuleGroupDto
     /// <summary>and | or</summary>
     public string Combinator { get; set; } = "and";
 
+    /// <summary>Invierte el resultado del grupo ya combinado, nunca el de cada hijo.</summary>
+    public bool Negated { get; set; }
+
     public List<EmailRuleConditionDto> Conditions { get; set; } = new();
 
     public List<EmailRuleGroupDto> Groups { get; set; } = new();

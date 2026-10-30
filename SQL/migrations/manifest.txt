@@ -30,3 +30,4 @@
 2026-10-29_email_classification_schema.sql
 2026-10-29_email_labels_description.sql
 2026-10-29_email_rule_groups_and_conditions.sql
+2026-10-30_email_rule_actions_and_negation.sql
