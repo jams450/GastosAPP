@@ -1,4 +1,4 @@
-import { ArrowLeftRight, Filter, FlaskConical, FolderTree, Home, Landmark, PiggyBank, Tags, Users, Wallet } from "lucide-react";
+import { Activity, ArrowLeftRight, Filter, FlaskConical, FolderTree, Home, Landmark, PiggyBank, Tags, Users, Wallet } from "lucide-react";
 
 export type NavChild = {
   readonly href: string;
@@ -57,7 +57,11 @@ export const appNavSections: readonly NavSection[] = [
           { href: "/catalogs/currencies", label: "Monedas" }
         ]
       },
-      { href: "/users", label: "Usuarios", icon: Users }
+      { href: "/users", label: "Usuarios", icon: Users },
+      // Pantalla de operación del sistema. Vive aquí, junto a Usuarios, porque la sección es la que
+      // ya existía: agregar una sección nueva habría movido «Usuarios» de lugar sin que este módulo
+      // lo pidiera. El shell ya exige sesión de administrador (`requireAdminSession` en el layout).
+      { href: "/jobs", label: "Monitoreo de jobs", icon: Activity }
     ]
   },
   {
