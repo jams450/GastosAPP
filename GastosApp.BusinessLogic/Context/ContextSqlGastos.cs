@@ -57,6 +57,7 @@ namespace GastosApp.BusinessLogic.Context
         public DbSet<FxRate> FxRates { get; set; } = null!;
         public DbSet<BudgetItem> BudgetItems { get; set; } = null!;
         public DbSet<BudgetItemAlertDelivery> BudgetItemAlertDeliveries { get; set; } = null!;
+        public DbSet<JobRun> JobRuns { get; set; } = null!;
 
         public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
         {
@@ -626,6 +627,17 @@ namespace GastosApp.BusinessLogic.Context
                 entity.HasOne(e => e.User).WithMany().HasForeignKey(e => e.UserId).OnDelete(DeleteBehavior.Cascade);
                 entity.HasOne(e => e.EmailMessage).WithMany().HasForeignKey(e => e.EmailMessageId).OnDelete(DeleteBehavior.Cascade);
                 entity.HasOne(e => e.Transaction).WithMany().HasForeignKey(e => e.TransactionId).OnDelete(DeleteBehavior.SetNull);
+            });
+
+            modelBuilder.Entity<JobRun>(entity =>
+            {
+                // Historial por job, del más reciente al más viejo: es el orden de la pantalla y el
+                // de "la última corrida", sin ordenar en memoria.
+                entity.HasIndex(e => new { e.JobKey, e.StartedAt, e.JobRunId });
+                // Historial global paginado (todas las claves juntas).
+                entity.HasIndex(e => new { e.StartedAt, e.JobRunId });
+                // Conteos por estado para el resumen del catálogo.
+                entity.HasIndex(e => new { e.Status, e.StartedAt });
             });
         }
     }

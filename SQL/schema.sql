@@ -1460,3 +1460,40 @@ CREATE TABLE IF NOT EXISTS email_expense_drafts (
 
 CREATE INDEX IF NOT EXISTS idx_email_expense_drafts_user_status ON email_expense_drafts(user_id, status);
 CREATE INDEX IF NOT EXISTS idx_email_expense_drafts_expires_at ON email_expense_drafts(expires_at);
+
+-- Monitoreo administrativo de jobs (S1/L5).
+-- Idempotente: réplica de SQL/migrations/2026-11-01_job_monitoring.sql para instalaciones nuevas.
+-- Una fila por corrida de job, escrita antes de ejecutar. Sin retención destructiva: el historial se
+-- conserva completo y se lee paginado. job_key no lleva CHECK a propósito (las claves viven en el
+-- código); trigger y status sí, porque son vocabulario cerrado.
+CREATE TABLE IF NOT EXISTS job_runs (
+    job_run_id SERIAL PRIMARY KEY,
+    job_key VARCHAR(60) NOT NULL,
+    trigger VARCHAR(20) NOT NULL CHECK (trigger IN ('automatic', 'manual')),
+    status VARCHAR(20) NOT NULL
+        CHECK (status IN ('running', 'succeeded', 'partial', 'failed', 'skipped', 'interrupted')),
+    started_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    finished_at TIMESTAMP WITH TIME ZONE,
+    requested_by VARCHAR(100),
+    items_processed INT NOT NULL DEFAULT 0 CHECK (items_processed >= 0),
+    items_failed INT NOT NULL DEFAULT 0 CHECK (items_failed >= 0),
+    outcome_code VARCHAR(60),
+    failure_type VARCHAR(100),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_by VARCHAR(100),
+    updated_by VARCHAR(100),
+    -- Una corrida en curso no tiene hora de fin, y una cerrada sí.
+    CONSTRAINT ck_job_runs_finished_matches_status
+        CHECK ((status = 'running') = (finished_at IS NULL))
+);
+
+CREATE INDEX IF NOT EXISTS idx_job_runs_job_started_at
+    ON job_runs(job_key, started_at DESC, job_run_id DESC);
+CREATE INDEX IF NOT EXISTS idx_job_runs_started_at
+    ON job_runs(started_at DESC, job_run_id DESC);
+CREATE INDEX IF NOT EXISTS idx_job_runs_status
+    ON job_runs(status, started_at DESC);
+CREATE INDEX IF NOT EXISTS idx_job_runs_running
+    ON job_runs(job_key)
+    WHERE status = 'running';
