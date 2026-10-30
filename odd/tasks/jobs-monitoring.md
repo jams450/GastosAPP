@@ -10,9 +10,9 @@ S4. User: «otro agente esta creando sql con _personal_ esos excluyelos en gitig
 S5. Continuation: «sigue con el modulo».
 
 ## Tasks
-T1 | S1-S5 | backend worker: persistent history, coordinator, admin API, five adapters and existing schedules, offline tests | independent reproduced 82 focused/341 suite/build0; correction RED2/GREEN18 verified; parent full suite342/342 exit0; commit pending | commit pending
-T2 | S1-S5 | frontend worker: admin page, BFF, contracts, confirm manual runs, history/detail, navigation/protection, tests | implemented; worker reports 18 focused/399 suite, typecheck/build0, lint 9 baseline warnings; independent PASS18/typecheck0; no blockers, browser/HTTP live unverified | commit pending
-T3 | S1-S5 | independent verification security/concurrency/scheduling + functional checks and docs/commits | backend correction implemented/tested; frontend independent PASS18/typecheck0, no blockers; docs added; closure pending review scope and oversized backend unit decision | commit pending
+T1 | S1-S5 | Backend implemented and verified offline342/342/build0 | commits d1d76c7..a12c5d4
+T2 | S1-S5 | Frontend implemented and verified399/399/typecheck0, independent18/18 | commits28cdccc..9090c6f
+T3 | S1-S5 | Offline checks/docs/commits complete; blocked on operator decision for unavailable native assessment and live migration/browser proof | fe80bf4 evidence; no native approval, merge, push or deploy
 
 ## Log
 L1. «Ahora requiero un modulo completo de monitoreo de todos los jobs, con estatus ejecucion historial etc y que se pueda ejecutar a demanda si se requiere».
