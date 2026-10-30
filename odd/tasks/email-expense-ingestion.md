@@ -38,6 +38,14 @@ S11. «Adicional dentro de la app modulo de test de correo para tomar x muestra 
     correo para ir probando» — a sampling screen that pulls the top N messages plus a date range and
     shows what the classifier would do with them, without touching the pipeline.
 
+S12. User confirmed «si aplicar»: apply existing Gmail labels to the SAME reviewed IMAP sample.
+    Add-only: never create labels, move, delete, or expunge. Manual eml stays dry-run.
+
+S13. Daily automatic label application: user «agrega el job sera ejecutado diario no necesito a cada rato, en donde busque correos sin etiqueta nada mas e utilice las que tenemos». Choices: ANY user label excludes, INBOX only. Existing manual preview remains target-label-only.
+S14. NOT uses negated on conditions and groups, default false, retaining AND/OR and current comparisons; no not_contains operator proliferation.
+
+S15. Terminal rule actions: assign_label (default), review, llm. Reuse Telegram Llm provider/model/config, not bot transport. First matching action stops evaluation; disabled/failing/invalid LLM ends in review. User explicitly permits ALL active labels, including ignore/Eliminar, as valid LLM choices; never delete mail.
+
 ## Tasks
 - T1 [done] S1,S3,S4,S9,S10: schema — `email_labels` (user, name, kind folder/label, behavior,
   colour, system flag, sort order), `email_rules` (match field sender/sender_domain/subject, match
@@ -89,6 +97,12 @@ S11. «Adicional dentro de la app modulo de test de correo para tomar x muestra 
   correo real.
 - T11 [pending] S2,S5,S10: drafts inbox in the web app to complete account, card, category and
   merchant, then confirm or discard.
+
+- T13 [blocked] S12: reviewed-sample apply. Parallel delegated backend/frontend units with
+  disjoint surfaces. Preserve UID/UIDVALIDITY and message identity; opaque random token stored
+  server-side for 15 minutes, bound to user and configured account, consumed once per apply.
+  Return per-row outcomes; reject expired/changed mailbox identity. No DB or live IMAP access
+  from the agent. Native review remains blocked by outdated managed assets.
 
 ## Log
 L1. User request verbatim: «requiero cambios. por ahora tenemos stack de meter todo manual
@@ -215,3 +229,89 @@ L21. Cierre del color de etiqueta (7083579): el campo era texto libre y el valor
     muestra en la lista y el contrato solo acepta `#rrggbb`, que es lo único que el input nativo
     entiende. El campo «Orden» quedó documentado en la propia pantalla porque hace menos de lo que
     parece: solo ordena la lista y el desplegable de etiqueta destino, nunca la clasificación.
+
+L24. Route for S12: parallel bounded writers (backend vs frontend) because these are independent
+implementation units with a shared contract. Preview response adds applyToken (nullable),
+applyExpiresAt (nullable ISO timestamp), applicableCount (number). POST apply accepts only
+{token}; response {rows:[{name,label,status,message}], applied, skipped, failed}. UI confirms
+applying all eligible rows from that exact sample; token is not permission to run a fresh search.
+
+L25. S12 implementation and offline verification completed: backend writer and independent verifier
+observed 33 focused / 175 suite tests, build 0 warnings/errors; frontend final parent checks observed
+12 focused / 376 suite tests, typecheck, lint (0 errors, 9 pre-existing warnings), and production build
+exit 0. Independent correction readback PASS for per-status count consistency and stale/expiry
+handler guards. No browser or live IMAP/DB call was performed. Native review/commit closure remains
+blocked by the previously reported outdated managed assets; no sync, commit, push or deployment.
+Use a small reviewed sample and a pre-existing Gmail user label whose full name exactly matches
+its catalog Name. Tokens expire after 15 minutes, are single-use, and disappear on API restart;
+this in-memory implementation requires one API instance. Never promise an atomic no-create
+invariant if the user deletes a label between enumeration and Gmail STORE; do not rename/delete
+labels during apply. No draft or transaction is created by applying a label.
+
+L26. Nested-rule persistence fix: every group is now bound by navigation to its owning rule on
+create and update, preserving parent links. Writer observed two failing deep-tree tests before
+fix; independent verifier passed five EF-tracking tests, backend suite180 and build0/0.
+No SQL executed: PostgreSQL acceptance still requires the user's live save check.
+L27. User requested «tambien en el test si tiene etiqueta que lo ignore y no lo muestre» and chose
+«Con la etiqueta destino de su regla», not any user label. IMAP snapshots Gmail labels only when
+GMailExt1 is advertised; exact ordinal catalog destination Name match hides the row before both
+Rows and the apply plan. Other labels and manual messages remain visible. Hidden messages consume
+the scanned sample cap (no refill), are counted as SkippedAlreadyLabelled / «Ya etiquetados», and
+never enter the token. Independent PASS:38 focused backend/185 suite,13 focused frontend/377 suite,
+backend+frontend builds/typecheck/lint exit0 (9 pre-existing lint warnings). No live Gmail, DB or
+browser verification; native review/commit closure remains blocked as recorded in L25.
+
+L28. Daily job scope supersedes T12's old multi-mailbox poller proposal for classification only:
+INBOX, bounded pass, automatic additive application of existing labels using the configured user's
+rules. Configuration Email:Ingest Enabled=false, UserId required positive, HourUtc configurable;
+wait until next daily slot (no startup execution/retries). No implicit user 1 or Telegram identity.
+Unmatched mail stays untouched. Cursor can rotate in process to avoid newest-N starvation; restart
+may rescan safely. Recheck absence of any user label before STORE, not merely target absence.
+Keep deployment single-instance as for the existing apply token store. No live mailbox access by agent.
+
+L29. S15 implementation decision: action belongs to rule, not label behavior. Make TargetLabelId
+nullable and require it only for assign_label; review/llm carry no fake destination label. Use
+terminal llm_requested reason from deterministic service, API orchestration only for actual model.
+Review has no IMAP label/plan; accepted LLM choice is terminal and may apply its active existing
+label, including ignore (explicit user choice). Max20 calls/run default, cap50 active catalog labels;
+if catalog exceeds cap, fail to review rather than silently omitting a user's valid choices.
+NOT stays per condition/group negated=false by default. Ship manual migration, never apply here.
+
+L30. Independent component reviews completed: daily job PASS (13 focused, suite221 including AI,
+build0/0), reusable AI classifier PASS (23 focused, strict JSON/catalog bounds, no live call),
+NOT and terminal-rule model/API/editor PASS (44 focused backend,17 frontend,typecheck and both
+normal/no-incremental backend builds0/0). The two nullable warnings were fixed with explicit
+Assert.NotNull assertions in legacy evaluator tests. Migration
+2026-10-30_email_rule_actions_and_negation.sql remains UNAPPLIED. These approvals do not cover
+actual LLM orchestration: API preview/job integration and run budgets are still being implemented.
+
+L31. Final S15 API integration independently PASS: backend build0/0,21 integration/44 total LLM
+focused/259 suite tests; frontend17 focused/381 suite,typecheck/build exit0 (lint writer0errors,
+9 pre-existing warnings). Explicit llm action works with no-match fallback off. Shared run budget
+(default20,clamp0..200) is constructed once by preview and daily runner. Review never produces an
+IMAP plan; model choice may select any active label including ignore, as authorized. No persistent
+review queue exists. Real DI resolution/browser/provider/Gmail/Postgres remain unverified; DI was
+inspected statically and all runtime model/client tests used doubles. New migration remains unapplied.
+Configuration to be supplied by operator (do not edit secrets/example here):
+Email__Ingest__Enabled=false, Email__Ingest__UserId=<explicit app user id>,
+Email__Ingest__HourUtc=12, Email__Ingest__MaxMessages=50,
+Email__LlmFallbackEnabled=false, Email__LlmMaxPerRun=20.
+Existing Llm__BaseUrl/ApiKey/Model shared with Telegram, not Telegram bot credentials.
+Native review/commit closure remains blocked by outdated managed assets as previously recorded.
+
+L32. User «Lo del llm amplialo a mas de 50» clarified via choice «Más etiquetas: hasta 200».
+Supersedes the 50-label ceiling in L29/L31: shared MaxLabels now200, no truncation;201failsclosed.
+Call budget20/run and daily batch50 remain unchanged. Observed RED51/200 rejected then47focused
+LLM tests green, fullsuite262 and build0/0. First suite found manifest ordering wrong after two
+personal migrations were added concurrently; only those manifest entries were reordered, no SQL
+content changed or applied. Independent narrow verification pending. Larger catalogs increase
+prompt cost/context usage; no real provider call was made.
+
+L33. User requested «commits y merge a main» and explicitly chose «Dejar esta candidata sin
+revisión nativa» after the managed-assets stop. No global switch changed, no native approval
+claimed. Delivery commits: d7c1b9b (AI classifier200),3491ea9 (NOT/terminal rule model/FK/migration),
+c32cc0e (IMAP apply/daily job/LLM orchestration),fc65f6d (rules editor and reviewed apply UI).
+Personal SQL proposals/migrations and their manifest entries, .env.example, .atl files and tracked
+build artifact remain outside these commits. Local merge only; no push or deployment authorized.
+The accumulated shared surfaces produced large commits; they are not claimed to be small review
+slices. Independent tests remain262 backend and381 frontend, builds clean; no live-system proof.
