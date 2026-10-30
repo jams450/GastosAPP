@@ -7,9 +7,10 @@ using Microsoft.AspNetCore.Mvc;
 namespace GastosApp.API.Controllers;
 
 /// <summary>
-/// Módulo de prueba del clasificador de correo. Todo lo de este controlador es lectura: no registra
-/// mensajes ni crea borradores, así que se puede iterar sobre las reglas sin efectos. Cuando se pide
-/// un buzón, la lectura es IMAP de solo lectura: no marca leídos, no etiqueta y no mueve nada.
+/// Módulo de prueba del clasificador de correo. La vista previa es lectura: no registra mensajes ni
+/// crea borradores, así que se puede iterar sobre las reglas sin efectos, y cuando se pide un buzón la
+/// lectura es IMAP de solo lectura. La única acción que escribe es <c>apply</c>, y solo agrega
+/// etiquetas ya existentes a los mensajes de la muestra que se acaba de revisar.
 /// </summary>
 [ApiController]
 [Route("api/[controller]")]
@@ -17,17 +18,20 @@ namespace GastosApp.API.Controllers;
 public class EmailClassificationController : ControllerBase
 {
     private readonly EmailPreviewService _previewService;
+    private readonly EmailApplyService _applyService;
     private readonly IImapMailboxSource _imap;
     private readonly ICurrentUserService _currentUserService;
     private readonly ILogger<EmailClassificationController> _logger;
 
     public EmailClassificationController(
         EmailPreviewService previewService,
+        EmailApplyService applyService,
         IImapMailboxSource imap,
         ICurrentUserService currentUserService,
         ILogger<EmailClassificationController> logger)
     {
         _previewService = previewService;
+        _applyService = applyService;
         _imap = imap;
         _currentUserService = currentUserService;
         _logger = logger;
@@ -78,6 +82,8 @@ public class EmailClassificationController : ControllerBase
     /// Clasifica una muestra contra las reglas actuales del usuario y devuelve el veredicto de cada
     /// correo. Acepta mensajes crudos (<c>.eml</c>, solo se leen cabeceras), candidatos escritos a
     /// mano y, si se indica <c>mailbox</c>, los mensajes más recientes de ese buzón leídos por IMAP.
+    /// Cuando la muestra viene del buzón, la respuesta incluye <c>applyToken</c>,
+    /// <c>applyExpiresAt</c> y <c>applicableCount</c> para aplicar esa misma muestra.
     /// </summary>
     [HttpPost("preview")]
     public async Task<IActionResult> Preview(
@@ -105,6 +111,45 @@ public class EmailClassificationController : ControllerBase
             return BadRequest(new
             {
                 message = "No se pudo leer el buzón. Revisa la configuración IMAP y el nombre del buzón."
+            });
+        }
+    }
+
+    /// <summary>
+    /// Aplica las etiquetas de la muestra revisada. El cuerpo solo lleva el token que devolvió la
+    /// vista previa: no se puede pedir una búsqueda nueva ni elegir un subconjunto. La escritura es
+    /// exclusivamente «agregar una etiqueta existente»: nunca se crean etiquetas, ni se mueven, ni se
+    /// borran, ni se expurga. Un token inválido o vencido se rechaza antes de abrir el buzón.
+    /// </summary>
+    [HttpPost("apply")]
+    public async Task<IActionResult> Apply(
+        [FromBody] EmailApplyRequest request,
+        CancellationToken cancellationToken)
+    {
+        var userId = _currentUserService.GetUserId()
+            ?? throw new UnauthorizedAccessException("Missing or invalid user identity claim");
+
+        try
+        {
+            var result = await _applyService.ApplyAsync(userId, request?.Token, cancellationToken);
+            return Ok(result);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (EmailApplyRefusedException exception)
+        {
+            // Rechazo previo a cualquier escritura: se registra el código, no el token ni el plan.
+            _logger.LogWarning("Email apply refused: {ReasonCode}", exception.Code);
+            return BadRequest(new { message = exception.Message });
+        }
+        catch (Exception exception)
+        {
+            _logger.LogWarning("Email apply failed: {ErrorType}", exception.GetType().Name);
+            return BadRequest(new
+            {
+                message = "No se pudo aplicar la muestra al buzón. Revisa la configuración IMAP y vuelve a generar la muestra."
             });
         }
     }
