@@ -6,28 +6,42 @@ export type EmailRuleMatchType = "equals" | "contains" | "starts_with" | "ends_w
 
 export type EmailRuleGroupCombinator = "and" | "or";
 
-/** Una condición dentro de un grupo. */
+/**
+ * Acción terminal de la regla. La primera regla que casa decide y la evaluación se detiene, así que
+ * `review` y `llm` nunca caen a la regla siguiente.
+ */
+export type EmailRuleAction = "assign_label" | "review" | "llm";
+
+/** Una condición dentro de un grupo. `negated` invierte solo esta condición. */
 export type EmailRuleCondition = {
   matchField: EmailRuleMatchField;
   matchType: EmailRuleMatchType;
   matchValue: string;
+  negated: boolean;
 };
 
-/** Grupo booleano: combina con su operador a sus condiciones y a sus subgrupos. */
+/**
+ * Grupo booleano: combina con su operador a sus condiciones y a sus subgrupos. `negated` invierte el
+ * resultado ya combinado —no el de cada hijo—, que es lo que expresa «NO (factura O invoice)».
+ */
 export type EmailRuleGroup = {
   combinator: EmailRuleGroupCombinator;
+  negated: boolean;
   conditions: EmailRuleCondition[];
   groups: EmailRuleGroup[];
 };
 
 export type EmailRule = {
+  conditionCount: number;
   emailRuleId: number;
   userId: number | null;
   name: string;
+  action: EmailRuleAction;
   matchField: EmailRuleMatchField;
   matchType: EmailRuleMatchType;
   matchValue: string;
-  targetLabelId: number;
+  /** Nula en las acciones terminales: no hay etiqueta que aplicar. */
+  targetLabelId: number | null;
   targetLabelName: string | null;
   targetLabelBehavior: string | null;
   priority: number;
@@ -38,11 +52,17 @@ export type EmailRule = {
 
 export type EmailRuleUpsertPayload = {
   name: string;
-  /** Se envían vacíos cuando hay árbol: el servidor vacía las columnas planas para no dejar dos verdades. */
+  action: EmailRuleAction;
+  /**
+   * Se envían vacíos cuando hay árbol. El servidor no puede vaciarlos en la base —las columnas son
+   * `NOT NULL` con `CHECK`—, así que refleja la primera condición y el motor ignora las columnas
+   * cuando hay grupos.
+   */
   matchField: EmailRuleMatchField | "";
   matchType: EmailRuleMatchType | "";
   matchValue: string;
-  targetLabelId: number;
+  /** Nula en las acciones terminales; obligatoria en `assign_label`. */
+  targetLabelId: number | null;
   priority: number;
   active: boolean;
   root: EmailRuleGroup | null;
@@ -60,6 +80,8 @@ export const EMAIL_RULE_MATCH_TYPES: readonly EmailRuleMatchType[] = ["equals", 
 
 export const EMAIL_RULE_COMBINATORS: readonly EmailRuleGroupCombinator[] = ["and", "or"];
 
+export const EMAIL_RULE_ACTIONS: readonly EmailRuleAction[] = ["assign_label", "review", "llm"];
+
 export const EMAIL_RULE_MATCH_FIELD_LABELS: Record<EmailRuleMatchField, string> = {
   sender: "Remitente",
   sender_domain: "Dominio del remitente",
@@ -76,6 +98,12 @@ export const EMAIL_RULE_MATCH_TYPE_LABELS: Record<EmailRuleMatchType, string> = 
 export const EMAIL_RULE_COMBINATOR_LABELS: Record<EmailRuleGroupCombinator, string> = {
   and: "Y (todas)",
   or: "O (cualquiera)"
+};
+
+export const EMAIL_RULE_ACTION_LABELS: Record<EmailRuleAction, string> = {
+  assign_label: "Asignar etiqueta",
+  review: "Enviar a revisión",
+  llm: "Enviar a LLM"
 };
 
 export const EMAIL_RULE_MAX_PRIORITY = 1_000_000;
@@ -109,6 +137,26 @@ function toCombinator(value: unknown): EmailRuleGroupCombinator {
   return value === "or" ? "or" : "and";
 }
 
+function toAction(value: unknown): EmailRuleAction | null {
+  return typeof value === "string" && (EMAIL_RULE_ACTIONS as readonly string[]).includes(value)
+    ? (value as EmailRuleAction)
+    : null;
+}
+
+/**
+ * Acción de una respuesta del API. Las reglas guardadas antes de S15 no traen el campo: se leen como
+ * «asignar etiqueta», que es lo que hacían. Un valor desconocido también cae ahí; quien lo rechaza es
+ * el servidor, que tiene el dato autoritativo.
+ */
+function normalizeAction(value: unknown): EmailRuleAction {
+  return toAction(value) ?? "assign_label";
+}
+
+/** El «NO» arranca apagado: las respuestas anteriores a S14 no lo traen. */
+function toNegated(value: unknown): boolean {
+  return value === true;
+}
+
 function normalizeCondition(input: unknown): EmailRuleCondition | null {
   if (!isRecord(input)) {
     return null;
@@ -122,7 +170,7 @@ function normalizeCondition(input: unknown): EmailRuleCondition | null {
     return null;
   }
 
-  return { matchField, matchType, matchValue };
+  return { matchField, matchType, matchValue, negated: toNegated(input.negated) };
 }
 
 export function normalizeEmailRuleGroup(input: unknown): EmailRuleGroup | null {
@@ -144,7 +192,7 @@ export function normalizeEmailRuleGroup(input: unknown): EmailRuleGroup | null {
     return null;
   }
 
-  return { combinator: toCombinator(input.combinator), conditions, groups };
+  return { combinator: toCombinator(input.combinator), negated: toNegated(input.negated), conditions, groups };
 }
 
 export function normalizeEmailRule(input: unknown): EmailRule | null {
@@ -153,15 +201,19 @@ export function normalizeEmailRule(input: unknown): EmailRule | null {
   }
 
   const emailRuleId = toFiniteNumber(input.emailRuleId);
-  const targetLabelId = toFiniteNumber(input.targetLabelId);
-  if (emailRuleId === null || targetLabelId === null) {
+  if (emailRuleId === null) {
     return null;
   }
+
+  // Una regla terminal llega con targetLabelId nulo; rechazarla la haría desaparecer del listado.
+  const targetLabelId =
+    input.targetLabelId === null || input.targetLabelId === undefined ? null : toFiniteNumber(input.targetLabelId);
 
   return {
     emailRuleId,
     userId: input.userId === null || input.userId === undefined ? null : toFiniteNumber(input.userId),
     name: typeof input.name === "string" && input.name.trim().length > 0 ? input.name.trim() : "Sin nombre",
+    action: normalizeAction(input.action),
     matchField: toMatchField(input.matchField) ?? "sender",
     matchType: toMatchType(input.matchType) ?? "contains",
     matchValue: typeof input.matchValue === "string" ? input.matchValue.trim() : "",
@@ -176,6 +228,7 @@ export function normalizeEmailRule(input: unknown): EmailRule | null {
         : null,
     priority: toFiniteNumber(input.priority) ?? 100,
     active: Boolean(input.active),
+    conditionCount: toFiniteNumber(input.conditionCount) ?? 1,
     root: normalizeEmailRuleGroup(input.root)
   };
 }
@@ -239,7 +292,7 @@ function validateCondition(input: unknown): ValidationResult<EmailRuleCondition>
     return { ok: false, message: "El valor de una condición no puede exceder 200 caracteres" };
   }
 
-  return { ok: true, data: { matchField, matchType, matchValue } };
+  return { ok: true, data: { matchField, matchType, matchValue, negated: toNegated(input.negated) } };
 }
 
 export function validateEmailRuleGroup(input: unknown, depth = 0): ValidationResult<EmailRuleGroup> {
@@ -281,7 +334,10 @@ export function validateEmailRuleGroup(input: unknown, depth = 0): ValidationRes
     return { ok: false, message: "Hay un grupo sin condiciones: agrega al menos una" };
   }
 
-  return { ok: true, data: { combinator: toCombinator(input.combinator), conditions, groups } };
+  return {
+    ok: true,
+    data: { combinator: toCombinator(input.combinator), negated: toNegated(input.negated), conditions, groups }
+  };
 }
 
 export function validateEmailRulePayload(input: unknown): ValidationResult<EmailRuleUpsertPayload> {
@@ -294,8 +350,24 @@ export function validateEmailRulePayload(input: unknown): ValidationResult<Email
     return { ok: false, message: "El nombre debe tener entre 2 y 120 caracteres" };
   }
 
-  const targetLabelId = toFiniteNumber(input.targetLabelId);
-  if (targetLabelId === null || targetLabelId <= 0) {
+  // Sin `action` la petición es del modelo anterior y asigna etiqueta, que es lo que hacía. Una acción
+  // que el contrato no conoce se rechaza: guardarla la haría comportarse como otra cosa.
+  const rawAction = input.action;
+  const action =
+    rawAction === null || rawAction === undefined || rawAction === ""
+      ? "assign_label"
+      : toAction(rawAction);
+  if (action === null) {
+    return { ok: false, message: "La acción debe ser assign_label, review o llm" };
+  }
+
+  // Solo asignar lleva etiqueta. Las acciones terminales la descartan aunque venga: no hay destino que
+  // aplicar, y el servidor la guarda nula de todos modos.
+  const requestedTarget = toFiniteNumber(input.targetLabelId);
+  const targetLabelId =
+    action === "assign_label" ? (requestedTarget !== null && requestedTarget > 0 ? requestedTarget : null) : null;
+
+  if (action === "assign_label" && targetLabelId === null) {
     return { ok: false, message: "Selecciona una etiqueta destino" };
   }
 
@@ -304,8 +376,9 @@ export function validateEmailRulePayload(input: unknown): ValidationResult<Email
     return { ok: false, message: `La prioridad debe estar entre 0 y ${EMAIL_RULE_MAX_PRIORITY}` };
   }
 
-  // Con árbol, las columnas planas se envían vacías: dejarlas con datos crearía dos verdades para la
-  // misma condición, y el motor ignora las columnas cuando hay grupos.
+  // Con árbol, las columnas planas se envían vacías: el motor las ignora cuando hay grupos. El
+  // servidor no puede vaciarlas en la base —son `NOT NULL` con `CHECK`—, así que las refleja desde la
+  // primera condición para que la fila siga siendo válida.
   if (input.root !== null && input.root !== undefined) {
     const group = validateEmailRuleGroup(input.root);
     if (!group.ok) {
@@ -316,6 +389,7 @@ export function validateEmailRulePayload(input: unknown): ValidationResult<Email
       ok: true,
       data: {
         name,
+        action,
         matchField: "",
         matchType: "",
         matchValue: "",
@@ -346,6 +420,7 @@ export function validateEmailRulePayload(input: unknown): ValidationResult<Email
     ok: true,
     data: {
       name,
+      action,
       matchField,
       matchType,
       matchValue,
@@ -355,4 +430,32 @@ export function validateEmailRulePayload(input: unknown): ValidationResult<Email
       root: null
     }
   };
+}
+
+/**
+ * Texto de la columna «Etiqueta» del listado. Una regla terminal no tiene etiqueta y mostrar un guion
+ * haría parecer que le falta un dato; lo que falta es la etiqueta, porque la acción es otra.
+ */
+export function describeEmailRuleTarget(rule: EmailRule, labelName?: string | null): string {
+  if (rule.action !== "assign_label") {
+    return EMAIL_RULE_ACTION_LABELS[rule.action];
+  }
+
+  if (rule.targetLabelName) {
+    return rule.targetLabelName;
+  }
+
+  if (labelName) {
+    return labelName;
+  }
+
+  return rule.targetLabelId === null ? "—" : `#${rule.targetLabelId}`;
+}
+
+/** Resumen compacto de tabla: el detalle anidado se consulta solo al editar. */
+export function summarizeEmailRule(rule: EmailRule): string {
+  const count = rule.root ? countGroupConditions(rule.root) : rule.conditionCount;
+  if (count > 1) return `Varias condiciones (${count})`;
+  const type = EMAIL_RULE_MATCH_TYPE_LABELS[rule.matchType];
+  return rule.matchValue.length > 0 ? `${type} ${rule.matchValue}` : "Sin condiciones";
 }

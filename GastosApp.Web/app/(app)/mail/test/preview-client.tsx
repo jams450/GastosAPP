@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ChangeEvent } from "react";
 import { Loader2, Trash2 } from "lucide-react";
 import { PageHeader } from "@/components/navigation/page-header";
@@ -11,12 +11,14 @@ import { Select } from "@/components/ui/select";
 import { parseApiError } from "@/lib/bff/client-session";
 import { csrfFetch } from "@/lib/security/csrf-client";
 import {
+  EMAIL_APPLY_STATUS_LABELS,
   PREVIEW_OUTCOME_LABELS,
   PREVIEW_REASON_LABELS,
+  normalizeApplyResult,
   normalizeMailboxes,
   normalizePreviewResult
 } from "@/lib/contracts/email-preview";
-import type { EmailPreviewMessageInput, EmailPreviewResult } from "@/lib/contracts/email-preview";
+import type { EmailApplyResult, EmailPreviewMessageInput, EmailPreviewResult } from "@/lib/contracts/email-preview";
 
 type Props = { username: string };
 
@@ -57,8 +59,23 @@ export function PreviewClient({ username }: Props) {
   const [mailboxMessage, setMailboxMessage] = useState<string | null>(null);
   const [loadingMailboxes, setLoadingMailboxes] = useState(true);
   const [running, setRunning] = useState(false);
+  const [applying, setApplying] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<EmailPreviewResult | null>(null);
+  const [applyResult, setApplyResult] = useState<EmailApplyResult | null>(null);
+  const [applyError, setApplyError] = useState<string | null>(null);
+  // El token se consume al intentar aplicar, incluso si la red falló: no puede quedar un reintento
+  // automático con un resultado incierto.
+  const [applyAttempted, setApplyAttempted] = useState(false);
+  // Huella de los insumos con los que se generó la muestra, y de si esa muestra pidió un buzón.
+  const [resultFingerprint, setResultFingerprint] = useState<string | null>(null);
+  const [resultMailbox, setResultMailbox] = useState<string | null>(null);
+  const [now, setNow] = useState(0);
+
+  // Además del estado `disabled`, dos guardas por referencia: un doble clic no puede abrir dos
+  // peticiones (ni dos vistas previas ni dos aplicaciones) antes de que React re-renderice.
+  const previewInFlight = useRef(false);
+  const applyInFlight = useRef(false);
 
   // Los buzones se cargan al entrar: si la conexión no está configurada, la pantalla lo dice en vez
   // de ofrecer un selector vacío que parece un fallo.
@@ -122,25 +139,57 @@ export function PreviewClient({ username }: Props) {
     setTo(localDay(0));
   }
 
+  const requestPayload = useMemo(
+    () => ({
+      messages,
+      candidates:
+        senderAddress.trim().length > 0 || subject.trim().length > 0
+          ? [{ name: "candidato manual", senderAddress, subject, receivedAt: receivedAt || null }]
+          : [],
+      maxItems: Number(maxItems.trim() === "" ? "50" : maxItems),
+      from: from || null,
+      to: to || null,
+      mailbox: mailbox || null
+    }),
+    [messages, senderAddress, subject, receivedAt, maxItems, from, to, mailbox]
+  );
+
+  // Huella barata de los insumos: el texto crudo de los .eml no entra, porque solo cambia al agregar
+  // o quitar un archivo y su nombre ya está en la lista.
+  const fingerprint = useMemo(
+    () =>
+      JSON.stringify({
+        ...requestPayload,
+        messages: requestPayload.messages.map((message) => message.name)
+      }),
+    [requestPayload]
+  );
+
   async function run() {
+    if (previewInFlight.current || applyInFlight.current) {
+      return;
+    }
+
+    previewInFlight.current = true;
     setRunning(true);
     setError(null);
+    // Un resultado anterior no sobrevive a una muestra nueva: su token y sus conteos describen otra
+    // consulta. Se limpia antes de pedir, así que una vista previa fallida tampoco deja nada aplicable.
+    setResult(null);
+    setApplyResult(null);
+    setApplyError(null);
+    setApplyAttempted(false);
+    setResultFingerprint(null);
+    setResultMailbox(null);
+
+    const requestedFingerprint = fingerprint;
+    const requestedMailbox = requestPayload.mailbox;
 
     try {
       const response = await csrfFetch("/api/bff/mail/preview", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          messages,
-          candidates:
-            senderAddress.trim().length > 0 || subject.trim().length > 0
-              ? [{ name: "candidato manual", senderAddress, subject, receivedAt: receivedAt || null }]
-              : [],
-          maxItems: Number(maxItems.trim() === "" ? "50" : maxItems),
-          from: from || null,
-          to: to || null,
-          mailbox: mailbox || null
-        })
+        body: JSON.stringify(requestPayload)
       });
 
       if (!response.ok) {
@@ -148,22 +197,98 @@ export function PreviewClient({ username }: Props) {
       }
 
       setResult(normalizePreviewResult(await response.json()));
+      setResultFingerprint(requestedFingerprint);
+      setResultMailbox(requestedMailbox);
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo probar el clasificador");
     } finally {
+      previewInFlight.current = false;
       setRunning(false);
     }
   }
 
+  async function applyLabels() {
+    const token = result?.applyToken ?? null;
+    const expiresAt = result?.applyExpiresAt ? Date.parse(result.applyExpiresAt) : Number.NaN;
+    if (
+      token === null || applyInFlight.current || previewInFlight.current || applyAttempted ||
+      resultFingerprint !== fingerprint || !Number.isFinite(expiresAt) || expiresAt <= Date.now()
+    ) {
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `¿Agregar la etiqueta existente a ${result?.applicableCount ?? 0} mensaje(s) de esta muestra?\n\n` +
+        "Solo se agrega la etiqueta del catálogo cuando su nombre coincide exactamente con la del buzón. " +
+        "No se crean etiquetas, no se mueve correo y no se borra nada."
+    );
+    if (!confirmed) {
+      return;
+    }
+
+    applyInFlight.current = true;
+    setApplying(true);
+    setApplyError(null);
+    setApplyAttempted(true);
+
+    try {
+      const response = await csrfFetch("/api/bff/mail/apply", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token })
+      });
+
+      if (!response.ok) {
+        throw await parseApiError(response, "No se pudo aplicar la muestra al buzón");
+      }
+
+      const normalized = normalizeApplyResult(await response.json());
+      if (normalized === null) {
+        throw new Error("El servidor respondió algo que no se pudo leer y no se puede confirmar qué se etiquetó.");
+      }
+
+      setApplyResult(normalized);
+    } catch (err) {
+      setApplyError(err instanceof Error ? err.message : "No se pudo aplicar la muestra al buzón");
+    } finally {
+      applyInFlight.current = false;
+      setApplying(false);
+    }
+  }
+
+  // El permiso dura 15 minutos: se refresca el reloj solo mientras hay un vencimiento en pantalla,
+  // para que el botón se apague en vez de fallar con un token vencido.
+  useEffect(() => {
+    if (!result?.applyExpiresAt) {
+      return;
+    }
+
+    setNow(Date.now());
+    const timer = window.setInterval(() => setNow(Date.now()), 30_000);
+    return () => window.clearInterval(timer);
+  }, [result?.applyExpiresAt]);
+
   const hasInput =
     messages.length > 0 || senderAddress.trim().length > 0 || subject.trim().length > 0 || mailbox.length > 0;
+
+  // Mientras corre cualquiera de las dos acciones se apagan los insumos y las dos acciones: una
+  // vista previa nueva en medio de una aplicación reemplazaría el token que se está consumiendo.
+  const busy = running || applying;
+
+  // El token solo vale para la muestra que describe los insumos actuales. Si algo cambió después de
+  // la vista previa, el botón se apaga en vez de aplicar otra consulta.
+  const applyIsStale = result !== null && resultFingerprint !== fingerprint;
+  const expiryMs = result?.applyExpiresAt ? Date.parse(result.applyExpiresAt) : Number.NaN;
+  const applyExpired = now > 0 && Number.isFinite(expiryMs) && expiryMs <= now;
+  const applyAvailable =
+    result !== null && result.applyToken !== null && result.applicableCount > 0 && !applyIsStale && !applyAttempted;
 
   return (
     <>
       <PageHeader
         section="Correo"
         title="Módulo de prueba"
-        subtitle="Clasifica una muestra con las reglas actuales. No registra mensajes ni crea borradores."
+        subtitle="Clasifica una muestra con las reglas actuales. La vista previa no escribe en el correo ni en la base de datos; solo «Aplicar etiquetas» agrega etiquetas existentes a la muestra revisada."
         variant="plain"
       />
 
@@ -178,6 +303,7 @@ export function PreviewClient({ username }: Props) {
             multiple
             accept=".eml,message/rfc822,text/plain"
             onChange={(event) => void onFilesSelected(event)}
+            disabled={busy}
             className="text-secondary text-xs"
           />
           {messages.length > 0 ? (
@@ -205,6 +331,7 @@ export function PreviewClient({ username }: Props) {
               value={senderAddress}
               onChange={(event) => setSenderAddress(event.target.value)}
               placeholder="notificaciones@banco.com"
+              disabled={busy}
               className="input-semantic rounded-none placeholder:text-muted"
             />
             <Input
@@ -212,6 +339,7 @@ export function PreviewClient({ username }: Props) {
               value={subject}
               onChange={(event) => setSubject(event.target.value)}
               placeholder="Cargo por $123.00"
+              disabled={busy}
               className="input-semantic rounded-none placeholder:text-muted"
             />
             <Input
@@ -219,6 +347,7 @@ export function PreviewClient({ username }: Props) {
               type="date"
               value={receivedAt}
               onChange={(event) => setReceivedAt(event.target.value)}
+              disabled={busy}
               className="input-semantic rounded-none placeholder:text-muted"
             />
           </div>
@@ -231,10 +360,16 @@ export function PreviewClient({ username }: Props) {
           ) : mailboxes.length > 0 ? (
             <>
               <p className="text-muted text-xs">
-                Lee los mensajes más recientes del buzón elegido. Solo lectura: no marca leídos, no etiqueta y
-                no mueve nada.
+                Lee los mensajes más recientes del buzón elegido. Leer no marca nada: la vista previa no marca
+                leídos ni etiqueta. Etiquetar es una acción aparte, con confirmación, sobre lo que acabas de
+                revisar.
               </p>
-              <Select label="Buzón o etiqueta" value={mailbox} onChange={(event) => setMailbox(event.target.value)}>
+              <Select
+                label="Buzón o etiqueta"
+                value={mailbox}
+                onChange={(event) => setMailbox(event.target.value)}
+                disabled={busy}
+              >
                 <option value="">Sin buzón (solo lo cargado a mano)</option>
                 {mailboxes.map((name) => (
                   <option key={name} value={name}>
@@ -267,6 +402,7 @@ export function PreviewClient({ username }: Props) {
                 variant="secondary"
                 className="h-7 rounded-none px-2 text-[11px] font-bold"
                 onClick={() => applyQuickRange(days)}
+                disabled={busy}
               >
                 Últimos {days} días
               </Button>
@@ -279,6 +415,7 @@ export function PreviewClient({ username }: Props) {
                 setFrom("");
                 setTo("");
               }}
+              disabled={busy}
             >
               Sin rango
             </Button>
@@ -291,6 +428,7 @@ export function PreviewClient({ username }: Props) {
               max={200}
               value={maxItems}
               onChange={(event) => setMaxItems(event.target.value)}
+              disabled={busy}
               className="input-semantic rounded-none placeholder:text-muted"
             />
             <Input
@@ -298,6 +436,7 @@ export function PreviewClient({ username }: Props) {
               type="date"
               value={from}
               onChange={(event) => setFrom(event.target.value)}
+              disabled={busy}
               className="input-semantic rounded-none placeholder:text-muted"
             />
             <Input
@@ -305,16 +444,29 @@ export function PreviewClient({ username }: Props) {
               type="date"
               value={to}
               onChange={(event) => setTo(event.target.value)}
+              disabled={busy}
               className="input-semantic rounded-none placeholder:text-muted"
             />
           </div>
           <div className="flex items-center gap-2">
-            <Button type="button" variant="primary" onClick={() => void run()} disabled={running || !hasInput}>
+            <Button type="button" variant="primary" onClick={() => void run()} disabled={busy || !hasInput}>
               {running ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : null}
               <span>{running ? "Probando..." : "Probar clasificador"}</span>
             </Button>
             {username ? <span className="text-muted text-[11px]">Sesión de {username}</span> : null}
           </div>
+          {/* Aviso de costo explícito: probar la muestra puede llamar al modelo y esa llamada se
+              factura. Son dos caminos distintos y conviene no confundirlos: una regla con acción
+              «LLM» decide por el modelo aunque el respaldo automático esté apagado; el respaldo de
+              «ninguna regla» solo ocurre si Email:LlmFallbackEnabled está encendido. */}
+          <p className="text-muted text-xs">
+            Esta prueba puede llamar al LLM y esas llamadas se facturan: lo hace cuando una regla con
+            acción «LLM» decide el correo (aunque el respaldo automático esté apagado) y, solo si
+            Email__LlmFallbackEnabled está encendido, también cuando ninguna regla coincide. Cada
+            corrida gasta como máximo Email__LlmMaxPerRun llamadas (20 por defecto; 0 las apaga) y todas
+            las fallas terminan en revisión, sin etiquetar. Aun así la vista previa no escribe en el
+            buzón ni en la base de datos.
+          </p>
           {error ? <p className="text-xs text-[var(--color-danger)]">{error}</p> : null}
         </Card>
 
@@ -329,11 +481,126 @@ export function PreviewClient({ username }: Props) {
                 <span className="text-muted text-xs">Fuera de rango {result.skippedOutOfRange}</span>
               ) : null}
               {result.skippedByLimit > 0 ? <span className="text-muted text-xs">Sobre el tope {result.skippedByLimit}</span> : null}
+              {result.skippedAlreadyLabelled > 0 ? (
+                <span className="text-muted text-xs">Ya etiquetados: {result.skippedAlreadyLabelled}</span>
+              ) : null}
               {result.dropOlderThanDays > 0 ? (
                 <span className="text-muted text-xs">Corte {result.dropOlderThanDays} días</span>
               ) : (
                 <span className="text-muted text-xs">Sin corte de antigüedad</span>
               )}
+            </div>
+
+            {/* Las filas que ya traían su etiqueta destino se leyeron y se clasificaron, pero no se
+                listan: el plan tampoco las incluye, porque aplicarlas repetiría lo ya hecho. */}
+            {result.skippedAlreadyLabelled > 0 ? (
+              <p className="text-muted text-xs">
+                {result.skippedAlreadyLabelled === 1 ? "Un mensaje" : `${result.skippedAlreadyLabelled} mensajes`}{" "}
+                de esta muestra ya tenía{result.skippedAlreadyLabelled === 1 ? "" : "n"} la etiqueta destino de su
+                regla, así que quedó fuera de la lista revisada y tampoco entra al plan de aplicar: no hay nada
+                que hacer sobre él. Sigue contado en el total porque sí se leyó y se clasificó.
+              </p>
+            ) : null}
+
+            {/* Aplicar solo toca la muestra que está en pantalla. No hay búsqueda nueva: el plan lo
+                guardó el servidor cuando se generó esta vista previa y se consume una sola vez. */}
+            <div className="space-y-2 border border-[var(--color-border)] p-3">
+              <h5 className="text-muted text-[11px] font-bold uppercase tracking-[0.14em]">Aplicar etiquetas</h5>
+
+              {applyAvailable ? (
+                <>
+                  <p className="text-secondary text-xs">
+                    Esta muestra tiene {result.applicableCount}{" "}
+                    {result.applicableCount === 1 ? "mensaje" : "mensajes"} con etiqueta. Al aplicar se agrega la
+                    etiqueta <b>ya existente</b> del catálogo, solo si su nombre coincide exactamente con la
+                    etiqueta del buzón: no se crean etiquetas, no se mueve ni se borra correo, y los demás
+                    mensajes de la muestra no se tocan.
+                  </p>
+                  {result.applyExpiresAt ? (
+                    <p className="text-muted text-xs">
+                      El permiso para aplicar vence {formatDate(result.applyExpiresAt)}.
+                    </p>
+                  ) : null}
+                  <Button type="button" variant="primary" onClick={() => void applyLabels()} disabled={applying || applyExpired}>
+                    {applying ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : null}
+                    <span>{applying ? "Aplicando..." : "Aplicar etiquetas"}</span>
+                  </Button>
+                  {applyExpired ? (
+                    <p className="text-xs text-[var(--color-warning)]">
+                      El permiso venció. Genera una vista previa nueva para aplicar.
+                    </p>
+                  ) : null}
+                </>
+              ) : null}
+
+              {result.applyToken !== null && applyIsStale ? (
+                <p className="text-xs text-[var(--color-warning)]">
+                  La muestra o la configuración cambió desde la vista previa. Genera una vista previa nueva para
+                  aplicar: no se etiqueta con datos de otra consulta.
+                </p>
+              ) : null}
+
+              {result.applyToken === null && resultMailbox === null ? (
+                <p className="text-muted text-xs">
+                  La muestra no vino del buzón: los archivos .eml y los candidatos escritos a mano se quedan en
+                  simulación y nunca se etiquetan.
+                </p>
+              ) : null}
+
+              {result.applyToken === null && resultMailbox !== null ? (
+                <p className="text-muted text-xs">
+                  Ningún mensaje de esta muestra quedó con etiqueta, así que no hay nada que aplicar.
+                </p>
+              ) : null}
+
+              {applyError ? (
+                <p className="text-xs text-[var(--color-danger)]">
+                  {applyError} El permiso de esta muestra ya se consumió: genera una vista previa nueva y revisa el
+                  buzón antes de volver a intentarlo.
+                </p>
+              ) : null}
+
+              {applyResult ? (
+                <div className="space-y-2">
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+                    <span className="text-muted text-xs">Etiquetados {applyResult.applied}</span>
+                    <span className="text-muted text-xs">Omitidos {applyResult.skipped}</span>
+                    <span className="text-muted text-xs">Fallidos {applyResult.failed}</span>
+                  </div>
+                  <div className="app-grid-skin app-grid-skin-flat overflow-x-auto rounded-none p-0">
+                    <table className="w-full min-w-[560px] text-left text-xs">
+                      <thead>
+                        <tr className="text-muted">
+                          <th className="px-3 py-2 font-semibold">Mensaje</th>
+                          <th className="px-3 py-2 font-semibold">Etiqueta</th>
+                          <th className="px-3 py-2 font-semibold">Estado</th>
+                          <th className="px-3 py-2 font-semibold">Detalle</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {applyResult.rows.map((row, index) => (
+                          <tr key={`${row.name}-${index}`} className="border-t border-[var(--color-border)]">
+                            <td className="text-secondary px-3 py-2">{row.name}</td>
+                            <td className="text-secondary px-3 py-2">{row.label || "—"}</td>
+                            <td
+                              className={`px-3 py-2 ${
+                                row.status === "applied"
+                                  ? "text-[var(--color-success)]"
+                                  : row.status === "failed"
+                                    ? "text-[var(--color-danger)]"
+                                    : "text-muted"
+                              }`}
+                            >
+                              {EMAIL_APPLY_STATUS_LABELS[row.status]}
+                            </td>
+                            <td className="text-muted px-3 py-2">{row.message || "—"}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              ) : null}
             </div>
 
             {result.rows.length === 0 ? (

@@ -21,11 +21,11 @@ import type { EmailRuleCondition, EmailRuleGroup } from "@/lib/contracts/email-r
 const UI_MAX_DEPTH = 3;
 
 export function emptyCondition(): EmailRuleCondition {
-  return { matchField: "sender_domain", matchType: "ends_with", matchValue: "" };
+  return { matchField: "sender_domain", matchType: "ends_with", matchValue: "", negated: false };
 }
 
 export function emptyGroup(combinator: EmailRuleGroup["combinator"] = "and"): EmailRuleGroup {
-  return { combinator, conditions: [emptyCondition()], groups: [] };
+  return { combinator, negated: false, conditions: [emptyCondition()], groups: [] };
 }
 
 type Props = {
@@ -91,6 +91,23 @@ export function RulesGroupEditor({ group, depth, onChange, onRemove }: Props) {
             ))}
           </Select>
         </div>
+        {/*
+          El «NO» es un booleano, no otro comparador: invierte el resultado ya combinado del grupo
+          («NO (factura O invoice)»). Va junto al operador Y/O y con nombre propio para que no se
+          confunda con él.
+        */}
+        <label
+          className="text-secondary flex items-center gap-1.5 pb-2 text-xs"
+          title="Invierte el resultado del grupo: casa cuando el grupo NO se cumple"
+        >
+          <input
+            type="checkbox"
+            checked={group.negated}
+            aria-label={depth === 0 ? "Negar grupo raíz" : "Negar subgrupo"}
+            onChange={(event) => onChange({ ...group, negated: event.target.checked })}
+          />
+          NO
+        </label>
         {onRemove ? (
           <Button type="button" variant="ghost" onClick={onRemove} aria-label="Quitar subgrupo">
             <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
@@ -100,7 +117,19 @@ export function RulesGroupEditor({ group, depth, onChange, onRemove }: Props) {
       </div>
 
       {group.conditions.map((condition, index) => (
-        <div key={`${labelPrefix}-condition-${index}`} className="grid gap-2 sm:grid-cols-[1fr_1fr_1.4fr_auto]">
+        <div key={`${labelPrefix}-condition-${index}`} className="grid gap-2 sm:grid-cols-[auto_1fr_1fr_1.4fr_auto]">
+          <label
+            className="text-secondary flex items-center gap-1.5 self-center text-xs"
+            title="Invierte solo esta condición: casa cuando NO se cumple"
+          >
+            <input
+              type="checkbox"
+              checked={condition.negated}
+              aria-label="Negar condición"
+              onChange={(event) => updateCondition(index, { negated: event.target.checked })}
+            />
+            NO
+          </label>
           <Select
             label={index === 0 ? "Campo" : undefined}
             aria-label="Campo de la condición"

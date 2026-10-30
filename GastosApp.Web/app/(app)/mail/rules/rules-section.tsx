@@ -9,17 +9,19 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { gridMeta } from "@/lib/ui/grid-responsive";
 import {
+  EMAIL_RULE_ACTIONS,
+  EMAIL_RULE_ACTION_LABELS,
   EMAIL_RULE_MAX_PRIORITY,
-  EMAIL_RULE_MATCH_TYPE_LABELS,
-  summarizeGroup
+  describeEmailRuleTarget,
+  summarizeEmailRule
 } from "@/lib/contracts/email-rules";
-import type { EmailRule, EmailRuleGroup } from "@/lib/contracts/email-rules";
+import type { EmailRule, EmailRuleAction, EmailRuleGroup } from "@/lib/contracts/email-rules";
 import type { EmailLabel } from "@/lib/contracts/email-labels";
 import { CatalogActionButton } from "../../catalogs/_shared/catalog-action-button";
 import { SectionFilterBar } from "../../catalogs/_shared/section-filter-bar";
 import { StatusBadge } from "../../catalogs/_shared/status-badge";
 import { useCatalogSectionState } from "../../catalogs/_shared/use-catalog-section-state";
-import { createEmailRule, setEmailRuleActive, updateEmailRule } from "../_lib/email-rules-api";
+import { createEmailRule, fetchEmailRule, setEmailRuleActive, updateEmailRule } from "../_lib/email-rules-api";
 import { RulesGroupEditor, emptyGroup } from "./rules-group-editor";
 
 type Props = {
@@ -33,6 +35,7 @@ type Props = {
 type EmailRuleFormState = {
   id: number | null;
   name: string;
+  action: EmailRuleAction;
   root: EmailRuleGroup;
   targetLabelId: string;
   priority: string;
@@ -43,6 +46,7 @@ function emptyForm(labels: EmailLabel[]): EmailRuleFormState {
   return {
     id: null,
     name: "",
+    action: "assign_label",
     root: emptyGroup(),
     targetLabelId: labels.length > 0 ? String(labels[0].labelId) : "",
     priority: "100",
@@ -51,34 +55,27 @@ function emptyForm(labels: EmailLabel[]): EmailRuleFormState {
 }
 
 /**
- * El árbol siempre se envía y las columnas planas van vacías: el servidor vacía esas columnas cuando
- * hay árbol, y mandar las dos cosas dejaría dos verdades para la misma condición.
+ * El árbol es la fuente activa. Las columnas planas se envían vacías: el motor las ignora cuando hay
+ * grupos, y el servidor las refleja desde la primera condición porque la base todavía las declara
+ * `NOT NULL` con `CHECK`. Una acción terminal viaja sin etiqueta: no hay destino que aplicar.
  */
 function toPayload(form: EmailRuleFormState) {
   return {
     name: form.name.trim(),
+    action: form.action,
     matchField: "" as const,
     matchType: "" as const,
     matchValue: "",
-    targetLabelId: Number(form.targetLabelId),
+    targetLabelId: form.action === "assign_label" ? Number(form.targetLabelId) : null,
     priority: Number(form.priority.trim() === "" ? "100" : form.priority),
     active: form.active,
     root: form.root
   };
 }
 
-/** Resumen de una regla en la tabla: el árbol si lo tiene, la condición única si es del modelo anterior. */
-function ruleSummary(rule: EmailRule): string {
-  if (rule.root) {
-    return summarizeGroup(rule.root);
-  }
-
-  const type = EMAIL_RULE_MATCH_TYPE_LABELS[rule.matchType];
-  return rule.matchValue.length > 0 ? `${type} ${rule.matchValue}` : "Sin condiciones";
-}
-
 export function RulesSection({ rules, labels, onCatalogChanged, onError, onSuccess }: Props) {
   const [saving, setSaving] = useState(false);
+  const [loadingDetail, setLoadingDetail] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [form, setForm] = useState<EmailRuleFormState>(() => emptyForm(labels));
 
@@ -110,32 +107,41 @@ export function RulesSection({ rules, labels, onCatalogChanged, onError, onSucce
     onError(null);
   }
 
-  function openEdit(rule: EmailRule) {
-    // Una regla del modelo anterior se abre como árbol de una condición: así el editor siempre
-    // trabaja con la forma nueva y guardarla la migra sin un caso especial.
-    const root: EmailRuleGroup =
-      rule.root ?? {
+  async function openEdit(rule: EmailRule) {
+    setLoadingDetail(true);
+    setDrawerOpen(false);
+    onError(null);
+    try {
+      // El listado no incluye el árbol: solo el detalle permite editar sin perder subgrupos.
+      const detail = await fetchEmailRule(rule.emailRuleId);
+      const root: EmailRuleGroup = detail.root ?? {
         combinator: "and",
+        negated: false,
         conditions: [
           {
-            matchField: rule.matchField,
-            matchType: rule.matchType,
-            matchValue: rule.matchValue
+            matchField: detail.matchField,
+            matchType: detail.matchType,
+            matchValue: detail.matchValue,
+            negated: false
           }
         ],
         groups: []
       };
-
-    setForm({
-      id: rule.emailRuleId,
-      name: rule.name,
-      root,
-      targetLabelId: String(rule.targetLabelId),
-      priority: String(rule.priority),
-      active: rule.active
-    });
-    setDrawerOpen(true);
-    onError(null);
+      setForm({
+        id: detail.emailRuleId,
+        name: detail.name,
+        action: detail.action,
+        root,
+        targetLabelId: detail.targetLabelId === null ? "" : String(detail.targetLabelId),
+        priority: String(detail.priority),
+        active: detail.active
+      });
+      setDrawerOpen(true);
+    } catch (err) {
+      onError(err instanceof Error ? err.message : "No se pudo cargar el detalle de la regla");
+    } finally {
+      setLoadingDetail(false);
+    }
   }
 
   async function submit(event: FormEvent) {
@@ -188,7 +194,7 @@ export function RulesSection({ rules, labels, onCatalogChanged, onError, onSucce
       accessorKey: "matchValue",
       header: "Condiciones",
       cell: ({ row }) => (
-        <span className="text-secondary truncate font-mono text-xs">{ruleSummary(row.original)}</span>
+        <span className="text-secondary truncate font-mono text-xs">{summarizeEmailRule(row.original)}</span>
       )
     },
     {
@@ -197,7 +203,10 @@ export function RulesSection({ rules, labels, onCatalogChanged, onError, onSucce
       enableSorting: false,
       cell: ({ row }) => (
         <span className="text-secondary text-xs">
-          {row.original.targetLabelName ?? labelById.get(row.original.targetLabelId)?.name ?? "—"}
+          {describeEmailRuleTarget(
+            row.original,
+            row.original.targetLabelId === null ? null : labelById.get(row.original.targetLabelId)?.name
+          )}
         </span>
       )
     },
@@ -220,13 +229,13 @@ export function RulesSection({ rules, labels, onCatalogChanged, onError, onSucce
         const rule = row.original;
         return (
           <div className="flex justify-end gap-1.5">
-            <CatalogActionButton type="button" action="edit" label="Editar" onClick={() => openEdit(rule)} />
+            <CatalogActionButton type="button" action="edit" label="Editar" onClick={() => void openEdit(rule)} disabled={saving || loadingDetail} />
             <CatalogActionButton
               type="button"
               action={rule.active ? "deactivate" : "activate"}
               label={rule.active ? "Desactivar" : "Activar"}
               onClick={() => void toggleActive(rule)}
-              disabled={saving}
+              disabled={saving || loadingDetail}
             />
           </div>
         );
@@ -245,7 +254,7 @@ export function RulesSection({ rules, labels, onCatalogChanged, onError, onSucce
           onActiveFilterChange={setActiveFilter}
           onClearFilters={clearFilters}
           hideFeedback
-          actions={<CatalogActionButton type="button" action="create" label="Nueva" onClick={openCreate} />}
+          actions={<CatalogActionButton type="button" action="create" label="Nueva" onClick={openCreate} disabled={saving || loadingDetail} />}
         />
       </section>
 
@@ -290,19 +299,38 @@ export function RulesSection({ rules, labels, onCatalogChanged, onError, onSucce
                     className="input-semantic rounded-none placeholder:text-muted"
                   />
                   <Select
-                    label="Etiqueta destino"
-                    value={form.targetLabelId}
-                    onChange={(event) => setForm((current) => ({ ...current, targetLabelId: event.target.value }))}
-                    required
+                    label="Acción"
+                    value={form.action}
+                    onChange={(event) =>
+                      setForm((current) => ({ ...current, action: event.target.value as EmailRuleAction }))
+                    }
                   >
-                    {labels.length === 0 ? <option value="">Sin etiquetas: crea una primero</option> : null}
-                    {labels.map((label) => (
-                      <option key={label.labelId} value={label.labelId}>
-                        {label.name}
-                        {label.active ? "" : " (inactiva)"}
+                    {EMAIL_RULE_ACTIONS.map((action) => (
+                      <option key={action} value={action}>
+                        {EMAIL_RULE_ACTION_LABELS[action]}
                       </option>
                     ))}
                   </Select>
+                  <p className="text-muted -mt-2 text-[11px]">
+                    La primera regla que casa decide y la evaluación se detiene. Revisión y LLM no llevan etiqueta: el
+                    correo espera una decisión en vez de recibir una.
+                  </p>
+                  {form.action === "assign_label" ? (
+                    <Select
+                      label="Etiqueta destino"
+                      value={form.targetLabelId}
+                      onChange={(event) => setForm((current) => ({ ...current, targetLabelId: event.target.value }))}
+                      required
+                    >
+                      {labels.length === 0 ? <option value="">Sin etiquetas: crea una primero</option> : null}
+                      {labels.map((label) => (
+                        <option key={label.labelId} value={label.labelId}>
+                          {label.name}
+                          {label.active ? "" : " (inactiva)"}
+                        </option>
+                      ))}
+                    </Select>
+                  ) : null}
                   <Input
                     label="Prioridad"
                     type="number"
@@ -329,7 +357,8 @@ export function RulesSection({ rules, labels, onCatalogChanged, onError, onSucce
                 <section className="drawer-section-semantic rounded-none border-[var(--color-border)] bg-[var(--color-surface-2)]">
                   <h4 className="text-muted text-[11px] font-bold uppercase tracking-[0.14em]">Condiciones</h4>
                   <p className="text-muted text-[11px]">
-                    «Y» exige todas; «O» basta con una. El dominio se compara literal, subdominios incluidos: para
+                    «Y» exige todas; «O» basta con una. Marca «NO» para invertir una condición o un grupo completo:
+                    «dominio X Y NO (factura O invoice)». El dominio se compara literal, subdominios incluidos: para
                     incluir mail.paypal.com usa «Termina con» y el valor paypal.com.
                   </p>
                   <RulesGroupEditor

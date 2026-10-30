@@ -1,5 +1,5 @@
 import { parseApiError } from "@/lib/bff/client-session";
-import { normalizeEmailRules } from "@/lib/contracts/email-rules";
+import { normalizeEmailRule, normalizeEmailRules } from "@/lib/contracts/email-rules";
 import type { EmailRule, EmailRuleUpsertPayload } from "@/lib/contracts/email-rules";
 import { requestJson } from "../../catalogs/_shared/catalogs-api";
 
@@ -26,4 +26,16 @@ export async function setEmailRuleActive(ruleId: number, active: boolean): Promi
     { method: "PATCH", body: JSON.stringify({ active }) },
     "No se pudo actualizar el estado de la regla"
   );
+}
+
+export async function fetchEmailRule(ruleId: number): Promise<EmailRule> {
+  const response = await fetch(`/api/bff/mail/rules/${ruleId}`, { cache: "no-store" });
+  if (!response.ok) {
+    throw await parseApiError(response, "No se pudo cargar el detalle de la regla");
+  }
+  const detail = normalizeEmailRule(await response.json());
+  if (!detail || detail.emailRuleId !== ruleId) {
+    throw new Error("El detalle de la regla no es válido");
+  }
+  return detail;
 }

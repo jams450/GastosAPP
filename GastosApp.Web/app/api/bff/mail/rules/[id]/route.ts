@@ -49,3 +49,21 @@ export async function PUT(request: Request, { params }: Params) {
   await attachSessionCookie(out, authSession, session);
   return out;
 }
+
+export async function GET(request: Request, { params }: Params) {
+  const { id } = await params;
+  const ruleId = parseId(id);
+  if (!ruleId) return badRequest(request, "Invalid email rule id");
+  const session = await getServerSession();
+  if (!session) return unauthorized(request);
+  const call = await fetchApiWithAutoRefresh(session, `${getApiBaseUrl()}/api/emailrules/${ruleId}`, {
+    method: "GET",
+    cache: "no-store"
+  });
+  if (!call.response.ok) {
+    return upstreamError(request, call.response.status, "No se pudo cargar el detalle de la regla");
+  }
+  const out = NextResponse.json(await call.response.json());
+  await attachSessionCookie(out, call.session, session);
+  return out;
+}
