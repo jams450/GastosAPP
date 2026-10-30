@@ -58,6 +58,9 @@ Thumbs.db
 *.swo
 *~
 
+# Local personal SQL scripts
+*_personal_*.sql
+
 # Test results
 [Tt]est[Rr]esult*/
 [Bb]uild[Ll]og.*
