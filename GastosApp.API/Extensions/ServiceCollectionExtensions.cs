@@ -2,11 +2,14 @@ using GastosApp.AI.Intent;
 using GastosApp.API.BackgroundServices;
 using GastosApp.API.Interfaces;
 using GastosApp.API.Services;
+using GastosApp.API.Services.Jobs;
+using GastosApp.API.Services.Jobs.Runners;
 using GastosApp.API.Services.Telegram;
 using GastosApp.BusinessLogic.Interfaces;
 using GastosApp.BusinessLogic.Services;
 using GastosApp.BusinessLogic.Services.Fx;
 using GastosApp.BusinessLogic.Services.Investments;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using IPasswordService = GastosApp.BusinessLogic.Interfaces.IPasswordService;
 using PasswordService = GastosApp.BusinessLogic.Services.PasswordService;
 
@@ -77,6 +80,48 @@ public static class ServiceCollectionExtensions
         // Motor de gastos programados: hereda la cadencia de alertas y el alcance single-user.
         services.AddHostedService<RecurringExecutionBackgroundService>();
 
+        AddJobMonitoring(services);
+
         return services;
+    }
+
+    /// <summary>
+    /// Monitoreo administrativo de los cinco jobs (S1/S2/S3).
+    /// <para>
+    /// El coordinador es singleton porque su candado es el estado del proceso, y es el mismo objeto
+    /// para las corridas automáticas y las manuales: dos instancias serían dos candados y el
+    /// solapamiento volvería. La tienda y la consulta son scoped porque usan el repositorio y su
+    /// <c>DbContext</c>, y el coordinador abre un scope por operación, nunca el de una petición.
+    /// </para>
+    /// <para>
+    /// El orden de los hosted services importa solo para el arranque ordenado: el host de ejecuciones
+    /// se registra antes de la reconciliación para que ya pueda recibir trabajo cuando esta termine.
+    /// La garantía de "reconciliar antes de ejecutar" no depende de este orden, porque el coordinador
+    /// la aplica en cada apertura de corrida.
+    /// </para>
+    /// </summary>
+    private static void AddJobMonitoring(IServiceCollection services)
+    {
+        // TimeProvider lo registra la configuración de correo; TryAdd evita duplicarlo y mantiene el
+        // módulo resoluble si alguien compone solo esta extensión.
+        services.TryAddSingleton(TimeProvider.System);
+
+        services.AddSingleton<IJobCatalog, JobCatalog>();
+        services.AddSingleton<IJobCoordinator, JobCoordinator>();
+        services.AddSingleton<JobExecutionHost>();
+        services.AddSingleton<IJobExecutionHost>(provider => provider.GetRequiredService<JobExecutionHost>());
+        services.AddHostedService(provider => provider.GetRequiredService<JobExecutionHost>());
+        services.AddHostedService<JobMonitoringStartupService>();
+
+        services.AddScoped<IJobRunStore, JobRunStore>();
+        services.AddScoped<IJobRunQueryService, JobRunQueryService>();
+
+        // Un adaptador por job: el coordinador resuelve el que corresponde por clave dentro del scope
+        // de la corrida, así que ninguno ve el DbContext de una petición.
+        services.AddScoped<IJobRunner, EmailIngestJobRunner>();
+        services.AddScoped<IJobRunner, FxRateSyncJobRunner>();
+        services.AddScoped<IJobRunner, RecurringExecutionJobRunner>();
+        services.AddScoped<IJobRunner, AlertEvaluationJobRunner>();
+        services.AddScoped<IJobRunner, AlertDispatchJobRunner>();
     }
 }
