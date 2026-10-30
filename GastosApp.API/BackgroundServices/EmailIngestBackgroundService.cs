@@ -1,20 +1,23 @@
 using GastosApp.API.Configuration;
 using GastosApp.API.Services.Email;
+using GastosApp.API.Services.Jobs;
 using Microsoft.Extensions.Options;
 
 namespace GastosApp.API.BackgroundServices;
 
 /// <summary>
-/// Pase diario de etiquetado del correo (S13/L28).
+/// Pase diario de etiquetado del correo (S13/L28), ahora registrado en el historial de jobs (S1/L5).
 /// <para>
 /// A diferencia del job de tipos de cambio, <b>espera antes de su primera corrida</b>: no hay trabajo
 /// de arranque ni reintentos. Con <c>Email:Ingest:Enabled=false</c> —el valor por defecto— o sin un
 /// <c>UserId</c> positivo el servicio termina de inmediato con un log legible, sin bloquear el arranque
-/// de la API.
+/// de la API. Ese horario y esas guardas no cambian: el módulo de monitoreo agrega el registro de la
+/// corrida, no la decide.
 /// </para>
 /// <para>
-/// Crea un scope por corrida, como los demás jobs. Su bucle es secuencial, así que dos corridas del
-/// mismo proceso no se solapan; aplicar etiquetas es idempotente de todos modos.
+/// La corrida la ejecuta el coordinador, que la abre en el historial antes de trabajar y comparte el
+/// candado con la ejecución manual: una corrida a demanda en curso hace que este pase se omita en vez
+/// de solaparse.
 /// </para>
 /// </summary>
 public sealed class EmailIngestBackgroundService : BackgroundService
@@ -23,17 +26,25 @@ public sealed class EmailIngestBackgroundService : BackgroundService
     private readonly EmailIngestOptions _options;
     private readonly TimeProvider _timeProvider;
     private readonly ILogger<EmailIngestBackgroundService> _logger;
+    private readonly IJobCoordinator? _coordinator;
 
+    /// <param name="coordinator">
+    /// Opcional solo por compatibilidad con los llamadores anteriores y sus pruebas; el contenedor de
+    /// dependencias siempre lo inyecta. Sin él la corrida se ejecuta igual que antes, sin historial:
+    /// ninguna prueba previa a este módulo arma el contenedor completo.
+    /// </param>
     public EmailIngestBackgroundService(
         IServiceScopeFactory scopeFactory,
         IOptions<EmailIngestOptions> options,
         TimeProvider timeProvider,
-        ILogger<EmailIngestBackgroundService> logger)
+        ILogger<EmailIngestBackgroundService> logger,
+        IJobCoordinator? coordinator = null)
     {
         _scopeFactory = scopeFactory;
         _options = options.Value;
         _timeProvider = timeProvider;
         _logger = logger;
+        _coordinator = coordinator;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -78,6 +89,14 @@ public sealed class EmailIngestBackgroundService : BackgroundService
 
     private async Task RunOnceAsync(CancellationToken stoppingToken)
     {
+        if (_coordinator is not null)
+        {
+            await _coordinator.RunAutomaticAsync(JobKeys.EmailIngest, stoppingToken);
+            return;
+        }
+
+        // Camino sin coordinador (solo llamadores que construyen el servicio a mano). Es la corrida
+        // de antes de este módulo, sin fila de historial.
         try
         {
             using var scope = _scopeFactory.CreateScope();

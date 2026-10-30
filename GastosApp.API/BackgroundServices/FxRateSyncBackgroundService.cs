@@ -1,33 +1,35 @@
 using GastosApp.API.Configuration;
 using GastosApp.API.Services.Fx;
-using GastosApp.BusinessLogic.Interfaces;
+using GastosApp.API.Services.Jobs;
 using Microsoft.Extensions.Options;
 
 namespace GastosApp.API.BackgroundServices;
 
 /// <summary>
-/// Sincroniza una vez al arrancar y luego todos los días a <c>FxRates:SyncHourUtc</c>.
+/// Sincroniza una vez al arrancar y luego todos los días a <c>FxRates:SyncHourUtc</c>, registrando
+/// cada corrida en el historial de jobs (S1/L5).
 /// <para>
 /// La corrida de arranque no es un accidente: si el proceso estuvo caído varios días, es la que recupera
 /// el hueco. Es segura porque <see cref="FxRateWritePolicy"/> solo escribe fechas nuevas, así que repetir
 /// la corrida no duplica ni sobrescribe.
 /// </para>
 /// <para>
-/// No usa <c>HttpContext</c>: crea un scope por iteración.
+/// El horario no cambia: lo único nuevo es que la pasada la ejecuta el coordinador, que comparte el
+/// candado con la corrida manual para que no se solapen.
 /// </para>
 /// </summary>
 public sealed class FxRateSyncBackgroundService : BackgroundService
 {
-    private readonly IServiceScopeFactory _scopeFactory;
+    private readonly IJobCoordinator _coordinator;
     private readonly FxRateSyncOptions _options;
     private readonly ILogger<FxRateSyncBackgroundService> _logger;
 
     public FxRateSyncBackgroundService(
-        IServiceScopeFactory scopeFactory,
+        IJobCoordinator coordinator,
         IOptions<FxRateSyncOptions> options,
         ILogger<FxRateSyncBackgroundService> logger)
     {
-        _scopeFactory = scopeFactory;
+        _coordinator = coordinator;
         _options = options.Value;
         _logger = logger;
     }
@@ -61,27 +63,7 @@ public sealed class FxRateSyncBackgroundService : BackgroundService
     {
         try
         {
-            using var scope = _scopeFactory.CreateScope();
-            var syncService = scope.ServiceProvider.GetRequiredService<IFxRateSyncService>();
-
-            var result = await syncService.SyncAsync(stoppingToken);
-
-            // Solo conteos: nunca tasas ni la configuración del proveedor.
-            if (result.Failed > 0)
-            {
-                _logger.LogWarning(
-                    "FX rate sync finished with failures: {Synced} synced, {Skipped} skipped, {Failed} failed.",
-                    result.Synced,
-                    result.Skipped,
-                    result.Failed);
-            }
-            else
-            {
-                _logger.LogInformation(
-                    "FX rate sync finished: {Synced} synced, {Skipped} skipped.",
-                    result.Synced,
-                    result.Skipped);
-            }
+            await _coordinator.RunAutomaticAsync(JobKeys.FxRateSync, stoppingToken);
         }
         catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
         {
@@ -89,7 +71,8 @@ public sealed class FxRateSyncBackgroundService : BackgroundService
         }
         catch (Exception exception)
         {
-            // Solo el tipo de excepción: nunca montos, tasas ni payload.
+            // El coordinador ya registra el fallo en el historial; esta barrera evita que una
+            // excepción escape de un BackgroundService y detenga el host.
             _logger.LogError("FX rate sync failed: {ErrorType}", exception.GetType().Name);
         }
     }

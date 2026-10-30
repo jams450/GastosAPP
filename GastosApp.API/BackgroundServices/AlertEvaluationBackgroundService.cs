@@ -1,29 +1,33 @@
 using GastosApp.API.Configuration;
-using GastosApp.BusinessLogic.Interfaces;
+using GastosApp.API.Services.Jobs;
 using Microsoft.Extensions.Options;
 
 namespace GastosApp.API.BackgroundServices;
 
 /// <summary>
 /// Evalúa los umbrales de presupuesto del usuario de Telegram cada
-/// <c>Alerts:EvaluationIntervalMinutes</c> y una vez al arrancar. La idempotencia del
-/// servicio decide: repetir la corrida no duplica entregas.
-/// No usa <c>HttpContext</c>: crea un scope por iteración.
+/// <c>Alerts:EvaluationIntervalMinutes</c> y una vez al arrancar, registrando cada corrida en el
+/// historial (S1/L5). La idempotencia del servicio decide: repetir la corrida no duplica entregas.
+/// <para>
+/// El horario, el interruptor <c>Alerts:Enabled</c> y la guarda de dueño no cambian; la corrida la
+/// ejecuta el coordinador, que la abre en el historial antes de trabajar y la rechaza si ya hay otra
+/// en curso (manual incluida).
+/// </para>
 /// </summary>
 public sealed class AlertEvaluationBackgroundService : BackgroundService
 {
-    private readonly IServiceScopeFactory _scopeFactory;
+    private readonly IJobCoordinator _coordinator;
     private readonly AlertsOptions _alertsOptions;
     private readonly TelegramOptions _telegramOptions;
     private readonly ILogger<AlertEvaluationBackgroundService> _logger;
 
     public AlertEvaluationBackgroundService(
-        IServiceScopeFactory scopeFactory,
+        IJobCoordinator coordinator,
         IOptions<AlertsOptions> alertsOptions,
         IOptions<TelegramOptions> telegramOptions,
         ILogger<AlertEvaluationBackgroundService> logger)
     {
-        _scopeFactory = scopeFactory;
+        _coordinator = coordinator;
         _alertsOptions = alertsOptions.Value;
         _telegramOptions = telegramOptions.Value;
         _logger = logger;
@@ -41,19 +45,7 @@ public sealed class AlertEvaluationBackgroundService : BackgroundService
 
         while (!stoppingToken.IsCancellationRequested)
         {
-            try
-            {
-                await EvaluateOnceAsync(stoppingToken);
-            }
-            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
-            {
-                break;
-            }
-            catch (Exception exception)
-            {
-                // Solo el tipo: nunca montos, payload ni mensaje de excepción.
-                _logger.LogError("Alert evaluation failed: {ErrorType}", exception.GetType().Name);
-            }
+            await EvaluateOnceAsync(stoppingToken);
 
             try
             {
@@ -66,7 +58,7 @@ public sealed class AlertEvaluationBackgroundService : BackgroundService
         }
     }
 
-    private async Task EvaluateOnceAsync(CancellationToken cancellationToken)
+    private async Task EvaluateOnceAsync(CancellationToken stoppingToken)
     {
         // Alcance estricto: únicamente el AppUserId configurado en TelegramOptions.
         if (_telegramOptions.AppUserId <= 0)
@@ -75,23 +67,18 @@ public sealed class AlertEvaluationBackgroundService : BackgroundService
             return;
         }
 
-        using var scope = _scopeFactory.CreateScope();
-        var evaluationService = scope.ServiceProvider.GetRequiredService<IAlertEvaluationService>();
-
-        var result = await evaluationService.EvaluateAsync(_telegramOptions.AppUserId, cancellationToken);
-
-        // Solo conteos: nunca montos, nombres ni payload. ItemAlertsCreated incluye las alertas de
-        // partida (due_today / overdue / unexecuted_month_end), que de otro modo serían invisibles
-        // en el log del worker.
-        if (result.AlertsCreated > 0 || result.ItemAlertsCreated > 0)
+        try
         {
-            _logger.LogInformation(
-                "Alert evaluation for period {PeriodKey}: {BudgetsEvaluated} budgets, {AlertsCreated} threshold alerts, {ItemsEvaluated} pending items, {ItemAlertsCreated} item alerts.",
-                result.PeriodKey,
-                result.BudgetsEvaluated,
-                result.AlertsCreated,
-                result.ItemsEvaluated,
-                result.ItemAlertsCreated);
+            await _coordinator.RunAutomaticAsync(JobKeys.AlertEvaluation, stoppingToken);
+        }
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+        {
+            // Apagado ordenado: no es un error.
+        }
+        catch (Exception exception)
+        {
+            // Solo el tipo: nunca montos, payload ni mensaje de excepción.
+            _logger.LogError("Alert evaluation failed: {ErrorType}", exception.GetType().Name);
         }
     }
 }

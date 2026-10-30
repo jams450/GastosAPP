@@ -1,35 +1,35 @@
 using GastosApp.API.Configuration;
-using GastosApp.BusinessLogic.Interfaces;
+using GastosApp.API.Services.Jobs;
 using Microsoft.Extensions.Options;
 
 namespace GastosApp.API.BackgroundServices;
 
 /// <summary>
-/// Motor de ejecución automática de gastos programados. Hereda la cadencia de
-/// <c>Alerts:EvaluationIntervalMinutes</c> y el alcance single-user de <c>TelegramOptions.AppUserId</c>.
+/// Motor de ejecución automática de gastos programados, con cada corrida registrada en el historial
+/// de jobs (S1/L5). Hereda la cadencia de <c>Alerts:EvaluationIntervalMinutes</c> y el alcance
+/// single-user de <c>TelegramOptions.AppUserId</c>.
 /// <para>
 /// El ciclo es idempotente y seguro de correr dos veces: la guardia real es la partida en
 /// <c>status='executed'</c>, no un lock del proceso. Sin Hangfire, sin Quartz, sin cron.
 /// </para>
 /// <para>
-/// Nunca usa <c>HttpContext</c>: crea un scope por iteración. Los logs solo llevan ids, estados y
-/// conteos: jamás montos, nombres de plantilla ni payload.
+/// Los logs solo llevan ids, estados y conteos: jamás montos, nombres de plantilla ni payload.
 /// </para>
 /// </summary>
 public sealed class RecurringExecutionBackgroundService : BackgroundService
 {
-    private readonly IServiceScopeFactory _scopeFactory;
+    private readonly IJobCoordinator _coordinator;
     private readonly AlertsOptions _alertsOptions;
     private readonly TelegramOptions _telegramOptions;
     private readonly ILogger<RecurringExecutionBackgroundService> _logger;
 
     public RecurringExecutionBackgroundService(
-        IServiceScopeFactory scopeFactory,
+        IJobCoordinator coordinator,
         IOptions<AlertsOptions> alertsOptions,
         IOptions<TelegramOptions> telegramOptions,
         ILogger<RecurringExecutionBackgroundService> logger)
     {
-        _scopeFactory = scopeFactory;
+        _coordinator = coordinator;
         _alertsOptions = alertsOptions.Value;
         _telegramOptions = telegramOptions.Value;
         _logger = logger;
@@ -48,19 +48,7 @@ public sealed class RecurringExecutionBackgroundService : BackgroundService
 
         while (!stoppingToken.IsCancellationRequested)
         {
-            try
-            {
-                await ExecuteOnceAsync(stoppingToken);
-            }
-            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
-            {
-                break;
-            }
-            catch (Exception exception)
-            {
-                // Solo el tipo: nunca montos, payload ni mensaje de excepción.
-                _logger.LogError("Recurring execution failed: {ErrorType}", exception.GetType().Name);
-            }
+            await ExecuteOnceAsync(stoppingToken);
 
             try
             {
@@ -73,7 +61,7 @@ public sealed class RecurringExecutionBackgroundService : BackgroundService
         }
     }
 
-    private async Task ExecuteOnceAsync(CancellationToken cancellationToken)
+    private async Task ExecuteOnceAsync(CancellationToken stoppingToken)
     {
         // Alcance estricto: únicamente el AppUserId configurado, igual que el evaluador de presupuesto.
         if (_telegramOptions.AppUserId <= 0)
@@ -82,30 +70,18 @@ public sealed class RecurringExecutionBackgroundService : BackgroundService
             return;
         }
 
-        using var scope = _scopeFactory.CreateScope();
-        var recurringItemService = scope.ServiceProvider.GetRequiredService<IRecurringItemService>();
-
-        // La decisión de no ejecutar sin salida de Telegram (secciones 4.6 regla 3-bis y 7.4) la toma
-        // el servicio: es la misma validación que aplica al guardado, y no debe duplicarse aquí.
-        var result = await recurringItemService.ExecuteDueAsync(
-            _telegramOptions.AppUserId,
-            nowUtc: null,
-            cancellationToken);
-
-        if (result.ExecutionSkipped)
+        try
         {
-            _logger.LogDebug("Recurring execution skipped: Telegram alerting is not available.");
-            return;
+            await _coordinator.RunAutomaticAsync(JobKeys.RecurringExecution, stoppingToken);
         }
-
-        if (result.Executed > 0 || result.Materialized > 0)
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
         {
-            _logger.LogInformation(
-                "Recurring execution: period {PeriodKey}, materialized {Materialized}, executed {Executed}, notices {Notices}.",
-                result.PeriodKey,
-                result.Materialized,
-                result.Executed,
-                result.NoticesQueued);
+            // Apagado ordenado: no es un error.
+        }
+        catch (Exception exception)
+        {
+            // Solo el tipo: nunca montos, payload ni mensaje de excepción.
+            _logger.LogError("Recurring execution failed: {ErrorType}", exception.GetType().Name);
         }
     }
 }
