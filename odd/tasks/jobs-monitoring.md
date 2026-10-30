@@ -1,0 +1,39 @@
+# Administrative jobs monitoring
+Persistent operational monitoring for the five existing background jobs, including confirmed on-demand execution.
+Offline implementation only; no real DB, Gmail, Telegram, LLM, network calls, push or deployment.
+
+## Specs
+S1. User: «Ahora requiero un modulo completo de monitoreo de todos los jobs, con estatus ejecucion historial etc y que se pueda ejecutar a demanda si se requiere».
+S2. Access decision: «Solo administradores (recomendado)».
+S3. Disabled automatic scheduling decision: «Sí, con confirmación explícita (recomendado)». Manual runs bypass scheduling enablement only; configuration and business protections remain.
+S4. User: «otro agente esta creando sql con _personal_ esos excluyelos en gitignore para que salgan». Preserve all personal SQL and manifest edits; no personal scripts committed.
+S5. Continuation: «sigue con el modulo».
+
+## Tasks
+T1 | S1-S5 | backend worker: persistent history, coordinator, admin API, five adapters and existing schedules, offline tests | independent reproduced 82 focused/341 suite/build0; correction RED2/GREEN18 verified; parent full suite342/342 exit0; commit pending | commit pending
+T2 | S1-S5 | frontend worker: admin page, BFF, contracts, confirm manual runs, history/detail, navigation/protection, tests | implemented; worker reports 18 focused/399 suite, typecheck/build0, lint 9 baseline warnings; independent PASS18/typecheck0; no blockers, browser/HTTP live unverified | commit pending
+T3 | S1-S5 | independent verification security/concurrency/scheduling + functional checks and docs/commits | backend correction implemented/tested; frontend independent PASS18/typecheck0, no blockers; docs added; closure pending review scope and oversized backend unit decision | commit pending
+
+## Log
+L1. «Ahora requiero un modulo completo de monitoreo de todos los jobs, con estatus ejecucion historial etc y que se pueda ejecutar a demanda si se requiere».
+L2. Decisions: «Solo administradores (recomendado)» and «Sí, con confirmación explícita (recomendado)».
+L3. «otro agente esta creando sql con _personal_ esos excluyelos en gitignore para que salgan».
+L4. «sigue con el modulo».
+L5. Existing five jobs: email ingest (wait before first daily run), FX sync (startup then daily), recurring execution and alert evaluation (startup then minute intervals), alert dispatch (startup then seconds interval). Single API process supported. Preserve configured owners, intervals, startup behavior and business safeguards. Shared coordinator must cover automatic and manual runs, reject overlaps and sanitize history. Preserve historic runs indefinitely in this first module; paginated queries, no destructive retention job. Expose interrupted state after startup reconciliation. No scheduler editing or new per-job config toggles promised. Email manual run advances the same in-memory cursor, disclose in UI.
+L6. Baseline HEAD f5216bb; branch feat/jobs-monitoring. Unrelated dirty .atl, .env.example, .gitignore (authorized prior separate request), tsbuildinfo, personal manifest entries, SQL/proposals, scripts/verify-usd-expense.sh preserved.
+
+L7. T1 API contract delivered while backend worker still active: PascalCase JSON; fixed keys email_ingest/fx_rate_sync/recurring_execution/alert_evaluation/alert_dispatch; statuses running/succeeded/partial/failed/skipped/interrupted; triggers automatic/manual. GET /api/jobs catalog+totals, GET /api/jobs/history paginated filters, GET /api/jobs/{int} detail, POST /api/jobs/{key}/run Confirm:true =>202 running row; overlap409, no queue. History persisted before effects, startup reconcile before any execution. T2 handoff prepared from this contract. Parallel frontend writer rejected by runtime for apparent overlapping parenthesized paths despite API/Web separation; no workaround attempted, sequence T2 after T1 completes. No backend completion or passing checks claimed yet.
+
+L8. Split rationale executed (mechanical, no behavior/contract change), so each behavior can be reviewed with the tests that pin it:
+- Backend doubles moved to `GastosApp.Backend.Tests/JobTestFixtures.cs` (`FakeJobRunStore`, `FakeJobRunner`, `FixedTimeProvider`, `JobTestFactory`, recorded rows, 182 lines). The coordinator no longer owns fixtures the admin API also needs; `JobCatalogTests` became self-contained with a local `Catalog(...)` helper (same options, same assertions) so the catalog ships with its tests.
+- Container-lifetime facts moved from `JobRunnerAdapterTests` into `JobContainerWiringTests`, and the history paging facts from `JobCatalogTests` into `JobHistoryQueryTests`: adapters, DI composition and paging now each travel with the code they pin.
+- `GastosApp.Web/lib/contracts/jobs.ts` (602) is now an explicit re-export facade over six behavior modules (`jobs-vocabulary`, `jobs-runs`, `jobs-overview`, `jobs-history`, `jobs-manual-run`, `jobs-errors`) with internal `jobs-payload`; the 18 contract tests were split by the same behavior with a shared `jobs-test-payloads.ts`. Facade surface verified identical: 29 value exports, 0 missing, 0 extra; `pnpm typecheck` clean and 399/399 tests.
+- Nav: only `/jobs` was added, beside the existing `Usuarios` item. The `Administración` section and the `Usuarios` relocation were dropped: `admin-navigation.tsx` renders any section generically, so no group was required.
+- Manual-run `Reason` stays unpersisted by design in this module; the contract documents optionally-not-stored instead of expanding the schema.
+- Observed: `dotnet build code.sln --no-restore` 0 warnings/0 errors; backend 341/342 with one pre-existing unrelated failure (`MigrationLedgerTests.Manifest_lists_exactly_the_migration_files_on_disk`: untracked, gitignored `2026-10-30_personal_viajes_citas_reglas.sql` is on disk but not in the worktree manifest — other agent's file, not touched here); frontend typecheck clean, 399/399.
+- Overage kept and documented: coordinator unit 989 (interface + implementation + its 19 behavior tests, approved as indivisible), admin API 616 (controller + the 389-line harness its only consumer needs), UI unit 817 (components are one presentational surface).
+
+L9. User chose «Dividir en más unidades revisables». Separated shared fixtures and contract modules without changing assertions/export surface (29 values unchanged). Backend final342/342, build0warnings0errors; frontend399/399 and typecheck0 after split. Earlier frontend build0 and lint9 baseline warnings; browser/HTTP/live SQL not verified.
+L10. Commit boundaries (not claimed <=400 each): d1d76c7 persistence415;6b98a08 catalog510;7e17eaf history616;eb2efc2 coordinator988 (indivisible coordinator plus lifecycle assertions/fixtures);518baef adapters748;f8367e7 host196;5a9f717 adminAPI616;ef24c68 schedules564;a12c5d4 composition/docs215. Tests stay with behavior where possible; no intermediate-build proof claimed.
+L11. Frontend boundaries:28cdccc core435;649eb86 reads397;3ff6093 manual/errors342;791b632 BFF345;27a9383 fetching639;8f0716d cards/confirm389;df249d2 history/detail428;9090c6f protectedscreen253. Users navigation stays at its original location. Some coherent units exceed400; no repeated code-golf or test removal to meet an arbitrary count.
+L12. Independent backend reproduced82focused/341initialsuite/build0 and frontend18/typecheck0, no blockers. Parent-required reconciliation gate then RED2/GREEN18 and full342 passed. Migration/schema SQL remains unapplied, live SQL and authenticated browser/HTTP proof unavailable under standing constraints. Final native assessment on committed last unit with escalationsecurity returned nativeRisk=unassessable (untracked declaration required), no reviewDue/continuation offered. No native authority created or approval claimed. Stop native attempt rather than retry/bypass. Independent verification remains recorded separately. No merge, push or deployment.

@@ -37,7 +37,7 @@ El historial muestra origen automático/manual, solicitante cuando corresponde, 
 
 ## Ejecutar a demanda con seguridad
 
-- Revisar el aviso de efectos y confirmar explícitamente. El motivo opcional tiene un máximo de 200 caracteres.
+- Revisar el aviso de efectos y confirmar explícitamente. El motivo opcional tiene un máximo de 200 caracteres; actualmente no se conserva en el historial.
 - La API responde `202` cuando existe el registro de ejecución; no espera a que el proceso termine. Cerrar el navegador no cancela el trabajo.
 - No hay cola: otra solicitud del mismo job en curso responde `409`. Jobs diferentes pueden ejecutarse simultáneamente.
 - Si la respuesta es incierta, consultar el historial antes de volver a solicitar. La interfaz no reintenta automáticamente el POST.
